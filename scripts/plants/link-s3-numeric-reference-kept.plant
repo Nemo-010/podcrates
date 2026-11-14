@@ -1,0 +1,9 @@
+# The XML of the s3 carrier keeps a reference of a character (&#34;) as
+# text. The stand-in of tests/s3.rs writes &quot; and passes; SeaweedFS
+# writes the ETag of a listing as &#34;...&#34;, so each GET with If-Match
+# gets 412 and the link over SeaweedFS fails (T-623).
+ENTRY=T-623
+GROUP=link
+EXPECT='test a_link_over_the_objects_of_the_server_carries_streams \.\.\. FAILED'
+RUN='sh scripts/ci/s3-tests.sh'
+LIMIT=1800

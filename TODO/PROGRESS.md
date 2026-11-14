@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 509 entries: 113 open, 8 partial, 6 blocked, 382 done.
+`TODO/INDEX.md` holds 510 entries: 112 open, 8 partial, 6 blocked, 384 done.
 
 ## State
 
@@ -109,7 +109,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
    c. `v0.40.0` holds the poll, quic, udp, dns and icmp carriers of
       `pod-link` and the gate of E2-1. The tag after: T-419 (the facts of
       the file hosts from the live run of the file hosts, `live.yml`); T-526 (partial: the fix of `kcp`
-      upstream); T-623 (the S3 carrier against a real S3 server).
+      upstream).
    d. Then: T-496 (DNS stream), T-498 (a WireGuard peer), T-499 (NAT
       traversal with the relay), T-515 (the congestion window of the ARQ,
       with the first carrier over a shared path), T-514 (a stream-aware

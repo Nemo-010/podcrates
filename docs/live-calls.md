@@ -48,8 +48,8 @@ hides a red run that is ours.
 
 ## The inventory
 
-The rows count 39 calls: 2 replace, 6 stub + weekly, 26 keep live, and
-5 infrastructure. Of the 26 that stay live, 4 get a server on the loopback
+The rows count 41 calls: 2 replace, 7 stub + weekly, 26 keep live, and
+6 infrastructure. Of the 26 that stay live, 4 get a server on the loopback
 that proves the code of the client (L10, L18, L19, L35). "Each day" is the cron
 of the workflow.
 
@@ -63,11 +63,13 @@ of the workflow.
 | L4 | OCI pull from public.ecr.aws | `crates/pod-oci/tests/live.rs`, step "pod-oci, a pull of the pinned guest userland from ECR Public" of `live.yml` | the pinned index, manifests and configs resolve and check | Thursday, by hand | yes: 429 of ECR Public (services run 42803032733; T-142) | stub + weekly | the release of distribution 3.1.2 on the loopback in `ci.yml` (`scripts/ci/registry-tests.sh`, `crates/pod-oci/tests/distribution.rs`): an index of two platforms that the test pushes, htpasswd and token auth, 401 with no login, the refusal of a blob and a manifest that do not match their digests; the watch `oci-digest` of `ecr-public-registry` holds the pinned index each day; the live test runs each week (T-353, call C186) |
 | L5 | the modloop from dl-cdn.alpinelinux.org | step "pod-guest, the modloop of Alpine's virt kernel" of `live.yml`, `crates/pod-guest/tests/modloop_live.rs` | the newest modloop of Alpine 3.22 decodes and gives the module set | each day | no | stub + weekly | each week (T-352); the watch `http-sha256` of `alpine-netboot` holds the pinned file each day |
 | L6 | pip from PyPI: magic-wormhole-mailbox-server 0.8.0, magic-wormhole-transit-relay 0.5.0, magic-wormhole 0.24.0 | step "pod-wormhole and pod-relay against magic-wormhole's mailbox server" of `ci.yml` (`scripts/ci/mailbox-tests.sh`) | no service: it installs the servers of the loopback tests | each push | no | infrastructure | `scripts/ci/wormhole-servers.txt` with the SHA-256 of each package, and the cache of pip (T-354, T-355) |
+| L41 | the release archive `linux_amd64.tar.gz` of SeaweedFS 4.53 from github.com | step "pod-link against SeaweedFS" of `ci.yml` (`scripts/ci/s3-tests.sh`) | no service: it installs the S3-compatible server of the loopback tests of the s3 carrier (`crates/pod-link/tests/s3_seaweedfs.rs`) | each push | no | infrastructure | the SHA-256 of the archive and the tries of `scripts/retry.sh` (`scripts/ci/fetch-tool.sh`; T-623, call C540) |
 | L7 | the public mailboxes relay.magic-wormhole.io and mailbox.mw.leastauthority.com | `crates/pod-wormhole/tests/live.rs`, `crates/pod-relay/tests/pair_code_live.rs` | two ends meet at each public mailbox | Thursday, by hand | no | keep live | a watch of the mailboxes that the consumers use with no setup (podssh Q65); the code is proven against magic-wormhole's own server on the loopback |
 | L8 | the public MQTT broker public.cloud.shiftr.io | the same two files | two ends pair at each public broker | Thursday, by hand | yes: the Eclipse sandbox gave no answer (run 43172235777) | keep live | a watch of the brokers; the code is proven against Mosquitto in `ci.yml` (C95) |
 | L9 | the owner's relay and its pool (tcp.ssh.relay.ajam.dev) | `crates/pod-relay/tests/live.rs` and the other `*_live.rs` of `pod-relay`, job `relay` of `live.yml` | the contract of the live relay: mint, pair, reverse, idle, drops, grants | by hand | no: runs 43221128869 and 43221537246 passed from a direct egress (T-327) | keep live | the stand-ins of `crates/pod-relay/tests/stand_in` and `crates/pod-relay/tests/e2e_harness` prove the client; the self-hosted relay of T-036 later (T-361) |
 | L10 | the GSRN relay gs.thc.org | `crates/pod-gsr/tests/live.rs` | 1 MiB crosses the real relay | by hand, in no workflow | unknown | keep live | the stand-in of `crates/pod-gsr/tests/loopback.rs`; gs-netcat 1.4.43 as the other end (T-357) |
 | L11 | GitHub's evaluator of expressions | T-280 (open) | the conformance of `pod-actions-expr` and `pod-actions-workflow` | planned | no | keep live | only GitHub's runner evaluates as GitHub does |
+| L42 | about 15 HTTP Range requests (38 KB) to the Windows Server 2019 evaluation ISO at software-download.microsoft.com | `crates/pod-udf/tests/windows_live.rs`, step "pod-udf, boot.wim of the Windows evaluation ISO by Range requests" of `live.yml` | `Udf::find` of `/sources/boot.wim` in a UDF 1.02 volume of a real mastering tool: the size, the WIM magic and the SHA-256 of the first and the last block | Thursday, by hand | unknown: new | stub + weekly | the images of genisoimage and mkudffs in `crates/pod-udf/tests/data` (`tests/tools.rs`) and the images of `src/tests` on each push; the watch `http-sha256` of `microsoft-windows-eval` holds the primary volume descriptor each day (T-620, call C541) |
 | L35 | a TURN server of the caller (UDP or TLS on TCP) | `crates/pod-turn/tests/live.rs` (ignored; `POD_TURN_LIVE_SERVER`) | an allocation, a Refresh, a permission and a channel on a server of the caller | by hand, in no workflow | unknown | keep live | coturn 4.18.0 on the loopback in `ci.yml` (`scripts/ci/turn-tests.sh`, `crates/pod-turn/tests/coturn.rs`) proves the client over UDP and over TLS on each push: the 401, the 438, the 437 and the 441, the maximum lifetime, a Send and a ChannelData echo with its padding (T-380, call C197) |
 | L36 | the WARP API (api.cloudflareclient.com) and its MASQUE front door on TCP 443, then the trace of 1.1.1.1 over HTTPS through the session | `crates/pod-warp/tests/live.rs`, step "pod-warp, a session at the WARP front door" of `live.yml` | a new device registers, a session opens and `Live` holds it, the trace says `warp=on` or `warp=plus`, and the device is removed | Thursday, by hand | unknown | stub + weekly | the stand-in API of `pod_testkit::stand::warp` and the stand-in edge of `crates/pod-warp/tests/common/edge.rs` on the loopback prove the registration, the session, `Live`, the probe and the trace on each push (`tests/register.rs`, `tests/net.rs`, `tests/live_session.rs`; T-339) |
 | L38 | the public MQTT broker public.cloud.shiftr.io: a board of retained messages | `crates/pod-wormhole/tests/board_live.rs`, step "pod-wormhole, a board of retained messages at each public MQTT broker" of `live.yml` | a retained note is put, taken and cleared at each public broker (PodUtils/podssh@T-738) | Thursday, by hand | unknown: new | stub + weekly | the stand-in of `crates/pod-wormhole/tests/harness/broker.rs` (it keeps retained messages) and Eclipse Mosquitto in `ci.yml` (`scripts/ci/mosquitto-tests.sh`, `crates/pod-wormhole/tests/board.rs`) prove the board on each push (T-417) |
@@ -145,6 +147,7 @@ script of `scripts/ci/` that fails on a skip, as
 | gs-netcat 1.4.43 | BSD-2-Clause | `gs-netcat_linux-x86_64`, SHA-256 `55d141bb2f62c527c3fea3413b8429fed7d52633d0b123b5e611bfa42165229f` (measured through the fetch proxy; check it at the first download) | the other end of `pod-gsr` | S11 |
 | workerd v1.20261112.1 | Apache-2.0 | its release `workerd-linux-64.gz` | the Worker of the relay, when one exists | S12 |
 | actions/cache 6.1.0 | MIT | commit `55cc8345863c7cc4c66a329aec7e433d2d1c52a9` | the cache of the downloads | S13 |
+| SeaweedFS 4.53 | Apache-2.0 | `linux_amd64.tar.gz` of its release, SHA-256 `d1a7dec9f48d8b33895a0ea8951971defc2dc5312906dcc76fa5a5f74a6ee90d` (the digest of GitHub's API, checked at the download) | an S3-compatible server: `weed mini` with a bucket and a made-up key, for the s3 carrier of `pod-link` (`scripts/ci/s3-tests.sh`, call C540) | S15 |
 | cargo-zigbuild 0.23.4 | MIT | `cargo-zigbuild-x86_64-unknown-linux-musl.tar.xz`, SHA-256 `9e3cf73485edbd45905c8aadbc0fdf869c7ddc3848f0c898229f2680db52e44b` | in place of `cargo install` | S14 |
 
 Not chosen:
@@ -152,6 +155,8 @@ Not chosen:
 - The relay of gsocket (hackerschoice/gsocket-relay, `gsrnd`): its LICENSE
   gives no permission to use the code (S11). The stand-in of `pod-gsr`
   stays the relay.
+- MinIO: its repository is archived (AGPL-3.0), and dl.min.io answers 410
+  "archived and no longer maintained" in place of a release (S15).
 - A self-hosted Tor network (chutney): no crate of podcrates speaks Tor.
 - Syncthing's `strelaysrv` and `stdiscosrv`: no crate speaks their
   protocol; `services.yml` reads their pool only.
@@ -211,5 +216,10 @@ web.pkgforge.dev (forge, read, search, fetch).
   tag points at the commit above).
 - S14: https://github.com/rust-cross/cargo-zigbuild/releases/tag/v0.23.4
   (2026-09-02, MIT, the file `.sha256` of the asset).
+- S15 (read on 2026-11-14): https://github.com/seaweedfs/seaweedfs/releases/tag/4.53
+  (2026-11-08, Apache-2.0, the `digest` of each asset in GitHub's API);
+  `weed help mini` of the release (the flags of the ports, `-bucket`,
+  `-s3.config`); https://github.com/minio/minio (archived, AGPL-3.0) and
+  https://dl.min.io/server/minio/release/linux-amd64/ (410).
 - The runs: the jobs and logs of `live.yml` and `services.yml` runs named
   above, read through forge.web.pkgforge.dev.

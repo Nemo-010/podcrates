@@ -7846,7 +7846,7 @@ caught by hand: `hostprobe-t619-o-excl-of-another-target`,
 **Milestone:** M7
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7865,6 +7865,23 @@ An ignored test, run in `live.yml`, that runs `Udf::find("/sources/boot.wim")` o
 ```sh
 cargo test -p pod-udf --all-features -- --ignored
 ```
+
+## Done
+
+2026-11-14, commit `f437f85`. `tests/windows_live.rs` (ignored): a
+`ReadAt` of the test sends one HTTP Range request for each read, with the
+blocking client of `pod-proxy`; the URL and the size come from the service
+`microsoft-windows-eval`. `Udf::find("/sources/boot.wim")` gives one part
+of 547,572,640 bytes at bytes 20,668,416 of the ISO; the test checks the
+size, the WIM magic, and the SHA-256 of the first and the last block
+(checked against two Range reads of curl). 15 requests and 38 KB of the
+5 GB image; the test passed here in 1.1 s. The step "pod-udf, boot.wim of
+the Windows evaluation ISO by Range requests" of `live.yml`, the row L42
+of `docs/live-calls.md`, call C541. The ISO is UDF 1.02 (revision 0x0102)
+with no metadata partition: the test proves the reader on a Windows ISO of
+a real mastering tool, not the metadata partition. The plant is by hand
+(`plants.yml` reaches no host of another party): a shift of each data
+extent by one block fails the test.
 
 # T-622: `pod-guest`: the provision stops the emulator on each error after the spawn (PodUtils/podvm#370)
 
@@ -7941,3 +7958,30 @@ cargo test -p pod-hostprobe --all-features
 - `cargo test -p pod-hostprobe --all-features`: all passed, with no line "Unrecognized option" (62 before). `tests/children.rs`: 66 rows, 56 ok, 9 denied, 1 skipped; the report of 7215 bytes reads back to the same text.
 - Plant `hostprobe-t625-rung-not-read-back` (the reader gives another rung), caught by hand: `tests/children.rs` fails with "the rung of this host does not read back".
 - clippy, rustfmt and `cargo doc` of `pod-hostprobe` are clean; its README says that only `tests/children.rs` runs the probes and names the plant.
+
+# T-626: `pod-udf`: the metadata partition of UDF 2.50 against an image of a real tool
+
+**Source:** T-620 (a finding of its work).
+**Category:** chore
+**Milestone:** M7
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+The Windows evaluation ISO of the live test (T-620) is UDF 1.02 with no metadata partition. The tests of T-601 use images of genisoimage and mkudffs, and neither makes a metadata partition. So the read of the metadata partition of UDF 2.50 and later has proof against images that `pod-udf` writes for its own tests only.
+
+## Premise
+
+- Read: the Done section of T-620 and call C541; `crates/pod-udf/tests/windows_live.rs`; `crates/pod-udf/src`; `docs/live-calls.md` (row L42).
+
+## Approach
+
+Find a public image of a real mastering tool with a UDF 2.50 or later volume and a metadata partition (for example a Blu-ray or a newer Windows ISO). Measure its revision with a first Range read. Add it to `tests/windows_live.rs` with its own pins (the URL from a service of `pod-services`, the size, the digests of the first and the last block), a step of `live.yml` and a row of `docs/live-calls.md`. When no such image is public, record the search and the hosts in the Done section and keep the entry open.
+
+## Prove
+
+```sh
+cargo test -p pod-udf --all-features -- --ignored
+```

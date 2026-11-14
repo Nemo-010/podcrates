@@ -7284,7 +7284,7 @@ cargo test --manifest-path fuzz/Cargo.toml --lib
 **Milestone:** M2
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7303,6 +7303,30 @@ Pin a server of another party (MinIO or SeaweedFS) by digest, run it on the loop
 ```sh
 sh scripts/ci/s3-tests.sh
 ```
+
+## Done
+
+2026-11-14, commit `afdd022`. The server is SeaweedFS 4.53 (Apache-2.0),
+pinned by the SHA-256 of `linux_amd64.tar.gz` (call C540); MinIO is
+archived and dl.min.io answers 410. `scripts/ci/s3-tests.sh` starts
+`weed mini` on 127.0.0.1 with the bucket `links` and the made-up key, waits
+for a signed listing, and runs the new target `tests/s3_seaweedfs.rs` with
+`POD_LINK_TEST_S3=required`; it must print the line of each test. Six
+tests, with objects of 16 KiB and pages of one key: a link of three
+streams each way, the prune, `If-None-Match: *` (412), `If-Match` (412),
+`max-keys` and `start-after`, a wrong secret (403
+`SignatureDoesNotMatch`) and a missing bucket (404 `NoSuchBucket`), a
+listener that takes no older session, the budget. The step "pod-link
+against SeaweedFS" of `ci.yml`, the row L41 and the server row of
+`docs/live-calls.md`, the row of `scripts/` in `docs/design.md`.
+`scripts/check-workflows.py` takes the loopback as no host of another
+party. The egress of the session refuses github.com: the archive came
+through fetch.web.pkgforge.dev with the same SHA-256 and went to the cache
+of the script, and the script then passed here (6 passed, 3.9 s). The next
+run of `ci.yml` proves the download from github.com. Plants:
+`link-s3-numeric-reference-kept` (SeaweedFS writes the ETag of a listing
+as `&#34;...&#34;`; the stand-in tests of `tests/s3.rs` pass, 4 tests of
+the script fail) and `link-s3-seaweedfs-skip-fails`, each caught by hand.
 
 # T-624: `pod-warp`: after a key that is not the pinned one, the client tries each door of the new record and names the mismatch
 

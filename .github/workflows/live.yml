@@ -126,6 +126,13 @@ jobs:
             https://dl-cdn.alpinelinux.org/alpine/v3.22/releases/x86_64/netboot/modloop-virt
           POD_GUEST_MODLOOP="$RUNNER_TEMP/modloop-virt" \
             cargo test --locked -p pod-guest --test modloop_live -- --ignored --nocapture
+      # The UDF reader of pod-udf against the Windows Server 2019 evaluation
+      # ISO of the service microsoft-windows-eval (T-620): the extents of
+      # /sources/boot.wim by HTTP Range requests, about 15 of them, with no
+      # download of the 5 GB image; its size and the SHA-256 of its first
+      # and its last block.
+      - name: pod-udf, boot.wim of the Windows evaluation ISO by Range requests
+        run: cargo test --locked -p pod-udf --test windows_live -- --ignored --nocapture
       # One short pairing through each public mailbox of magic-wormhole and
       # each public MQTT broker (T-261: the services of the kinds mailbox and
       # mqtt-broker), as podssh's ruling Q65 says: each Thursday and by hand,

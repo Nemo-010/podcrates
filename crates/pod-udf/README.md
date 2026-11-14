@@ -110,6 +110,15 @@ partition, descriptors shorter than the file), and the unsupported
 structures. `write_the_fuzz_seeds` (ignored) writes the seeds of
 `fuzz/seeds/udf_image`.
 
+`tests/windows_live.rs` (ignored; `live.yml` runs it each Thursday and by
+hand) reads the Windows Server 2019 evaluation ISO of the service
+`microsoft-windows-eval` of `pod-services` by HTTP Range requests, through
+the client of `pod-proxy`: about 15 requests and 38 KB of the 5 GB image.
+`Udf::find("/sources/boot.wim")` gives one part of 547,572,640 bytes; the
+test checks the size, the WIM magic and the SHA-256 of the first block, and
+the SHA-256 of the last block. The ISO is a UDF 1.02 volume (revision
+0x0102), with no metadata partition.
+
 The plants `udf-crc-unchecked`, `udf-second-extent-dropped`,
 `udf-metadata-first-extent-only`, `udf-reserve-sequence-unused`,
 `udf-allocation-extent-not-followed`, `udf-depth-unbounded`,
