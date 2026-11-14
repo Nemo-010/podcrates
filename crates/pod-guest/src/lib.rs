@@ -367,19 +367,22 @@ pub fn run(s: &Settings, plan: &Plan, request: &Request) -> Result<Outcome> {
         Some(path) => std::fs::File::create(path).map(Stdio::from).map_err(|e| io_at(path, e))?,
         None => Stdio::null(),
     };
-    let mut child = emulator::spawn_uefi(plan, stderr)?;
+    // Each failure after the spawn stops the emulator: the guard does it
+    // when it is dropped.
+    let mut running = emulator::Running::new(plan, emulator::spawn_uefi(plan, stderr)?);
     let start = Instant::now();
     let exited = loop {
-        match child.try_wait().map_err(|e| io_at(&plan.emulator, e))? {
+        match running.child().try_wait().map_err(|e| io_at(&plan.emulator, e))? {
             Some(_) => break true,
             None if start.elapsed() >= request.timeout => break false,
             None => std::thread::sleep(Duration::from_millis(500)),
         }
     };
     if !exited {
-        let stop = emulator::stop_emulator(plan, &mut child);
+        let stop = running.stop();
         return Err(Timeout { after: request.timeout, stop }.failure());
     }
+    drop(running);
     // The exit status of the emulator is not the answer: the mailbox is.
     // Read the volume again from disk, as the guest wrote the result there.
     let bytes = std::fs::read(&plan.mailbox).map_err(|e| io_at(&plan.mailbox, e))?;
