@@ -7305,7 +7305,7 @@ it), `udf-t601-virtual-map-read-as-metadata`.
 **Milestone:** M7
 **Priority:** P2
 **Effort:** S
-**Status:** partial
+**Status:** done
 
 ## Problem
 
@@ -7349,11 +7349,10 @@ with the QEMU 8.2.2 of the host; 20 runs of the new tests passed. Plants
 install line ran with the QEMU 8.2.2 and xorriso 1.5.6 of the host (TCG,
 a firmware of `hlt`): both CD-ROMs, `send-key` and `screendump`.
 
-Open: the proof on a real guest. `guest-windows.yml` (by hand) installs
+The proof on a real guest: `guest-windows.yml` (by hand) installs
 Windows Server 2019 Server Core under KVM and runs
 `tests/windows_keep_live.rs`: a first command, two next commands by a
-swap, and the controls on a mounted USB and NVMe mailbox. The entry is
-done after its first run.
+swap, and the controls on a mounted USB and NVMe mailbox.
 
 The first run (GitHub run 43634720450, 2026-11-14) failed before the
 commands: Setup copied the files, and after its first reboot the firmware
@@ -7368,6 +7367,18 @@ swap failed: Windows locks the medium that it has mounted, and QEMU
 refuses `blockdev-change-medium` with no `force` ("Device 'mbox' is
 locked and force was not specified"). The cause was T-630. The next run
 follows the merge of T-630.
+
+The third run (GitHub run 43650756623, job 132618465267, 2026-11-14, at
+61d6f8a) passed in 12.5 min. Windows installed in 160 s; the first
+command gave code 3 and `pod-guest-one`; the guest locked each medium
+(`query-block`: locked); `Swap::next` with `force` gave two next commands
+(`pod-guest-two`, `pod-guest-three`, code 0), each read from the new
+medium within 2 s. The `RESULT:` lines: "the swap gave two next commands
+to the agent, and both outcomes are right"; "a write into the mounted USB
+mailbox reached the agent: no"; "a write into the mounted NVMe mailbox
+reached the agent: no" (each control waited 150 s). The controls prove
+call C543 on a real guest: the cache of FastFAT hides a write of the host
+on a mounted medium of each bus.
 
 # T-603: `pod-guest`: the host removes a file of the FAT mailbox, and a poll of the outcome reads an old token as no result yet
 

@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 516 entries: 107 open, 9 partial, 6 blocked, 394 done.
+`TODO/INDEX.md` holds 516 entries: 107 open, 8 partial, 6 blocked, 395 done.
 
 ## State
 
@@ -72,9 +72,8 @@ online"): the work for podrunner and podnet comes first, then podssh and
 podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
-First: the takes of `v0.46.0` (#159).
-The Windows guest of podvm (#152): T-602 (the first run of
-`guest-windows.yml`), T-628. Then the link carriers of M2
+First: the takes of `v0.46.0` (#159) and `v0.47.0`.
+The Windows guest of podvm (#152): T-628, T-632. Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
 
 1. **The defects and asks of the consumers:** T-631 (the check of a
