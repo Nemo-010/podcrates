@@ -19,12 +19,13 @@ is done. Git and the record keep finished work.
 
 ## In flight
 
-- The last release: `v0.46.0` at `d60f811` (ci 43625648359, adoption
-  43625648382, release 43627335599; the hand-off #159, COORD-099): the
-  warm start and the emulator guard of `pod-guest`, the S3 carrier and
-  the split session of `pod-link`. podnet answers a question on E7-1
-  there (call C493). `v0.45.0` at `ad50c7f`: each consumer took it (#157,
-  closed).
+- The last release: `v0.47.0` at `61d6f8a` (ci 43650721363, adoption
+  43650721391, release 43652294843; the hand-off #160, COORD-100): the
+  meeting points Nostr, trackers and ntfy of `pod-wormhole`, the client of
+  `pod-devtunnel` with no user token, the options of `pod-turn`, the S3
+  stand-in of `pod-link`, the swap of a Windows mailbox of `pod-guest`.
+  `v0.46.0` at `d60f811` (#159): podrunner, podssh and podnet took it;
+  it waits for podvm.
 - Each branch of an agent is merged; no agent runs. The owner reserves
   the names `pod-actions-store`, `pod-actions-results`, `pod-udf` and
   `pod-qga` on crates.io ("Owner actions" of `TODO/PROGRESS.md`).

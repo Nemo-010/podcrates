@@ -72,7 +72,7 @@ online"): the work for podrunner and podnet comes first, then podssh and
 podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
-First: the takes of `v0.46.0` (#159) and `v0.47.0`.
+First: the takes of `v0.46.0` (#159) and `v0.47.0` (#160).
 The Windows guest of podvm (#152): T-628, T-632. Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
 
