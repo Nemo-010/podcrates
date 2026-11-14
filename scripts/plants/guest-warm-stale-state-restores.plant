@@ -1,0 +1,8 @@
+# The restore compares only the first line of the fingerprint, so a state
+# of another QEMU or base loads in place of a cold boot (T-596,
+# PodUtils/podvm#350). The test of the stale state must fail.
+ENTRY=T-596
+GROUP=guest
+EXPECT='test warm::tests::start_tests::no_state_and_a_stale_state_boot_cold_and_leave_the_store_of_the_caller \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- warm::tests::start_tests::no_state_and_a_stale_state_boot_cold_and_leave_the_store_of_the_caller'
+LIMIT=1800

@@ -1,0 +1,13 @@
+diff --git a/crates/pod-guest/src/warm/state.rs b/crates/pod-guest/src/warm/state.rs
+index 6d8d179..dbfc63e 100644
+--- a/crates/pod-guest/src/warm/state.rs
++++ b/crates/pod-guest/src/warm/state.rs
+@@ -46,8 +46,6 @@ pub fn idle(m: &Fat16) -> Result<()> {
+         "the agent did not write WQREADY.TXT"
+     } else if m.get(agent::KEEP).is_none() {
+         "no WQKEEP.TXT: the guest is not in keep-alive mode"
+-    } else if m.get(agent::GO).is_some() {
+-        "WQGO.TXT is on the mailbox: a command waits or runs"
+     } else {
+         return Ok(());
+     };
