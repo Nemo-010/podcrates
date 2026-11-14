@@ -53,6 +53,9 @@ fn quick(signs: Vec<Sign>, deadline: Duration) -> Ready {
 /// next frame of `frames` (the last one again after the end). It returns
 /// the count of dumps.
 fn screen_stand(plan: &Plan, frames: Vec<&'static [u8]>) -> Arc<Mutex<usize>> {
+    // A run that failed can leave its socket, and a later process can get
+    // its pid and so its directory.
+    let _ = std::fs::remove_file(&plan.monitor);
     let listener = UnixListener::bind(&plan.monitor).expect("the QMP socket");
     let dumps = Arc::new(Mutex::new(0usize));
     let seen = dumps.clone();
