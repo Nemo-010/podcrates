@@ -56,6 +56,8 @@ pub const IMAGE_SECTORS: usize = PART_LBA + VOLUME_SECTORS;
 pub const IMAGE_LEN: usize = IMAGE_SECTORS * SECTOR;
 /// The label of the volume in the BPB. [`Fat16::is_mailbox`] reads it.
 pub const LABEL: &str = "WQMAILBOX";
+/// The volume id of a new volume ([`Fat16::volume_id`]).
+pub const VOLUME_ID: u32 = 0x504F_4442;
 
 /// A check at compile time: the FAT holds each cluster of the geometry.
 /// `(CLUSTERS + 2) * 2` is the size of the FAT in bytes.
@@ -190,6 +192,18 @@ impl Fat16 {
     pub fn is_mailbox(&self) -> bool {
         let base = PART_LBA * SECTOR;
         self.image[base + 0x2B..base + 0x36] == label_bytes()
+    }
+
+    /// The volume id of the boot sector. Windows reads a medium again only
+    /// when its volume id differs ([`crate::swap`]).
+    pub fn volume_id(&self) -> u32 {
+        let at = PART_LBA * SECTOR + 39;
+        u32::from_le_bytes([self.image[at], self.image[at + 1], self.image[at + 2], self.image[at + 3]])
+    }
+
+    pub fn set_volume_id(&mut self, id: u32) {
+        let at = PART_LBA * SECTOR + 39;
+        self.image[at..at + 4].copy_from_slice(&id.to_le_bytes());
     }
 
     // ---------------------------------------------------------------- layout
@@ -452,7 +466,7 @@ pub fn format_with(oem: [u8; 8]) -> Vec<u8> {
     img[b + 32..b + 36].copy_from_slice(&(VOLUME_SECTORS as u32).to_le_bytes());
     img[b + 36] = 0x80; // drive number
     img[b + 38] = 0x29; // extended boot signature
-    img[b + 39..b + 43].copy_from_slice(&0x504F_4442u32.to_le_bytes()); // volume id
+    img[b + 39..b + 43].copy_from_slice(&VOLUME_ID.to_le_bytes());
     img[b + 43..b + 54].copy_from_slice(&label_bytes());
     img[b + 54..b + 62].copy_from_slice(b"FAT16   ");
     img[b + SECTOR - 2] = 0x55;

@@ -7305,7 +7305,7 @@ it), `udf-t601-virtual-map-read-as-metadata`.
 **Milestone:** M7
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -7324,6 +7324,36 @@ Prove it in `guest.yml` on a real image. If the cache hides the write, send the 
 ```sh
 cargo test -p pod-guest --all-features
 ```
+
+## Done
+
+2026-11-14, commit f196202 (partial). The sources prove that the cache
+hides the write: FastFAT reads the directory of a mounted volume from its
+cache and goes to the disk only on `DO_VERIFY_VOLUME`, which no driver
+sets for a fixed disk (call C543). The mechanism is the swap of the
+mailbox medium through QMP (call C542): `swap::Swap` (`new`, `poll`,
+`next`, `current`, `token`), `swap::settled` (the code of the token and
+no `WQGO.TXT`), `change_request`, `other_file`;
+`Options::mailbox: MailboxBus::{Nvme, Usb}` and `MAILBOX_DRIVE`;
+`Fat16::{volume_id, set_volume_id}` and `VOLUME_ID`. The agent writes
+`WQREADY.TXT` in each poll and looks for a lost mailbox again (call
+C544). It needs no new component in the guest image.
+
+`cargo test -p pod-guest --all-features`: 157 unit tests passed (9 new);
+`a_real_emulator_changes_the_medium_of_a_usb_mailbox` swaps two times
+with the QEMU 8.2.2 of the host; 20 runs of the new tests passed. Plants
+`guest-swap-same-volume-id`, `guest-swap-before-settled`,
+`guest-swap-writes-the-medium-in-the-guest`,
+`guest-agent-idle-ends-without-the-medium`, each caught by hand;
+`plant-each.sh --apply`: 0 stale. The answer ISO of the live test and its
+install line ran with the QEMU 8.2.2 and xorriso 1.5.6 of the host (TCG,
+a firmware of `hlt`): both CD-ROMs, `send-key` and `screendump`.
+
+Open: the proof on a real guest. `guest-windows.yml` (by hand) installs
+Windows Server 2019 Server Core under KVM and runs
+`tests/windows_keep_live.rs`: a first command, two next commands by a
+swap, and the controls on a mounted USB and NVMe mailbox. The entry is
+done after its first run.
 
 # T-603: `pod-guest`: the host removes a file of the FAT mailbox, and a poll of the outcome reads an old token as no result yet
 
@@ -7984,4 +8014,31 @@ Find a public image of a real mastering tool with a UDF 2.50 or later volume and
 
 ```sh
 cargo test -p pod-udf --all-features -- --ignored
+```
+
+# T-628: `pod-guest`: the warm restore gives the next command on a new mailbox medium after the load
+
+**Source:** T-602 (a finding of its work).
+**Category:** defect
+**Milestone:** M7
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The warm start (T-596) puts the next command on the saved mailbox before the restore. The restored RAM holds the cache of FastFAT for that volume, so the agent reads the cached directory and does not see the new `WQGO.TXT` (call C543). The next write of the guest can also put its cached sectors over the files of the host.
+
+## Premise
+
+- Read: the Done section of T-602 and calls C542 to C544; `crates/pod-guest/src/warm.rs`; `crates/pod-guest/src/swap.rs` (`Swap::next`).
+
+## Approach
+
+With a USB mailbox (`MailboxBus::Usb`), restore with the saved mailbox unchanged, then give the next command with `Swap::next` after the load: a new medium with a new volume id. A warm start with an NVMe mailbox refuses a next command, or boots cold, as the call says. A test with the QMP stand-in and a plant; the proof on a real guest goes into `guest-windows.yml`.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features
 ```

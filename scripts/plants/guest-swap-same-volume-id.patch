@@ -1,0 +1,13 @@
+diff --git a/crates/pod-guest/src/swap.rs b/crates/pod-guest/src/swap.rs
+index a74117b..a2c42ef 100644
+--- a/crates/pod-guest/src/swap.rs
++++ b/crates/pod-guest/src/swap.rs
+@@ -124,7 +124,7 @@ impl Swap {
+                 ),
+             ));
+         }
+-        let id = self.volume_id.wrapping_add(1);
++        let id = self.volume_id;
+         let mut m = crate::mailbox(s, agent_cmd, request)?;
+         m.set_volume_id(id);
+         let other = 1 - self.current;

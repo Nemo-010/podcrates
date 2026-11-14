@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**511 entries: 113 open, 8 partial, 6 blocked, 384 done.**
+**512 entries: 113 open, 9 partial, 6 blocked, 384 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 102 | 116 |
-| P2 | 51 | 2 | 4 | 206 | 263 |
+| P2 | 51 | 3 | 4 | 206 | 264 |
 | P3 | 51 | 3 | 2 | 74 | 130 |
-| **All** | 113 | 8 | 6 | 384 | 511 |
+| **All** | 113 | 9 | 6 | 384 | 512 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -532,7 +532,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-599](podvm.md) | P2 | S | M6 | defect | done | `pod-extract`: the `./` member of an archive is not counted as an entry that the crate could not make (PodUtils/podvm#352) |
 | [T-600](fleet.md) | P3 | S | M8 | defect | done | `pod-actions-results`: an upload directory of a crashed run stays under `.pending` of the cache |
 | [T-601](podvm.md) | P2 | S | M7 | chore | done | `pod-udf`: a test against images that a real mastering tool made |
-| [T-602](podvm.md) | P2 | S | M7 | research | open | `pod-guest`: the next command of a guest in keep-alive mode reaches the agent through a mounted FAT mailbox |
+| [T-602](podvm.md) | P2 | S | M7 | research | partial | `pod-guest`: the next command of a guest in keep-alive mode reaches the agent through a mounted FAT mailbox |
 | [T-603](podvm.md) | P2 | S | M7 | defect | done | `pod-guest`: the host removes a file of the FAT mailbox, and a poll of the outcome reads an old token as no result yet |
 | [T-604](podvm.md) | P1 | S | M6 | defect | done | `pod-rootfs`: the completion of a tree whose `/etc` is closed (`0555`) fails as a user that is not root, after T-598 |
 | [T-605](podvm.md) | P3 | S | M6 | defect | done | `pod-extract`: the sidecar does not record the mode that the kernel kept on a directory |
@@ -558,3 +558,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-625](podvm.md) | P3 | S | M6 | chore | done | `pod-hostprobe`: the test of the report runs the probes in a child that libtest refuses |
 | [T-626](podvm.md) | P3 | M | M7 | chore | open | `pod-udf`: the metadata partition of UDF 2.50 against an image of a real tool |
 | [T-627](relay.md) | P3 | S | M2 | feature | open | `pod-link`: the stand-in of the S3 API behind the feature `s3-standin` (PodUtils/podnet#564) |
+| [T-628](podvm.md) | P2 | S | M7 | defect | open | `pod-guest`: the warm restore gives the next command on a new mailbox medium after the load |

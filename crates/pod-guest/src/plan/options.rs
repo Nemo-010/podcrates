@@ -58,7 +58,25 @@ pub struct Options {
     /// The Hyper-V enlightenments ([`HYPERV_FLAGS`]) on the CPU line. They
     /// need KVM: under TCG the CPU line stays `max`.
     pub hyperv: bool,
+    /// The bus of the mailbox volume.
+    pub mailbox: MailboxBus,
 }
+
+/// The bus of the mailbox volume, the drive [`MAILBOX_DRIVE`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum MailboxBus {
+    /// A fixed NVMe disk. The host writes the mailbox only while the guest
+    /// does not run: Windows keeps a fixed disk in its cache.
+    #[default]
+    Nvme,
+    /// A USB stick with a removable medium on the xHCI bus. The host can
+    /// change the medium while the guest runs ([`crate::swap`]).
+    Usb,
+}
+
+/// The drive name of the mailbox: the `device` of QMP
+/// `blockdev-change-medium`.
+pub const MAILBOX_DRIVE: &str = "mbox";
 
 /// The network of the guest.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -277,9 +295,15 @@ impl Options {
         for v in &self.virtio {
             pair("-device", v.device().to_string());
         }
-        let usb = self.usb_tablet || self.media.iter().any(|m| m.kind == MediumKind::Usb);
+        let usb =
+            self.usb_tablet || self.mailbox == MailboxBus::Usb || self.media.iter().any(|m| m.kind == MediumKind::Usb);
         if usb {
             pair("-device", "qemu-xhci,id=xhci".to_string());
+        }
+        if self.mailbox == MailboxBus::Usb {
+            // `removable=on`: the medium can change, and the guest learns it
+            // from a unit attention.
+            pair("-device", format!("usb-storage,bus=xhci.0,drive={MAILBOX_DRIVE},removable=on,serial=wqmbox"));
         }
         let boot = |m: &Medium| if m.boot { ",bootindex=0" } else { "" };
         let (mut cd, mut stick) = (0usize, 0usize);

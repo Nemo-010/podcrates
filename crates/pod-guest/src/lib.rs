@@ -23,6 +23,10 @@
 //! `cmd.exe` agent that a scheduled task starts, [`agent`]) and the DOS
 //! flavour ([`dos`]: SeaBIOS, IDE, a line typed into the console).
 //!
+//! A guest of the UEFI flavour in keep-alive mode takes each next command on
+//! a new mailbox medium that QMP swaps in ([`swap`]): Windows does not read
+//! a mounted FAT volume again after the host writes its image.
+//!
 //! A guest of the UEFI flavour in keep-alive mode can be saved once and
 //! restored at each later run in place of a boot ([`warm`]), with a
 //! fingerprint of each input of the state and a cold boot as the fallback.
@@ -49,6 +53,7 @@ pub mod plan;
 pub mod qmp;
 pub mod ready;
 pub mod squashfs;
+pub mod swap;
 pub mod warm;
 
 mod provision;
@@ -303,6 +308,10 @@ pub fn poll_outcome(m: &Fat16, token: &str) -> Option<Outcome> {
 /// write the command, then the token, which the agent waits for. A request
 /// of [`agent::Mode::Once`] removes [`agent::KEEP`], so that the guest
 /// shuts down after this command.
+///
+/// Only for a mailbox that no running guest has mounted: Windows keeps a
+/// mounted FAT volume in its cache. A running guest takes its next command
+/// on a new medium ([`swap::Swap::next`]).
 pub fn next_command(m: &mut Fat16, request: &Request) -> Result<()> {
     for name in [agent::CODE, agent::OUT, agent::ERR, agent::GO] {
         m.remove(name)?;

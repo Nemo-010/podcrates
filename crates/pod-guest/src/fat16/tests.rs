@@ -294,3 +294,20 @@ fn a_name_of_32_characters_takes_three_entries() {
     v.put_entry(1, &bad);
     assert_eq!(v.list(), ["WINDOW~1.XML"], "a chain with another checksum is no name");
 }
+
+/// The volume id sits in the extended boot sector (offset 39 of the
+/// volume), and a change of it changes no other byte.
+#[test]
+fn the_volume_id_is_read_and_set_in_the_boot_sector() {
+    let mut v = Fat16::new();
+    assert_eq!(v.volume_id(), VOLUME_ID);
+    v.put("WQGO.TXT", b"tok").unwrap();
+    let before = v.image().to_vec();
+    v.set_volume_id(0x0102_0304);
+    assert_eq!(v.volume_id(), 0x0102_0304);
+    let at = PART_LBA * SECTOR + 39;
+    assert_eq!(&v.image()[at..at + 4], &[4, 3, 2, 1]);
+    let changed: Vec<usize> = (0..before.len()).filter(|&i| before[i] != v.image()[i]).collect();
+    assert_eq!(changed, [at, at + 1, at + 2, at + 3]);
+    assert_eq!(v.get("WQGO.TXT").as_deref(), Some(&b"tok"[..]));
+}

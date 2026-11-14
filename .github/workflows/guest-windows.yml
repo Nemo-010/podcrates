@@ -1,0 +1,110 @@
+name: guest-windows
+
+# The keep-alive mode of pod-guest on a real Windows guest under KVM
+# (T-602), by hand only. The job downloads the Windows Server 2019
+# evaluation ISO of the service microsoft-windows-eval (the URL, the size
+# and the SHA-256 of crates/pod-services/services/microsoft-windows-eval.toml),
+# installs Server Core with the agent of pod-guest, and runs the test
+# tests/windows_keep_live.rs: a first command, two next commands on new
+# mailbox media through QMP, and two controls that write into a mounted
+# mailbox. Each stage prints its time. A failed run keeps the screens of
+# the install and the logs of the emulator.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_BUILD_JOBS: "4"
+
+jobs:
+  windows:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: KVM
+        run: |
+          set -eu
+          if [ ! -e /dev/kvm ]; then
+            echo "no /dev/kvm: a Windows install needs KVM" >&2
+            exit 1
+          fi
+          sudo chmod 666 /dev/kvm
+          echo "kvm: /dev/kvm opens"
+      - name: Disk space
+        run: |
+          set -eu
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          df -h /
+          work="$RUNNER_TEMP/windows"
+          mkdir -p "$work"
+          echo "WORK=$work" >> "$GITHUB_ENV"
+      - name: Toolchain
+        run: sh scripts/retry.sh rustup toolchain install
+      - name: QEMU, OVMF and xorriso
+        run: |
+          set -eu
+          sh scripts/retry.sh sudo apt-get update
+          sh scripts/retry.sh sudo apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf xorriso
+          qemu-system-x86_64 --version
+          ls -l /usr/share/OVMF/OVMF_CODE_4M.fd /usr/share/OVMF/OVMF_VARS_4M.fd
+      - name: The Windows evaluation ISO
+        run: |
+          set -eu
+          service=crates/pod-services/services/microsoft-windows-eval.toml
+          fact() {
+            python3 -c 'import sys, tomllib; d = tomllib.load(open(sys.argv[1], "rb")); print([x for x in d["fact"] if x["name"] == sys.argv[2]][0]["value"])' "$service" "$1"
+          }
+          url=$(python3 -c 'import sys, tomllib; d = tomllib.load(open(sys.argv[1], "rb")); e = [x for x in d["endpoint"] if x["name"] == "server-2019"][0]; print(e["scheme"] + "://" + e["host"] + e["path"])' "$service")
+          sha=$(fact server-2019-sha256)
+          size=$(fact server-2019-bytes)
+          echo "stage: download $url ($size bytes)"
+          start=$(date +%s)
+          curl -qfsSL --retry 5 --retry-all-errors -o "$WORK/windows.iso" "$url"
+          echo "stage: downloaded in $(( $(date +%s) - start ))s"
+          test "$(stat -c %s "$WORK/windows.iso")" = "$size"
+          echo "$sha  $WORK/windows.iso" | sha256sum -c -
+          df -h "$WORK"
+      - name: Build the test
+        run: cargo test --locked -p pod-guest --test windows_keep_live --no-run
+      - name: Install Windows, then three commands in keep-alive mode
+        timeout-minutes: 120
+        env:
+          POD_GUEST_OVMF_CODE: /usr/share/OVMF/OVMF_CODE_4M.fd
+          POD_GUEST_OVMF_VARS: /usr/share/OVMF/OVMF_VARS_4M.fd
+        shell: bash
+        run: |
+          set -euo pipefail
+          export POD_GUEST_WINDOWS_ISO="$WORK/windows.iso" POD_GUEST_WORK="$WORK"
+          cargo test --locked -p pod-guest --test windows_keep_live -- --ignored --nocapture 2>&1 | tee "$WORK/test.log"
+          grep '^\[.*\] RESULT:' "$WORK/test.log"
+      - name: Keep the screens and the logs
+        if: failure()
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/evidence"
+          find "$WORK" -maxdepth 2 \( -name '*.ppm' -o -name '*.log' \) -exec cp --parents {} "$RUNNER_TEMP/evidence" \;
+          ls -R "$RUNNER_TEMP/evidence"
+      - name: Upload the evidence
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: guest-windows-evidence
+          path: ${{ runner.temp }}/evidence
+          retention-days: 7
+      - name: No emulator stays
+        if: always()
+        run: |
+          if pgrep -a qemu; then
+            echo "an emulator stays" >&2
+            pkill -KILL qemu || true
+            exit 1
+          fi
+          echo "no emulator stays"

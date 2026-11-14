@@ -114,6 +114,37 @@ fn the_keep_alive_mode_runs_each_next_token_and_does_not_shut_down() {
     assert_eq!(g.events[..first].iter().filter(|e| *e == "run").count(), 3);
 }
 
+/// The host swaps the medium of a guest in keep-alive mode
+/// ([`crate::swap`]): for a time no medium has the marker, then a new one
+/// has the next token. The agent does not end while the medium is gone, it
+/// finds the new one, and in each poll it writes [`READY`], the write
+/// that makes the guest see the new medium.
+#[test]
+fn the_idle_agent_waits_through_a_missing_medium_and_takes_the_new_one() {
+    let mut g = Guest::with(&[(MARKER, "m"), (KEEP, ""), (GO, "tok-1")]);
+    g.walk(|wait, g| match wait {
+        3 => g.files.clear(),
+        6 => {
+            g.files = [(MARKER, "m"), (KEEP, ""), (GO, "tok-2")].map(|(n, t)| (n.into(), t.into())).into();
+            g.exit = 5;
+        }
+        9 => {
+            g.files.remove(KEEP);
+            g.files.insert(GO.into(), "tok-3".into());
+            g.exit = 1;
+        }
+        _ => {}
+    });
+    let runs: Vec<usize> = g.events.iter().enumerate().filter(|(_, e)| *e == "run").map(|(i, _)| i).collect();
+    assert_eq!(runs.len(), 3, "{:?}", g.events);
+    assert_eq!(g.files[CODE], "1 tok-3");
+    assert_eq!(g.events.last().map(String::as_str), Some("shutdown"));
+    // A write of the marker in each poll before the medium goes.
+    let between = &g.events[runs[0]..runs[1]];
+    let ready = between.iter().filter(|e| *e == "write WQREADY.TXT").count();
+    assert!(ready >= 3, "{between:?}");
+}
+
 #[test]
 fn ready_reads_the_marker_of_the_agent() {
     let mut m = crate::Fat16::new();
