@@ -1,0 +1,7 @@
+# A split session waits for each frame with no bound: a half that goes
+# silent is never seen as lost (T-500).
+ENTRY=T-500
+GROUP=link
+EXPECT='the end in time'
+RUN='cargo test -p pod-link --all-features --test split a_silent_up_half'
+LIMIT=1800

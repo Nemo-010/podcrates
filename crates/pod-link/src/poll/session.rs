@@ -16,7 +16,7 @@ use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
 use super::budget::{Budget, Charge};
-use super::pipes::{Ends, Pipes, State, pipes, until};
+use crate::pipes::{Ends, Pipes, State, pipes, until};
 
 /// The bytes of each pipe of a session on a listener: the pump drains the
 /// pipe down into the bytes kept, and a body up goes in by parts, so a

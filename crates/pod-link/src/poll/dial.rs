@@ -10,10 +10,10 @@ use tokio::io::{AsyncReadExt as _, DuplexStream};
 use tokio::sync::{Notify, watch};
 
 use super::lane::{Dialing, Failed, Lane};
-use super::pipes::{Ends, State, pipes, until};
 use super::{ACK_EVERY, ALPN, BUSY_LIMIT, Form, Poll, PostUrl, down};
 use crate::carrier::{BoxIo, CarrierError, CarrierErrorKind};
 use crate::pin;
+use crate::pipes::{Ends, State, pipes, until};
 
 pub(super) async fn connect(p: &Poll, url: &PostUrl, peer: &KeyName) -> Result<(BoxIo, PublicKey), CarrierError> {
     let name = p.form.name();

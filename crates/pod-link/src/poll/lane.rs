@@ -11,11 +11,11 @@ use pod_identity::PublicKey;
 use rustls::pki_types::ServerName;
 use tokio::time::{Instant, timeout};
 
-use super::pipes::Ends;
 use super::wire::{self, Conn, Head};
 use super::{ALPN, BACKOFF_FIRST, BACKOFF_MAX, BUSY_LIMIT, Form};
 use crate::carrier::{CarrierError, CarrierErrorKind};
 use crate::pin;
+use crate::pipes::Ends;
 
 type Tls = tokio_rustls::client::TlsStream<BoxedIo>;
 

@@ -1,8 +1,9 @@
-//! The byte stream of a link over the poll carriers, on each side: two
-//! pipes (the bytes that came from the peer, the bytes for the peer) whose
-//! far ends the lanes of the carrier hold, and the fault that ended them.
-//! A lane that fails gives its error to the link at the next read or write,
-//! not an end of the stream.
+//! The byte stream of a link over a carrier of tasks (the poll carriers,
+//! the s3 carrier, the split of two carriers), on each side: two pipes (the
+//! bytes that came from the peer, the bytes for the peer) whose far ends
+//! the tasks of the carrier hold, and the fault that ended them. A task
+//! that fails gives its error to the link at the next read or write, not
+//! an end of the stream.
 
 use std::io;
 use std::pin::Pin;
@@ -22,9 +23,13 @@ pub(crate) enum State {
     Failed,
 }
 
+/// The maker of the error of a fault: each read and write after it gets
+/// one.
+type Fault = Arc<dyn Fn() -> io::Error + Send + Sync>;
+
 /// What the lanes and the byte stream of one session share.
 pub(crate) struct Ends {
-    fault: Mutex<Option<(io::ErrorKind, String)>>,
+    fault: Mutex<Option<Fault>>,
     state: watch::Sender<State>,
 }
 
@@ -34,10 +39,18 @@ impl Ends {
     }
 
     /// End the session with an error; the first fault stays.
+    #[cfg_attr(not(feature = "poll"), allow(dead_code))]
     pub fn fail(&self, kind: io::ErrorKind, text: impl Into<String>) {
+        let text = text.into();
+        self.fail_with(Arc::new(move || io::Error::new(kind, text.clone())));
+    }
+
+    /// End the session with the errors of `make` (a typed error inside);
+    /// the first fault stays.
+    pub fn fail_with(&self, make: Fault) {
         let mut fault = self.fault.lock().unwrap_or_else(|e| e.into_inner());
         if fault.is_none() {
-            *fault = Some((kind, text.into()));
+            *fault = Some(make);
         }
         drop(fault);
         self.state.send_replace(State::Failed);
@@ -45,7 +58,7 @@ impl Ends {
 
     pub fn fault(&self) -> Option<io::Error> {
         let fault = self.fault.lock().unwrap_or_else(|e| e.into_inner());
-        fault.as_ref().map(|(kind, text)| io::Error::new(*kind, text.clone()))
+        fault.as_ref().map(|make| make())
     }
 
     pub fn watch(&self) -> watch::Receiver<State> {

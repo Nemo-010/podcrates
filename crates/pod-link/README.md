@@ -19,8 +19,10 @@ T-493 the DNS simplex carrier over the ARQ (feature `dns`;
 PodUtils/podnet#468 row E2-3; calls C274 and C275), T-497 the ICMP echo
 carrier over the ARQ (feature `icmp`; PodUtils/podnet#469 row E3-2; calls
 C276 and C277) and T-494 the object-storage carrier over a bucket of the S3
-API (feature `s3`; PodUtils/podnet#468 row E2-4; calls C489 to C491). The
-crate reads no environment, keeps no global state and prints nothing.
+API (feature `s3`; PodUtils/podnet#468 row E2-4; calls C489 to C491), and
+T-500 the split of one session over an up carrier and a down carrier
+(`split`; PodUtils/podnet#473 row E7-1; calls C492 and C493). The crate
+reads no environment, keeps no global state and prints nothing.
 
 ## Use
 
@@ -173,6 +175,19 @@ let mut door = s3.listen("bucket/links/a").await?;                 // BUCKET[/PR
 let io = s3.dial("SHA256:...@bucket/links/a").await?;
 ```
 
+The split runs one session over two carriers: the bytes of the dialer go
+up on one, the bytes of the listener come down on the other:
+
+```rust
+use pod_link::split::{self, Split};
+
+let split = Split::new(Arc::new(dns), Arc::new(poll.with_form(Form::Simplex)));
+let mut door = split.bind("0.0.0.0:53", "0.0.0.0:443").await?;       // or listen("UP|DOWN")
+let io = split.connect("SHA256:...@link.example", "SHA256:...@https://relay.example/link").await?;
+// A read or a write after the loss of a half:
+// split::lost(&e).map(|l| l.half) == Some(split::Half::Up), and the text says "up-carrier lost".
+```
+
 ## API
 
 | Item | What |
@@ -220,6 +235,11 @@ let io = s3.dial("SHA256:...@bucket/links/a").await?;
 | `s3::Endpoint`, `s3::Style`, `s3::Credentials` | `Endpoint::parse("http[s]://HOST[:PORT][/PATH]")` (`secure`, `host`, `port`, `base`); `Style::Path` (`HOST/BUCKET/KEY`, the default) or `VirtualHost` (`BUCKET.HOST/KEY`); `Credentials::new(access_key, secret_key)` and `session_token`, whose Debug hides the secret and the token |
 | `s3::sign` | SigV4 of the S3 API: `authorization(&credentials, &Signing)`, `canonical_query`, `uri_encode`, `sha256_hex`, `hex`, `amz_date`, `days_from_civil`, `EMPTY_HASH` (a stand-in of a test checks a request with it) |
 | `s3::{NAME, ALPN, OBJECT, MIN_OBJECT, MAX_OBJECT, IN_FLIGHT, POLL_MIN, POLL_MAX, BUDGET, PAGE, CONNECT_TIMEOUT, ANSWER_TIMEOUT, HANDSHAKE_TIMEOUT, IDLE, MAX_HANDSHAKES}` | the constants of the s3 carrier |
+| `split::Split` | one session over two carriers: `new(up, down)` (each an `Arc<dyn Carrier>`); the fields `beat` (10 s), `lost_after` (30 s, more than `beat`), `join_timeout` (30 s); `check`; `addresses(text)` (the two addresses of `UP|DOWN`); `connect(up, down)` (the dial of both halves and their join); `bind(up, down)`; as a `Carrier` (`split`): `dial("UP\|DOWN")`, `listen("UP\|DOWN")`, the facts of both halves (the cost of the dearer). An error of a carrier names its half |
+| `split::SplitListener` | `accept_peer` (the joined session and the key that both halves proved); a `Listener` (`address` is `UP\|DOWN`); each half that waits more than `join_timeout` for the other goes; a drop ends its tasks |
+| `split::Half`, `split::Lost`, `split::lost`, `split::lost_in` | `Up`, `Down` (`name`); the error inside the `io::Error` (kind `ConnectionAborted`) of a read or a write after the loss of a half, whose text starts with `up-carrier lost` or `down-carrier lost`; `lost(&io_error)` finds it; `lost_in(text)` reads the half from the text of an error of a link |
+| `split::wire` | the hello (`MAGIC`, `VERSION`, `HELLO`, `hello`, `read_hello`, `half_byte`), the frames (`kind::{DATA, BEAT, END, JOINED, LOST}`, `HEAD`, `FRAME`, `write`, `read`) |
+| `split::{NAME, BEAT, LOST_AFTER, JOIN_TIMEOUT}` | the constants of the split |
 | `poll::Form` | `LongPoll` (`poll`), `Sse` (`sse`), `Chunked` (`chunked`), `Simplex` (`httppoll`); `name`, `batch` (256 KiB; 64 KiB for `Simplex`) |
 | `poll::PollListener`, `poll::Stats` | `local_addr`, `accept_key`, `stats` (sessions, 429s, requests, bytes up that came twice, bytes down sent again, long polls, simplex polls, pushes, pushes refused, the bytes down kept now, the connections closed past `max_connections`); a `Listener`; a drop ends its connections and each session that it holds |
 | `poll::{ALPN, CONNECT_TIMEOUT, HANDSHAKE_TIMEOUT, ANSWER_TIMEOUT, HOLD, MIN_HOLD, MAX_HOLD, IDLE, MAX_HANDSHAKES, MAX_SESSIONS, MAX_CONNECTIONS, MAX_BYTES, MIN_BYTES, BATCH, SIMPLEX_BATCH, WINDOW, ACK_EVERY, PING_EVERY, BACKOFF_FIRST, BACKOFF_MAX, BUSY_LIMIT}` | the constants of the poll carriers |
@@ -312,6 +332,19 @@ of the listing, and each request has SigV4 (`x-amz-content-sha256`,
 `x-amz-date`, `x-amz-security-token` for a temporary key). The reader lists
 the keys after the last one it read and takes the run with no gap. The TLS
 of the tcp carrier and the byte of acceptance run over the objects.
+
+The split (call C492) starts each half with a hello of the dialer: `PODSPLIT`,
+the version 1, the half (1 up, 2 down) and a session of 16 random bytes.
+The listener joins the two halves of a session, refuses two halves that
+proved two keys, and writes `JOINED` as the first frame down. Then each
+direction of each half carries frames of a type (1 byte) and a length (4
+bytes, big endian): `DATA` (1 byte to 64 KiB, on the main direction: up
+for the dialer, down for the listener), `BEAT` (none, after a silence of
+`beat`), `END` (none: the end of the bytes of its sender), `JOINED`, and
+`LOST` (the half that its sender lost: 1 or 2). A direction with no frame
+for `lost_after`, a failure, or an end of a carrier before the `END` of
+its peer is the loss of that half; the end that sees the loss writes
+`LOST` on the other half and ends the session.
 
 A frame is the record that the link gives its carrier: at most 1 MiB of
 body. A carrier with a smaller unit splits a record itself. A peer that
@@ -818,6 +851,33 @@ checks SigV4 and the conditions; feature `s3`):
   no word of a missing credential, are podnet's (the crate reads no
   environment): `Credentials` comes from the caller.
 
+The asks of PodUtils/podnet#521 for one session over an up carrier and a
+down carrier (PodUtils/podnet@T-302, row E7-1 of PodUtils/podnet#473) and the
+tests that hold them (`tests/split.rs`, over carriers of the test: byte
+pipes under a switch, and the ARQ over the `Lossy` shim at 3 % loss):
+
+- [x] 1 MiB down a fast half and 64 KiB up a slow half that loses
+  datagrams, in a link: `one_mib_down_a_fast_half_and_64_kib_up_a_lossy_half_cross_whole`.
+  The credits of the link for the bytes up ride down; each direction has
+  its own credits.
+- [x] The loss of a half within `lost_after` (30 s), named
+  `up-carrier lost` or `down-carrier lost` on each side, with no
+  promotion of the other half:
+  `a_silent_up_half_ends_the_session_with_up_carrier_lost_on_each_side`,
+  `a_failed_down_half_ends_the_session_with_down_carrier_lost_on_each_side`.
+- [x] The join of the halves of each session, the refusal of halves of two
+  keys, the end of the bytes of each side:
+  `the_listener_joins_the_halves_of_each_session_and_refuses_halves_of_two_keys`;
+  the addresses, the settings and the facts:
+  `the_address_the_settings_and_the_facts`; the wire (`split::wire::tests`).
+- [x] A plant for each check: `link-split-silence-unseen`,
+  `link-split-keys-unchecked`, `link-split-end-ignored`
+  (`scripts/plants/`).
+- The control frames ride down with the bytes of the listener; no half
+  takes over the other's direction at a loss (call C493). podnet's flags
+  `--up-carrier` and `--down-carrier` and the router's split tests are
+  podnet's.
+
 ## The adoption map
 
 | podnet | pod-link |
@@ -836,6 +896,7 @@ checks SigV4 and the conditions; feature `s3`):
 | PodUtils/podnet@T-271, PodUtils/podnet@T-272: the HTTP/1.1 long poll, the SSE and chunked stream | `poll::Poll` (feature `poll`): a row of the registry for each form holds `Box::new(Poll::new(provider, identity, way).with_form(form).with_clients(keys))`; the dial address is `KEY@https://HOST[:PORT]/PATH`; one listener (`listen("IP:PORT")`) serves each form. podnet's `server_push=false` is a listener with `push` false: the dialer of `sse` or `chunked` then takes the long poll. The lanes are `POST PATH/up` and `POST PATH/down?since=N` (podnet's), with `PATH/open` first |
 | PodUtils/podnet@T-280: the HTTP poll simplex carrier | `poll::Poll` with `Form::Simplex` (`httppoll`): `POST PATH/up` (202 and `Pod-Ack`), `GET PATH/out?since=N` (204 when empty), 64 KiB, a backoff of 100 ms to 5 s; `facts().cost` is `Cost::Highest`. Each lane is a request of its own, and the answer of each POST acknowledges it, so the split of PodUtils/podnet@T-302 can take one lane |
 | PodUtils/podnet@T-279: the object-storage simplex carrier | `s3::S3` (feature `s3`): one row of the registry holds `Box::new(S3::new(provider, identity, way, endpoint, credentials).with_tls(tls).with_clients(keys))` with `alpn = b"podnet/1"`, podnet's `--s3-prune` as `prune`; the dial address is `KEY@BUCKET[/PREFIX]`, the listen address `BUCKET[/PREFIX]`; the credentials come from podnet's environment or profile file |
+| PodUtils/podnet@T-302: one session split across an up carrier and a down carrier | `split::Split::new(up, down)` of two carriers of the registry; `--up-carrier` and `--down-carrier` give `connect(up, down)` and `bind(up, down)` (or `dial("UP\|DOWN")`); a loss of a half is `split::Lost` (`lost`, `lost_in`), whose text is podnet's report |
 | PodUtils/podnet@T-277: the selective-repeat ARQ for any lossy carrier | `arq::ArqStream` over a `datagram::Datagrams` (each lossy carrier of podnet gives one), then `Link::new` over the stream; `arq::ArqHandle::rekey_wanted` is the ask of the record layer (PodUtils/podnet@T-298) for a rekey; podnet's `tests/link_arq.rs` takes `datagram::lossy::Lossy` over `datagram::memory::pair` as its shim |
 | exit 64, 69, 77 of a carrier | `CarrierError::class().exit_code()` |
 | exit of a link | `Error::class().exit_code()`: a dead link 75, a broken protocol 76 |

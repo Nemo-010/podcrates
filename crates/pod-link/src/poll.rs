@@ -46,7 +46,6 @@ mod dial;
 mod down;
 mod lane;
 mod listen;
-pub(crate) mod pipes;
 mod session;
 pub(crate) mod wire;
 

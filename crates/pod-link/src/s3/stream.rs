@@ -20,7 +20,7 @@ use super::Tuning;
 use super::client::{Client, Fault};
 use super::xml::Object;
 use crate::carrier::{CarrierError, CarrierErrorKind};
-use crate::poll::pipes::{Ends, Pipes, State, pipes, until};
+use crate::pipes::{Ends, Pipes, State, pipes, until};
 
 /// The wait after which a writer puts the bytes it holds, short of a whole
 /// object.

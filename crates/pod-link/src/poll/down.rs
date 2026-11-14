@@ -11,10 +11,10 @@ use tokio::io::{AsyncWriteExt as _, DuplexStream};
 use tokio::sync::{Notify, watch};
 
 use super::lane::{Failed, Lane};
-use super::pipes::{State, until};
 use super::wire::{Event, Events};
 use super::{BACKOFF_FIRST, BACKOFF_MAX, Form, MIN_HOLD, PING_EVERY};
 use crate::carrier::CarrierErrorKind;
+use crate::pipes::{State, until};
 
 /// What one request of the down lane gave.
 enum Got {

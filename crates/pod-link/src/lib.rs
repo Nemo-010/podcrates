@@ -38,6 +38,10 @@
 //! registry of the carriers, their order and their flags are the
 //! consumer's (call C117).
 //!
+//! [`split::Split`] runs one link over two carriers: the bytes of the
+//! dialer up one, the bytes of the listener down the other, and the loss of
+//! either half ends the session with its name.
+//!
 //! A carrier that loses datagrams ([`datagram::Datagrams`]) carries a link
 //! through the selective-repeat ARQ: [`arq::ArqStream`] makes one ordered
 //! byte stream of it. [`datagram::memory::pair`] and
@@ -70,6 +74,7 @@ mod link;
 pub mod memory;
 #[cfg(feature = "tcp")]
 mod pin;
+mod pipes;
 #[cfg(feature = "poll")]
 pub mod poll;
 #[cfg(any(feature = "h2", feature = "poll"))]
@@ -79,6 +84,7 @@ pub mod quic;
 #[cfg(feature = "s3")]
 pub mod s3;
 mod settings;
+pub mod split;
 mod state;
 mod stream;
 #[cfg(feature = "tcp")]
