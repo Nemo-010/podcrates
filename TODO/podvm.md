@@ -7049,7 +7049,7 @@ of `ready` in a loop. Plants: `guest-ready-a-still-screen-is-ready`,
 **Milestone:** M7
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7068,6 +7068,36 @@ Save: QMP `migrate` to `exec:` or a file after the guest is ready in keep-alive 
 ```sh
 cargo test -p pod-guest --all-features
 ```
+
+## Done
+
+2026-11-14, commit 5d69e25. `pod_guest::warm`: `save(&plan,
+&fingerprint, dir, wait)` sends QMP `stop`, `migrate` to
+`file:DIR/state.bin`, copies the overlay, the mailbox and the variable
+store, writes `fingerprint.txt` last (`DIR.part`, then the name `DIR`),
+and sends `cont`; it refuses a guest that is not an idle agent in
+keep-alive mode (`idle`) and a device that the emulator cannot migrate
+(`Unavailable`). `restore(&s, qemu_img, &plan, &request, &warm)` makes a
+thin overlay over the saved one, puts the next command on the saved
+mailbox, and starts the emulator with `-incoming` (`incoming_argv`).
+`start(..)` gives `(Child, Start::{Warm, Cold(Cold)})`: no state, another
+fingerprint or a failed load (`Cold::{Missing, Stale, Failed}`) boots
+cold with `stage`. `fingerprint(&plan, base_digest, agent)` holds the
+QEMU version, the CPU of the host under KVM, the firmware, the base, the
+agent and `machine_line(&plan)`. `stage_idle` stages a guest to save.
+`qmp::Monitor::ask` and `qmp::json_member` are new. QEMU 8.2.2 refuses
+the NVMe disks of the plan line, so the warm start of the plan needs QEMU
+11 (PodUtils/podvm@T-1874). The command reaches the restored agent through the
+mounted mailbox: T-602. Calls C500 to C507.
+
+`cargo test -p pod-guest --all-features`: 147 unit tests passed at the
+commit (17 new: the fingerprint, the restore line, the idle agent, the
+save and the load against a QMP stand-in, the fallback of `start` for no
+state, a stale state and a failed load, a warm start with a stand-in
+emulator, and two live tests with QEMU 8.2.2 of the host and a firmware of
+`hlt`); 20 runs of the tests of `warm` in a loop. Plants:
+`guest-warm-stale-state-restores`, `guest-warm-save-keeps-a-command`,
+each caught by hand.
 
 # T-597: `pod-extract`: the umask of the process changes the modes of the tree, and the sidecar does not record it
 

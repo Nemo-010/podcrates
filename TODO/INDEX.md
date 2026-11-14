@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**502 entries: 119 open, 8 partial, 6 blocked, 369 done.**
+**502 entries: 118 open, 8 partial, 6 blocked, 370 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 101 | 115 |
 | P2 | 54 | 2 | 4 | 200 | 260 |
-| P3 | 54 | 3 | 2 | 66 | 125 |
-| **All** | 119 | 8 | 6 | 369 | 502 |
+| P3 | 53 | 3 | 2 | 67 | 125 |
+| **All** | 118 | 8 | 6 | 370 | 502 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -526,7 +526,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-593](podvm.md) | P1 | M | M7 | feature | done | `pod-guest`: the options of a plan: a NIC with `hostfwd`, virtio devices, CD-ROM and USB media, VNC, a serial channel, the Hyper-V flags (PodUtils/podvm#350, item 4) |
 | [T-594](podvm.md) | P2 | M | M7 | feature | done | `pod-qga`: a new crate, a client of the QEMU Guest Agent over a Unix socket (PodUtils/podvm#350, item 5) |
 | [T-595](podvm.md) | P2 | M | M7 | feature | done | `pod-guest`: the provision waits for a ready guest in place of a fixed sleep (PodUtils/podvm#350, item 6) |
-| [T-596](podvm.md) | P3 | M | M7 | feature | open | `pod-guest`: a warm start from a saved state, with a fingerprint and a fallback to a cold boot (PodUtils/podvm#350, item 7) |
+| [T-596](podvm.md) | P3 | M | M7 | feature | done | `pod-guest`: a warm start from a saved state, with a fingerprint and a fallback to a cold boot (PodUtils/podvm#350, item 7) |
 | [T-597](podvm.md) | P2 | S | M6 | defect | done | `pod-extract`: the umask of the process changes the modes of the tree, and the sidecar does not record it |
 | [T-598](podvm.md) | P1 | S | M6 | defect | done | `pod-extract`: each directory has the mode of the image after the last layer, and a directory entry replaces a non-directory of an earlier layer (PodUtils/podvm#354) |
 | [T-599](podvm.md) | P2 | S | M6 | defect | done | `pod-extract`: the `./` member of an archive is not counted as an entry that the crate could not make (PodUtils/podvm#352) |
