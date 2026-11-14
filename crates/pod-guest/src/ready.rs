@@ -52,7 +52,8 @@ pub enum Sign {
     Screen { settle: Duration },
     /// This time passed since the start of [`wait`]: the fixed wait for a
     /// guest that gives no other sign. The provision starts the wait right
-    /// after the spawn of the emulator.
+    /// after the spawn of the emulator. A time past the deadline never
+    /// holds.
     After(Duration),
 }
 

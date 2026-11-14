@@ -1,0 +1,8 @@
+# Sign::After holds at once and not after its time: the provision types
+# into the screen of the firmware (T-633, PodUtils/podvm#372). The test of
+# After must fail.
+ENTRY=T-633
+GROUP=guest
+EXPECT='test ready::tests::after_holds_at_its_time_and_not_before \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- ready::tests::after_holds_at_its_time_and_not_before'
+LIMIT=1800

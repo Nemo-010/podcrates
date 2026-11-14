@@ -1,0 +1,12 @@
+diff --git a/crates/pod-guest/src/ready.rs b/crates/pod-guest/src/ready.rs
+--- a/crates/pod-guest/src/ready.rs
++++ b/crates/pod-guest/src/ready.rs
+@@ -184,7 +184,7 @@
+             }
+             Watch::Serial(scan) => scan.poll(&plan.serial),
+             Watch::Screen(screen) => screen.poll(&plan.monitor),
+-            Watch::After(at) => Instant::now() >= *at,
++            Watch::After(_) => true,
+         }
+     }
+ }

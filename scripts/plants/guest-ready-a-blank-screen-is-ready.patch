@@ -1,0 +1,13 @@
+diff --git a/crates/pod-guest/src/ready/screen.rs b/crates/pod-guest/src/ready/screen.rs
+index 9a7978b..b4fbd95 100644
+--- a/crates/pod-guest/src/ready/screen.rs
++++ b/crates/pod-guest/src/ready/screen.rs
+@@ -127,7 +127,7 @@ impl Screen {
+         }
+         // A screen that is back to the boot screen, or that shows nothing,
+         // is a boot phase: keys typed into it go nowhere.
+-        self.changed.is_some_and(|at| now.duration_since(at) >= self.settle) && !base.same(first) && !base.blank()
++        self.changed.is_some_and(|at| now.duration_since(at) >= self.settle) && !base.same(first)
+     }
+ 
+     /// One dump of the screen; `None` when the monitor is not there yet or

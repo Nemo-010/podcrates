@@ -8189,7 +8189,7 @@ cargo test -p pod-guest --all-features
 **Milestone:** M7
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8216,3 +8216,11 @@ Under KVM the console of Validation OS has a cursor that blinks, so the sha256 o
 cargo test -p pod-guest --all-features --lib -- ready::
 sh scripts/plant-each.sh guest-ready-a-cursor-is-a-change guest-ready-a-blank-screen-is-ready guest-ready-the-first-screen-again-is-ready guest-ready-after-holds-at-once guest-ready-a-still-screen-is-ready
 ```
+
+## Done
+
+2026-11-14, commit 5508bfe; the plants and this record in the next commit. `ready::Sign::After(time)` holds when `time` passed since the start of `ready::wait`; the provision starts the wait right after the spawn (call C591). `Sign::Screen { settle }` keeps its shape and changes its meaning for each caller: each dump is a P6 PPM (`ready/screen.rs`), a change whose pixels fit in a box of `ready::CURSOR` (32x32) is no change, each dump is compared to the dump of the last change, and the settled screen must differ from the first dump and must not be blank (calls C592, C593). The text of a failed wait is "the guest was not ready within 600s; no sign held: SIGN; SIGN" (call C594).
+
+What podvm passes, under KVM and under TCG: `Ready { signs: vec![Sign::After(t)], deadline, every: ready::EVERY }`, with `t` the fixed wait of the provision before `v0.45.0` (its `--timeout`, 240 s by default; the wait of run 43171009630) and a `deadline` larger than `t`: a time past the deadline never holds. Under KVM podvm can put the screen first, `vec![Sign::Screen { settle: 15 s }, Sign::After(t)]`: the console with its cursor now settles, and `After` bounds the wait. Under TCG `After` alone, until a run of podvm shows the screen sign after the black boot phase.
+
+`cargo test -p pod-guest --all-features`: 167 unit tests passed, 1 ignored (new: `ready::tests::a_screen_with_a_cursor_that_blinks_settles`, `ready::tests::a_black_screen_or_the_first_screen_again_is_not_ready`, `ready::tests::after_holds_at_its_time_and_not_before`, `ready::tests::a_dump_is_read_as_a_ppm_and_compared_with_a_tolerance_for_a_cursor`); 20 runs of the tests of `ready` in a loop. The frames of the QMP stand-in are PPM images of 640x480. Plants, each caught by hand: `guest-ready-a-cursor-is-a-change` (the exact comparison of before: the cursor test meets the deadline), `guest-ready-a-blank-screen-is-ready` (the case of a pointer that moved on a black screen holds), `guest-ready-the-first-screen-again-is-ready`, `guest-ready-after-holds-at-once`; `guest-ready-a-still-screen-is-ready` of T-595 moves to `ready/screen.rs` and is caught. `plant-each.sh --apply`: 0 stale. The live proof is the next Windows provision of podvm.
