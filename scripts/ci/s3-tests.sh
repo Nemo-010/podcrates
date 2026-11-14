@@ -3,7 +3,7 @@
 # (T-623, call C540): the release archive of SeaweedFS 4.53 for Linux
 # x86_64, checked by its SHA-256 (scripts/ci/fetch-tool.sh). The script
 # starts `weed mini` on 127.0.0.1 alone with the bucket `links` and the
-# made-up key of crates/pod-link/tests/common/s3.rs, and runs the test
+# made-up key of crates/pod-link/src/s3/standin.rs, and runs the test
 # target s3_seaweedfs against it. POD_LINK_TEST_S3=required makes a skip
 # a failure, and the run must say each line below, so the check cannot
 # pass by a skip. The archive goes to RUNNER_TEMP, else TMPDIR, else /tmp.

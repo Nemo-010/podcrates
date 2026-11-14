@@ -32,10 +32,14 @@
 //!   a provider. The requests go through the caller's way out.
 //! * The dial address is `KEY@BUCKET[/PREFIX]`, the listen address
 //!   `BUCKET[/PREFIX]`.
+//! * The feature `s3-standin` adds [`standin`]: a stand-in of the S3 API on
+//!   the loopback for the tests of this crate and of a consumer.
 
 mod client;
 mod listen;
 pub mod sign;
+#[cfg(feature = "s3-standin")]
+pub mod standin;
 mod stream;
 mod xml;
 

@@ -1,0 +1,7 @@
+# The stand-in of the S3 API serves a request with no signature: a consumer
+# that forgets to sign passes its tests (T-627).
+ENTRY=T-627
+GROUP=link
+EXPECT='a request with no signature gets 403'
+RUN='cargo test -p pod-link --all-features --test s3_standin a_request_with_no_signature'
+LIMIT=1800

@@ -32,7 +32,9 @@
 //! the feature `dns`, `dns::Dns` (the same TLS over the ARQ over DNS queries
 //! and TXT answers), with the feature `icmp`, `icmp::Icmp` (the same TLS
 //! over the ARQ over ICMP echo messages), and with the feature `s3`,
-//! `s3::S3` (the same TLS over objects of a bucket of the S3 API). Each carrier says with
+//! `s3::S3` (the same TLS over objects of a bucket of the S3 API; the
+//! feature `s3-standin` adds `s3::standin`, a stand-in of the S3 API on
+//! the loopback for the tests of a consumer). Each carrier says with
 //! [`Carrier::available`] why the host cannot use it, and a listener gives
 //! the key that its peer proved with [`Listener::accept_peer`]. The
 //! registry of the carriers, their order and their flags are the

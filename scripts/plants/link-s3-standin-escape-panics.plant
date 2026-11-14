@@ -1,0 +1,8 @@
+# The stand-in of the S3 API decodes a path with a bad escape by a slice and
+# an unwrap: the task of the connection panics, and the peer gets no answer
+# (T-627).
+ENTRY=T-627
+GROUP=link
+EXPECT='the stand-in ended the connection'
+RUN='cargo test -p pod-link --all-features --test s3_standin a_bad_escape'
+LIMIT=1800

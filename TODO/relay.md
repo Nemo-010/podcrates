@@ -7371,7 +7371,7 @@ cargo test -p pod-warp --all-features
 **Milestone:** M2
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7379,7 +7379,7 @@ The stand-in of the S3 API that the tests of the carrier `s3` use is in `crates/
 
 ## Premise
 
-- Read: PodUtils/podnet#564; `crates/pod-link/tests/common/s3.rs` (the stand-in `StandIn` and `key`); `crates/pod-link/tests/s3.rs`; the feature `standin` of `crates/pod-wg/Cargo.toml` and `crates/pod-devtunnel/Cargo.toml` (`src/standin.rs`).
+- Read: PodUtils/podnet#564; crates/pod-link/tests/common/s3.rs (the stand-in `StandIn` and `key`); `crates/pod-link/tests/s3.rs`; the feature `standin` of `crates/pod-wg/Cargo.toml` and `crates/pod-devtunnel/Cargo.toml` (`src/standin.rs`).
 
 ## Approach
 
@@ -7390,3 +7390,25 @@ Move the stand-in into a module `s3::standin` of the crate behind a new feature 
 ```sh
 cargo test -p pod-link --all-features --test s3
 ```
+
+## Done
+
+2026-11-14, commits `08c7ddd` and `76bf345`. The stand-in of the S3 API
+moved from tests/common/s3.rs to `s3::standin` behind the new feature
+`s3-standin` (which takes `s3`), as `pod-wg` and `pod-devtunnel` give
+theirs (call C552). The API: `key()`, `StandIn::start` (the runtime of
+the caller), `StandIn::start_thread` (a thread with its own runtime, for
+podnet's tests that start podnet processes), `addr`, `url`, `endpoint`,
+`buckets`, `keys`, `counts` (a copy, `Counts`), `lose_puts`. A drop
+closes the port, then each connection. Fixes in the stand-in: a request
+with no signature gets 403 `AccessDenied` (the copy in the tests served
+it); a path with a bad escape gets an answer, not a panic; `max-keys=0`
+lists no key. `tests/s3.rs` (8), `tests/s3_seaweedfs.rs` (6) and the new
+`tests/s3_standin.rs` (3) take it with `required-features`; 200 runs of
+`tests/s3_standin.rs` pass. The README lists the feature (no binary
+turns it on), the API, the tests and the row of PodUtils/podnet@T-279;
+`scripts/check-probe.py` lists the feature in `ALLOWED`. Plants
+`link-s3-standin-unsigned-taken`, `link-s3-standin-signature-unchecked`,
+`link-s3-standin-runs-after-drop` and `link-s3-standin-escape-panics`,
+each caught by hand; `sh scripts/plant-each.sh --apply`: 0 stale. podnet
+can remove tests/link_s3_standin/mod.rs (the hand-off).

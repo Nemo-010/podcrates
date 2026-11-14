@@ -1,0 +1,13 @@
+diff --git a/crates/pod-link/src/s3/standin/serve.rs b/crates/pod-link/src/s3/standin/serve.rs
+index 37c6c19..9b8386d 100644
+--- a/crates/pod-link/src/s3/standin/serve.rs
++++ b/crates/pod-link/src/s3/standin/serve.rs
+@@ -61,7 +61,7 @@ fn unsigned(
+     let (Some(auth), Some(hash), Some(date)) =
+         (field("authorization"), field("x-amz-content-sha256"), field("x-amz-date"))
+     else {
+-        return Some("AccessDenied");
++        return None;
+     };
+     if hash != sign::sha256_hex(body) && !(body.is_empty() && hash == sign::EMPTY_HASH) {
+         return Some("XAmzContentSHA256Mismatch");
