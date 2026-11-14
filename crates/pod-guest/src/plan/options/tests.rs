@@ -245,8 +245,9 @@ fn the_start_of_the_emulator_refuses_options_that_do_not_check() {
     assert_eq!(e.class, Class::Usage, "the check, not the missing program: {e}");
 }
 
-/// A USB mailbox is the drive `mbox` on a removable USB stick, after the
-/// one xHCI bus and before the other media; it has no NVMe device.
+/// A USB mailbox is the drive `mbox` on a removable SCSI disk with the id
+/// `wqmbox` on a USB transport, after the one xHCI bus and before the other
+/// media; it has no NVMe device.
 #[test]
 fn a_usb_mailbox_is_a_removable_stick_and_not_an_nvme_disk() {
     let medium = Medium { kind: MediumKind::Usb, path: "/m/stick.img".into(), readonly: false, boot: false };
@@ -257,11 +258,15 @@ fn a_usb_mailbox_is_a_removable_stick_and_not_an_nvme_disk() {
     assert!(drives.contains(&"if=none,id=mbox,file=/run/guest/mailbox.img,format=raw,cache=writethrough"));
     let devices = each(&a, "-device");
     assert!(!devices.iter().any(|d| d.contains("drive=mbox") && d.starts_with("nvme")), "{devices:?}");
-    let stick = "usb-storage,bus=xhci.0,drive=mbox,removable=on,serial=wqmbox";
-    assert_eq!(devices.iter().filter(|d| **d == stick).count(), 1, "{devices:?}");
+    let usb = "usb-bot,bus=xhci.0,id=wqmboxusb,serial=wqmbox";
+    let stick = "scsi-hd,bus=wqmboxusb.0,scsi-id=0,lun=0,drive=mbox,removable=on,serial=wqmbox,id=wqmbox";
+    for d in [usb, stick] {
+        assert_eq!(devices.iter().filter(|x| **x == d).count(), 1, "{d}: {devices:?}");
+    }
+    assert_eq!(devices.iter().filter(|d| d.contains("drive=mbox")).count(), 1, "{devices:?}");
     assert_eq!(devices.iter().filter(|d| **d == "qemu-xhci,id=xhci").count(), 1, "one USB bus");
     let at = |s: &str| a.iter().position(|x| x == s).unwrap();
-    assert!(at("qemu-xhci,id=xhci") < at(stick), "the bus comes first");
+    assert!(at("qemu-xhci,id=xhci") < at(usb) && at(usb) < at(stick), "each bus comes before its device");
     assert!(at(stick) < a.iter().position(|x| x.starts_with("usb-storage,bus=xhci.0,drive=usb0")).unwrap());
     // The mailbox alone also brings the bus.
     let a = argv(&plan(Accel::Tcg, Options { mailbox: MailboxBus::Usb, ..Options::default() }));

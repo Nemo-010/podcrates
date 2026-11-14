@@ -1,14 +1,12 @@
+diff --git a/crates/pod-guest/src/swap.rs b/crates/pod-guest/src/swap.rs
 --- a/crates/pod-guest/src/swap.rs
 +++ b/crates/pod-guest/src/swap.rs
-@@ -70,10 +70,7 @@
- /// the guest prevents the removal of the medium. `None` when no entry of
- /// the response is the drive [`MAILBOX_DRIVE`] or the entry has no lock.
+@@ -72,7 +72,7 @@ pub fn change_request(file: &Path) -> Result<String> {
+ /// guest prevents the removal of the medium. `None` when no entry of the
+ /// response is the device [`MAILBOX_ID`] or the entry has no lock.
  pub fn mailbox_locked(block: &str) -> Option<bool> {
--    qmp::list_entries(block)
--        .into_iter()
--        .find(|e| qmp::json_member(e, "device").as_deref() == Some(MAILBOX_DRIVE))
--        .and_then(|e| qmp::json_bool(e, "locked"))
-+    block.contains(&qmp::json_text(MAILBOX_DRIVE)).then(|| qmp::json_bool(block, "locked")).flatten()
+-    mailbox_entry(block).and_then(|e| qmp::json_bool(e, "locked"))
++    block.contains(&qmp::json_text(MAILBOX_ID)).then(|| qmp::json_bool(block, "locked")).flatten()
  }
  
- /// The second file of the mailbox of `plan`: `MAILBOX.swap`, beside it.
+ /// The entry of the device [`MAILBOX_ID`] in a `query-block` response: its

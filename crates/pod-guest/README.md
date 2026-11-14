@@ -59,7 +59,7 @@ restored at each later run in place of a boot ("The warm start", below).
 | --- | --- |
 | `Settings` | `scratch_root` (the directory of the per-run directories), `scratch_prefix`, `keep` (keep each per-run directory), `marker` (the content of `WQMARK.TXT`), `oem` (the OEM name of the volume, 8 characters at most). `Settings::new(root)` gives `pod-guest-`, no keep, `pod-guest`, `PODGUEST` |
 | `Plan`, `Accel`, `accel_for(Option<Profile>)` | the description of one run (emulator, accelerator, firmware, overlay, mailbox, serial log, QMP socket, memory, CPUs, more arguments); `Accel::{word, cpu}` (`kvm`/`host`, `tcg`/`max`) |
-| `Options` (`plan::options`): `nic` (`Nic::None` by default, `Nic::User(UserNet { model, forwards, restrict })`), `virtio`, `media` (`Medium { kind, path, readonly, boot }`), `vnc`, `usb_tablet`, `serial_socket`, `channels` (`Channel { name, socket }`), `hyperv`, `mailbox` (`MailboxBus::{Nvme, Usb}`, `Nvme` by default); `check()`; `MAILBOX_DRIVE` (`mbox`); `Forward::{local, spec}`, `Proto`, `NicModel`, `Virtio`, `MediumKind`, `escape`, `QGA_CHANNEL`, `HYPERV_FLAGS`, `MAX_SOCKET_PATH`, `MAX_CDROMS` | the options of a full guest of the UEFI flavour ("The options of a plan") |
+| `Options` (`plan::options`): `nic` (`Nic::None` by default, `Nic::User(UserNet { model, forwards, restrict })`), `virtio`, `media` (`Medium { kind, path, readonly, boot }`), `vnc`, `usb_tablet`, `serial_socket`, `channels` (`Channel { name, socket }`), `hyperv`, `mailbox` (`MailboxBus::{Nvme, Usb}`, `Nvme` by default); `check()`; `MAILBOX_DRIVE` (`mbox`, the drive), `MAILBOX_ID` (`wqmbox`, the device of a USB mailbox: the `id` of QMP), `MAILBOX_USB` (`wqmboxusb`, its USB transport); `Forward::{local, spec}`, `Proto`, `NicModel`, `Virtio`, `MediumKind`, `escape`, `QGA_CHANNEL`, `HYPERV_FLAGS`, `MAX_SOCKET_PATH`, `MAX_CDROMS` | the options of a full guest of the UEFI flavour ("The options of a plan") |
 | `argv(&plan)`, `overlay_argv`, `convert_argv`, `plan::base_format` | the UEFI machine line with no program; `qemu-img create -f qcow2 -F FMT -b BASE`; `qemu-img convert -f qcow2 -O qcow2 OVERLAY OUT` (a new image with no backing file; `qemu-img commit` has no output file, PodUtils/podvm#277) |
 | `Request`, `Mode`, `Outcome`, `mailbox(&s, agent, &request)`, `outcome(&fat16, token)`, `poll_outcome(&fat16, token)`, `next_command(&mut fat16, &request)` | the command, the token, the limit and the mode (`Once` by default; `KeepAlive` puts `WQKEEP.TXT` on the mailbox); the code, the token and the streams; the mailbox of a run; the result of a mailbox after the power-off (`None`: the guest wrote no result; another token is `Protocol`); the result of a mailbox of a guest that runs (`None` also for another token or a code that does not parse: the guest writes it at the time); the next command on a mailbox that no running guest has mounted (the result before goes, then the command and the token; `Once` removes `WQKEEP.TXT`) |
 | `stage(&s, qemu_img, base, &plan, agent, &request)`, `run(&s, &plan, &request)`, `stop(&plan)` | the mailbox file and the overlay; the boot to the power-off and the result, with the error stream of the emulator in the per-run directory (a `KeepAlive` request is `Usage`: its guest does not power off); QMP `quit` |
@@ -74,7 +74,7 @@ restored at each later run in place of a boot ("The warm start", below).
 | `fetch` | `Ceiling { max_bytes, fsize }` (the ceiling of one entry), `check_declared`, `Origin` (`get(from) -> Reply`: the caller's HTTP client; `from > 0` sends `Range: bytes=FROM-`), `Reply { status, length, range, body }`, `Stream::new(reader, declared)` (an origin of one stream that does not resume), `store(&mut origin, dest, want, ceiling, tries)` (the sha256 in hex; see "The store"), `partial` (`NAME.part`), `Span`, `parse_content_range`, `Refusal` (`DeclaredTooLarge`, `OverCeiling`, `Digest`, `Size`, `Range`, `Status`, `Broken`, `Busy`; `keeps_part`), `refusal(&failure)` |
 | `qmp` | `Monitor` (`connect`, `call`, `ask(body)` (the response line), `keys`, `screendump(file)`, `quit`), `send_key`, `json_text`, `json_member(line, key)` (a string member of a response), `json_bool(line, key)` (a member `true` or `false`), `list_entries(line)` (each object of the list of a response, as text), `is_event`, `response_ok`, `key(char)` (the `send-key` name and shift for a US layout), `HOLD_MS` |
 | `warm` | `fingerprint(&plan, base_digest, agent)` (`Fingerprint { qemu, cpu, firmware, base, agent, machine }`, `text()`), `qemu_version`, `host_cpu(cpuinfo)`, `machine_line(&plan)`, `stage_idle(&s, qemu_img, base, &plan, agent)`, `save(&plan, &fingerprint, dir, wait)`, `idle(&fat16)`, `restore(&s, qemu_img, &plan, &request, &warm)`, `incoming_argv(&plan, dir)`, `start(&s, qemu_img, base, &plan, agent, &request, &warm) -> (Child, Start)`, `Warm { dir, fingerprint, wait }`, `Start::{Warm, Cold(Cold)}`, `Cold::{Missing, Stale { saved, now }, Failed { why }}` (`NotFound`, `Config`, `Unavailable`), `cold(&failure)`, the file names `STATE`, `ROOT`, `MAILBOX`, `VARS`, `FINGERPRINT`, `FORMAT` ("The warm start") |
-| `swap` | `Swap::new(&plan, token)` (`Usage` for a mailbox that is not `MailboxBus::Usb`), `current()`, `token()`, `poll()` (the settled outcome of the current command), `next(&mut monitor, &s, agent, &request)` (a new mailbox with the next volume id in the other file, then QMP `blockdev-change-medium` with `force`; `Usage` before a settled result, `Protocol` for a refusal, and the medium stays); `settled(&fat16, token)` (the code of the token and no `WQGO.TXT`), `change_request(file)` (with `force`: the guest locks its medium), `mailbox_locked(query_block)` (the lock of the drive `mbox`), `other_file(&plan)` (`MAILBOX.swap`) ("The next command") |
+| `swap` | `Swap::new(&plan, token)` (`Usage` for a mailbox that is not `MailboxBus::Usb`), `current()`, `token()`, `poll()` (the settled outcome of the current command), `next(&mut monitor, &s, agent, &request)` (a new mailbox with the next volume id in the other file, then QMP `blockdev-change-medium` with `force`; `Usage` before a settled result, `Protocol` for a refusal, and the medium stays); `settled(&fat16, token)` (the code of the token and no `WQGO.TXT`), `change_request(file)` (the device by `id`, not by the deprecated `device`; with `force`: the guest locks its medium), `mailbox_locked(query_block)` (the lock in the entry whose `qdev` is `wqmbox`), `other_file(&plan)` (`MAILBOX.swap`) ("The next command") |
 | `modloop` | `modules(reader, kernel_release, names) -> ModuleSet` (`release`, `modules`: each `Module { path, name, bytes }` in load order, `builtin`, `dep`, `size()`), `Fault`, `fault(&failure)`, `MAX_SET`, `RELEASE_DIRS` |
 | `squashfs` | `Image::open(reader)` (`superblock`, `root`, `inode(reference)`, `entries(&dir)`, `lookup(path)`, `file_at(path)`, `read(&file)`, `ids`, `export(number)`), `Superblock::parse`, `Compressor`, `Inode`, `Kind`, `Dir`, `File`, `Entry`, `listing(bytes)`, `Fault`, `fault(&failure)`, the ceilings `MAX_FILE`, `MAX_LISTING`, `MAX_LINK` |
 
@@ -188,7 +188,8 @@ has mounted (T-602, calls C542 to C544; T-630, calls C581 and C582):
    token).
 2. `Swap::next` writes a new mailbox with the next command and the next
    volume id into the other file (`MAILBOX` and `MAILBOX.swap` in turn),
-   and sends `blockdev-change-medium` with `force` for the drive `mbox`.
+   and sends `blockdev-change-medium` with `force` for the device
+   `wqmbox`, named by `id` (QEMU deprecates the drive name `device`).
    Windows locks the medium that it has mounted, and QEMU changes a
    locked medium only with `force`; it then clears the lock of the guest
    and reports the same medium change.
@@ -215,6 +216,7 @@ of the UEFI flavour. The DOS flavour does not read them.
 | `nic: Nic::User(UserNet { model, forwards, restrict })` | `-nic user,model=e1000e` (or `virtio-net-pci`)`[,restrict=on],hostfwd=tcp:127.0.0.1:HOST-:GUEST...` in place of `-nic none`; `Forward::local` listens on the loopback of the host |
 | `virtio: [Rng, Balloon, Keyboard, Tablet]` | `-device virtio-rng-pci` (and so on), each one time |
 | `media: [Medium { kind: Cdrom, .. }]` | `-drive if=none,id=cdN,media=cdrom,readonly=on,format=raw,file=PATH`, `-device ide-cd,drive=cdN,bus=ide.N`; at most 6 (the AHCI ports of q35) |
+| `mailbox: MailboxBus::Usb` | `-device qemu-xhci,id=xhci` one time, `-device usb-bot,bus=xhci.0,id=wqmboxusb,serial=wqmbox`, `-device scsi-hd,bus=wqmboxusb.0,scsi-id=0,lun=0,drive=mbox,removable=on,serial=wqmbox,id=wqmbox` in place of `-device nvme,drive=mbox,serial=wqmbox`: the disk that `usb-storage` makes, with an id that QMP names |
 | `media: [Medium { kind: Usb, .. }]` | `-device qemu-xhci,id=xhci` one time, `-drive if=none,id=usbN,format=FMT[,readonly=on],file=PATH` (`FMT` from the name, `plan::base_format`), `-device usb-storage,bus=xhci.0,drive=usbN,removable=on` |
 | `Medium::boot` | `,bootindex=0` on the device, and `,bootindex=1` on the root disk (`nvme,drive=root,serial=wqroot,bootindex=1`); at most one medium. With no medium that boots, no device has a boot index |
 | `vnc: Some(SOCKET)` | `-vnc unix:SOCKET`; `-display none` stays |
@@ -402,15 +404,16 @@ result (no swap while `WQGO.TXT` is on the medium), the refusal of an NVMe
 mailbox, the new medium in the other file with another volume id and the
 request of the change against a QMP stand-in, a refusal of the emulator
 that keeps the medium and the token, two swaps against a stand-in that
-refuses a change with no `force` while the guest locks the medium, and
-the lock of the drive `mbox` in its own entry of `query-block`.
+refuses a change with no `force` while the guest locks the medium and
+refuses the argument `device`, and the lock of the device `wqmbox` in its
+own entry of `query-block`.
 `a_real_emulator_changes_the_medium_of_a_usb_mailbox` starts the QEMU of
-the host with the plan line of a USB mailbox and a firmware of `hlt`,
-swaps two times, and reads the new file in `query-block`; it skips where
+the host with the plan line of a USB mailbox, a firmware of `hlt` and
+`-compat deprecated-input=reject`, swaps two times, and reads the new file in `query-block`; it skips where
 no `qemu-system-x86_64` or `qemu-img` is on `PATH`.
 `a_real_emulator_changes_a_medium_that_the_guest_locked` starts the QEMU
 of the host with a firmware of 93 bytes that locks the medium of an ATAPI
-drive `mbox` again and again, checks the refusal of a change with no
+drive `wqmbox` again and again, with `-compat deprecated-input=reject`, checks the refusal of a change with no
 `force`, and swaps two times; it skips where no `qemu-system-x86_64` is
 on `PATH`.
 `tests/windows_keep_live.rs` (ignored; `guest-windows.yml` runs it by

@@ -74,9 +74,19 @@ pub enum MailboxBus {
     Usb,
 }
 
-/// The drive name of the mailbox: the `device` of QMP
-/// `blockdev-change-medium`.
+/// The drive name of the mailbox: the `-drive` id, and the `device` of its
+/// entry of QMP `query-block`.
 pub const MAILBOX_DRIVE: &str = "mbox";
+
+/// The id of the guest device of a USB mailbox: the `id` of QMP
+/// `blockdev-change-medium`, and the `qdev` of its entry of `query-block`.
+/// QEMU deprecates the drive name (`device`) as an argument of the
+/// commands of a medium.
+pub const MAILBOX_ID: &str = "wqmbox";
+
+/// The id of the USB transport of a USB mailbox, whose SCSI bus holds the
+/// disk [`MAILBOX_ID`].
+pub const MAILBOX_USB: &str = "wqmboxusb";
 
 /// The network of the guest.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -315,9 +325,18 @@ impl Options {
             pair("-device", "qemu-xhci,id=xhci".to_string());
         }
         if self.mailbox == MailboxBus::Usb {
-            // `removable=on`: the medium can change, and the guest learns it
-            // from a unit attention.
-            pair("-device", format!("usb-storage,bus=xhci.0,drive={MAILBOX_DRIVE},removable=on,serial=wqmbox"));
+            // The device that `usb-storage` makes in itself, with an id:
+            // `usb-storage` holds no medium, and its SCSI disk has no id
+            // that QMP can name. `removable=on`: the medium can change, and
+            // the guest learns it from a unit attention.
+            pair("-device", format!("usb-bot,bus=xhci.0,id={MAILBOX_USB},serial=wqmbox"));
+            pair(
+                "-device",
+                format!(
+                    "scsi-hd,bus={MAILBOX_USB}.0,scsi-id=0,lun=0,drive={MAILBOX_DRIVE},removable=on,serial=wqmbox,\
+                     id={MAILBOX_ID}"
+                ),
+            );
         }
         let boot = |m: &Medium| if m.boot { ",bootindex=0" } else { "" };
         let (mut cd, mut stick) = (0usize, 0usize);
