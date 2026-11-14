@@ -119,6 +119,25 @@ impl Fat16 {
         self.write_entry(slot, &bare, case, data)
     }
 
+    /// Remove `name` and free its clusters. `Ok(false)`: no such file. A
+    /// name that is not 8.3 is a [`Class::Usage`] failure. The long-name
+    /// entries just before it go too, so that no orphan name stays.
+    pub fn remove(&mut self, name: &str) -> Result<bool> {
+        let (bare, _) = parse_name(name)?;
+        let Some((slot, first, _)) = self.find(&bare) else { return Ok(false) };
+        self.free_chain(first);
+        let mut i = slot;
+        loop {
+            let mut e = self.entry(i);
+            e[0] = 0xE5;
+            self.put_entry(i, &e);
+            match i.checked_sub(1) {
+                Some(j) if self.entry(j)[11] == 0x0F && self.entry(j)[0] != 0xE5 => i = j,
+                _ => return Ok(true),
+            }
+        }
+    }
+
     /// The bytes of `name`, or `None` where it is not in the root.
     pub fn get(&self, name: &str) -> Option<Vec<u8>> {
         let (bare, _) = parse_name(name).ok()?;

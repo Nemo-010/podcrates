@@ -1,0 +1,13 @@
+diff --git a/crates/pod-guest/src/lib.rs b/crates/pod-guest/src/lib.rs
+index fad5738..3bc6831 100644
+--- a/crates/pod-guest/src/lib.rs
++++ b/crates/pod-guest/src/lib.rs
+@@ -284,7 +284,7 @@ pub fn outcome(m: &Fat16, token: &str) -> Result<Option<Outcome>> {
+ pub fn poll_outcome(m: &Fat16, token: &str) -> Option<Outcome> {
+     let code = m.get(agent::CODE)?;
+     let parsed = agent::parse_code(&String::from_utf8_lossy(&code))?;
+-    (parsed.token == token).then(|| Outcome {
++    (!token.is_empty()).then(|| Outcome {
+         code: parsed.code,
+         token: parsed.token,
+         stdout: m.get(agent::OUT).unwrap_or_default(),

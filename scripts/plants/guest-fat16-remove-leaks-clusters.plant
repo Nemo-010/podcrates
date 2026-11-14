@@ -1,0 +1,8 @@
+# The removal of a mailbox file marks its entry and keeps its clusters:
+# each next command of a keep-alive guest takes more of the volume until it
+# is full (T-603). The test of the removal must fail.
+ENTRY=T-603
+GROUP=guest
+EXPECT='test fat16::tests::a_removed_file_is_gone_and_its_clusters_are_free \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- fat16::tests::a_removed_file_is_gone_and_its_clusters_are_free'
+LIMIT=1800

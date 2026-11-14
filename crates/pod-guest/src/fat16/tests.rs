@@ -157,3 +157,50 @@ fn a_chain_that_the_guest_broke_reads_as_none() {
     let back = Fat16::from_image(v.into_image()).unwrap();
     assert!(back.get("WQCODE.TXT").is_none());
 }
+
+/// A removed file is gone, its clusters are free, and a name that is not
+/// there or not 8.3 is no removal.
+#[test]
+fn a_removed_file_is_gone_and_its_clusters_are_free() {
+    let mut v = Fat16::new();
+    // Most of the volume: a second file of this size fits only when the
+    // removal freed the clusters of the first.
+    let big = vec![0x5Au8; (CLUSTERS - 4) * SECTORS_PER_CLUSTER * SECTOR];
+    v.put("WQOUT.TXT", &big).unwrap();
+    v.put("WQCODE.TXT", b"0 tok").unwrap();
+    assert!(v.put("WQERR.TXT", &big).is_err(), "the volume is full");
+    assert!(v.remove("wqout.txt").unwrap());
+    assert_eq!(v.get("WQOUT.TXT"), None);
+    assert_eq!(v.list(), ["WQCODE.TXT"]);
+    assert!(!v.remove("WQOUT.TXT").unwrap(), "no such file");
+    v.put("WQERR.TXT", &big).unwrap();
+    assert_eq!(v.get("WQERR.TXT").unwrap().len(), big.len());
+    assert_eq!(v.get("WQCODE.TXT").as_deref(), Some(&b"0 tok"[..]), "the other file stays");
+    // An empty file has no cluster.
+    v.put("WQKEEP.TXT", b"").unwrap();
+    assert!(v.remove("WQKEEP.TXT").unwrap());
+    assert_eq!(v.remove("not-8.3-name.text").unwrap_err().class, Class::Usage);
+    // A reader of the image sees the same.
+    let back = Fat16::from_image(v.image().to_vec()).unwrap();
+    // The new file takes the freed slot of the removed one.
+    assert_eq!(back.list(), ["WQERR.TXT", "WQCODE.TXT"]);
+}
+
+/// The guest can write a long name before an entry: the removal marks it
+/// too, so that no orphan name stays in the root.
+#[test]
+fn a_removal_takes_the_long_name_entries_before_the_file() {
+    let mut v = Fat16::new();
+    v.put("WQCODE.TXT", b"0 tok").unwrap();
+    let file = v.entry(0);
+    let mut long = [0u8; 32];
+    long[0] = 0x41;
+    long[11] = 0x0F;
+    v.put_entry(0, &long);
+    v.put_entry(1, &file);
+    assert_eq!(v.list(), ["WQCODE.TXT"]);
+    assert!(v.remove("WQCODE.TXT").unwrap());
+    assert_eq!(v.entry(0)[0], 0xE5, "the long name goes");
+    assert_eq!(v.entry(1)[0], 0xE5);
+    assert!(v.list().is_empty());
+}
