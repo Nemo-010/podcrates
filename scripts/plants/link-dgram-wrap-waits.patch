@@ -1,8 +1,9 @@
 diff --git a/crates/pod-link/src/dgram_tls.rs b/crates/pod-link/src/dgram_tls.rs
+index b404401..48191af 100644
 --- a/crates/pod-link/src/dgram_tls.rs
 +++ b/crates/pod-link/src/dgram_tls.rs
-@@ -38,7 +38,6 @@
- /// C290).
+@@ -42,7 +42,6 @@ fn err(name: &'static str, kind: CarrierErrorKind, text: impl Into<String>) -> C
+ #[cfg(any(feature = "dns", feature = "icmp"))]
  fn stream<D: Datagrams>(name: &'static str, datagrams: D, arq: ArqSettings) -> Result<ArqStream, CarrierError> {
      let stream = ArqStream::new(datagrams, arq).map_err(|e| err(name, CarrierErrorKind::Usage, format!("ARQ: {e}")))?;
 -    stream.wrap_freely();

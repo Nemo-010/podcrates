@@ -16,10 +16,11 @@ PodUtils/podnet#515; call C270), T-424 the udp carrier with KCP (feature
 HTTP/1.1: the long poll, SSE, a chunked stream and the simplex poll
 (feature `poll`; PodUtils/podnet#515 and #521; calls C266 to C269),
 T-493 the DNS simplex carrier over the ARQ (feature `dns`;
-PodUtils/podnet#468 row E2-3; calls C274 and C275) and T-497 the ICMP echo
+PodUtils/podnet#468 row E2-3; calls C274 and C275), T-497 the ICMP echo
 carrier over the ARQ (feature `icmp`; PodUtils/podnet#469 row E3-2; calls
-C276 and C277). The crate reads no environment, keeps no global
-state and prints nothing.
+C276 and C277) and T-494 the object-storage carrier over a bucket of the S3
+API (feature `s3`; PodUtils/podnet#468 row E2-4; calls C489 to C491). The
+crate reads no environment, keeps no global state and prints nothing.
 
 ## Use
 
@@ -156,6 +157,22 @@ let mut door = icmp.bind("0.0.0.0".parse()?).await?;
 let io = Icmp::new(provider, identity).dial("SHA256:...@198.51.100.7").await?;
 ```
 
+The s3 carrier takes the same TLS over objects of a bucket of the S3 API
+that both ends reach; the endpoint, the key of the bucket and the TLS of
+an endpoint of `https` are the caller's:
+
+```rust
+use pod_link::s3::{Credentials, Endpoint, S3};
+
+let endpoint = Endpoint::parse("https://s3.example.com")?;
+let s3 = S3::new(provider, identity, way, endpoint, Credentials::new(id, secret))
+    .with_region("eu-west-1")
+    .with_tls(tls)                                                    // the roots of the caller
+    .with_clients(keys);
+let mut door = s3.listen("bucket/links/a").await?;                 // BUCKET[/PREFIX]
+let io = s3.dial("SHA256:...@bucket/links/a").await?;
+```
+
 ## API
 
 | Item | What |
@@ -198,10 +215,15 @@ let io = Icmp::new(provider, identity).dial("SHA256:...@198.51.100.7").await?;
 | `icmp::IcmpSettings`, `icmp::wire` | `payload` (1400); the echo codec (`REQUEST`, `REPLY`, `HEADER`, `SESSION`, `Echo`, `checksum`, `encode`, `decode`) |
 | `icmp::{NAME, ALPN, PAYLOAD, CONNECT_TIMEOUT, HANDSHAKE_TIMEOUT, MAX_HANDSHAKES}` | the constants of the icmp carrier |
 | `poll::Poll` (feature `poll`) | the poll carriers: `new(provider, identity, way)` (the long poll), `with_form(form)`, `with_clients(keys)`, `clients`; the fields `form`, `connect_timeout` (20 s), `handshake_timeout` (10 s: the TLS of each connection, and the open), `answer_timeout` (30 s), `hold` (25 s, 1 s to 60 s), `idle` (60 s: a session with no request ends on the listener, a lane that fails ends on the dialer), `max_handshakes` (64), `max_sessions` (256), `max_connections` (1024: the connections at once; one past them closes at its accept), `max_bytes` (64 MiB: the bytes down that the sessions keep for their dialers; a session waits for room, an open with no room for one batch gets 429; each session holds two pipes of 64 KiB and a buffer of 16 KiB besides, and a connection reads a body up by parts of at most 64 KiB into the link), `push` (a listener answers a push; else 406 and the dialer takes the long poll); `check`; `address(text)` (the key and the `PostUrl` of `KEY@https://HOST[:PORT]/PATH`, no query); `connect(&url, &key)`; `bind(addr)`; as a `Carrier`: `dial`, `listen("IP:PORT")`; the name and the cost of its form |
+| `s3::S3` (feature `s3`) | the object-storage carrier: `new(provider, identity, way, endpoint, credentials)`, `with_clients(keys)`, `with_region(region)` (`us-east-1` by default), `with_tls(config)` (needed for an endpoint of `https`), `clients`; the fields `endpoint`, `region`, `credentials`, `style`, `tls`, `alpn` (`podlink/1`), `object` (256 KiB, 1 KiB to 4 MiB), `in_flight` (8), `poll_min` (100 ms), `poll_max` (5 s), `budget` (1 GiB: the bytes of the objects of one end of a session; a warning of `tracing` at 80 %, the end of the session with `StorageFull` when the peer removes nothing for `idle`), `page` (1000), `prune` (off: the reader removes each object it read, a listener each open object it took), `connect_timeout` (20 s), `answer_timeout` (30 s), `handshake_timeout` (30 s), `idle` (60 s: a call that fails for it ends the session), `max_handshakes` (64); `check`; `place(text)` (the bucket and the prefix of `BUCKET[/PREFIX]`), `address(text)` (the key, the bucket and the prefix of `KEY@BUCKET[/PREFIX]`); `connect(bucket, prefix, &key)`; `bind(bucket, prefix)`; as a `Carrier`: `dial`, `listen`, the cost `Highest`. A refused key of the bucket (403) is `Refused`, a missing bucket (404) `NotFound` |
+| `s3::S3Listener` | `accept_key`; a `Listener` (`address` is `BUCKET[/PREFIX]`); it takes the sessions that open after its bind; a drop ends its task and its handshakes under way, and the sessions that it gave live on |
+| `s3::Endpoint`, `s3::Style`, `s3::Credentials` | `Endpoint::parse("http[s]://HOST[:PORT][/PATH]")` (`secure`, `host`, `port`, `base`); `Style::Path` (`HOST/BUCKET/KEY`, the default) or `VirtualHost` (`BUCKET.HOST/KEY`); `Credentials::new(access_key, secret_key)` and `session_token`, whose Debug hides the secret and the token |
+| `s3::sign` | SigV4 of the S3 API: `authorization(&credentials, &Signing)`, `canonical_query`, `uri_encode`, `sha256_hex`, `hex`, `amz_date`, `days_from_civil`, `EMPTY_HASH` (a stand-in of a test checks a request with it) |
+| `s3::{NAME, ALPN, OBJECT, MIN_OBJECT, MAX_OBJECT, IN_FLIGHT, POLL_MIN, POLL_MAX, BUDGET, PAGE, CONNECT_TIMEOUT, ANSWER_TIMEOUT, HANDSHAKE_TIMEOUT, IDLE, MAX_HANDSHAKES}` | the constants of the s3 carrier |
 | `poll::Form` | `LongPoll` (`poll`), `Sse` (`sse`), `Chunked` (`chunked`), `Simplex` (`httppoll`); `name`, `batch` (256 KiB; 64 KiB for `Simplex`) |
 | `poll::PollListener`, `poll::Stats` | `local_addr`, `accept_key`, `stats` (sessions, 429s, requests, bytes up that came twice, bytes down sent again, long polls, simplex polls, pushes, pushes refused, the bytes down kept now, the connections closed past `max_connections`); a `Listener`; a drop ends its connections and each session that it holds |
 | `poll::{ALPN, CONNECT_TIMEOUT, HANDSHAKE_TIMEOUT, ANSWER_TIMEOUT, HOLD, MIN_HOLD, MAX_HOLD, IDLE, MAX_HANDSHAKES, MAX_SESSIONS, MAX_CONNECTIONS, MAX_BYTES, MIN_BYTES, BATCH, SIMPLEX_BATCH, WINDOW, ACK_EVERY, PING_EVERY, BACKOFF_FIRST, BACKOFF_MAX, BUSY_LIMIT}` | the constants of the poll carriers |
-| `Cost` | the overhead class of a carrier in `Facts::cost`: `Low` (unix, memory, tcp, ws, h2), `Medium` (the long poll, a chunked stream), `High` (SSE, icmp), `Highest` (the simplex poll, dns) |
+| `Cost` | the overhead class of a carrier in `Facts::cost`: `Low` (unix, memory, tcp, ws, h2), `Medium` (the long poll, a chunked stream), `High` (SSE, icmp), `Highest` (the simplex poll, dns, s3) |
 | `tcp::{Keys, Refusal, refusal}`, `tcp::{NAME, ALPN, CONNECT_TIMEOUT, HANDSHAKE_TIMEOUT, MAX_HANDSHAKES}` | the shared set of client keys, the refusal of a key with the key seen, its finder in an error (from `pod_tls::peer`); the constants |
 | `frame` | `Frame`, `Decoder` (`new`, `with_preface`, `push`, `next`, `buffered`), `FrameError`, `PREFACE`, `HEADER`, `MAX_RECORD`, `kind` |
 | `arq::ArqStream` | the ARQ over a datagram carrier as one ordered byte stream (`AsyncRead` and `AsyncWrite`): `new(datagrams, settings)` starts its task on the current tokio runtime; `handle`. A write is one record; a shutdown sends the `FIN` and returns at its acknowledgement; a drop sends the `FIN`; when its frames are acknowledged, the task answers the peer until the peer is silent for two RTO ceilings (at most 64 s), then ends; an error also ends it |
@@ -228,6 +250,7 @@ let io = Icmp::new(provider, identity).dial("SHA256:...@198.51.100.7").await?;
 | `poll` | the poll carriers (`poll`): `tcp`, `pod-ws` for the URL, and base64 for the events of SSE |
 | `dns` | the dns carrier (`dns`): `tcp`, and `pod-dns` for the DNS query and the TXT answer |
 | `icmp` | the icmp carrier (`icmp`): `tcp`, and libc on unix for the raw socket |
+| `s3` | the s3 carrier (`s3`): `poll` (its HTTP/1.1 and its pipes), and sha2 and hmac for SigV4 |
 | `fuzzing` | `poll`, and the reader of HTTP/1.1 and of SSE of the poll carriers in `poll::fuzzing`, for the fuzz target `link_poll_wire`; no API, and no consumer turns it on |
 
 ## The wire
@@ -276,6 +299,19 @@ reads them before it gives the stream, so a refused key is an error of
 the dial. Each window (the stream's, the connection's) is 4 MiB.
 END_STREAM is the half close; a second request on the connection gets
 `REFUSED_STREAM`, and a request that is not a POST gets 405.
+
+The s3 carrier keeps the objects of a link under its prefix (call C489):
+`open/SESSION` (empty: the dialer opens a session), `up/SESSION/SEQ` (the
+bytes of the dialer) and `down/SESSION/SEQ` (the bytes of the listener).
+SESSION is 128 random bits of the dialer in 32 hex digits, SEQ 16 hex
+digits from 0, so a listing (`ListObjectsV2`, path style by default) gives
+the objects in order. An object holds 1 byte to `object` bytes; an empty
+object is the end of its direction. Each PUT has `If-None-Match: *` (412
+is a PUT again after a lost answer), each GET has `If-Match` with the ETag
+of the listing, and each request has SigV4 (`x-amz-content-sha256`,
+`x-amz-date`, `x-amz-security-token` for a temporary key). The reader lists
+the keys after the last one it read and takes the run with no gap. The TLS
+of the tcp carrier and the byte of acceptance run over the objects.
 
 A frame is the record that the link gives its carrier: at most 1 MiB of
 body. A carrier with a smaller unit splits a record itself. A peer that
@@ -745,6 +781,43 @@ that hold them (`tests/icmp.rs`, `tests/icmp_raw.rs`, feature `icmp`):
 - [x] A plant for each check: `icmp-echo-session-filter`,
   `icmp-wire-checksum`, `link-dgram-wrap-waits` (`scripts/plants/`).
 
+The asks of PodUtils/podnet#521 for the object-storage simplex carrier
+(PodUtils/podnet@T-279, row E2-4 of PodUtils/podnet#468) and the tests that
+hold them (`tests/s3.rs`, a stand-in of the S3 API on the loopback that
+checks SigV4 and the conditions; feature `s3`):
+
+- [x] A link over objects with TLS carries streams through the caller's way
+  out, and each end learns the key of the other; the keys of a session:
+  `a_link_over_objects_carries_streams_and_each_end_learns_the_key_of_the_other`.
+- [x] A conditional PUT (`If-None-Match: *`): a PUT again after a lost
+  answer gives no byte twice: `a_put_whose_answer_was_lost_gives_no_byte_twice`.
+  A conditional GET on the ETag of the listing.
+- [x] Objects of 256 KiB, 8 in flight, a poll of 100 ms to 5 s, a page of
+  1000 keys: the settings and their bounds,
+  `the_address_the_settings_and_the_facts`.
+- [x] The budget of 1 GiB with a warning at 80 %:
+  `the_budget_ends_a_session_whose_peer_removes_nothing`.
+- [x] The prune is opt-in (`S3::prune`):
+  `prune_removes_each_object_read_and_the_open_object`.
+- [x] The pin of each key, refused on each side and named:
+  `another_key_is_refused_on_each_side_and_the_listener_stays_open`; a
+  wrong secret (403, `Refused`, 77) and a missing bucket (404):
+  `a_wrong_secret_and_a_missing_bucket_end_the_bind_and_the_dial`; a
+  listener takes no session older than its bind:
+  `a_listener_takes_no_session_older_than_its_bind`.
+- [x] SigV4 signs the examples of the documentation of the S3 API alike:
+  `s3::sign::tests::the_examples_of_the_documentation_of_the_s3_api_sign_alike`;
+  a listing, its next page and the code of an error
+  (`s3::xml::tests`); a run of objects stops at its first gap
+  (`s3::stream::tests`).
+- [x] A plant for each check: `link-s3-put-unconditional`,
+  `link-s3-run-past-a-gap`, `link-s3-budget-unchecked`,
+  `link-s3-old-session-taken`, `link-s3-prune-skipped`,
+  `s3-sign-query-unsorted` (`scripts/plants/`).
+- The credentials from the environment or a profile file, and exit 77 with
+  no word of a missing credential, are podnet's (the crate reads no
+  environment): `Credentials` comes from the caller.
+
 ## The adoption map
 
 | podnet | pod-link |
@@ -762,6 +835,7 @@ that hold them (`tests/icmp.rs`, `tests/icmp_raw.rs`, feature `icmp`):
 | PodUtils/podnet@T-282: the ICMP echo carrier | `icmp::Icmp` (feature `icmp`): one row of the registry holds `Box::new(Icmp::new(provider, identity).with_clients(keys))` with `alpn = b"podnet/1"`; the dial address is `KEY@HOST`; the listener is `listen("IPv4")`. The real path needs `CAP_NET_RAW` (`available()` says so, and the test skips); `connect_over` and `accept_over` over `datagram::lossy::Lossy` run the same framing with no privilege (calls C276, C277) |
 | PodUtils/podnet@T-271, PodUtils/podnet@T-272: the HTTP/1.1 long poll, the SSE and chunked stream | `poll::Poll` (feature `poll`): a row of the registry for each form holds `Box::new(Poll::new(provider, identity, way).with_form(form).with_clients(keys))`; the dial address is `KEY@https://HOST[:PORT]/PATH`; one listener (`listen("IP:PORT")`) serves each form. podnet's `server_push=false` is a listener with `push` false: the dialer of `sse` or `chunked` then takes the long poll. The lanes are `POST PATH/up` and `POST PATH/down?since=N` (podnet's), with `PATH/open` first |
 | PodUtils/podnet@T-280: the HTTP poll simplex carrier | `poll::Poll` with `Form::Simplex` (`httppoll`): `POST PATH/up` (202 and `Pod-Ack`), `GET PATH/out?since=N` (204 when empty), 64 KiB, a backoff of 100 ms to 5 s; `facts().cost` is `Cost::Highest`. Each lane is a request of its own, and the answer of each POST acknowledges it, so the split of PodUtils/podnet@T-302 can take one lane |
+| PodUtils/podnet@T-279: the object-storage simplex carrier | `s3::S3` (feature `s3`): one row of the registry holds `Box::new(S3::new(provider, identity, way, endpoint, credentials).with_tls(tls).with_clients(keys))` with `alpn = b"podnet/1"`, podnet's `--s3-prune` as `prune`; the dial address is `KEY@BUCKET[/PREFIX]`, the listen address `BUCKET[/PREFIX]`; the credentials come from podnet's environment or profile file |
 | PodUtils/podnet@T-277: the selective-repeat ARQ for any lossy carrier | `arq::ArqStream` over a `datagram::Datagrams` (each lossy carrier of podnet gives one), then `Link::new` over the stream; `arq::ArqHandle::rekey_wanted` is the ask of the record layer (PodUtils/podnet@T-298) for a rekey; podnet's `tests/link_arq.rs` takes `datagram::lossy::Lossy` over `datagram::memory::pair` as its shim |
 | exit 64, 69, 77 of a carrier | `CarrierError::class().exit_code()` |
 | exit of a link | `Error::class().exit_code()`: a dead link 75, a broken protocol 76 |

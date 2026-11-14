@@ -1,0 +1,13 @@
+diff --git a/crates/pod-link/src/s3/stream.rs b/crates/pod-link/src/s3/stream.rs
+index 56b0974..448c2b7 100644
+--- a/crates/pod-link/src/s3/stream.rs
++++ b/crates/pod-link/src/s3/stream.rs
+@@ -226,7 +226,7 @@ async fn writer(
+ fn run(dir: &str, next: u64, objects: Vec<Object>) -> Vec<Object> {
+     (next..)
+         .zip(objects)
+-        .take_while(|(want, o)| o.key.strip_prefix(dir).and_then(|s| u64::from_str_radix(s, 16).ok()) == Some(*want))
++        .take_while(|_| true)
+         .map(|(_, o)| o)
+         .collect()
+ }

@@ -46,9 +46,9 @@ mod dial;
 mod down;
 mod lane;
 mod listen;
-mod pipes;
+pub(crate) mod pipes;
 mod session;
-mod wire;
+pub(crate) mod wire;
 
 /// The reader of HTTP/1.1 and of SSE, for the fuzz target `link_poll_wire`
 /// (feature `fuzzing`). It is no API.

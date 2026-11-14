@@ -1,0 +1,7 @@
+# The reader of the s3 carrier takes each listed object, also past a gap of
+# the sequence: an object whose PUT is still in flight is skipped (T-494).
+ENTRY=T-494
+GROUP=link
+EXPECT='the run stops before the gap at 5'
+RUN='cargo test -p pod-link --all-features --lib s3::stream'
+LIMIT=1800

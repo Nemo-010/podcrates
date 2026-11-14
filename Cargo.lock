@@ -2224,6 +2224,7 @@ dependencies = [
  "base64 0.23.1",
  "bytes",
  "h2",
+ "hmac 0.13.0",
  "http",
  "kcp",
  "libc",

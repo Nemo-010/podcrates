@@ -1,8 +1,9 @@
 //! pod-link: two ends of a link over the memory carrier carry one stream,
 //! the unix carrier checks the host, and the tcp, the ws, the h2, the poll,
 //! the quic and the udp carriers dial their own listeners over TLS with the
-//! pin of their key, so that the driver of a link, the frame codec and each
-//! carrier link in.
+//! pin of their key, and the s3 carrier binds at an endpoint where no server
+//! is, so that the driver of a link, the frame codec and each carrier link
+//! in.
 
 use std::sync::Arc;
 
@@ -12,6 +13,7 @@ use pod_link::h2::H2;
 use pod_link::icmp::Icmp;
 use pod_link::poll::{Form, Poll};
 use pod_link::quic::Quic;
+use pod_link::s3::{Credentials, Endpoint, S3};
 use pod_link::tcp::{Keys, Tcp};
 use pod_link::udp::Udp;
 use pod_link::ws::Ws;
@@ -40,13 +42,14 @@ pub fn link(way: Arc<dyn pod_core::Dial>) -> String {
     let tcp = runtime.block_on(tcp(way.clone()));
     let ws = runtime.block_on(ws(way.clone()));
     let h2 = runtime.block_on(h2(way.clone()));
-    let sse = runtime.block_on(poll(way));
+    let sse = runtime.block_on(poll(way.clone()));
+    let s3 = runtime.block_on(s3(way));
     let quic = runtime.block_on(quic());
     let udp = runtime.block_on(udp());
     let dns = runtime.block_on(dns());
     let icmp = icmp();
     format!(
-        "pod-link: {} bytes over the memory carrier, the unix carrier {unix}, the tcp carrier {tcp}, the ws carrier {ws}, the h2 carrier {h2}, the sse carrier {sse}, the quic carrier {quic}, the udp carrier {udp}, the dns carrier {dns}, the icmp carrier {icmp}",
+        "pod-link: {} bytes over the memory carrier, the unix carrier {unix}, the tcp carrier {tcp}, the ws carrier {ws}, the h2 carrier {h2}, the sse carrier {sse}, the quic carrier {quic}, the udp carrier {udp}, the dns carrier {dns}, the icmp carrier {icmp}, the s3 carrier {s3}",
         echoed.map_or_else(|e| e.to_string(), |n| n.to_string())
     )
 }
@@ -192,6 +195,23 @@ async fn dns() -> String {
     match tokio::join!(carrier.dial(&address), door.accept_key()) {
         (Ok(_), Ok((_, peer))) => format!("linked to {peer} over DNS"),
         (Err(e), _) | (_, Err(e)) => e.to_string(),
+    }
+}
+
+/// A bind of the s3 carrier at an endpoint of the loopback where no server
+/// is: the client of the S3 API and SigV4 link in; the error is the result.
+async fn s3(way: Arc<dyn pod_core::Dial>) -> String {
+    let identity = Arc::new(Identity::from_seed(&[18; 32]));
+    let provider = Arc::new(pod_tls::crypto::provider());
+    let endpoint = match Endpoint::parse("http://127.0.0.1:1") {
+        Ok(endpoint) => endpoint,
+        Err(e) => return e,
+    };
+    let mut carrier = S3::new(provider, identity, way, endpoint, Credentials::new("probe", "probe"));
+    carrier.connect_timeout = std::time::Duration::from_secs(2);
+    match carrier.bind("probe", "link").await {
+        Ok(_) => "bound".into(),
+        Err(e) => e.to_string(),
     }
 }
 

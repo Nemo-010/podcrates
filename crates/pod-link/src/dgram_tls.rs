@@ -5,7 +5,8 @@
 //! the other (`pod_tls::peer`), and TLS seals each byte, so a datagram of a
 //! stranger can end a link but not change it. After its handshake the
 //! listener writes the byte of acceptance, as the tcp carrier does (calls
-//! C274, C275).
+//! C274, C275). The s3 carrier runs the same handshake over its byte
+//! stream of objects (`connect_stream`, `accept_stream`).
 
 use std::fmt;
 use std::io;
@@ -16,12 +17,14 @@ use pod_core::Target;
 use pod_identity::{Identity, KeyName, PublicKey};
 use pod_tls::peer::{self, Keys};
 use rustls::crypto::CryptoProvider;
-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _};
 use tokio::time::timeout;
 use tokio_rustls::{TlsAcceptor, TlsConnector};
 
+#[cfg(any(feature = "dns", feature = "icmp"))]
 use crate::arq::{ArqSettings, ArqStream};
 use crate::carrier::{BoxIo, CarrierError, CarrierErrorKind};
+#[cfg(any(feature = "dns", feature = "icmp"))]
 use crate::datagram::Datagrams;
 use crate::pin;
 
@@ -36,6 +39,7 @@ fn err(name: &'static str, kind: CarrierErrorKind, text: impl Into<String>) -> C
 /// record with a nonce of its own, so the sequence of the ARQ is no nonce:
 /// the ARQ wraps with no rekey, and no direction stops at the wrap (call
 /// C290).
+#[cfg(any(feature = "dns", feature = "icmp"))]
 fn stream<D: Datagrams>(name: &'static str, datagrams: D, arq: ArqSettings) -> Result<ArqStream, CarrierError> {
     let stream = ArqStream::new(datagrams, arq).map_err(|e| err(name, CarrierErrorKind::Usage, format!("ARQ: {e}")))?;
     stream.wrap_freely();
@@ -60,6 +64,7 @@ pub(crate) fn acceptor(
 /// the pin of `peer`, the ALPN, and the byte of acceptance. `target` names
 /// the peer (and its SNI when it is a name). Within `within`.
 #[allow(clippy::too_many_arguments)]
+#[cfg(any(feature = "dns", feature = "icmp"))]
 pub(crate) async fn connect<D: Datagrams>(
     name: &'static str,
     datagrams: D,
@@ -71,10 +76,29 @@ pub(crate) async fn connect<D: Datagrams>(
     target: &Target,
     within: Duration,
 ) -> Result<(BoxIo, PublicKey), CarrierError> {
+    let stream = stream(name, datagrams, arq)?;
+    connect_stream(name, stream, provider, identity, peer_key, alpn, target, within).await
+}
+
+/// The dial's handshake over any byte stream to one peer: TLS with the pin
+/// of `peer`, the ALPN, and the byte of acceptance, within `within`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn connect_stream<S>(
+    name: &'static str,
+    stream: S,
+    provider: &Arc<CryptoProvider>,
+    identity: &Arc<Identity>,
+    peer_key: &KeyName,
+    alpn: &'static [u8],
+    target: &Target,
+    within: Duration,
+) -> Result<(BoxIo, PublicKey), CarrierError>
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+{
     let config = peer::client_config(provider.clone(), identity.clone(), peer_key.clone(), &[alpn])
         .map_err(|e| err(name, CarrierErrorKind::Unavailable, e.to_string()))?;
     let server = pin::server_name(name, target)?;
-    let stream = stream(name, datagrams, arq)?;
     let own = identity.public();
     let shake = async {
         let mut tls = TlsConnector::from(config)
@@ -106,6 +130,7 @@ pub(crate) async fn connect<D: Datagrams>(
 
 /// The listener's handshake over the datagrams of one peer: the ARQ, TLS
 /// that takes a pinned client key, the ALPN, and the byte of acceptance.
+#[cfg(any(feature = "dns", feature = "icmp"))]
 pub(crate) async fn accept<D: Datagrams>(
     name: &'static str,
     datagrams: D,
@@ -116,6 +141,22 @@ pub(crate) async fn accept<D: Datagrams>(
     within: Duration,
 ) -> Result<(BoxIo, PublicKey), CarrierError> {
     let stream = stream(name, datagrams, arq)?;
+    accept_stream(name, stream, acceptor, alpn, from, within).await
+}
+
+/// The listener's handshake over any byte stream of one peer: TLS that
+/// takes a pinned client key, the ALPN, and the byte of acceptance.
+pub(crate) async fn accept_stream<S>(
+    name: &'static str,
+    stream: S,
+    acceptor: TlsAcceptor,
+    alpn: &'static [u8],
+    from: &(dyn fmt::Display + Sync),
+    within: Duration,
+) -> Result<(BoxIo, PublicKey), CarrierError>
+where
+    S: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+{
     let run = async {
         let mut tls = acceptor
             .accept(stream)

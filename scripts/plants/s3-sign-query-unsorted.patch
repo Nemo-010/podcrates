@@ -1,0 +1,13 @@
+diff --git a/crates/pod-link/src/s3/sign.rs b/crates/pod-link/src/s3/sign.rs
+index 8143910..30376a5 100644
+--- a/crates/pod-link/src/s3/sign.rs
++++ b/crates/pod-link/src/s3/sign.rs
+@@ -87,7 +87,7 @@ pub fn uri_encode(text: &str, path: bool) -> String {
+ pub fn canonical_query(query: &[(&str, &str)]) -> String {
+     let mut pairs: Vec<(String, String)> =
+         query.iter().map(|(k, v)| (uri_encode(k, false), uri_encode(v, false))).collect();
+-    pairs.sort();
++
+     pairs.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join("&")
+ }
+ 

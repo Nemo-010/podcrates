@@ -1,0 +1,13 @@
+diff --git a/crates/pod-link/src/s3/stream.rs b/crates/pod-link/src/s3/stream.rs
+index 56b0974..e374e20 100644
+--- a/crates/pod-link/src/s3/stream.rs
++++ b/crates/pod-link/src/s3/stream.rs
+@@ -283,7 +283,7 @@ async fn reader(
+                 }
+             }
+             for (object, body) in batch.iter().zip(bodies.into_iter().flatten()) {
+-                if t.prune {
++                if t.prune && false {
+                     let (c, k) = (client.clone(), object.key.clone());
+                     tokio::spawn(async move {
+                         if let Err(e) = c.delete(&k).await {

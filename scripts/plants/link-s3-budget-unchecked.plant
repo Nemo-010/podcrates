@@ -1,0 +1,7 @@
+# The writer of the s3 carrier puts objects with no check of its budget: the
+# objects of one end pass the budget (T-494).
+ENTRY=T-494
+GROUP=link
+EXPECT='the end of the session in time'
+RUN='cargo test -p pod-link --all-features --test s3 the_budget_ends'
+LIMIT=1800

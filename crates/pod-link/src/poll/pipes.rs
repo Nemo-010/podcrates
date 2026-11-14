@@ -14,7 +14,7 @@ use tokio::sync::watch;
 
 /// The state of the two ends of a session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum State {
+pub(crate) enum State {
     Live,
     /// The link dropped its byte stream.
     Gone,
@@ -23,7 +23,7 @@ pub(super) enum State {
 }
 
 /// What the lanes and the byte stream of one session share.
-pub(super) struct Ends {
+pub(crate) struct Ends {
     fault: Mutex<Option<(io::ErrorKind, String)>>,
     state: watch::Sender<State>,
 }
@@ -64,14 +64,14 @@ impl Ends {
 }
 
 /// Wait until the state is one of `states`.
-pub(super) async fn until(rx: &mut watch::Receiver<State>, states: &[State]) {
+pub(crate) async fn until(rx: &mut watch::Receiver<State>, states: &[State]) {
     if rx.wait_for(|s| states.contains(s)).await.is_err() {
         std::future::pending::<()>().await;
     }
 }
 
 /// The byte stream that the link reads and writes.
-pub(super) struct Pipes {
+pub(crate) struct Pipes {
     from_peer: DuplexStream,
     to_peer: DuplexStream,
     ends: Arc<Ends>,
@@ -79,13 +79,13 @@ pub(super) struct Pipes {
 
 /// The far ends of the pipes, for the lanes: the bytes of the peer go into
 /// the first, the bytes for the peer come out of the second.
-pub(super) struct Far {
+pub(crate) struct Far {
     pub from_peer: DuplexStream,
     pub to_peer: DuplexStream,
 }
 
 /// A byte stream and its far ends, with pipes of `size` bytes.
-pub(super) fn pipes(size: usize, ends: Arc<Ends>) -> (Pipes, Far) {
+pub(crate) fn pipes(size: usize, ends: Arc<Ends>) -> (Pipes, Far) {
     let (from_peer, far_in) = tokio::io::duplex(size);
     let (to_peer, far_out) = tokio::io::duplex(size);
     (Pipes { from_peer, to_peer, ends }, Far { from_peer: far_in, to_peer: far_out })
