@@ -1,8 +1,8 @@
 //! The SHA-256 credentials of RFC 8489: the password algorithms of a
 //! challenge (PASSWORD-ALGORITHMS, PASSWORD-ALGORITHM, 14.11 and 14.12), the
-//! key of each algorithm (9.2.2), MESSAGE-INTEGRITY-SHA256 (14.6), and the
-//! security features that a nonce announces (9.2). Pure Rust: HMAC-SHA256 of
-//! `hmac` and `sha2`.
+//! key of each algorithm (9.2.2), MESSAGE-INTEGRITY-SHA256 (14.6), USERHASH
+//! (14.4), and the security features that a nonce announces (9.2). Pure
+//! Rust: HMAC-SHA256 of `hmac` and `sha2`.
 
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::{Digest, Sha256};
@@ -16,10 +16,65 @@ pub const USERHASH: u16 = 0x001e;
 pub const PASSWORD_ALGORITHMS: u16 = 0x8002;
 
 /// The cookie at the start of a nonce that announces security features
-/// (RFC 8489, 9.2): four base64 characters of 24 bits follow it. The order
-/// of the bits is not clear in the RFC (the nonce of its example B.1 fits
-/// neither order), so [`nonce_features`] gives the 24 bits as they are.
+/// (RFC 8489, 9.2): four base64 characters of 24 bits follow it.
+/// [`nonce_features`] gives the 24 bits as they are; [`SecurityFeature`]
+/// reads them.
 pub const NONCE_COOKIE: &[u8] = b"obMatJos2";
+
+/// A security feature that a nonce cookie announces (RFC 8489, 18.1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SecurityFeature {
+    /// Bit 0: the server sends PASSWORD-ALGORITHMS (9.2.4).
+    PasswordAlgorithms,
+    /// Bit 1: the client sends USERHASH in place of USERNAME (9.2.5).
+    UsernameAnonymity,
+}
+
+impl SecurityFeature {
+    /// The bit of the feature as erratum 6290 of RFC 8489 counts it: bit 0
+    /// is the least significant bit of the 24 (RFC 8489, B.1, and libjuice
+    /// write so).
+    pub const fn bit(self) -> u32 {
+        match self {
+            SecurityFeature::PasswordAlgorithms => 0x00_0001,
+            SecurityFeature::UsernameAnonymity => 0x00_0002,
+        }
+    }
+
+    /// The bits that announce the feature: [`Self::bit`], and the bit of the
+    /// other order, which counts bit 0 as the most significant bit (RFC 8489,
+    /// 9.2, and the example of RFC 8656, 20). Bits 2 to 21 are unassigned, so
+    /// no feature has a bit of the other in either order.
+    pub const fn bits(self) -> u32 {
+        match self {
+            SecurityFeature::PasswordAlgorithms => 0x80_0001,
+            SecurityFeature::UsernameAnonymity => 0x40_0002,
+        }
+    }
+
+    /// True when `nonce` starts with the cookie and announces the feature.
+    pub fn announced_by(self, nonce: &[u8]) -> bool {
+        nonce_features(nonce).is_some_and(|bits| bits & self.bits() != 0)
+    }
+}
+
+/// The cookie of a nonce with the 24 bits of `features`, as a server
+/// writes it: [`NONCE_COOKIE`] and four characters of base64.
+pub fn nonce_cookie(features: u32) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::from_utf8_lossy(NONCE_COOKIE).into_owned();
+    for shift in [18, 12, 6, 0] {
+        out.push(char::from(ALPHABET[((features >> shift) & 0x3f) as usize]));
+    }
+    out
+}
+
+/// The USERHASH of `user` in `realm` (RFC 8489, 14.4): SHA-256 of
+/// `user:realm`. The caller gives each text after its preparation
+/// (OpaqueString); this function does none.
+pub fn userhash(user: &str, realm: &str) -> [u8; 32] {
+    Sha256::digest(format!("{user}:{realm}").as_bytes()).into()
+}
 
 /// The bytes of a MESSAGE-INTEGRITY-SHA256 attribute that this codec writes:
 /// the whole HMAC, not a truncated one.

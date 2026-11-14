@@ -1,13 +1,15 @@
-//! One request and its answer: the credentials of a request, the send
-//! again over UDP, the 401 challenge and the 438 nonce, the integrity of the
-//! answer; and each other message that comes while a request waits, which
-//! becomes an event.
+//! One request and its answer: the credentials of a request (USERNAME, or
+//! USERHASH when the nonce asks for it), the send again over UDP, the 401
+//! challenge and the 438 nonce with the security features of the nonce, a
+//! 300 redirect, the integrity of the answer; and each other message that
+//! comes while a request waits, which becomes an event.
 
 use std::time::Duration;
 
 use crate::stun::{
-    self, Class, DATA, DATA_METHOD, HEADER, Message, NONCE, PASSWORD_ALGORITHM, PASSWORD_ALGORITHMS, PasswordAlgorithm,
-    REALM, SOFTWARE, TransactionId, USERNAME, XOR_PEER_ADDRESS, class_of, decode, message, message_type, method_of,
+    self, ALTERNATE_DOMAIN, ALTERNATE_SERVER, Class, DATA, DATA_METHOD, HEADER, Message, NONCE, PASSWORD_ALGORITHM,
+    PASSWORD_ALGORITHMS, PasswordAlgorithm, REALM, SOFTWARE, SecurityFeature, TransactionId, USERHASH, USERNAME,
+    XOR_PEER_ADDRESS, class_of, decode, message, message_type, method_of,
 };
 
 use super::error::method_name;
@@ -29,6 +31,9 @@ pub struct Auth {
     /// (RFC 8489, 9.2.4); `None` from a server that sent none (MD5 alone).
     pub offered: Option<Vec<u8>>,
     pub key: Vec<u8>,
+    /// The USERHASH that each request sends in place of USERNAME, when the
+    /// nonce announces username anonymity (RFC 8489, 9.2.5).
+    pub userhash: Option<[u8; 32]>,
 }
 
 /// The value of an attribute of a request: bytes, or a peer's address,
@@ -85,6 +90,7 @@ impl Client {
                     self.challenge(&read, true)?;
                 }
                 438 if self.auth.is_some() => return Err(Error::StaleNonce { method, tries: stale + 1 }),
+                300 => return Err(self.alternate(&read, &reply, method, reason)),
                 _ => {
                     if self.auth.is_some() && stun::integrity_of(&read.attributes).is_some() {
                         self.check(&reply, kind)?;
@@ -126,7 +132,10 @@ impl Client {
             list.push((SOFTWARE, software.as_bytes()));
         }
         let Some(auth) = &self.auth else { return message(kind, id, &list) };
-        list.push((USERNAME, self.credentials.username().as_bytes()));
+        match &auth.userhash {
+            Some(hash) => list.push((USERHASH, hash)),
+            None => list.push((USERNAME, self.credentials.username().as_bytes())),
+        }
         list.push((REALM, auth.realm.as_bytes()));
         list.push((NONCE, &auth.nonce));
         let chosen = auth.algorithm.attribute();
@@ -144,11 +153,16 @@ impl Client {
     /// Take the realm, the nonce and the algorithms of a 401 (`stale` false)
     /// or of a 438 (`stale` true), and make the key. A realm that the
     /// settings do not expect fails. A 438 keeps the realm when it names
-    /// none.
+    /// none. A nonce that announces PASSWORD-ALGORITHMS in a challenge with
+    /// none fails (a downgrade); one that announces username anonymity makes
+    /// each request send USERHASH.
     fn challenge(&mut self, read: &Message<'_>, stale: bool) -> Result<(), Error> {
         let kind = read.kind;
         let protocol = |why: &str| Error::Protocol { kind, why: why.to_string() };
         let nonce = read.attribute(NONCE).ok_or_else(|| protocol("a challenge with no NONCE"))?.to_vec();
+        if downgraded(read) {
+            return Err(Error::Downgrade { method: method_of(kind) });
+        }
         let realm = match (read.attribute(REALM), &self.auth) {
             (Some(value), _) => String::from_utf8(value.to_vec()).map_err(|_| protocol("a REALM that is no UTF-8"))?,
             (None, Some(auth)) if stale => auth.realm.clone(),
@@ -174,9 +188,34 @@ impl Client {
                 (algorithm, Some(value.to_vec()))
             }
         };
-        let key = algorithm.key(self.credentials.username(), &realm, self.credentials.password());
-        self.auth = Some(Auth { realm, nonce, algorithm, offered, key });
+        let user = self.credentials.username();
+        let key = algorithm.key(user, &realm, self.credentials.password());
+        let userhash = SecurityFeature::UsernameAnonymity.announced_by(&nonce).then(|| stun::userhash(user, &realm));
+        self.auth = Some(Auth { realm, nonce, algorithm, offered, key, userhash });
         Ok(())
+    }
+
+    /// A 300 (Try Alternate) to a request of `method`: the ALTERNATE-SERVER
+    /// to follow, with the ALTERNATE-DOMAIN only when MESSAGE-INTEGRITY-SHA256
+    /// with the key of the allocation signs the answer (RFC 8489, 10); an
+    /// answer whose integrity fails is refused. A 300 with no
+    /// ALTERNATE-SERVER is the server's error.
+    fn alternate(&self, read: &Message<'_>, reply: &[u8], method: u16, reason: String) -> Error {
+        let kind = read.kind;
+        let signed = match (&self.auth, stun::integrity_of(&read.attributes)) {
+            (Some(auth), Some(_)) => match self.check(reply, kind) {
+                Ok(()) => auth.algorithm == PasswordAlgorithm::Sha256,
+                Err(error) => return error,
+            },
+            _ => false,
+        };
+        let Some(value) = read.attribute(ALTERNATE_SERVER) else { return Error::Server { method, code: 300, reason } };
+        let to = match stun::read_address(value, None) {
+            Ok(to) => to,
+            Err(why) => return Error::Protocol { kind, why: format!("ALTERNATE-SERVER: {why}") },
+        };
+        let domain = read.attribute(ALTERNATE_DOMAIN).filter(|_| signed);
+        Error::Alternate { method, to, domain: domain.map(|v| String::from_utf8_lossy(v).into_owned()) }
     }
 
     /// The integrity of an answer, with the key of the chosen algorithm: an
@@ -212,7 +251,7 @@ impl Client {
                     () = self.clock.sleep_until(wait) => break,
                 };
                 match frame {
-                    Frame::Stun(bytes) if answers(&bytes, &id) => return Ok(bytes),
+                    Frame::Stun(bytes) if answers(&bytes, &id) && !ignored(&bytes) => return Ok(bytes),
                     other => self.incoming(other),
                 }
             }
@@ -270,9 +309,55 @@ impl Client {
     }
 }
 
+/// True when the NONCE of `read` announces PASSWORD-ALGORITHMS and `read`
+/// holds none (RFC 8489, 9.2.5).
+fn downgraded(read: &Message<'_>) -> bool {
+    read.attribute(NONCE).is_some_and(|nonce| SecurityFeature::PasswordAlgorithms.announced_by(nonce))
+        && read.attribute(PASSWORD_ALGORITHMS).is_none()
+}
+
+/// True for an answer that the client must drop as if it never came: one
+/// with a downgraded nonce that is no 401 or 438 (RFC 8489, 9.2.5). The
+/// request then waits on, and goes again over UDP.
+fn ignored(bytes: &[u8]) -> bool {
+    let Ok(read) = decode(bytes) else { return false };
+    let challenge = matches!(read.error(), Some(Ok((401 | 438, _))));
+    !challenge && downgraded(&read)
+}
+
 /// True when `bytes` is an answer (a success or an error) of `id`.
 fn answers(bytes: &[u8], id: &TransactionId) -> bool {
     bytes.len() >= HEADER
         && bytes[8..HEADER] == id[..]
         && matches!(class_of(u16::from_be_bytes([bytes[0], bytes[1]])), Class::Success | Class::Error)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::stun::{ALLOCATE, ERROR_CODE};
+
+    /// An answer with a nonce that announces PASSWORD-ALGORITHMS and holds
+    /// none is dropped, unless it is a 401 or a 438, which fail instead.
+    #[test]
+    fn an_answer_with_a_downgraded_nonce_is_dropped() {
+        let nonce = stun::nonce_cookie(SecurityFeature::PasswordAlgorithms.bit()) + "rest";
+        let offered = stun::write_password_algorithms(&[PasswordAlgorithm::Md5]);
+        let answer = |class, code: Option<u16>, algorithms: bool| {
+            let error = code.map(|c| vec![0, 0, (c / 100) as u8, (c % 100) as u8]);
+            let mut list: Vec<(u16, &[u8])> = vec![(NONCE, nonce.as_bytes())];
+            list.extend(error.as_deref().map(|e| (ERROR_CODE, e)));
+            if algorithms {
+                list.push((PASSWORD_ALGORITHMS, offered.as_slice()));
+            }
+            message(message_type(ALLOCATE, class), &[3; 12], &list)
+        };
+        assert!(ignored(&answer(Class::Success, None, false)));
+        assert!(ignored(&answer(Class::Error, Some(400), false)));
+        assert!(!ignored(&answer(Class::Success, None, true)));
+        assert!(!ignored(&answer(Class::Error, Some(401), false)), "a 401 fails as a downgrade");
+        assert!(!ignored(&answer(Class::Error, Some(438), false)), "a 438 fails as a downgrade");
+        let plain = message(message_type(ALLOCATE, Class::Success), &[3; 12], &[(NONCE, b"AAABrest")]);
+        assert!(!ignored(&plain), "no cookie");
+    }
 }

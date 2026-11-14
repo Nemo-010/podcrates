@@ -121,3 +121,43 @@ fn a_nonce_with_the_cookie_gives_its_feature_bits() {
     assert_eq!(nonce_features(b"obMatJos2AA*Arest"), None, "no base64");
     assert_eq!(nonce_features(b"f//499k954d6OL34oL9FSTvy64sA"), None);
 }
+
+/// The request of RFC 8489, B.1, as erratum 6268 corrects it: USERHASH,
+/// NONCE, REALM, PASSWORD-ALGORITHM (SHA-256) and MESSAGE-INTEGRITY-SHA256.
+/// A vector of the RFC, not of this crate.
+const B1: &str = "000100902112a44278ad3433c6ad72c029da412e001e00204a3cf38fef6992bd\
+                  a952c6780417da0f24819415569e60b205c46e41407f1704001500296f624d61\
+                  744a6f733241414143662f2f3439396b39353464364f4c33346f4c3946535476\
+                  79363473410000000014000b6578616d706c652e6f726700001d000400020000\
+                  001c0020b5c7bf005b6c52a21c51c5e892f81924136296cb927c43149309278c\
+                  c6518e65";
+
+/// USERHASH and the SHA-256 key of the RFC's user check its vector, and its
+/// nonce announces username anonymity alone in the order of erratum 6290.
+#[test]
+fn the_request_of_rfc_8489_b1_checks_with_its_userhash_and_key() {
+    let bytes = hex(B1);
+    let read = crate::stun::parse(&bytes).unwrap();
+    assert_eq!(read.attribute(USERHASH), Some(userhash(USER, REALM_TEXT).as_slice()));
+    assert_eq!(integrity_sha256(&bytes, &sha256_key(USER, REALM_TEXT, PASSWORD)), Ok(()));
+    let nonce = read.attribute(NONCE).unwrap();
+    assert!(SecurityFeature::UsernameAnonymity.announced_by(nonce));
+    assert!(!SecurityFeature::PasswordAlgorithms.announced_by(nonce));
+}
+
+/// Each feature reads in both orders of its bits; a server writes the
+/// order of erratum 6290.
+#[test]
+fn a_feature_reads_in_both_orders_of_the_bits() {
+    let password = SecurityFeature::PasswordAlgorithms;
+    let anonymity = SecurityFeature::UsernameAnonymity;
+    assert!(password.announced_by(NONCE_TEXT), "AAAB: bit 0 from the least significant side");
+    assert!(password.announced_by(b"obMatJos2gAAAadl7W7PeDU4hKE72jda"), "gAAA: RFC 8656, 20");
+    assert!(anonymity.announced_by(b"obMatJos2QAAArest"), "QAAA: bit 1 from the most significant side");
+    assert!(!anonymity.announced_by(NONCE_TEXT) && !password.announced_by(b"obMatJos2AAAC"));
+    assert!(!password.announced_by(b"f//499k954d6OL34oL9FSTvy64sA"), "no cookie");
+    assert_eq!(nonce_cookie(password.bit()), "obMatJos2AAAB");
+    assert_eq!(nonce_cookie(password.bit() | anonymity.bit()), "obMatJos2AAAD");
+    assert_eq!(nonce_cookie(0x80_0000), "obMatJos2gAAA");
+    assert_eq!(nonce_features(nonce_cookie(0x12_3456).as_bytes()), Some(0x12_3456));
+}

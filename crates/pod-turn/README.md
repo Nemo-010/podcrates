@@ -51,8 +51,21 @@ client.close().await?;                                  // a Refresh with a life
 
 Over TLS: `Settings::tls(server, credentials, dialer, context)` with the
 caller's `Arc<dyn pod_core::Dial>` and `Arc<pod_tls::Context>` (the
-provider and the roots); `Transport::Tls { trust, server_name, .. }`
-changes the roots or the name to check.
+provider and the roots); `Transport::Tls { trust, server_name, alpn, .. }`
+changes the roots, the name to check, or offers the ALPN `stun.turn`.
+
+The options of an Allocate (RFC 8656, 7.1) are `settings.allocation`:
+
+```rust
+use pod_turn::{Allocation, Family, Port};
+
+settings.allocation = Allocation { family: Family::Both, port: Port::Even, dont_fragment: true, ..Allocation::default() };
+let client = Client::allocate(settings).await?;
+client.relayed_addresses();                             // IPv4 and IPv6, or one of them
+client.address_error();                                 // the family that the server did not give, and why
+// Port::EvenAndNext keeps the next port: client.reservation_token() goes in
+// Allocation { reservation: Some(token), .. } of a later Allocate.
+```
 
 ## API
 
@@ -65,21 +78,26 @@ changes the roots or the name to check.
 | `stun::{signed_sha256, integrity_sha256, sha256_key, PasswordAlgorithm, password_algorithms, write_password_algorithms, integrity_of}` | MESSAGE-INTEGRITY-SHA256 (a HMAC of 16 to 32 bytes is checked), the SHA-256 key, PASSWORD-ALGORITHM(S) (RFC 8489, 14.6, 14.11, 14.12) |
 | `stun::{fingerprinted, fingerprint_ok}` | FINGERPRINT (RFC 8489, 14.7) |
 | `stun::{nonce_features, NONCE_COOKIE}` | the 24 bits of a nonce that starts with `obMatJos2` (RFC 8489, 9.2), as they are |
+| `stun::{SecurityFeature, nonce_cookie}` | the features of the cookie (`PasswordAlgorithms`, `UsernameAnonymity`): `bit` (erratum 6290: bit 0 is the least significant), `bits` (both orders), `announced_by(nonce)`; the cookie of 24 bits as a server writes it |
+| `stun::{userhash, USERHASH}` | USERHASH (RFC 8489, 14.4): SHA-256 of `user:realm` |
+| `stun::{ALTERNATE_SERVER, ALTERNATE_DOMAIN, UNKNOWN_ATTRIBUTES}` | the attributes of a 300 (RFC 8489, 10) and of a 420 |
 | `stun::{ALLOCATE, REFRESH, SEND, DATA_METHOD, CREATE_PERMISSION, CHANNEL_BIND, CONNECT, ..}` and the attributes | the methods and the attributes of RFC 8489, RFC 8656 and RFC 6062 |
 | `md5::md5` | MD5 (RFC 1321): the MD5 key, and `pod_proxy::digest::md5` |
-| `Client::allocate(settings)` | the transport, the 401 challenge, the Allocate (UDP relay, the lifetime of the settings) |
+| `Client::allocate(settings)` | the transport, the 401 challenge, the Allocate (UDP relay, the lifetime and the `Allocation` of the settings), one redirect (300) to another server |
 | `Client::{refresh, create_permission, bind_channel, send, send_to, recv, close}` | Refresh, CreatePermission, ChannelBind (a peer keeps its number), ChannelData, a Send indication, the next event, the end of the allocation |
 | `Client::{relayed_address, mapped_address, lifetime, username, next_refresh}` | what the server gave, and the next refresh with what it keeps (`Kept`) |
+| `Client::{relayed_addresses, reservation_token, address_error, alpn, server}` | the relayed addresses (two of a dual allocation), the token of the next port, the family that the server did not give (`AddressError`), the ALPN that the server chose, the server after a redirect |
 | `Settings` (`udp`, `tls`, `check`), `Transport` (`Udp`, `Tls`), `Credentials`, `Limits`, `Clock`, `TokioClock`, `UdpSource`, `SystemUdp`, `Opened` | the settings (below) |
+| `Allocation` (`family`, `port`, `reservation`, `dont_fragment`), `Family` (`Server`, `Ipv4`, `Ipv6`, `Both`), `Port` (`Any`, `Even`, `EvenAndNext`), `AddressError` | the options of an Allocate (RFC 8656, 7.1, 18.6 to 18.12); `Debug` hides the token |
 | `Event` (`Data`, `RefreshFailed`, `ServerError`), `Kept` | what `recv` gives |
-| `Error` (`class`, `code`; into `pod_core::Failure` at the stage `Relay`) | `Usage`, `Connect` (the dial, TLS, the UDP socket), `Io`, `Closed`, `Timeout { method }`, `Decode` (the type and the offset), `Frame` (a TLS stream out of step), `Protocol { kind }`, `Integrity { kind }`, `Server { method, code, reason }`, `StaleNonce { method, tries }`, `Realm`, `NoRandom`, `NoAllocation`, `NoChannel`, `NoPermission`, `NoChannelNumber`, `TooLarge` |
+| `Error` (`class`, `code`; into `pod_core::Failure` at the stage `Relay`) | `Usage`, `Connect` (the dial, TLS, the UDP socket), `Io`, `Closed`, `Timeout { method }`, `Decode` (the type and the offset), `Frame` (a TLS stream out of step), `Protocol { kind }`, `Integrity { kind }`, `Server { method, code, reason }`, `StaleNonce { method, tries }`, `Realm`, `Alternate { method, to, domain }` (a 300 not followed), `Redirected { to, error }` (the Allocate after the redirect failed; the words and the stage of the way out stay), `Downgrade { method }`, `NoRandom`, `NoAllocation`, `NoChannel`, `NoPermission`, `NoChannelNumber`, `TooLarge` |
 
 ## Settings
 
 | Field | Default | What |
 | --- | --- | --- |
 | `server` | none | `pod_core::Target` of the server |
-| `transport` | none | `Udp(Arc<dyn UdpSource>)`, or `Tls { dialer, context, trust, server_name }` (`Trust::Default` and the host of `server` from `Settings::tls`) |
+| `transport` | none | `Udp(Arc<dyn UdpSource>)`, or `Tls { dialer, context, trust, server_name, alpn }` (`Trust::Default`, the host of `server` and no ALPN from `Settings::tls`; `alpn` offers `stun.turn`, call C565) |
 | `credentials` | none | the user and the password after their preparation (OpaqueString); `Debug` shows the user alone; the password is wiped at the drop |
 | `realm` | `None` | the realm that the caller expects; another one fails before a key is made |
 | `limits.rto`, `limits.retransmits` | 500 ms, 6 | the first wait over UDP, which doubles, and the sends after the first (RFC 8489, 6.2.1) |
@@ -92,6 +110,7 @@ changes the roots or the name to check.
 | `clock` | `TokioClock` | `now` and `sleep_until` of each deadline and refresh |
 | `entropy` | `OsEntropy` | the transaction ids |
 | `software` | `None` | SOFTWARE of each request: the consumer's name |
+| `allocation` | nothing more | `Allocation`: REQUESTED-ADDRESS-FAMILY or ADDITIONAL-ADDRESS-FAMILY (`family`), EVEN-PORT (`port`), RESERVATION-TOKEN (`reservation`), DONT-FRAGMENT in the Allocate and each Send indication (`dont_fragment`); `check` refuses what RFC 8656, 7.1 forbids |
 
 ## The rules of the client
 
@@ -104,6 +123,32 @@ changes the roots or the name to check.
   to a signed request fails. The user and the password of a live
   allocation never change: a server that answers 441 fails the request,
   and a new credential needs a new `Client::allocate`.
+- **The nonce cookie** (RFC 8489, 9.2; call C562). A nonce that starts
+  with `obMatJos2` and announces PASSWORD-ALGORITHMS in a 401 or 438 with
+  none fails the request (`Error::Downgrade`); another answer with such a
+  nonce is dropped. A nonce that announces username anonymity makes each
+  request send USERHASH in place of USERNAME. Each feature reads in both
+  orders of the bits: erratum 6290 (bit 0 is the least significant) and
+  the text of 9.2 with the example of RFC 8656, 20 (bit 0 is the most
+  significant).
+- **A redirect** (RFC 8489, 10; RFC 8656, 7.4; call C563). A 300 with
+  ALTERNATE-SERVER to the Allocate is followed once: a new transport
+  through the caller's `UdpSource` or dialer, the same user and password,
+  a fresh challenge, and the realm of the settings, else of the first
+  server, expected of the new one. A second 300, a 300 to the same server
+  or a 300 to another request fails (`Error::Alternate`). Over TLS the
+  certificate is checked against ALTERNATE-DOMAIN only from a 300 signed
+  with MESSAGE-INTEGRITY-SHA256, else against the name of the settings.
+  A refusal of the caller's way out fails with its words and its stage
+  (`Error::Redirected`).
+- **The options of an Allocate** (RFC 8656, 7.1 to 7.3; call C564). A
+  success must give the families and the even port that were asked for,
+  else the client deletes the allocation and fails. An unspecified
+  relayed address is dropped (coturn 4.18 writes `0.0.0.0:0` for the
+  family of its ADDRESS-ERROR-CODE); a dual allocation of one family with
+  no ADDRESS-ERROR-CODE holds (coturn 4.6 sends none). A 420 to
+  DONT-FRAGMENT fails the Allocate by its code: the caller can ask again
+  with none.
 - **The answers.** An answer goes with its request by its transaction id.
   A success to a signed request needs the integrity of the chosen
   algorithm; one with another key or with none fails (`Error::Integrity`).
@@ -184,10 +229,15 @@ this crate, and the tests that hold them:
   `ConnectionAttempt`): the constants are here; the steps are not.
   PodUtils/podnet#485 tracks it, and PodUtils/podssh@T-621 can add them on
   an allocation of this crate.
-- [ ] The options of RFC 8489 and RFC 8656 that the client does not use
-  (the security feature bits of a nonce, USERHASH, ALTERNATE-SERVER, the
-  ALPN `stun.turn` of RFC 7443, EVEN-PORT, RESERVATION-TOKEN,
-  DONT-FRAGMENT, ADDITIONAL-ADDRESS-FAMILY): T-381.
+- [x] The options of RFC 8489 and RFC 8656 (T-381): the feature bits of a
+  nonce and USERHASH against the vector of RFC 8489, B.1 (erratum 6268)
+  and the mock (`src/stun_sha256_tests.rs`, `tests/turn_redirect.rs`;
+  coturn has neither); ALTERNATE-SERVER, the ALPN `stun.turn` of RFC 7443,
+  EVEN-PORT, RESERVATION-TOKEN, DONT-FRAGMENT, REQUESTED-ADDRESS-FAMILY and
+  ADDITIONAL-ADDRESS-FAMILY against the mock (`tests/turn_redirect.rs`,
+  `tests/turn_allocation.rs`) and against coturn 4.18.0 on 127.0.0.1
+  (`tests/coturn_options.rs`, with a second coturn that redirects); the
+  plants of T-381 in `scripts/plants/`.
 - [ ] A TURN server as a fact of another party with a watch (TURN-4): the
   consumer's, in `pod-services`, when it names a server.
 
@@ -201,13 +251,20 @@ this crate, and the tests that hold them:
 
 ## Tests
 
-`cargo test -p pod-turn --all-features`: the codec and the errors (20 unit tests), the
-mock over UDP (`tests/turn_udp.rs`) and over TLS (`tests/turn_tls.rs`);
-`tests/live.rs` is `#[ignore]`. `tests/coturn.rs` (7 tests) skips with no
-coturn; `sh scripts/ci/turn-tests.sh` starts coturn 4.18.0 on the loopback
-(docker, or `POD_TURN_TEST_COTURN_BIN`, a `turnserver` of the host) and
-fails on a skip. The mock (`tests/common/mock.rs`) is its
+`cargo test -p pod-turn --all-features`: the codec, the options of an
+Allocate and the errors (28 unit tests), the mock over UDP
+(`tests/turn_udp.rs`, `tests/turn_allocation.rs`) and over TLS
+(`tests/turn_tls.rs`), the nonce cookie, USERHASH, the redirect and the
+ALPN (`tests/turn_redirect.rs`); `tests/live.rs` is `#[ignore]`.
+`tests/coturn.rs` (7 tests) and `tests/coturn_options.rs` (6 tests) skip
+with no coturn; `sh scripts/ci/turn-tests.sh` starts coturn 4.18.0 on the
+loopback, and a second one that redirects to it (docker, or
+`POD_TURN_TEST_COTURN_BIN`, a `turnserver` of the host; coturn 4.6.1 of
+Ubuntu passes too), and fails on a skip. The mock (`tests/common/mock.rs`) is its
 own reading of RFC 8656: a session for each UDP 5-tuple or TLS
 connection, a relay socket on the loopback for each allocation, the 401,
-the 438 on request of a test, a 441 for a user who is not the owner, and
-the users and the realm of the tests (made-up values).
+the 438 on request of a test, a 441 for a user who is not the owner, the
+nonce cookie and USERHASH, a 300 before or after the challenge, the
+options of an Allocate (`tests/common/mock_alloc.rs`; an IPv6 relayed
+address is `[::1]` with no socket, as the host can have no IPv6), and the
+users and the realm of the tests (made-up values).

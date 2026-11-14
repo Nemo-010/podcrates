@@ -1,10 +1,12 @@
 #!/bin/sh
-# The TURN client of pod-turn (T-380) and the STUN codec of pod-proxy
+# The TURN client of pod-turn (T-380, T-381) and the STUN codec of pod-proxy
 # (T-358) against coturn (call C151): the image that images/coturn/Dockerfile
 # pins to a digest, run with the host's network on 127.0.0.1 alone. coturn
 # serves TURN over UDP and over TLS on TCP with a made-up static user and
 # realm, a certificate of a root that this script makes, peers on the
-# loopback, FINGERPRINT on each answer, and nonces of 2 s.
+# loopback, FINGERPRINT on each answer, and nonces of 2 s. A second coturn
+# with the same options answers each Allocate with 300 and the address of
+# the first (--alternate-server, --tls-alternate-server).
 # POD_TURN_TEST_COTURN=required and POD_PROXY_TEST_STUN=required make a skip
 # a failure, and the run must say each line below, so the check cannot pass
 # by a skip. It needs docker and openssl. POD_TURN_TEST_COTURN_BIN names a
@@ -13,6 +15,10 @@ set -eu
 cd "$(dirname "$0")/../.." || exit 71
 udp=3478
 tls=5349
+# The ports of the coturn that redirects; not the alternative ports of the
+# first (its port + 1).
+redirect_udp=3488
+redirect_tls=5358
 # The made-up login and realm of tests/coturn.rs of pod-turn.
 user=pod-turn-test
 password=made-up-coturn-password
@@ -35,16 +41,23 @@ openssl x509 -req -in "$dir/server.csr" -CA "$dir/ca.pem" -CAkey "$dir/ca.key" -
 chmod 644 "$dir/server.key" "$dir/server.pem" "$dir/ca.pem"
 
 set -- -n --log-file=stdout --listening-ip=127.0.0.1 --relay-ip=127.0.0.1 \
-    --listening-port=$udp --tls-listening-port=$tls --cert="$dir/server.pem" --pkey="$dir/server.key" \
+    --cert="$dir/server.pem" --pkey="$dir/server.key" \
     --lt-cred-mech --realm=$realm --user=$user:$password --allow-loopback-peers --fingerprint \
     --stale-nonce=2 --max-allocate-lifetime=1800
+first="--listening-port=$udp --tls-listening-port=$tls"
+redirect="--listening-port=$redirect_udp --tls-listening-port=$redirect_tls"
+redirect="$redirect --alternate-server=127.0.0.1:$udp --tls-alternate-server=127.0.0.1:$tls"
 if [ -n "${POD_TURN_TEST_COTURN_BIN:-}" ]; then
     "$POD_TURN_TEST_COTURN_BIN" --version
     # A turnserver before 4.7 starts its CLI unless told, and refuses the
     # CLI with no password beside --allow-loopback-peers.
-    "$POD_TURN_TEST_COTURN_BIN" "$@" --no-cli > "$dir/coturn.log" 2>&1 &
+    # shellcheck disable=SC2086  # $first and $redirect are lists of options
+    "$POD_TURN_TEST_COTURN_BIN" "$@" $first --no-cli > "$dir/coturn.log" 2>&1 &
     pid=$!
-    trap 'tail -n 40 "$dir/coturn.log"; kill "$pid" 2> /dev/null || true; rm -rf "$dir"' EXIT
+    # shellcheck disable=SC2086
+    "$POD_TURN_TEST_COTURN_BIN" "$@" $redirect --no-cli > "$dir/redirect.log" 2>&1 &
+    pid="$pid $!"
+    trap 'tail -n 40 "$dir/coturn.log" "$dir/redirect.log"; kill $pid 2> /dev/null || true; rm -rf "$dir"' EXIT
 else
     ref=$(tr -d '\r' < images/coturn/Dockerfile | sed -n 's/^FROM[[:space:]]\{1,\}\([^[:space:]]\{1,\}\).*/\1/p')
     case "$ref" in
@@ -56,23 +69,30 @@ else
     # The entrypoint of the image passes each argument through `eval echo`,
     # which takes `-n` as its own option: turnserver itself is the program.
     docker run --rm --entrypoint turnserver "$image" --version
-    docker run -d --name "$name" --network host -v "$dir:$dir:ro" --entrypoint turnserver "$image" "$@" > /dev/null
-    trap 'docker logs "$name" 2>&1 | tail -n 40; docker rm -f "$name" > /dev/null 2>&1 || true; rm -rf "$dir"' EXIT
+    # shellcheck disable=SC2086  # $first and $redirect are lists of options
+    docker run -d --name "$name" --network host -v "$dir:$dir:ro" --entrypoint turnserver "$image" "$@" $first > /dev/null
+    # shellcheck disable=SC2086
+    docker run -d --name "$name-redirect" --network host -v "$dir:$dir:ro" --entrypoint turnserver "$image" \
+        "$@" $redirect > /dev/null
+    trap 'for n in "$name" "$name-redirect"; do docker logs "$n" 2>&1 | tail -n 40; done
+        docker rm -f "$name" "$name-redirect" > /dev/null 2>&1 || true; rm -rf "$dir"' EXIT
 fi
 
-# Wait for a Binding answer on UDP and for the TLS port, at most 60 s.
-python3 -I - "$udp" "$tls" <<'EOF'
+# Wait for a Binding answer on each UDP port and for each TLS port, at most
+# 60 s.
+python3 -I - "$udp" "$tls" "$redirect_udp" "$redirect_tls" <<'EOF'
 import socket, sys, time
-udp, tls = int(sys.argv[1]), int(sys.argv[2])
+ports = [int(p) for p in sys.argv[1:]]
 deadline = time.monotonic() + 60
 request = bytes.fromhex("000100002112a442") + bytes(range(12))
 while True:
     try:
-        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.settimeout(0.5)
-            s.sendto(request, ("127.0.0.1", udp))
-            s.recvfrom(1500)
-        socket.create_connection(("127.0.0.1", tls), 1).close()
+        for udp, tls in zip(ports[::2], ports[1::2]):
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.settimeout(0.5)
+                s.sendto(request, ("127.0.0.1", udp))
+                s.recvfrom(1500)
+            socket.create_connection(("127.0.0.1", tls), 1).close()
         break
     except OSError:
         if time.monotonic() > deadline:
@@ -80,9 +100,10 @@ while True:
         time.sleep(0.5)
 EOF
 
-out=$(POD_TURN_TEST_COTURN=required POD_TURN_TEST_COTURN_UDP=127.0.0.1:$udp \
+export POD_TURN_TEST_COTURN=required POD_TURN_TEST_COTURN_UDP=127.0.0.1:$udp \
     POD_TURN_TEST_COTURN_TLS=127.0.0.1:$tls POD_TURN_TEST_COTURN_CA="$dir/ca.pem" \
-    cargo test --locked -p pod-turn --all-features --test coturn -- --nocapture 2>&1) ||
+    POD_TURN_TEST_COTURN_REDIRECT_UDP=127.0.0.1:$redirect_udp POD_TURN_TEST_COTURN_REDIRECT_TLS=127.0.0.1:$redirect_tls
+out=$(cargo test --locked -p pod-turn --all-features --test coturn --test coturn_options -- --nocapture 2>&1) ||
     { printf '%s\n' "$out"; exit 1; }
 printf '%s\n' "$out"
 stun=$(POD_PROXY_TEST_STUN=required POD_PROXY_TEST_STUN_SERVER=127.0.0.1:$udp \
@@ -95,12 +116,25 @@ for line in 'coturn: an allocation over UDP relayed a Send and ChannelData' \
     'coturn: a stale nonce got 438, and the request went again' \
     'coturn: an Allocate of another user on the same 5-tuple got 437' \
     'coturn: a Refresh of another user got 441' \
-    'coturn: a certificate of another root was refused'; do
+    'coturn: a certificate of another root was refused' \
+    'coturn: an even port kept the next port for its token' \
+    'coturn: DONT-FRAGMENT went in the Allocate and a Send' \
+    'coturn: IPv6 got 440, and both families got IPv4' \
+    'coturn: the ALPN stun.turn was chosen over TLS' \
+    'coturn: a 300 of the first Allocate was followed to the alternate server' \
+    'coturn: a redirect that the way out refuses failed with its words'; do
     if ! printf '%s\n' "$out" | grep -qxF "$line"; then
         echo "turn-tests: the run did not say: $line" >&2
         exit 1
     fi
 done
+# The pinned image names the family that it could not give; coturn 4.6
+# names none.
+line='coturn: the ADDRESS-ERROR-CODE of IPv6 named 440'
+if [ -z "${POD_TURN_TEST_COTURN_BIN:-}" ] && ! printf '%s\n' "$out" | grep -qxF "$line"; then
+    echo "turn-tests: the run did not say: $line" >&2
+    exit 1
+fi
 for line in 'coturn: a Binding request mapped the address of its socket' \
     'coturn: a Binding request with an unknown attribute got 420'; do
     if ! printf '%s\n' "$stun" | grep -qxF "$line"; then

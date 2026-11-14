@@ -45,6 +45,14 @@ impl Conn {
         Conn::Stream { io, buf: Vec::new() }
     }
 
+    /// The address of the server over UDP; `None` on a stream.
+    pub fn server(&self) -> Option<SocketAddr> {
+        match self {
+            Conn::Udp { server, .. } => Some(*server),
+            Conn::Stream { .. } => None,
+        }
+    }
+
     /// True on a stream, where ChannelData takes its padding.
     pub fn padded(&self) -> bool {
         matches!(self, Conn::Stream { .. })

@@ -32,6 +32,11 @@ pub const MAPPED_ADDRESS: u16 = 0x0001;
 pub const ERROR_CODE: u16 = 0x0009;
 pub const XOR_MAPPED_ADDRESS: u16 = 0x0020;
 pub const SOFTWARE: u16 = 0x8022;
+/// The attributes of a redirect (RFC 8489, 10, 14.15 and 14.16) and of a
+/// 420 answer (14.9).
+pub const ALTERNATE_SERVER: u16 = 0x8023;
+pub const ALTERNATE_DOMAIN: u16 = 0x8003;
+pub const UNKNOWN_ATTRIBUTES: u16 = 0x000a;
 
 /// The families of an address attribute (RFC 8489, 14.1).
 const IPV4: u8 = 0x01;

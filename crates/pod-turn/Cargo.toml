@@ -59,3 +59,15 @@ required-features = ["turn"]
 [[test]]
 name = "coturn"
 required-features = ["turn"]
+
+[[test]]
+name = "turn_redirect"
+required-features = ["turn"]
+
+[[test]]
+name = "turn_allocation"
+required-features = ["turn"]
+
+[[test]]
+name = "coturn_options"
+required-features = ["turn"]

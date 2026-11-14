@@ -169,7 +169,32 @@ impl Context {
     where
         S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
     {
-        let config = self.config_for(trust)?;
+        self.connect_over_alpn(stream, server_name, trust, &[], limit).await
+    }
+
+    #[cfg(feature = "async")]
+    /// [`Self::connect_over`] that offers the ALPN protocols `alpn` (TURN's
+    /// `stun.turn` of RFC 7443, for example): the handshake takes a copy of
+    /// the configuration of `trust` with them, so the configuration of the
+    /// caller and the kept one stay as they are. A server that chose a
+    /// protocol says it in `get_ref().1.alpn_protocol()` of the stream.
+    pub async fn connect_over_alpn<S>(
+        &self,
+        stream: S,
+        server_name: &str,
+        trust: &Trust,
+        alpn: &[&[u8]],
+        limit: Duration,
+    ) -> Result<tokio_rustls::client::TlsStream<S>, Failure>
+    where
+        S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+    {
+        let mut config = self.config_for(trust)?;
+        if !alpn.is_empty() {
+            let mut copy = (*config).clone();
+            copy.alpn_protocols = alpn.iter().map(|p| p.to_vec()).collect();
+            config = Arc::new(copy);
+        }
         let name = crate::wrap::server_name(server_name)?;
         let connector = tokio_rustls::TlsConnector::from(config);
         match tokio::time::timeout(limit, connector.connect(name, stream)).await {
