@@ -5,8 +5,8 @@ name: live
 # loopback proves the client on each push, T-350), a host that offers
 # Multipath TCP, a public registry, the WARP API and its front door,
 # Alpine's mirror, the public mailboxes of magic-wormhole, the public Nostr
-# relays (T-550) and the public MQTT brokers (magic-wormhole's own servers
-# run on each push in ci.yml, T-354), the public file hosts of pod-services
+# relays (T-550), the public WebTorrent trackers (T-551) and the public MQTT
+# brokers (magic-wormhole's own servers run on each push in ci.yml, T-354), the public file hosts of pod-services
 # (T-528), and two actions by tag from github.com (pod-actions-store,
 # T-564).
 # They run on Thursdays at an off-peak hour and by hand (docs/decisions.md,
@@ -150,12 +150,14 @@ jobs:
       - name: pod-udf, boot.wim of the Windows evaluation ISO by Range requests
         run: cargo test --locked -p pod-udf --test windows_live -- --ignored --nocapture
       # One short pairing through each public mailbox of magic-wormhole, each
-      # public Nostr relay and each public MQTT broker (T-261, T-550: the
-      # services of the kinds mailbox, nostr-relay and mqtt-broker), as
-      # podssh's ruling Q65 says: each Thursday and by hand, as a watch of
-      # services that publish no promise. The stand-in relay proves the
-      # client on each push (ci.yml); no relay publishes a static release.
-      - name: pod-wormhole and pod-relay, one short pairing through each public mailbox, Nostr relay and MQTT broker
+      # public Nostr relay, each public WebTorrent tracker and each public
+      # MQTT broker (T-261, T-550, T-551: the services of the kinds mailbox,
+      # nostr-relay, webtorrent-tracker and mqtt-broker), as podssh's ruling
+      # Q65 says: each Thursday and by hand, as a watch of services that
+      # publish no promise. The stand-in relay proves the client on each
+      # push (ci.yml), and the stand-in tracker and bittorrent-tracker prove
+      # the tracker's; no relay publishes a static release.
+      - name: pod-wormhole and pod-relay, one short pairing through each public mailbox, Nostr relay, WebTorrent tracker and MQTT broker
         env:
           EVENT: ${{ github.event_name }}
         run: |

@@ -7,7 +7,8 @@ the mailbox sees. The ends run SPAKE2 keyed by the whole code over the
 mailbox, then seal each later message in NaCl's SecretBox under a key of the
 shared key, as magic-wormhole's own client does, so that a peer of its
 Python library and this crate meet. When no mailbox answers, the ends can
-meet at the tag of the code at a public Nostr relay (`nostr`), or at the
+meet at the tag of the code at a public Nostr relay (`nostr`), in the
+swarm of the code at a public WebTorrent tracker (`tracker`), or at the
 topic of the code at a public MQTT broker (`mqtt`), on port 443, with the
 same messages.
 
@@ -23,7 +24,7 @@ caller's protocol over a `Wormhole`; the exchange of podssh goes to
 | --- | --- |
 | `config` | `Config { appid, client_name, client_version, way, trust, connect_timeout, answer_limit, limits, words, events }`, `Config::new(appid, client_name, client_version, way)`, `CONNECT_TIMEOUT`, `ANSWER_LIMIT`, `LIMITS` |
 | `mailbox` | `Mailbox`: `connect(&url, &config, side)`, `list`, `allocate`, `claim`, `open`, `add`, `release`, `close`, `end`, `message(wait)`, `appid`, `shown`, `motd`; `Mood` (`Happy`, `Lonely`, `Scary`, `Errory`); `Message`; `crowded(&Failed)`; `ANSWER_LIMIT`, `KEPT_MOST` |
-| `wormhole` | `Wormhole`: `open(place, side, nameplate, id, &code, versions)` (a `Mailbox`, a `nostr::Relay` or a `mqtt::Broker`), `agree(wait)`, `confirm(wait)`, `send`, `receive(wait)`, `close(mood)`, `fail(mood, failed)`, `shown`, `derive_key(purpose, len)` (magic-wormhole's `derive_key` of the agreed key: the transit key is `derive_key("APPID/transit-key", 32)`); `derive_key(&key, purpose, len)`, `phase_key`, `seal`, `open_sealed`, `NONCE`, `TAG`, `HELD_MOST`, `DERIVED_MOST` |
+| `wormhole` | `Wormhole`: `open(place, side, nameplate, id, &code, versions)` (a `Mailbox`, a `nostr::Relay`, a `tracker::Tracker` or a `mqtt::Broker`), `agree(wait)`, `confirm(wait)`, `send`, `receive(wait)`, `close(mood)`, `fail(mood, failed)`, `shown`, `derive_key(purpose, len)` (magic-wormhole's `derive_key` of the agreed key: the transit key is `derive_key("APPID/transit-key", 32)`); `derive_key(&key, purpose, len)`, `phase_key`, `seal`, `open_sealed`, `NONCE`, `TAG`, `HELD_MOST`, `DERIVED_MOST` |
 | `meet` | `Ends { mailboxes, config }`, `opened(&ends, versions)` (a new code at the first mailbox that answers), `joined(&ends, &code, versions, giver_wait)` (the giver's wormhole, the key made), `or_close` |
 | `mqtt` | `Brokers { points, config, resend }`, `Brokers::new(points, config)`, `Point { url, login }`, `Login { user, password }` (no `Debug` shows the password), `opened(&brokers, versions)` (a new code at the first broker that answers, the giver subscribed), `joined(&brokers, &code, versions, giver_wait)` (the taker's wormhole, the key made), `topic(appid, nameplate)`, `nameplate(&mut dyn Entropy)`, `Role` (`Giver`, `Taker`; `topics`), `PROTOCOL`, `KEEP_ALIVE`, `RESEND`, `NAMEPLATE_DIGITS`, `PAYLOAD_MOST`, `TO_GIVER`, `TO_TAKER` |
 | `mqtt::board` | `Board { point, config }` (also `mqtt::Board`): `new(point, config)`, `put(topic, payload)`, `take(topic, wait)` (`Ok(None)`: no note within the wait), `clear(topic)`, `shown`; `check_topic`, `check_payload`, `TOPIC_MOST` |
@@ -32,7 +33,10 @@ caller's protocol over a `Wormhole`; the exchange of podssh goes to
 | `nostr` | `Relays { points, config, resend }`, `Relays::new(points, config)`, `opened(&relays, versions)` (a new code at the first relay that answers, the giver subscribed), `joined(&relays, &code, versions, giver_wait)` (the taker's wormhole, the key made), `KIND` (25431), `TAG` (`t`), `RESEND`, `SINCE_SLACK`, `CONTENT_MOST` |
 | `nostr::relay` | `Relay` (also `nostr::Relay`): `connect(&url, &config, side, tag, role, resend)`, `add`, `message(wait)`, `close`, `end`, `appid`, `inbox`, `pubkey`, `shown`; `KEPT_MOST` |
 | `nostr::event` | the pure events of NIP-01: `Key` (`new`, `drawn`, `from_secret`, `pubkey`, `sign(created_at, kind, tags, content)`), `id_of`, `checked(&event)` (the id and the BIP-340 signature checked), `Checked` (`tag`), `said(text)`, `Said` (`Event`, `Ok`, `Eose`, `Closed`, `Notice`, `Auth`, `Other`), `harmless(message)` |
-| `place` | `Place` (`Mailbox`, `Relay`, `Broker`; `From` each): `shown`, `noun`, `appid`, and the steps of a wormhole at either |
+| `tracker` | `Trackers { points, config, resend }`, `Trackers::new(points, config)`, `opened(&trackers, versions)` (a new code at the first tracker that answers, the giver announced), `joined(&trackers, &code, versions, giver_wait)` (the taker's wormhole, the key made), `info_hash(tag)`, `RESEND`, `SDP_MOST`, `LINGER`, `ANNOUNCE_LEAST`, `ANNOUNCE_MOST` |
+| `tracker::link` | `Tracker` (also `tracker::Tracker`): `connect(&url, &config, side, tag, role, resend)`, `add`, `message(wait)`, `close(mood)`, `end`, `appid`, `info_hash`, `peer_id`, `shown`; `KEPT_MOST` |
+| `tracker::wire` | the pure messages of a WebTorrent tracker: `said(text)`, `Said` (`Announced`, `Offer`, `Answer`, `Failure`, `Warning`, `Other`), `Note { tag, side, from, got, messages }` (`to_sdp`, `indexed`), `note_of(sdp)`, `ID_CHARS` |
+| `place` | `Place` (`Mailbox`, `Relay`, `Tracker`, `Broker`; `From` each): `shown`, `noun`, `appid`, and the steps of a wormhole at either |
 | `phrase` | `Code`: `make(nameplate, words, &mut dyn Entropy)` (`Failed::Mine` for a count out of `check_words`), `parse(typed)`, `nameplate`, `password`, `for_terminal`, `words`; `check_words` (2 to 8), `nameplate_ok`, `WORDS` (3, the default), `WORDS_LEAST`, `WORDS_MOST`, `NAMEPLATE_MOST`, `TYPED_MOST` |
 | `words` | the PGP word list (`EVEN`, `ODD`, `list`, `word`, `find`) |
 | `message` | the pure reading of a mailbox's messages: `object`, `message_of`, `pake_of`, `words`, `hex`, `unhex`, `Message`, `WORDS_MOST` |
@@ -115,6 +119,51 @@ before the brokers, as `pod-relay`'s runs do.
 * A content is at most 64,000 bytes (`CONTENT_MOST`): the event stays
   under the 65,536 bytes that strfry takes.
 
+## The WebTorrent meeting point
+
+`tracker::opened` and `tracker::joined` are the same two steps at a list
+of WebTorrent trackers (PodUtils/podssh#235, PodUtils/podssh@T-695;
+`docs/decisions.md`, C556 to C561). podssh's ruling Q77 puts the trackers
+after the Nostr relays and before the brokers, as `pod-relay`'s runs do.
+
+* The JSON of webtorrent/bittorrent-tracker (11.2.3) in text messages of
+  a WebSocket. The `info_hash` of the code is `info_hash(tag)`: 20 hex
+  digits of SHA-256 over a label and the topic of `mqtt` of the AppID and
+  the nameplate, never the words. Each end draws a `peer_id` of 20 hex
+  digits for each pairing.
+* Before a code is shown or typed, the connection proves the tracker: an
+  announce (`event` `started`, no offer) gets the tracker's answer for the
+  `info_hash`. A tracker that is not there, refuses (`failure reason`) or
+  does not answer within `Config::answer_limit` is passed over with its
+  words, as the event `wormhole.tracker`.
+* A tracker passes an offer to one other peer of the swarm and keeps no
+  copy, and it passes an answer to the peer of its `to_peer_id`. It reads
+  the `sdp` alone (tracker.openwebtorrent.com and tracker.webtorrent.dev
+  refuse an offer with no `type` and `sdp`): the ends put a `Note` there,
+  `{"tag", "side", "from", "got", "m": [{"phase", "body"}]}`: this end's
+  messages that the other end does not have, and the count of the
+  other end's messages that this end has. A message that comes twice is
+  dropped by its index; a note of another tag, of this side, or of a peer
+  that is not the first one heard is dropped.
+* The taker offers its note at each message and again each
+  `Trackers::resend` (2 s) while it waits: a lost offer is sent again, and
+  the giver gets an offer to answer. After an answer that brought a
+  message, the taker offers at once.
+* The giver speaks only in an answer to an offer, and a tracker passes one
+  answer to each offer (tracker.webtorrent.dev refuses a second one). It
+  answers at once an offer that brought a message or that lacks one of its
+  messages; it keeps the last other offer and answers it at its next
+  message. Its close after a happy exchange answers the taker's offers
+  until the taker has each of its messages, at most `LINGER` (10 s); the
+  taker's close offers the count of the giver's messages that it has. So
+  the giver's messages go while it reads or closes.
+* The giver announces again each interval of the tracker, within
+  `ANNOUNCE_LEAST` and `ANNOUNCE_MOST` (1 s to 120 s; bittorrent-tracker
+  says 120 s). Both ends leave the swarm (`event` `stopped`) at their
+  close.
+* An `sdp` is at most 10,000 bytes (`SDP_MOST`): tracker.webtorrent.dev
+  carried 12,000 bytes and not 14,000.
+
 ## The board of retained messages
 
 `mqtt::Board` keeps a note at a topic of one broker, for a caller that
@@ -165,12 +214,14 @@ prints nothing.
 | The bound of the answer to a command (30 s) | `Config::answer_limit` |
 | The words of a new code (3; 2 to 8), as magic-wormhole's `--code-length` | `Config::words`; `opened` refuses another count before a dial |
 | The largest frame (256 KiB) and message (1 MiB) of a mailbox | `Config::limits` |
-| The lines for the user | `Config::events` (`pod_core::Events`): `wormhole.mailbox` (warn; a mailbox that failed, why), `wormhole.nostr` (warn; a Nostr relay that failed, why; info: its `NOTICE`), `wormhole.broker` (warn; a broker that failed, why) and `wormhole.motd` (info; the mailbox's words). No event holds the code or a password |
+| The lines for the user | `Config::events` (`pod_core::Events`): `wormhole.mailbox` (warn; a mailbox that failed, why), `wormhole.nostr` (warn; a Nostr relay that failed, why; info: its `NOTICE`), `wormhole.tracker` (warn; a tracker that failed, why; info: its words after the other end was heard), `wormhole.broker` (warn; a broker that failed, why) and `wormhole.motd` (info; the mailbox's words). No event holds the code or a password |
 | The mailbox URLs, their order, `--pair-mailbox`, `PODSSH_PAIR_MAILBOX`, the public ones | the caller: `Ends::mailboxes` (`pod-services` has the public ones) |
 | The MQTT brokers, their logins, their order, whether to take them (`PODSSH_MQTT`) | the caller: `Brokers::points` (`pod-services` has the public ones: the kind `mqtt-broker`, the endpoint `broker`, the facts `user` and `password`) |
 | How often the taker sends again at a broker (2 s) | `Brokers::resend` |
 | The Nostr relays, their order, whether to take them | the caller: `Relays::points` (`pod-services` has the public ones: the kind `nostr-relay`, the endpoint `relay`) |
 | How often the taker sends again at a Nostr relay (2 s) | `Relays::resend` |
+| The WebTorrent trackers, their order, whether to take them | the caller: `Trackers::points` (`pod-services` has the public ones: the kind `webtorrent-tracker`, the endpoint `tracker`; the facts `filter-list`, `filter-list-part` and `filter-category` name the filter list that refuses each one) |
+| How often the taker offers again at a tracker (2 s) | `Trackers::resend` |
 | How long a code lives, the bounds of the steps of an exchange | the caller: `Wormhole::agree(wait)`, `confirm`, `receive` |
 
 ## Failures
@@ -237,6 +288,7 @@ Differences from the source, each with a test:
 | podssh | none (PodUtils/podssh@T-737, new) | `pod_wormhole::mqtt::{opened, joined}` when no mailbox answers, with `Brokers` of the services of the kind `mqtt-broker` (`endpoint("broker")`, the facts `user` and `password`); `PODSSH_MQTT=no` and the line that names the third party are podssh's |
 | podssh | none (PodUtils/podssh@T-738, new) | `pod_wormhole::mqtt::Board` (`put`, `take`, `clear`) at the brokers of the kind `mqtt-broker`, for the URL of each piece of the resumable layer as a sealed note; the host of each piece is a service of the kind `file-host` of `pod-services` |
 | podssh | none (PodUtils/podssh@T-545, new) | `pod_wormhole::nostr::{opened, joined}` after the mailboxes, with `Relays` of the services of the kind `nostr-relay` (`endpoint("relay")`), or `pod_relay::code::run::Ends::relays`; the switch and the line that names the third party are podssh's |
+| podssh | none (PodUtils/podssh@T-695, new) | `pod_wormhole::tracker::{opened, joined}` after the Nostr relays, with `Trackers` of the services of the kind `webtorrent-tracker` (`endpoint("tracker")`), or `pod_relay::code::run::Ends::trackers`; the switch, the line that names the third party and the filter list of each tracker (its facts) are podssh's |
 | podnet | none: podnet has no wormhole code | its transfer (T-102) takes `pod-wormhole` with its own `Config` (`appid`, `"podnet"`, its `Way`) |
 | podnet | `tests/transfer_harness/mod.rs`, its own stand-in mailbox | `pod_wormhole::standin` (`[dev-dependencies]`, feature `standin`) |
 | podnet | a random transit key in its sealed `transit` message | `Wormhole::derive_key("APPID/transit-key", 32)`, as magic-wormhole's transfer |
@@ -281,9 +333,23 @@ says a `NOTICE` and no `EOSE` is passed over with its words; an event that
 does not check is refused by the stand-in and dropped by an end; each
 public relay takes the largest event. No Nostr relay of another party
 publishes a static release (C549): the stand-in is the relay of CI.
+`tests/tracker.rs` runs the WebTorrent meeting point over a stand-in
+tracker in Rust (`tests/harness/tracker.rs`), which keeps no offer and
+passes each one to another peer of the swarm, and over
+webtorrent/bittorrent-tracker where `POD_WORMHOLE_TEST_TRACKER` names it
+(`ws://127.0.0.1:PORT/`, as `scripts/ci/tracker-tests.sh` runs the release
+of its hashed npm lock file; `POD_WORMHOLE_TEST_WEBTORRENT=required`
+makes a skip a failure): two ends pair and move messages each way, each
+with a `peer_id` of its own, two new ones at a second pairing, the giver's
+last word delivered at its close; the swarm of another code is another
+one; a lost offer is offered again; the giver announces again each
+interval; a stranger in the swarm after the taker, with the taker's
+side, is not heard; a
+tracker that refuses or says nothing is passed over with its words; each
+public tracker carries the largest `sdp`.
 `tests/live.rs` is `#[ignore]`: two ends meet at
-each public mailbox and pair at each public Nostr relay and each public
-broker of `pod-services` (`live.yml`). `tests/board_live.rs` is `#[ignore]`: a board puts, takes
+each public mailbox and pair at each public Nostr relay, each public
+WebTorrent tracker and each public broker of `pod-services` (`live.yml`). `tests/board_live.rs` is `#[ignore]`: a board puts, takes
 and clears a note at each public broker (`live.yml`, each Thursday).
 
 ```sh
@@ -296,12 +362,15 @@ The plants `wormhole-version-unchecked`, `wormhole-held-unbounded`,
 `wormhole-board-clear-not-retained`, `wormhole-board-clear-not-empty`,
 `wormhole-derived-key-salted`, `wormhole-code-words-fixed`,
 `wormhole-standin-not-crowded`, `wormhole-nostr-tag-constant`,
-`wormhole-nostr-no-resend`, `wormhole-nostr-refusal-ignored` and
-`wormhole-nostr-signature-unchecked` (`scripts/plants/`) prove twelve
-of the tests. The fuzz target
+`wormhole-nostr-no-resend`, `wormhole-nostr-refusal-ignored`,
+`wormhole-nostr-signature-unchecked`, `wormhole-tracker-empty-answer`,
+`wormhole-tracker-no-resend`, `wormhole-tracker-info-hash-constant`,
+`wormhole-tracker-refusal-ignored` and `wormhole-tracker-stranger-heard`
+(`scripts/plants/`) prove seventeen of the tests. The fuzz target
 `mailbox_message` runs the pure reading of a mailbox's messages and the
 parser of a typed code; `mqtt_packet` runs the codec of MQTT and the topic; `nostr_message` runs
-the reading of a Nostr relay's messages and the check of an event.
+the reading of a Nostr relay's messages and the check of an event;
+`tracker_message` runs the reading of a tracker's messages and of a note.
 
 ## Sources
 

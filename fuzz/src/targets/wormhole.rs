@@ -1,12 +1,13 @@
-//! The fuzz targets of the MQTT and the Nostr meeting points of
-//! `pod-wormhole`: the bytes come from a public broker or relay, which any
-//! client of it can fill.
+//! The fuzz targets of the MQTT, the Nostr and the WebTorrent meeting
+//! points of `pod-wormhole`: the bytes come from a public broker, relay or
+//! tracker, which any client of it can fill.
 
 use pod_wormhole::mqtt::packet::{decode, encode};
 use pod_wormhole::mqtt::topic;
 use pod_wormhole::nostr::event::{Said, checked, said};
+use pod_wormhole::tracker::wire::{self, note_of};
 
-use crate::text;
+use crate::{is_one_line, text};
 
 /// The bound of a packet in the target: small, so that a length past it
 /// is refused before its body.
@@ -45,5 +46,29 @@ pub fn nostr_message(data: &[u8]) {
     }
     if let Ok(event) = serde_json::from_slice::<serde_json::Value>(data) {
         let _ = checked(&event);
+    }
+}
+
+/// The messages of a WebTorrent tracker and the notes in their `sdp`
+/// (`pod_wormhole::tracker::wire::{said, note_of}`; new in `pod-wormhole`,
+/// T-551): a message reads with no panic; the words of a refusal or a
+/// warning are one line; a note that reads writes to an `sdp` that reads
+/// back to the same note, and its messages count from its `from`.
+pub fn tracker_message(data: &[u8]) {
+    let sdp = match wire::said(data) {
+        Some(wire::Said::Offer { sdp, .. } | wire::Said::Answer { sdp, .. }) => Some(sdp),
+        Some(wire::Said::Failure(words) | wire::Said::Warning(words)) => {
+            assert!(is_one_line(&words), "{words:?}");
+            None
+        }
+        _ => None,
+    };
+    for sdp in sdp.into_iter().chain(text(data).map(str::to_string)) {
+        let Some(note) = note_of(&sdp) else { continue };
+        assert_eq!(note_of(&note.to_sdp()).as_ref(), Some(&note), "a note writes back to itself");
+        for (n, (index, message)) in note.indexed().enumerate() {
+            assert_eq!(index, note.from.saturating_add(n as u64));
+            assert_eq!(message.side, note.side);
+        }
     }
 }

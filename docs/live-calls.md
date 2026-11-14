@@ -48,8 +48,8 @@ hides a red run that is ours.
 
 ## The inventory
 
-The rows count 45 calls: 2 replace, 8 stub + weekly, 29 keep live, and
-6 infrastructure. Of the 29 that stay live, 4 get a server on the loopback
+The rows count 47 calls: 2 replace, 9 stub + weekly, 29 keep live, and
+7 infrastructure. Of the 29 that stay live, 4 get a server on the loopback
 that proves the code of the client (L10, L18, L19, L35). "Each day" is the cron
 of the workflow.
 
@@ -64,9 +64,11 @@ of the workflow.
 | L5 | the modloop from dl-cdn.alpinelinux.org | step "pod-guest, the modloop of Alpine's virt kernel" of `live.yml`, `crates/pod-guest/tests/modloop_live.rs` | the newest modloop of Alpine 3.22 decodes and gives the module set | each day | no | stub + weekly | each week (T-352); the watch `http-sha256` of `alpine-netboot` holds the pinned file each day |
 | L6 | pip from PyPI: magic-wormhole-mailbox-server 0.8.0, magic-wormhole-transit-relay 0.5.0, magic-wormhole 0.24.0 | step "pod-wormhole and pod-relay against magic-wormhole's mailbox server" of `ci.yml` (`scripts/ci/mailbox-tests.sh`) | no service: it installs the servers of the loopback tests | each push | no | infrastructure | `scripts/ci/wormhole-servers.txt` with the SHA-256 of each package, and the cache of pip (T-354, T-355) |
 | L41 | the release archive `linux_amd64.tar.gz` of SeaweedFS 4.53 from github.com | step "pod-link against SeaweedFS" of `ci.yml` (`scripts/ci/s3-tests.sh`) | no service: it installs the S3-compatible server of the loopback tests of the s3 carrier (`crates/pod-link/tests/s3_seaweedfs.rs`) | each push | no | infrastructure | the SHA-256 of the archive and the tries of `scripts/retry.sh` (`scripts/ci/fetch-tool.sh`; T-623, call C540) |
+| L47 | npm from registry.npmjs.org: bittorrent-tracker 11.2.3 and the packages of its lock file | step "pod-wormhole against webtorrent/bittorrent-tracker" of `ci.yml` (`scripts/ci/tracker-tests.sh`) | no service: it installs the WebTorrent tracker of the loopback tests of the meeting point (`crates/pod-wormhole/tests/tracker.rs`) | each push | no | infrastructure | `scripts/ci/bittorrent-tracker/package-lock.json` with the integrity hash (SHA-512) of each package, `npm ci --ignore-scripts --omit=optional`, and the tries of `scripts/retry.sh` (T-551, call C560) |
 | L7 | the public mailboxes relay.magic-wormhole.io and mailbox.mw.leastauthority.com | `crates/pod-wormhole/tests/live.rs`, `crates/pod-relay/tests/pair_code_live.rs` | two ends meet at each public mailbox | Thursday, by hand | no | keep live | a watch of the mailboxes that the consumers use with no setup (podssh Q65); the code is proven against magic-wormhole's own server on the loopback |
 | L8 | the public MQTT broker public.cloud.shiftr.io | the same two files | two ends pair at each public broker | Thursday, by hand | yes: the Eclipse sandbox gave no answer (run 43172235777) | keep live | a watch of the brokers; the code is proven against Mosquitto in `ci.yml` (C95) |
-| L44 | the public Nostr relays relay.primal.net and offchain.pub (`wss://`, 443) | `crates/pod-wormhole/tests/live.rs` (`two_ends_meet_at_each_public_nostr_relay`), step "pod-wormhole and pod-relay, one short pairing through each public mailbox, Nostr relay and MQTT broker" of `live.yml` | two ends pair through the tag of a code at each relay of the kind `nostr-relay`: the key, the versions and a message each way (T-550) | Thursday, by hand | unknown: new; from a cloud session relay.damus.io closed each connection and nos.lol gave no answer, so neither is in the catalog (C548) | stub + weekly | the stand-in relay of `crates/pod-wormhole/tests/harness/nostr.rs` proves the client on each push (`crates/pod-wormhole/tests/nostr.rs`, `crates/pod-relay/tests/pair_code.rs`); no relay of another party publishes a static release (C549) |
+| L44 | the public Nostr relays relay.primal.net and offchain.pub (`wss://`, 443) | `crates/pod-wormhole/tests/live.rs` (`two_ends_meet_at_each_public_nostr_relay`), step "pod-wormhole and pod-relay, one short pairing through each public mailbox, Nostr relay, WebTorrent tracker and MQTT broker" of `live.yml` | two ends pair through the tag of a code at each relay of the kind `nostr-relay`: the key, the versions and a message each way (T-550) | Thursday, by hand | unknown: new; from a cloud session relay.damus.io closed each connection and nos.lol gave no answer, so neither is in the catalog (C548) | stub + weekly | the stand-in relay of `crates/pod-wormhole/tests/harness/nostr.rs` proves the client on each push (`crates/pod-wormhole/tests/nostr.rs`, `crates/pod-relay/tests/pair_code.rs`); no relay of another party publishes a static release (C549) |
+| L46 | the public WebTorrent trackers tracker.openwebtorrent.com and tracker.webtorrent.dev (`wss://`, 443) | `crates/pod-wormhole/tests/live.rs` (`two_ends_meet_at_each_public_webtorrent_tracker`), step "pod-wormhole and pod-relay, one short pairing through each public mailbox, Nostr relay, WebTorrent tracker and MQTT broker" of `live.yml` | two ends pair through the swarm of a code at each tracker of the kind `webtorrent-tracker`: the key, the versions, messages each way and the giver's last word at its close (T-551) | Thursday, by hand | unknown: new; from a cloud session both paired; tracker.files.fm:7073 (not on 443) gave no tunnel, tracker.btorrent.xyz answered 502, so neither is in the catalog (C557) | stub + weekly | the stand-in tracker of `crates/pod-wormhole/tests/harness/tracker.rs` proves the client on each push (`crates/pod-wormhole/tests/tracker.rs`, `crates/pod-relay/tests/pair_code.rs`), and webtorrent/bittorrent-tracker 11.2.3 on the loopback in `ci.yml` (`scripts/ci/tracker-tests.sh`, L47) |
 | L9 | the owner's relay and its pool (tcp.ssh.relay.ajam.dev) | `crates/pod-relay/tests/live.rs` and the other `*_live.rs` of `pod-relay`, job `relay` of `live.yml` | the contract of the live relay: mint, pair, reverse, idle, drops, grants | by hand | no: runs 43221128869 and 43221537246 passed from a direct egress (T-327) | keep live | the stand-ins of `crates/pod-relay/tests/stand_in` and `crates/pod-relay/tests/e2e_harness` prove the client; the self-hosted relay of T-036 later (T-361) |
 | L10 | the GSRN relay gs.thc.org | `crates/pod-gsr/tests/live.rs` | 1 MiB crosses the real relay | by hand, in no workflow | unknown | keep live | the stand-in of `crates/pod-gsr/tests/loopback.rs`; gs-netcat 1.4.43 as the other end (T-357) |
 | L11 | GitHub's evaluator of expressions | T-280 (open) | the conformance of `pod-actions-expr` and `pod-actions-workflow` | planned | no | keep live | only GitHub's runner evaluates as GitHub does |
@@ -80,7 +82,7 @@ of the workflow.
 
 ### `services.yml`
 
-`crates/pod-services-watch` runs 197 watches of 88 service files each day
+`crates/pod-services-watch` runs 205 watches of 90 service files each day
 and by hand. A watch is a check of a fact of another party: each one is
 **keep live** by its purpose. Its offline tests run each watch kind against
 the stand-ins of `crates/pod-testkit/src/stand.rs`
@@ -88,9 +90,9 @@ the stand-ins of `crates/pod-testkit/src/stand.rs`
 
 | # | Kinds | Hosts | Blocked on a runner | Class | Note |
 | --- | --- | --- | --- | --- | --- |
-| L12 | `http-json`, `http-text`, `http-status`, `http-sha256`, `crate-file` | the relay, GitHub, tailscale, syncthing, tox, npm, PyPI, FreeDOS, Microsoft, crates.io and more | no | keep live | |
+| L12 | `http-json`, `http-text`, `http-status`, `http-sha256`, `crate-file` | the relay, GitHub, tailscale, syncthing, tox, npm, PyPI, FreeDOS, Microsoft, crates.io, the pages of the WebTorrent trackers, the categories of domain.web.pkgforge.dev and more | no | keep live | |
 | L13 | `tls-name`, `tls-names`, `tls-roots` | the relay, Cloudflare, localtunnel, trycloudflare, WARP | no (IPv6 addresses: yes, a route probe skips them) | keep live | |
-| L14 | `websocket-upgrade`, `forward-banner` | croc, the mailboxes, the Nostr relays, shiftr, the forwarders, Yggdrasil peers | no | keep live | |
+| L14 | `websocket-upgrade`, `forward-banner` | croc, the mailboxes, the Nostr relays, the WebTorrent trackers, shiftr, the forwarders, Yggdrasil peers | no | keep live | |
 | L15 | `rdap` | rdap.org and the servers of IANA's bootstrap | no | keep live | |
 | L16 | `oci-ping`, `oci-digest` | 8 registries | yes: 429 of ECR Public (run 42803032733) | keep live | one more try after `Retry-After` |
 | L17 | `github-file`, `github-files`, `github-release`, `github-ssh-keys` | api.github.com, raw files | no | keep live | `GITHUB_TOKEN` of the job |
@@ -151,6 +153,7 @@ script of `scripts/ci/` that fails on a skip, as
 | workerd v1.20261112.1 | Apache-2.0 | its release `workerd-linux-64.gz` | the Worker of the relay, when one exists | S12 |
 | actions/cache 6.1.0 | MIT | commit `55cc8345863c7cc4c66a329aec7e433d2d1c52a9` | the cache of the downloads | S13 |
 | SeaweedFS 4.53 | Apache-2.0 | `linux_amd64.tar.gz` of its release, SHA-256 `d1a7dec9f48d8b33895a0ea8951971defc2dc5312906dcc76fa5a5f74a6ee90d` (the digest of GitHub's API, checked at the download) | an S3-compatible server: `weed mini` with a bucket and a made-up key, for the s3 carrier of `pod-link` (`scripts/ci/s3-tests.sh`, call C540) | S15 |
+| bittorrent-tracker 11.2.3 | MIT | `scripts/ci/bittorrent-tracker/package-lock.json` (the package `sha512-i9pWOf1Y...`, and the integrity hash of each of its dependencies) | a WebTorrent tracker over a WebSocket: `scripts/ci/bittorrent-tracker/serve.mjs` starts its `Server` with the WebSocket alone (call C560) | S16 |
 | cargo-zigbuild 0.23.4 | MIT | `cargo-zigbuild-x86_64-unknown-linux-musl.tar.xz`, SHA-256 `9e3cf73485edbd45905c8aadbc0fdf869c7ddc3848f0c898229f2680db52e44b` | in place of `cargo install` | S14 |
 
 Not chosen:
@@ -224,5 +227,10 @@ web.pkgforge.dev (forge, read, search, fetch).
   `weed help mini` of the release (the flags of the ports, `-bucket`,
   `-s3.config`); https://github.com/minio/minio (archived, AGPL-3.0) and
   https://dl.min.io/server/minio/release/linux-amd64/ (410).
+- S16 (read on 2026-11-14): https://github.com/webtorrent/bittorrent-tracker
+  at `v11.2.3` (`server.js`, `lib/server/parse-websocket.js`,
+  `lib/server/swarm.js`, `package.json`: MIT, WebTorrent LLC);
+  https://registry.npmjs.org/bittorrent-tracker/-/bittorrent-tracker-11.2.3.tgz
+  (the integrity hash of the lock file).
 - The runs: the jobs and logs of `live.yml` and `services.yml` runs named
   above, read through forge.web.pkgforge.dev.

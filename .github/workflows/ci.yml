@@ -129,6 +129,13 @@ jobs:
       # images/mosquitto/, pinned to a digest. A skip fails the step.
       - name: pod-wormhole against Eclipse Mosquitto
         run: sh scripts/ci/mosquitto-tests.sh
+      # The meeting point of pod-wormhole at a WebTorrent tracker against
+      # webtorrent/bittorrent-tracker 11.2.3 on 127.0.0.1 (T-551): the
+      # packages of scripts/ci/bittorrent-tracker/package-lock.json, each
+      # by its integrity hash, from npm with no install scripts. A skip
+      # fails the step.
+      - name: pod-wormhole against webtorrent/bittorrent-tracker
+        run: sh scripts/ci/tracker-tests.sh
       # The pairing by a code against magic-wormhole's own mailbox server and
       # library on 127.0.0.1 (T-354): the packages of
       # scripts/ci/wormhole-servers.txt, each with its SHA-256, from PyPI. A

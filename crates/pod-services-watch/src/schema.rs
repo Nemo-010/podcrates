@@ -186,6 +186,22 @@ pub fn kind_facts(kind: &str) -> Option<KindFacts> {
             words: &[],
             when: &[],
         },
+        // The public WebTorrent trackers (PodUtils/podssh#235): the meeting
+        // points of `pod_wormhole::tracker`; the largest sdp that each
+        // carried, and the filter list that refuses each domain, which
+        // podssh's manual shows.
+        "webtorrent-tracker" => KindFacts {
+            endpoints: &["tracker"],
+            need: &[
+                ("sdp-bytes-most", "int"),
+                ("filter-list", "text"),
+                ("filter-list-part", "text"),
+                ("filter-category", "text"),
+            ],
+            optional: &[("software", "text")],
+            words: &[],
+            when: &[],
+        },
         // magic-wormhole's transit relays (PodUtils/podnet#535): the scheme
         // of `relay` tells TCP (`tcp`) from WebSocket (`wss`); no fact.
         "transit" => KindFacts { endpoints: &["relay"], need: &[], optional: &[], words: &[], when: &[] },

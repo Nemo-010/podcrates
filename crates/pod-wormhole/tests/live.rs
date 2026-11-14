@@ -133,3 +133,63 @@ async fn two_ends_meet_at_each_public_nostr_relay() {
     }
     assert!(failed.is_empty(), "the relays that failed: {failed:?}");
 }
+
+/// Two ends of one code pair through the swarm of the code at each public
+/// WebTorrent tracker (the services of the kind `webtorrent-tracker`), each
+/// with a `peer_id` of its own for the pairing: the key agreed, the
+/// versions checked and messages each way, the giver's last word delivered
+/// at its close. Each end reads while the other does, as the giver speaks
+/// only in an answer to an offer. Each tracker alone, so that each one is
+/// proven.
+#[tokio::test]
+#[ignore = "live: the public WebTorrent trackers"]
+async fn two_ends_meet_at_each_public_webtorrent_tracker() {
+    use pod_wormhole::tracker::{self, Trackers};
+
+    let trackers: Vec<&pod_services::Service> = pod_services::of_kind("webtorrent-tracker").collect();
+    assert!(trackers.len() >= 2, "the catalog lists fewer than two trackers");
+    let mut failed = Vec::new();
+    for service in trackers {
+        let endpoint = service.endpoint("tracker").expect("the endpoint tracker");
+        let url = WsUrl::parse(&endpoint.url()).unwrap();
+        let config = Config::new(harness::APPID, "pod-wormhole-live", "0.0.0", harness::live_way());
+        let ends = Trackers::new(vec![url.clone()], config);
+        let versions = json!({ "live": 1 });
+        let shown = url.shown();
+        let run = async {
+            let (mut giver, code) = tracker::opened(&ends, versions.clone()).await?;
+            let wait = Duration::from_secs(60);
+            let (taker, heard) = tokio::join!(tracker::joined(&ends, &code, versions.clone(), wait), giver.agree(wait));
+            let (mut taker, heard) = (taker?, heard?);
+            assert!(heard, "{shown}: the giver heard the taker");
+            let (mine, theirs) = tokio::join!(giver.confirm(wait), taker.confirm(wait));
+            assert_eq!((mine?, theirs?), (versions.clone(), versions.clone()), "{shown}");
+            giver.send(b"from the giver").await?;
+            let taker_side = async {
+                let heard = taker.receive(wait).await?;
+                taker.send(b"from the taker").await?;
+                Ok::<_, pod_wormhole::Failed>(heard)
+            };
+            let (heard_giver, heard_taker) = tokio::join!(taker_side, giver.receive(wait));
+            assert_eq!(heard_giver?, b"from the giver", "{shown}");
+            assert_eq!(heard_taker?, b"from the taker", "{shown}");
+            giver.send(b"the last word").await?;
+            let taker_side = async {
+                let last = taker.receive(wait).await;
+                taker.close(Mood::Happy).await;
+                last
+            };
+            let (last, ()) = tokio::join!(taker_side, giver.close(Mood::Happy));
+            assert_eq!(last?, b"the last word", "{shown}");
+            Ok::<_, pod_wormhole::Failed>(())
+        };
+        match run.await {
+            Ok(()) => eprintln!("{shown} ({}): two ends paired through a swarm", service.id()),
+            Err(why) => {
+                eprintln!("{shown} ({}): {why}", service.id());
+                failed.push(format!("{}: {why}", service.id()));
+            }
+        }
+    }
+    assert!(failed.is_empty(), "the trackers that failed: {failed:?}");
+}

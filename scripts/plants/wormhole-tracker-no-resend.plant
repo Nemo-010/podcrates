@@ -1,0 +1,7 @@
+# The taker does not offer again while it waits: an offer that reached no
+# peer is gone, and the giver never hears the taker; the test of a tracker
+# that loses the first offers must fail.
+ENTRY=T-551
+GROUP=wormhole
+EXPECT='test a_lost_offer_is_offered_again_until_the_giver_answers \.\.\. FAILED'
+RUN='cargo test -p pod-wormhole --features standin --test tracker -- a_lost_offer_is_offered_again_until_the_giver_answers --exact'

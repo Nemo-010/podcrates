@@ -1,9 +1,9 @@
 diff --git a/crates/pod-relay/src/code/run.rs b/crates/pod-relay/src/code/run.rs
-index 387e74d..e25d251 100644
+index 919df6b..09f4793 100644
 --- a/crates/pod-relay/src/code/run.rs
 +++ b/crates/pod-relay/src/code/run.rs
-@@ -312,7 +312,7 @@ pub async fn take_with<T>(
- /// answers, then the first broker.
+@@ -336,7 +336,7 @@ pub async fn take_with<T>(
+ /// answers, then the first tracker, then the first broker.
  pub async fn opened(ends: &Ends, versions: Value) -> Result<(Wormhole, Code), Failed> {
      let mut missed = match pod_wormhole::opened(&ends.wormhole(), versions.clone()).await {
 -        Err(Failed::Unreachable(why)) => vec![why],

@@ -1,0 +1,12 @@
+diff --git a/crates/pod-wormhole/src/tracker/link.rs b/crates/pod-wormhole/src/tracker/link.rs
+index 4ea8027..2104f65 100644
+--- a/crates/pod-wormhole/src/tracker/link.rs
++++ b/crates/pod-wormhole/src/tracker/link.rs
+@@ -203,7 +203,6 @@ impl Tracker {
+                 match self.role {
+                     Role::Taker => {
+                         self.next = now + self.resend;
+-                        self.offer().await?;
+                     }
+                     Role::Giver => {
+                         self.next = now + self.interval;
