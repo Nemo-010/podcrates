@@ -7303,3 +7303,30 @@ Pin a server of another party (MinIO or SeaweedFS) by digest, run it on the loop
 ```sh
 sh scripts/ci/s3-tests.sh
 ```
+
+# T-624: `pod-warp`: after a key that is not the pinned one, the client tries each door of the new record and names the mismatch
+
+**Source:** T-621 (a finding of its work).
+**Category:** defect
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+After a door shows a key other than the pinned one, `open_after_mismatch` (`crates/pod-warp/src/open.rs`) reads the record again and dials only its first door (`masque_endpoint()`, IPv4). If that dial fails for another cause, the raw error comes back: the text drops the mismatch, and the other doors (IPv6) are never tried. A user sees "TCP refused to 192.0.2.1:443" with no word of the mismatch.
+
+## Premise
+
+- Read: the report of T-621 and call C520; `crates/pod-warp/src/open.rs` (`open_after_mismatch`, `open_on`).
+
+## Approach
+
+After the new read, try the doors of the new record in order (the door that showed the key first, when the record still lists it), and fold each failure into one text that names the mismatch, as `open_on` does. A test with a dial that sends the first IPv4 dial to an edge of another key; a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-warp --all-features
+```

@@ -7906,3 +7906,30 @@ the wait loops of `provision` and `run` also left the emulator running.
 `provision::tests::a_provision_whose_keys_fail_leaves_no_emulator`, a
 stand-in emulator and a QMP stand-in that refuses each `send-key`). Plant,
 caught by hand: `guest-t622-guard-leaves-the-emulator`.
+
+# T-625: `pod-hostprobe`: the test of the report runs the probes in a child that libtest refuses
+
+**Source:** T-619 (a finding of its work).
+**Category:** chore
+**Milestone:** M6
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`the_findings_of_this_host_read_back_to_the_same_text` (`crates/pod-hostprobe/src/report/tests.rs`) runs the real probes inside the libtest binary. Each child of a probe runs that binary again with `--hostprobe-child`, which libtest refuses, so each run prints about 20 lines of "error: Unrecognized option: 'hostprobe-child'". The test passes, as it checks only that the report reads back to the same text, but the lines look like failures in a log, and the findings measure a refused child, not the host.
+
+## Premise
+
+- Read: the report of T-619; `crates/pod-hostprobe/src/report/tests.rs`; `crates/pod-hostprobe/tests/children.rs` (`harness = false`).
+
+## Approach
+
+Move the test to an integration test with `harness = false` that takes the child flag first, as `tests/children.rs` does, or give it a `Settings` whose children run a binary that takes the flag. The test then reads the findings of the host and prints no refusal.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features
+```
