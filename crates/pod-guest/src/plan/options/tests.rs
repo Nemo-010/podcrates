@@ -119,6 +119,35 @@ fn a_cdrom_is_read_only_on_its_own_ahci_port_and_a_usb_stick_has_its_format() {
     assert!(a.iter().position(|x| x.starts_with("usb-storage")).unwrap() > bus);
 }
 
+/// A medium that boots first gives QEMU a boot order, and OVMF deletes each
+/// boot entry outside it: the root disk must be in the order, next after
+/// the medium, so that the entry of an installed system stays.
+#[test]
+fn a_medium_that_boots_first_keeps_the_root_disk_in_the_boot_order() {
+    let root = |o: Options| {
+        let a = argv(&plan(Accel::Kvm, o));
+        let devices = each(&a, "-device").into_iter().map(str::to_string).collect::<Vec<_>>();
+        let root = devices.iter().find(|d| d.contains("drive=root")).expect("the root disk").clone();
+        (root, devices)
+    };
+    for kind in [MediumKind::Cdrom, MediumKind::Usb] {
+        let medium = Medium { kind, path: "/m/setup.iso".into(), readonly: true, boot: true };
+        let o = Options { media: vec![medium], ..Options::default() };
+        assert!(o.check().is_ok());
+        let (disk, devices) = root(o);
+        assert_eq!(disk, "nvme,drive=root,serial=wqroot,bootindex=1", "{kind:?}");
+        let first = devices.iter().filter(|d| d.ends_with(",bootindex=0")).count();
+        assert_eq!(first, 1, "the medium boots first: {devices:?}");
+        assert!(devices.iter().all(|d| !d.contains("drive=mbox") || !d.contains("bootindex")), "{devices:?}");
+    }
+    // With no medium that boots, no device has a boot index: OVMF keeps the
+    // boot order of the variable store.
+    let cd = Medium { kind: MediumKind::Cdrom, path: "/m/virtio-win.iso".into(), readonly: true, boot: false };
+    let (disk, devices) = root(Options { media: vec![cd], ..Options::default() });
+    assert_eq!(disk, "nvme,drive=root,serial=wqroot");
+    assert!(devices.iter().all(|d| !d.contains("bootindex")), "{devices:?}");
+}
+
 #[test]
 fn media_that_the_machine_cannot_take_are_refused() {
     let cd = |boot| Medium { kind: MediumKind::Cdrom, path: "/m/x.iso".into(), readonly: true, boot };

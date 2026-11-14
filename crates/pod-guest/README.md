@@ -213,7 +213,7 @@ of the UEFI flavour. The DOS flavour does not read them.
 | `virtio: [Rng, Balloon, Keyboard, Tablet]` | `-device virtio-rng-pci` (and so on), each one time |
 | `media: [Medium { kind: Cdrom, .. }]` | `-drive if=none,id=cdN,media=cdrom,readonly=on,format=raw,file=PATH`, `-device ide-cd,drive=cdN,bus=ide.N`; at most 6 (the AHCI ports of q35) |
 | `media: [Medium { kind: Usb, .. }]` | `-device qemu-xhci,id=xhci` one time, `-drive if=none,id=usbN,format=FMT[,readonly=on],file=PATH` (`FMT` from the name, `plan::base_format`), `-device usb-storage,bus=xhci.0,drive=usbN,removable=on` |
-| `Medium::boot` | `,bootindex=0` on the device; at most one medium |
+| `Medium::boot` | `,bootindex=0` on the device, and `,bootindex=1` on the root disk (`nvme,drive=root,serial=wqroot,bootindex=1`); at most one medium. With no medium that boots, no device has a boot index |
 | `vnc: Some(SOCKET)` | `-vnc unix:SOCKET`; `-display none` stays |
 | `usb_tablet: true` | `-device usb-tablet,bus=xhci.0` (an absolute pointer that Windows knows with no driver) |
 | `serial_socket: Some(SOCKET)` | `-chardev socket,id=serial0,path=SOCKET,server=on,wait=off,logfile=SERIAL,logappend=on`, `-serial chardev:serial0` in place of `-serial file:SERIAL` |
@@ -228,6 +228,13 @@ a channel name that is empty, has a byte other than ASCII letters, digits,
 `.`, `_` and `-`, or comes two times. The start of the emulator calls it.
 A comma in a path of an option list (`-drive`, `-chardev`, `-vnc`) is
 written as two commas.
+
+A boot index makes QEMU give OVMF a boot order, and OVMF deletes each boot
+entry that the order does not name (`SetBootOrderFromQemu` of
+`OvmfPkg/Library/QemuBootOrderLib`). The root disk is in the order after
+the medium, so that the entry that an installer writes for it stays: a
+medium that returns (the "Press any key" prompt of a Windows CD times
+out) falls through to the installed system.
 
 ## The store
 
@@ -366,6 +373,10 @@ QEMU, each week and by hand (`docs/design.md`, section 9).
 `provision` with a stand-in emulator and a QMP stand-in that refuses each
 `send-key`, and checks that no emulator stays after the failure; the plant
 `guest-t622-guard-leaves-the-emulator` proves it.
+`plan::options::tests::a_medium_that_boots_first_keeps_the_root_disk_in_the_boot_order`
+checks the boot index of the root disk with a CD-ROM and a USB medium that
+boot first, and no boot index with no such medium; the plant
+`guest-boot-medium-drops-the-root-disk` proves it.
 
 The tests of the warm start (`src/warm/tests.rs`, `src/warm/tests_start.rs`)
 check the fingerprint (no path of a run, each option, one line for each

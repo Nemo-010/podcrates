@@ -1,0 +1,12 @@
+diff --git a/crates/pod-guest/src/plan/options.rs b/crates/pod-guest/src/plan/options.rs
+--- a/crates/pod-guest/src/plan/options.rs
++++ b/crates/pod-guest/src/plan/options.rs
+@@ -278,7 +278,7 @@
+     /// returns, as a Windows CD after its "Press any key" prompt, then
+     /// falls through to the root disk.
+     pub(crate) fn root_boot(&self) -> &'static str {
+-        if self.media.iter().any(|m| m.boot) { ",bootindex=1" } else { "" }
++        if self.media.iter().any(|m| m.boot) { "" } else { "" }
+     }
+ 
+     /// The value of `-nic`.

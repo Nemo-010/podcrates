@@ -7355,6 +7355,12 @@ Windows Server 2019 Server Core under KVM and runs
 swap, and the controls on a mounted USB and NVMe mailbox. The entry is
 done after its first run.
 
+The first run (GitHub run 43634720450, 2026-11-14) failed before the
+commands: Setup copied the files, and after its first reboot the firmware
+ran the UEFI shell until the limit of 4800 s. The cause was T-629 (OVMF
+deleted the boot entry of the root disk, which had no `bootindex`). The
+next run follows the merge of T-629.
+
 # T-603: `pod-guest`: the host removes a file of the FAT mailbox, and a poll of the outcome reads an old token as no result yet
 
 **Source:** T-592 (a finding of its work).
@@ -8042,3 +8048,45 @@ With a USB mailbox (`MailboxBus::Usb`), restore with the saved mailbox unchanged
 ```sh
 cargo test -p pod-guest --all-features
 ```
+
+# T-629: `pod-guest`: a plan with a boot medium gives the root disk no `bootindex`, so OVMF deletes the boot entry of the installed system
+
+**Source:** the first run of `guest-windows.yml` (GitHub run 43634720450, job 132568898323), a finding of T-602.
+**Category:** defect
+**Milestone:** M7
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+The first run of `.github/workflows/guest-windows.yml` failed. Windows Setup ran (the first screenshot shows "Getting files ready for installation (26%)"). After the first reboot of Setup, the firmware showed the UEFI Interactive Shell (EDK II, Ubuntu's OVMF 4M) until the limit of 4800 s; each screenshot from the third on is the shell. The map of the shell shows the installed NVMe disk with its GPT and its ESP (`FS2: NVMe(0x1,...)/HD(1,GPT,...)`), so the install wrote the disk.
+
+The test `crates/pod-guest/tests/windows_keep_live.rs` (`install`) gives the first CD-ROM `bootindex=0` and the NVMe root disk no boot index. The crate does the same: `Medium::boot` gives `bootindex=0` (`crates/pod-guest/src/plan/options.rs`), and `argv` gives the root disk `nvme,drive=root,serial=wqroot` with no boot index (`crates/pod-guest/src/plan.rs`).
+
+The cause to verify: with a `bootorder` from the fw_cfg of QEMU, OVMF (`SetBootOrderFromQemu` of `QemuBootOrderLib`) keeps the boot options that the list matches and removes the others. The entry of Windows Boot Manager on the NVMe disk matches no device of the list, so the firmware removes it; the "Press any key" prompt of the CD times out, and the shell runs.
+
+## Premise
+
+- Read: `crates/pod-guest/src/plan.rs`, `src/plan/options.rs` and its tests, `tests/windows_keep_live.rs`, the README of the crate (the uses of `Medium::boot`: none in the crate outside its tests; podvm sets it).
+- Read: the source of OVMF on github.com/tianocore/edk2 (`OvmfPkg/Library/QemuBootOrderLib/QemuBootOrderLib.c`, `OvmfPkg/Library/PlatformBootManagerLib/BdsPlatform.c`) and of QEMU 8.2.2 (`hw/nvme/ctrl.c`, `hw/nvme/ns.c`).
+- Not measured: a Windows install. This host has no KVM, and a Windows install under TCG is too slow for a session. The live proof stays with T-602.
+
+## Approach
+
+Verify the cause in the source of OVMF and on this host (call C574). When a plan has a medium that boots first, give the root disk `bootindex=1` (call C575: the medium first, the root disk next). A unit test of the argv, and a plant. The live test gives its root disk the same boot index.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features --lib -- plan::
+sh scripts/plant-each.sh guest-boot-medium-drops-the-root-disk
+```
+
+## Done
+
+2026-11-14, commit 5950498. The cause holds (call C574): `SetBootOrderFromQemu` of OVMF keeps only the boot options that the boot order of QEMU names, and `PruneBootVariables` deletes the others, also the entry of an installed system on a root disk with no boot index. `argv` now gives the root disk `bootindex=1` when a medium boots first, and no boot index otherwise (call C575: the medium first, the root disk next). The live test of the Windows install (`install` in `tests/windows_keep_live.rs`) gives its root disk `bootindex=1`; its `boot` has no medium and uses `argv`.
+
+Run on this host (QEMU 8.2.2, TCG, `OVMF_CODE_4M.fd` of Ubuntu's `ovmf` 2024.02-2ubuntu0.10): a GPT disk whose ESP holds the UEFI shell at `\EFI\pod\app.efi`, which only a `Boot####` entry names (`bcfg boot add` in a first boot, as setup writes its entry), and a CD with `bootindex=0` whose loader returns `EFI_TIMEOUT`, as the prompt of a Windows CD. With no boot index on the disk, the firmware starts the EFI Internal Shell after the CD; a later boot with the fixed line finds the entry deleted. With `bootindex=1` on the disk, the firmware starts the entry after the CD.
+
+`cargo test -p pod-guest --all-features`: 158 unit tests passed, 1 ignored (new: `plan::options::tests::a_medium_that_boots_first_keeps_the_root_disk_in_the_boot_order`, which fails on the code before the fix). Plant, caught by hand: `guest-boot-medium-drops-the-root-disk`. The live proof stays with T-602: the parent dispatches `guest-windows.yml` again after the merge.
