@@ -8162,7 +8162,7 @@ On this host (QEMU 8.2.2, TCG): a guest of 93 bytes at the reset vector of the `
 **Milestone:** M7
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8181,3 +8181,9 @@ Give the `usb-storage` device of the mailbox an id (`id=wqmbox`), and name it wi
 ```sh
 cargo test -p pod-guest --all-features
 ```
+
+## Done
+
+2026-11-14, commit ed53a06. `swap::change_request` names the device of the mailbox by `id` (`plan::MAILBOX_ID`, `wqmbox`), and `swap::mailbox_locked` reads the entry of `query-block` whose `qdev` is that id (call C583). An id on `usb-storage` is not enough: `usb-storage` gives its medium to a SCSI disk that it makes with no id, and QEMU 8.2.2 answers `id` `wqmbox` with "Device does not have a block device backend". The USB mailbox is now `usb-bot` (`plan::MAILBOX_USB`, `wqmboxusb`) with `scsi-hd,...,id=wqmbox`: the disk that `usb-storage` makes, in the same USB class. The NVMe mailbox keeps its line: no command names it.
+
+`cargo test -p pod-guest --all-features --lib`: 163 passed, 1 ignored. The stand-in of a locked drive refuses `device` as QEMU with `-compat deprecated-input=reject` does; `a_real_emulator_changes_the_medium_of_a_usb_mailbox` and `a_real_emulator_changes_a_medium_that_the_guest_locked` run the QEMU 8.2.2 of the host with that option. Plant `guest-swap-names-the-drive-by-device`, caught by hand (five tests of `swap` fail on it); the patches of `guest-swap-no-force` and `guest-swap-lock-of-another-drive` follow the new code and are caught again. The device of the mailbox changed, so the live proof on Windows is the next run of `guest-windows.yml`: the parent dispatches it after the merge.
