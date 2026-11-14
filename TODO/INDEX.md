@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**502 entries: 119 open, 8 partial, 6 blocked, 369 done.**
+**502 entries: 115 open, 8 partial, 6 blocked, 373 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 101 | 115 |
-| P2 | 54 | 2 | 4 | 200 | 260 |
-| P3 | 54 | 3 | 2 | 66 | 125 |
-| **All** | 119 | 8 | 6 | 369 | 502 |
+| P2 | 53 | 2 | 4 | 201 | 260 |
+| P3 | 51 | 3 | 2 | 69 | 125 |
+| **All** | 115 | 8 | 6 | 373 | 502 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -531,7 +531,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-598](podvm.md) | P1 | S | M6 | defect | done | `pod-extract`: each directory has the mode of the image after the last layer, and a directory entry replaces a non-directory of an earlier layer (PodUtils/podvm#354) |
 | [T-599](podvm.md) | P2 | S | M6 | defect | done | `pod-extract`: the `./` member of an archive is not counted as an entry that the crate could not make (PodUtils/podvm#352) |
 | [T-600](fleet.md) | P3 | S | M8 | defect | done | `pod-actions-results`: an upload directory of a crashed run stays under `.pending` of the cache |
-| [T-601](podvm.md) | P2 | S | M7 | chore | open | `pod-udf`: a test against images that a real mastering tool made |
+| [T-601](podvm.md) | P2 | S | M7 | chore | done | `pod-udf`: a test against images that a real mastering tool made |
 | [T-602](podvm.md) | P2 | S | M7 | research | open | `pod-guest`: the next command of a guest in keep-alive mode reaches the agent through a mounted FAT mailbox |
 | [T-603](podvm.md) | P2 | S | M7 | defect | done | `pod-guest`: the host removes a file of the FAT mailbox, and a poll of the outcome reads an old token as no result yet |
 | [T-604](podvm.md) | P1 | S | M6 | defect | done | `pod-rootfs`: the completion of a tree whose `/etc` is closed (`0555`) fails as a user that is not root, after T-598 |
@@ -544,8 +544,8 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-611](transport.md) | P2 | S | M1 | feature | done | `pod-services`: the host `software-download.microsoft.com` of the Windows evaluation media (PodUtils/podvm#361) |
 | [T-612](relay.md) | P1 | S | M2 | defect | done | `pod-proxy`: the label of a unix proxy shows the user info of its URL (PodUtils/podnet#555) |
 | [T-613](fleet.md) | P2 | S | M8 | feature | done | `pod-actions-store` and `pod-actions-results`: podrunner's changes after `872b43f` (T-139, T-149, T-154 of podrunner) |
-| [T-614](upkeep.md) | P3 | S | M5 | chore | open | CI: a job that runs as root the tests that start a worker of uid 1000 |
-| [T-615](podvm.md) | P3 | S | M6 | defect | open | `pod-extract`: `open_tree` and the removal hold one descriptor for each level of depth |
+| [T-614](upkeep.md) | P3 | S | M5 | chore | done | CI: a job that runs as root the tests that start a worker of uid 1000 |
+| [T-615](podvm.md) | P3 | S | M6 | defect | done | `pod-extract`: `open_tree` and the removal hold one descriptor for each level of depth |
 | [T-616](podvm.md) | P2 | S | M6 | defect | done | `pod-supervise`: the thread of the foreground hold blocks the shutdown signals |
 | [T-617](podvm.md) | P3 | M | M7 | feature | blocked | `pod-guest`: an NTFS and hive writer for an offline setup of a Windows guest |
-| [T-618](podvm.md) | P3 | S | M6 | defect | open | `pod-hostprobe`: the signal calls on mips and mips64 |
+| [T-618](podvm.md) | P3 | S | M6 | defect | done | `pod-hostprobe`: the signal calls on mips and mips64 |

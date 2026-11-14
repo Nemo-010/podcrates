@@ -1676,7 +1676,7 @@ changed their sources after the pin `872b43f` (`de6850e`, `afa619d` and
 **Milestone:** M5
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1695,3 +1695,18 @@ A job of `ci.yml` (or `nightly.yml`) runs those tests of `pod-extract` and `pod-
 ```sh
 python3 scripts/check-workflows.py
 ```
+
+## Done
+
+2026-11-14, commit db08402. `scripts/ci/root-uid1000-tests.sh`, a step of
+the job `test` of `ci.yml`, builds the library test binaries of
+`pod-extract` and `pod-rootfs` as the user and runs as root (`sudo -n`)
+`drive::setid::set_id_bits_survive_the_write`, the two tests of
+`drive::dirmodes` with a worker and
+`closed::a_closed_etc_is_completed_and_keeps_its_mode`. A skip line
+(`skipping`, `SKIP:`) fails it, and each test must report one pass
+(C513). The script passed here as root. Plant
+`extract-t614-root-test-skips` (the proof skips as root too), caught by
+hand: "set_id_bits_survive_the_write skipped as root".
+`check-workflows.py`: 0 faults. The next CI run proves the step on a
+runner.
