@@ -8106,7 +8106,7 @@ Run on this host (QEMU 8.2.2, TCG, `OVMF_CODE_4M.fd` of Ubuntu's `ovmf` 2024.02-
 **Milestone:** M7
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8135,3 +8135,11 @@ Swap a locked medium with `blockdev-change-medium` and `force: true` (call C581)
 cargo test -p pod-guest --all-features --lib -- swap:: qmp::
 sh scripts/plant-each.sh guest-swap-no-force guest-swap-lock-of-another-drive
 ```
+
+## Done
+
+2026-11-14, commit 159827f. `swap::change_request` sends `blockdev-change-medium` with `force: true` (call C581): QEMU 8.2 opens a locked tray only with `force`, clears the lock of the guest (`scsi_cd_eject_request_cb`), and reports the medium change as for an unlocked medium, so the path of C543 holds. New: `swap::mailbox_locked(query_block)`, `qmp::json_bool`, `qmp::list_entries` (QEMU writes the members of an entry in no fixed order). The live test prints the lock of the mailbox before each swap; its controls write no QMP command and need no change.
+
+On this host (QEMU 8.2.2, TCG): a guest of 93 bytes at the reset vector of the `pc` machine locks an ATAPI drive `mbox` (call C582). No QMP command locks a tray, and the binary of Ubuntu has no `qtest` accelerator, so a guest is necessary. `query-block` gives `"locked": true`, a change with no `force` gets the error of the run on Windows, and two swaps with `Swap::next` put the new file in; the guest locks each new medium again after it took the reports of the change.
+
+`cargo test -p pod-guest --all-features`: 163 unit tests passed, 1 ignored (new: `swap::tests::a_swap_changes_a_medium_that_the_guest_locked`, `swap::tests::the_lock_of_the_mailbox_is_read_from_its_entry_of_query_block`, `swap::tests::a_real_emulator_changes_a_medium_that_the_guest_locked`, `qmp::tests::a_bool_member_is_read_and_a_key_in_a_value_is_not_a_member`, `qmp::tests::each_object_of_a_list_response_is_one_entry`). Plants, each caught by hand: `guest-swap-no-force` (the stand-in test, the real-QEMU test and the request test fail), `guest-swap-lock-of-another-drive`. The live proof is the next run of `guest-windows.yml`: the parent dispatches it after the merge.
