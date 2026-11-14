@@ -35,7 +35,7 @@ async fn the_connect_information_of_a_tunnel_by_name_and_by_id() {
     let standin = Standin::start(plan()).await.unwrap();
     let api = management(&standin.base());
     for text in ["standin-box", "bcd123.usw2"] {
-        let info = api.connect_info(&Locator::parse(text).unwrap(), &user()).await.unwrap();
+        let info = api.connect_info(&Locator::parse(text).unwrap(), &user().into()).await.unwrap();
         assert_eq!(info.tunnel.tunnel_id.as_deref(), Some("bcd123"));
         assert_eq!(info.tunnel.cluster_id.as_deref(), Some("usw2"));
         assert_eq!(info.endpoints.len(), 1);
@@ -61,10 +61,14 @@ async fn a_tunnel_that_does_not_exist_is_not_found() {
     pod_testkit::need_loopback!();
     let standin = Standin::start(plan()).await.unwrap();
     let failure =
-        management(&standin.base()).connect_info(&Locator::parse("other").unwrap(), &user()).await.unwrap_err();
+        management(&standin.base()).connect_info(&Locator::parse("other").unwrap(), &user().into()).await.unwrap_err();
     assert_eq!((step_of(&failure), failure.class), (Some(Step::Management), Class::NotFound));
     assert!(failure.chain().contains("GET http://127.0.0.1:"), "{}", failure.chain());
-    assert!(failure.chain().contains("/tunnels/other answered HTTP 404: Not Found"), "{}", failure.chain());
+    assert!(
+        failure.chain().contains("/tunnels/other with a GitHub user token answered HTTP 404: Not Found"),
+        "{}",
+        failure.chain()
+    );
 }
 
 #[tokio::test]
@@ -72,8 +76,10 @@ async fn a_token_of_another_scheme_is_refused() {
     pod_testkit::need_loopback!();
     let standin = Standin::start(plan()).await.unwrap();
     let aad = UserToken::new(Scheme::Aad, USER_TOKEN).unwrap();
-    let failure =
-        management(&standin.base()).connect_info(&Locator::parse("standin-box").unwrap(), &aad).await.unwrap_err();
+    let failure = management(&standin.base())
+        .connect_info(&Locator::parse("standin-box").unwrap(), &aad.into())
+        .await
+        .unwrap_err();
     assert_eq!((step_of(&failure), failure.class), (Some(Step::Management), Class::Refused));
     assert_eq!(standin.seen().user_ok, [false]);
     assert_eq!(standin.minted(), 0);
@@ -85,7 +91,8 @@ async fn a_management_api_that_does_not_answer_is_named() {
     let closed = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", closed.local_addr().unwrap());
     drop(closed);
-    let failure = management(&base).connect_info(&Locator::parse("standin-box").unwrap(), &user()).await.unwrap_err();
+    let failure =
+        management(&base).connect_info(&Locator::parse("standin-box").unwrap(), &user().into()).await.unwrap_err();
     assert_eq!(step_of(&failure), Some(Step::Management));
     assert!(
         failure.chain().starts_with("the Dev Tunnels management API: GET http://127.0.0.1:"),

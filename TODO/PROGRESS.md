@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 512 entries: 111 open, 9 partial, 6 blocked, 386 done.
+`TODO/INDEX.md` holds 512 entries: 110 open, 9 partial, 6 blocked, 387 done.
 
 ## State
 
@@ -79,8 +79,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
 
 1. **The defects and asks of the consumers:** T-551 and T-554
    (WebTorrent's trackers and ntfy as meeting points of a code,
-   PodUtils/podssh#235, #237); T-489 (a client of
-   `pod-devtunnel` with no user token); T-381 (the options of
+   PodUtils/podssh#235, #237); T-381 (the options of
    RFC 8489 and RFC 8656 that `pod-turn` leaves out; coturn on the
    loopback proves the client on each push, so a test against coturn goes
    with each option), T-403 (the SHA-256 credentials against a server of
@@ -189,6 +188,12 @@ for podnet (item 3c): T-526. Then the items below, in order.
 - The owner reserved `pod-devtunnel` and `podswarm` on crates.io (T-387).
 - Send `docs/upstream/kcp-0.6.0-wrapping.patch` to the crate `kcp`
   upstream as a pull request (T-526).
+- For the live client of `pod-devtunnel` with no account (T-489, row L45
+  of `docs/live-calls.md`): set the repository secrets
+  `POD_DEVTUNNEL_TUNNEL` and `POD_DEVTUNNEL_PORT` (and
+  `POD_DEVTUNNEL_ACCESS_TOKEN` for a tunnel with no anonymous access),
+  host the tunnel (`devtunnel host -p 22 --allow-anonymous`), and tell
+  the session: it dispatches `live.yml` with `measure=devtunnel`.
 
 The hand-off of each release is a COORD issue `(to all)`
 (`docs/maintenance.md`, "A release").

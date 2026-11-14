@@ -1,0 +1,8 @@
+# An answer with no connect token to a tunnel access token: the upgrade
+# carries no token, and the relay refuses it. The test of a client with a
+# tunnel access token must see it.
+ENTRY=T-489
+GROUP=devtunnel
+EXPECT='a_tunnel_access_token_reaches_the_tunnel_with_no_account'
+RUN='cargo test -p pod-devtunnel --all-features --test credential'
+LIMIT=1800

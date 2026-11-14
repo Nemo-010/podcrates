@@ -1,7 +1,8 @@
-//! The two tokens of a connection: the user's token, which the management
-//! API takes, and the connect token of a tunnel, which the relay takes.
-//! Each one is a secret: no `Debug`, no line, no event and no error text
-//! holds it, and its memory is cleared when it goes.
+//! The tokens of a connection: the credential of the caller for the
+//! management API (the user's token, a tunnel access token, or none), and
+//! the connect token of a tunnel, which the relay takes. Each token is a
+//! secret: no `Debug`, no line, no event and no error text holds it, and
+//! its memory is cleared when it goes.
 
 use std::fmt;
 
@@ -99,6 +100,83 @@ impl fmt::Debug for UserToken {
     }
 }
 
+/// A tunnel access token that the owner of a tunnel gives to a user with
+/// no account (`devtunnel token TUNNEL --scopes connect`, about 24 h). The
+/// management API takes it with the scheme of the fact `access-scheme`; the
+/// relay takes it when the answer of the API holds no connect token.
+#[derive(Clone)]
+pub struct AccessToken(Zeroizing<String>);
+
+impl AccessToken {
+    /// The token `secret`. A token that is empty, too long or holds a byte
+    /// that is not visible ASCII is a usage failure.
+    pub fn new(secret: impl Into<String>) -> Result<AccessToken, Failure> {
+        Ok(AccessToken(checked(Class::Usage, "tunnel access token", secret.into())?))
+    }
+
+    /// The value of `Authorization` for the management API.
+    pub(crate) fn header(&self) -> Zeroizing<String> {
+        Zeroizing::new(format!("{} {}", crate::service::access_scheme(), self.0.as_str()))
+    }
+}
+
+impl fmt::Debug for AccessToken {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("AccessToken(<hidden>)")
+    }
+}
+
+/// The credential of a caller for the management API.
+#[derive(Clone, Debug)]
+pub enum Credential {
+    /// The user's token: the tunnel of the user's account, or one that an
+    /// access control entry grants to the user.
+    User(UserToken),
+    /// A tunnel access token with the scope `connect`.
+    Access(AccessToken),
+    /// No token: a tunnel with an access control entry that allows
+    /// anonymous access (`devtunnel access create --anonymous`).
+    Anonymous,
+}
+
+impl Credential {
+    /// The form of the credential, for the text of a refusal: never a
+    /// byte of the token.
+    pub fn form(&self) -> &'static str {
+        match self {
+            Credential::User(user) => match user.scheme() {
+                Scheme::Github => "a GitHub user token",
+                Scheme::Aad => "an AAD user token",
+                Scheme::Bearer => "a bearer user token",
+            },
+            Credential::Access(_) => "a tunnel access token",
+            Credential::Anonymous => "no token",
+        }
+    }
+
+    /// The value of `Authorization` for the management API; none for
+    /// [`Credential::Anonymous`].
+    pub(crate) fn header(&self) -> Option<Zeroizing<String>> {
+        match self {
+            Credential::User(user) => Some(user.header()),
+            Credential::Access(access) => Some(access.header()),
+            Credential::Anonymous => None,
+        }
+    }
+}
+
+impl From<UserToken> for Credential {
+    fn from(user: UserToken) -> Credential {
+        Credential::User(user)
+    }
+}
+
+impl From<AccessToken> for Credential {
+    fn from(access: AccessToken) -> Credential {
+        Credential::Access(access)
+    }
+}
+
 /// The connect token of a tunnel, from its connect information. The relay
 /// takes it in the upgrade; a reconnect asks the management API for a
 /// fresh one.
@@ -109,6 +187,11 @@ impl ConnectToken {
     /// The token of an answer of the management API.
     pub(crate) fn new(text: String) -> Result<ConnectToken, Failure> {
         Ok(ConnectToken(checked(Class::Protocol, "connect token of the answer", text)?))
+    }
+
+    /// The caller's own tunnel access token, for the relay.
+    pub(crate) fn of_access(access: &AccessToken) -> ConnectToken {
+        ConnectToken(access.0.clone())
     }
 
     /// The value of `Authorization` for the relay: the scheme of the fact
@@ -160,5 +243,23 @@ mod tests {
         let token = UserToken::new(Scheme::Aad, "made-up-user-token").unwrap();
         assert_eq!(token.header().as_str(), "aad made-up-user-token");
         assert!(!format!("{token:?}").contains("made-up"));
+    }
+
+    #[test]
+    fn each_form_of_credential_has_its_header_and_a_name_with_no_token() {
+        let access = AccessToken::new("made-up-access-token").unwrap();
+        assert_eq!(access.header().as_str(), "tunnel made-up-access-token");
+        assert_eq!(ConnectToken::of_access(&access).header().as_str(), "tunnel made-up-access-token");
+        assert_eq!(AccessToken::new("two words").unwrap_err().class, Class::Usage);
+        let user = UserToken::new(Scheme::Github, "made-up-user-token").unwrap();
+        let forms = [Credential::from(user), Credential::from(access), Credential::Anonymous];
+        let headers: Vec<Option<String>> = forms.iter().map(|c| c.header().map(|h| h.to_string())).collect();
+        assert_eq!(
+            headers,
+            [Some("github made-up-user-token".into()), Some("tunnel made-up-access-token".into()), None]
+        );
+        let names: Vec<&str> = forms.iter().map(Credential::form).collect();
+        assert_eq!(names, ["a GitHub user token", "a tunnel access token", "no token"]);
+        assert!(!format!("{forms:?}").contains("made-up"), "{forms:?}");
     }
 }

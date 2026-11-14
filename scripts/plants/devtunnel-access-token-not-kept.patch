@@ -1,0 +1,13 @@
+diff --git a/crates/pod-devtunnel/src/management.rs b/crates/pod-devtunnel/src/management.rs
+index 7495625..d228c0c 100644
+--- a/crates/pod-devtunnel/src/management.rs
++++ b/crates/pod-devtunnel/src/management.rs
+@@ -196,7 +196,7 @@ fn relay_token(mut info: ConnectInfo, credential: &Credential) -> Result<Connect
+                 ),
+             ));
+         }
+-        Credential::Access(access) => info.take_caller(ConnectToken::of_access(access)),
++        Credential::Access(access) => drop(ConnectToken::of_access(access)),
+         Credential::Anonymous => {}
+     }
+     Ok(info)

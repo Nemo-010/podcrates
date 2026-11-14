@@ -1,7 +1,7 @@
 //! No token in a `Debug`, an event, a line of `tracing` or the text of a
 //! failure: a whole life of a client (a connect, a stream, a reconnect, a
 //! refusal) runs with each line of each level kept, and no kept text holds
-//! the user's token or a connect token.
+//! the user's token, a tunnel access token or a connect token.
 
 mod common;
 
@@ -9,11 +9,11 @@ use pod_devtunnel::standin::{Standin, TOKEN_PREFIX};
 use pod_devtunnel::{Locator, Management};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use common::{Lines, USER_TOKEN, connected, plan, settings, user, way};
+use common::{ACCESS_TOKEN, Lines, USER_TOKEN, access, connected, connected_with, plan, settings, user, way};
 
 /// True when `text` holds a token of the tests.
 fn holds_token(text: &str) -> bool {
-    text.contains(USER_TOKEN) || text.contains(TOKEN_PREFIX)
+    text.contains(USER_TOKEN) || text.contains(ACCESS_TOKEN) || text.contains(TOKEN_PREFIX)
 }
 
 #[tokio::test]
@@ -37,7 +37,7 @@ async fn no_token_reaches_a_debug_an_event_a_line_or_a_failure() {
     texts.push(format!("{:?}", settings(&standin.base())));
 
     let api = Management::new(way().http, &settings(&standin.base()));
-    let info = api.connect_info(&Locator::parse("standin-box").unwrap(), &user()).await.unwrap();
+    let info = api.connect_info(&Locator::parse("standin-box").unwrap(), &user().into()).await.unwrap();
     texts.push(format!("{info:?} {:?} {:?} {api:?}", info.token(), info.endpoints));
 
     // The failures: a refused user, a refused upgrade, a reconnect that
@@ -47,7 +47,7 @@ async fn no_token_reaches_a_debug_an_event_a_line_or_a_failure() {
     let reconnect = relay.open(22).await.unwrap_err();
     texts.push(format!("{} {reconnect:?}", reconnect.chain()));
     standin.refuse_user();
-    let refused = api.connect_info(&Locator::parse("standin-box").unwrap(), &user()).await.unwrap_err();
+    let refused = api.connect_info(&Locator::parse("standin-box").unwrap(), &user().into()).await.unwrap_err();
     texts.push(format!("{} {refused:?}", refused.chain()));
     let other = Standin::start(plan()).await.unwrap();
     other.refuse_user();
@@ -61,6 +61,27 @@ async fn no_token_reaches_a_debug_an_event_a_line_or_a_failure() {
     .await
     .unwrap_err();
     texts.push(format!("{} {first:?}", first.chain()));
+
+    // A tunnel access token: a stream, then a refusal of the token.
+    let mut by_access = plan();
+    by_access.access = Some(ACCESS_TOKEN.into());
+    let (access_standin, access_relay, access_kept) = connected_with(by_access, access().into()).await;
+    let mut stream = access_relay.open(22).await.unwrap();
+    stream.write_all(b"a").await.unwrap();
+    stream.read_exact(&mut [0u8; 1]).await.unwrap();
+    texts.push(format!("{access_relay:?} {:?} {:?}", access(), pod_devtunnel::Credential::from(access())));
+    access_standin.refuse_upgrades(100);
+    access_standin.drop_relays();
+    let reconnect = access_relay.open(22).await.unwrap_err();
+    texts.push(format!("{} {reconnect:?}", reconnect.chain()));
+    let wrong = Standin::start(plan()).await.unwrap();
+    let refused = Management::new(way().http, &settings(&wrong.base()))
+        .connect_info(&Locator::parse("standin-box").unwrap(), &access().into())
+        .await
+        .unwrap_err();
+    texts.push(format!("{} {refused:?}", refused.chain()));
+    texts.extend(access_kept.texts());
+    assert_eq!(access_standin.seen().relay_tokens[0], "access");
 
     texts.extend(kept.texts());
     texts.extend(kept.decisions.lock().unwrap().iter().map(|(d, o)| format!("{d} {o}")));

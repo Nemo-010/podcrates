@@ -1,0 +1,7 @@
+# The stand-in takes a caller with no token where the tunnel has no
+# anonymous entry. The test of a missing token must see it.
+ENTRY=T-489
+GROUP=devtunnel
+EXPECT='no_token_is_refused_where_the_tunnel_has_no_anonymous_access'
+RUN='cargo test -p pod-devtunnel --all-features --test credential'
+LIMIT=1800

@@ -1,5 +1,6 @@
 //! One relay session: the WebSocket to a client relay URI with the
-//! subprotocol and the connect token, its frames carried as bytes by
+//! subprotocol and the token of the connect information (none for a tunnel
+//! with anonymous access that gave none), its frames carried as bytes by
 //! `pod_ws::bridge`, and the SSH session over those bytes.
 
 use std::sync::Arc;
@@ -75,16 +76,16 @@ async fn open_one(
     number: u64,
 ) -> Result<Live, Failure> {
     let shown = endpoint.relay.shown();
-    let authorization = info.token().header();
+    let authorization = info.token().map(|token| token.header());
     let asking = Asking {
         protocol: Some(service::subprotocol()),
-        authorization: Some(authorization.as_str()),
+        authorization: authorization.as_ref().map(|value| value.as_str()),
         alpn: ALPN,
         limits: settings.limits,
     };
     let session = url::dial_asking(&endpoint.relay, &asking, &way.ws, &way.trust, settings.timeout, None)
         .await
-        .map_err(|e| wrap(Step::WebSocket, &shown, Failure::from(e)))?;
+        .map_err(|e| wrap(Step::WebSocket, format!("{shown} with {}", info.relay_form()), Failure::from(e)))?;
     drop(authorization);
     let (ssh_io, ws_io) = tokio::io::duplex(PIPE);
     let pump = tokio::spawn(async move {

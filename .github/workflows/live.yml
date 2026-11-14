@@ -15,7 +15,8 @@ name: live
 # and to the resolvers. The checks of each push do not need the network
 # (ci.yml; scripts/check-workflows.py holds it). Multipath TCP runs by hand
 # alone (the input measure): the edge answers plain TCP, a fact that does
-# not change from day to day.
+# not change from day to day. The client of pod-devtunnel runs by hand
+# alone (the input measure): it needs a tunnel that the owner hosts.
 #
 # The job relay runs one live test of the relay client of pod-relay, by
 # hand only (T-228): each test mints its own tokens and pairs on the live
@@ -53,6 +54,7 @@ on:
         options:
           - none
           - mptcp
+          - devtunnel
       file-hosts:
         description: "The file hosts of the round trip, ids by commas (empty: each host that is on by default)"
         required: false
@@ -104,6 +106,19 @@ jobs:
       - name: pod-proxy, Multipath TCP to the relay's edge
         if: github.event_name == 'workflow_dispatch' && inputs.measure == 'mptcp'
         run: cargo test --locked -p pod-proxy --test mptcp -- --ignored --nocapture
+      # The client of pod-devtunnel against a tunnel of the owner (T-386),
+      # by hand alone: the owner hosts the tunnel with the vendor's CLI for
+      # the time of the run, and the client takes no account (T-489): the
+      # tunnel allows anonymous access, or the secret holds a tunnel access
+      # token. The secrets reach the test through the environment; with no
+      # tunnel the test skips.
+      - name: pod-devtunnel, a stream through the relay to a tunnel of the owner
+        if: github.event_name == 'workflow_dispatch' && inputs.measure == 'devtunnel'
+        env:
+          POD_DEVTUNNEL_TUNNEL: ${{ secrets.POD_DEVTUNNEL_TUNNEL }}
+          POD_DEVTUNNEL_PORT: ${{ secrets.POD_DEVTUNNEL_PORT }}
+          POD_DEVTUNNEL_ACCESS_TOKEN: ${{ secrets.POD_DEVTUNNEL_ACCESS_TOKEN }}
+        run: cargo test --locked -p pod-devtunnel --test live -- --ignored --nocapture
       # A rate limit of the registry (429) is a skip that the log names.
       - name: pod-oci, a pull of the pinned guest userland from ECR Public
         run: cargo test --locked -p pod-oci --test live -- --ignored --nocapture

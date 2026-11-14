@@ -1,37 +1,49 @@
-//! The live service, with the token of the user who runs the test: never a
-//! shared account, never a token in the code. The test is ignored; it runs
-//! by hand with these variables, and it is skipped when one is missing:
+//! The live service, with the credential of the user who runs the test:
+//! never a shared account, never a token in the code. The test is ignored;
+//! it runs by hand with these variables, and it is skipped when the tunnel
+//! or the port is missing:
 //!
-//! * `POD_DEVTUNNEL_TOKEN`: the user's token;
-//! * `POD_DEVTUNNEL_SCHEME`: `github` (the default) or `aad`;
 //! * `POD_DEVTUNNEL_TUNNEL`: the tunnel, `NAME` or `ID.CLUSTER`, with a
 //!   host connected;
 //! * `POD_DEVTUNNEL_PORT`: a port of the tunnel whose server speaks first
-//!   (an SSH server).
+//!   (an SSH server);
+//! * `POD_DEVTUNNEL_TOKEN`: the user's token, and `POD_DEVTUNNEL_SCHEME`:
+//!   `github` (the default), `aad` or `bearer`;
+//! * else `POD_DEVTUNNEL_ACCESS_TOKEN`: a tunnel access token with the
+//!   scope `connect` (`devtunnel token TUNNEL --scopes connect`);
+//! * else no token: the tunnel must allow anonymous access
+//!   (`devtunnel host -p PORT --allow-anonymous`).
 //!
-//! The test reads the variables and sets none.
+//! Only the host needs an account. The test reads the variables and sets
+//! none.
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use pod_devtunnel::{Locator, Relay, Scheme, Settings, UserToken, Way};
+use pod_devtunnel::{AccessToken, Credential, Locator, Relay, Scheme, Settings, UserToken, Way};
 use pod_proxy::resolve::System;
 use pod_proxy::{Client, Dialer, Environment, ProxyChoice};
 use pod_tls::{Context, Trust, Words};
 use tokio::io::AsyncReadExt;
 
 #[tokio::test]
-#[ignore = "the live service of Dev Tunnels, with the user's own token"]
+#[ignore = "the live service of Dev Tunnels: a tunnel with a host, and the user's token, a tunnel access token or none"]
 async fn live_a_stream_to_a_port_of_the_users_tunnel() {
     let var = |name: &str| std::env::var(name).ok().filter(|v| !v.trim().is_empty());
-    let (Some(token), Some(tunnel), Some(port)) =
-        (var("POD_DEVTUNNEL_TOKEN"), var("POD_DEVTUNNEL_TUNNEL"), var("POD_DEVTUNNEL_PORT"))
-    else {
-        eprintln!("skipped: POD_DEVTUNNEL_TOKEN, POD_DEVTUNNEL_TUNNEL and POD_DEVTUNNEL_PORT are not all set");
+    let (Some(tunnel), Some(port)) = (var("POD_DEVTUNNEL_TUNNEL"), var("POD_DEVTUNNEL_PORT")) else {
+        eprintln!("skipped: POD_DEVTUNNEL_TUNNEL and POD_DEVTUNNEL_PORT are not both set");
         return;
     };
-    let scheme = Scheme::parse(&var("POD_DEVTUNNEL_SCHEME").unwrap_or_else(|| "github".into())).expect("a scheme");
-    let user = UserToken::new(scheme, token).expect("a token that a header carries");
+    let credential = match (var("POD_DEVTUNNEL_TOKEN"), var("POD_DEVTUNNEL_ACCESS_TOKEN")) {
+        (Some(token), _) => {
+            let scheme =
+                Scheme::parse(&var("POD_DEVTUNNEL_SCHEME").unwrap_or_else(|| "github".into())).expect("a scheme");
+            Credential::User(UserToken::new(scheme, token).expect("a token that a header carries"))
+        }
+        (None, Some(token)) => Credential::Access(AccessToken::new(token).expect("a token that a header carries")),
+        (None, None) => Credential::Anonymous,
+    };
+    eprintln!("the credential: {}", credential.form());
     let port: u16 = port.parse().expect("a port");
     let provider = Arc::new(rustls::crypto::ring::default_provider());
     let tls = Arc::new(Context::new(provider, pod_tls::Settings::new(Words::new("pod-devtunnel"))));
@@ -44,7 +56,7 @@ async fn live_a_stream_to_a_port_of_the_users_tunnel() {
         trust: Trust::Default,
     };
     let locator = Locator::parse(&tunnel).expect("a tunnel");
-    let relay = Relay::connect(way, Settings::default(), locator, user, pod_core::Report::default())
+    let relay = Relay::connect(way, Settings::default(), locator, credential, pod_core::Report::default())
         .await
         .unwrap_or_else(|e| panic!("connect: {}", e.chain()));
     let mut stream = relay.open(port).await.unwrap_or_else(|e| panic!("open: {}", e.chain()));
