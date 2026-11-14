@@ -300,7 +300,8 @@ The plants `wormhole-version-unchecked`, `wormhole-held-unbounded`,
 `wormhole-nostr-signature-unchecked` (`scripts/plants/`) prove twelve
 of the tests. The fuzz target
 `mailbox_message` runs the pure reading of a mailbox's messages and the
-parser of a typed code; `mqtt_packet` runs the codec of MQTT and the topic.
+parser of a typed code; `mqtt_packet` runs the codec of MQTT and the topic; `nostr_message` runs
+the reading of a Nostr relay's messages and the check of an event.
 
 ## Sources
 

@@ -1,0 +1,7 @@
+# The runs of a code try the MQTT brokers before the Nostr relays, against
+# podssh's ruling Q77: the ends meet at the broker; the test of the relay
+# before the broker must fail.
+ENTRY=T-550
+GROUP=relay
+EXPECT='test where_no_mailbox_answers_the_ends_meet_at_a_nostr_relay_before_a_broker \.\.\. FAILED'
+RUN='cargo test -p pod-relay --all-features --test pair_code -- where_no_mailbox_answers_the_ends_meet_at_a_nostr_relay_before_a_broker --exact'

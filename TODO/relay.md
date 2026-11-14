@@ -5976,7 +5976,7 @@ sh scripts/plant-each.sh netstack-close-wait-closes-at-once netstack-link-drops-
 **Milestone:** M2
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -6062,6 +6062,82 @@ cargo test -p pod-relay --all-features --test pair_code
 cargo test -p pod-services --all-features
 cargo test -p pod-wormhole --all-features --test live -- --ignored
 ```
+
+## Correction
+
+2026-11-14: the premise says that a relay keeps no event of the ephemeral
+range. strfry 1.1.3 (strfry.conf at its commit 16c00df) keeps one for 300 s
+(`ephemeralEventsLifetimeSeconds`) and refuses one older than 60 s
+(`rejectEphemeralEventsOlderThanSeconds`); a `REQ` with `since` gets the
+kept ones. The Approach named `nostr-rs-relay` at a pinned tag in CI:
+neither it nor strfry publishes a release with a binary, so the stand-in
+stays the relay of CI (C549). From a cloud session, relay.damus.io closed
+each connection after the `REQ`, nos.lol and nostr.mom gave no answer to
+an event, and relay.nos.social refused the kind (C548).
+
+## Done
+
+2026-11-14, commit `bf45447` (the code, the tests, the services) and the
+commit of the plants and the record after it. Calls C546 to C551.
+
+- `pod_wormhole::nostr` (`crates/pod-wormhole/src/nostr.rs`,
+  `crates/pod-wormhole/src/nostr/relay.rs`,
+  `crates/pod-wormhole/src/nostr/event.rs`): `Relays { points, config, resend }`, `opened`,
+  `joined`, `KIND` 25431, `TAG` `t`, `RESEND` 2 s, `SINCE_SLACK` 60 s,
+  `CONTENT_MOST` 64,000; `Relay::connect` proves the relay (`EOSE`, then
+  its own empty event back with `OK` true); `event::Key` (a fresh key of
+  secp256k1 for each pairing, `k256` 0.14 with the feature `schnorr`),
+  `id_of`, `checked`, `said`, `harmless`. `Place::Relay`. The events
+  `wormhole.nostr`.
+- `pod-services`: the kind `nostr-relay`, `primal-nostr` (rank 1) and
+  `offchain-nostr` (rank 2) with the facts of their NIP-11 documents;
+  `pod-services-watch`: the argument `accept` of `http-json`, and
+  `kind_facts("nostr-relay")`.
+- `pod-relay`: `Ends::relays` and `Ends::relays()`; `opened` and `joined`
+  try the mailboxes, the relays, then the brokers, with the event
+  `relay.code.nostr` (`NOSTR_WORDS`) before the first relay. T-551 puts
+  the trackers between the relays and the brokers.
+- Tests: `cargo test -p pod-wormhole --all-features`: 46 unit tests (9
+  new of `nostr`: BIP-340's vector 0, an id computed by Python, an event
+  signed by a BIP-340 signer in Python that checks and that this crate
+  signs the same, a changed event refused, the messages of a relay) and
+  `crates/pod-wormhole/tests/nostr.rs` (7) on the stand-in relay of
+  `crates/pod-wormhole/tests/harness/nostr.rs`, 30 runs in a loop
+  with no failure; `cargo test -p pod-relay --all-features --test
+  pair_code`: 12 passed (2 new); `cargo test -p pod-services
+  --all-features`: `crates/pod-services/tests/nostr.rs` (1) and the
+  others pass;
+  `cargo test -p pod-services-watch --all-features`:
+  `http_json_asks_for_the_type_of_accept` and the others pass.
+  `cargo test -p pod-wormhole --all-features --test live -- --ignored
+  two_ends_meet_at_each_public_nostr_relay`: both relays paired, from a
+  cloud session through its HTTPS proxy. `live.yml` runs it each
+  Thursday (row L43 of `docs/live-calls.md`).
+- Plants: each proven by hand (`git apply`, the run of its
+  `RUN`, `git apply -R`). `wormhole-nostr-tag-constant` fails
+  `an_event_with_the_tag_of_another_code_is_not_delivered` (the taker of
+  another code met the giver); `wormhole-nostr-no-resend` fails
+  `the_taker_sends_its_first_message_again_until_the_giver_answers` ("the
+  taker after its losses: Nobody"); `wormhole-nostr-refusal-ignored` fails
+  `a_relay_that_refuses_is_passed_over_with_its_words` (the words of the
+  `OK` false are not said); `wormhole-nostr-signature-unchecked` fails
+  `an_event_that_does_not_check_is_refused_and_dropped` (the stand-in takes
+  the forged event); `relay-code-nostr-after-brokers` fails
+  `where_no_mailbox_answers_the_ends_meet_at_a_nostr_relay_before_a_broker`
+  (the ends met at the broker). The fuzz target `nostr_message` runs
+  `nostr::event::said` and `checked` (`fuzz/`, its seeds in
+  fuzz/seeds/nostr_message). The patches of the plants of T-277
+  (`relay-t277-brokers-not-tried`, `relay-t277-nobody-stops-the-taker`)
+  are made again on the new `opened` and `joined`; each still fails its
+  test.
+- podssh's part (PodUtils/podssh@T-545): set `Ends::relays` of its runs
+  of a code to the endpoint `relay` of each service of
+  `pod_services::of_kind("nostr-relay")`, in the order of the ranks
+  (`WsUrl::parse(&service.endpoint("relay")?.url())`); give a switch that
+  empties it (as `PODSSH_MQTT` empties `Ends::brokers`); show the event
+  `relay.code.nostr` as the line of the third party; a caller of
+  `pod-wormhole` alone calls `nostr::opened` and `nostr::joined` with
+  `Relays::new(points, config)`.
 
 # T-551: `pod-wormhole`: WebTorrent's trackers as a meeting point of the pairing by a code (PodUtils/podssh#235)
 

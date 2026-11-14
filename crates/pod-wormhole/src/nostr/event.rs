@@ -207,6 +207,27 @@ mod tests {
         assert_eq!(hex(&escaped), "e8c01d065e7e81e4578eca718a63b19fc91c84c673aa9c413c0ff6aab261c894");
     }
 
+    // Signed by a BIP-340 signer in Python written from the BIP's reference
+    // code (the key 3, auxiliary bytes zero), software that this crate did
+    // not write; the same event is the seed `event-signed` of the fuzz
+    // target `nostr_message`.
+    const PYTHON_SIG: &str = "36a078b0b14139340c38acfaf2dacab76c421e81cd114401eccfe7a5f0abdb28\
+                              227c1642cefdb27105b7a905e3e622ecce01a4263424b41ef7b47c11587d154b";
+
+    #[test]
+    fn an_event_of_another_signer_checks_and_this_one_signs_the_same() {
+        let content = r#"{"side":"0123456789","phase":"pake","body":"00ff"}"#;
+        let tags = json!([["t", "pwtestg"]]);
+        let theirs = json!({
+            "id": "70653f3d4264a21d583aeb8f9b0e0e50dc5492ea95ea98956d407f2cb355e1be",
+            "pubkey": PUBKEY_3, "created_at": 1_700_000_000u64, "kind": 25431,
+            "tags": tags, "content": content, "sig": PYTHON_SIG,
+        });
+        assert!(checked(&theirs).is_some(), "the event of another signer checks");
+        let key = Key::from_secret(&unhex(SECRET_3).unwrap()).unwrap();
+        assert_eq!(key.sign(1_700_000_000, 25431, &tags, content).unwrap(), theirs);
+    }
+
     #[test]
     fn a_signed_event_checks_and_a_changed_one_does_not() {
         let key = Key::new().unwrap();

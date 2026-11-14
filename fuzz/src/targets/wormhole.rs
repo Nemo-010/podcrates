@@ -1,8 +1,10 @@
-//! The fuzz target of the MQTT meeting point of `pod-wormhole`: the bytes
-//! come from a public broker, which any client of it can fill.
+//! The fuzz targets of the MQTT and the Nostr meeting points of
+//! `pod-wormhole`: the bytes come from a public broker or relay, which any
+//! client of it can fill.
 
 use pod_wormhole::mqtt::packet::{decode, encode};
 use pod_wormhole::mqtt::topic;
+use pod_wormhole::nostr::event::{Said, checked, said};
 
 use crate::text;
 
@@ -27,4 +29,21 @@ pub fn mqtt_packet(data: &[u8]) {
     let (appid, nameplate) = typed.split_once('\n').unwrap_or((typed, ""));
     let made = topic(appid, nameplate);
     assert!(made.len() == 42 && made.bytes().all(|b| b.is_ascii_alphanumeric()), "{made:?}");
+}
+
+/// The messages of a Nostr relay (`pod_wormhole::nostr::event::said` and
+/// `checked`; new in `pod-wormhole`, T-550): a message reads with no panic;
+/// an event that checks keeps its id, which is 64 hex digits, and a second
+/// check reads the same.
+pub fn nostr_message(data: &[u8]) {
+    if let Some(Said::Event { event, .. }) = said(data)
+        && let Some(read) = checked(&event)
+    {
+        assert_eq!(Some(read.id.as_str()), event["id"].as_str());
+        assert!(read.id.len() == 64 && read.id.bytes().all(|b| b.is_ascii_hexdigit()), "{}", read.id);
+        assert_eq!(checked(&event).as_ref(), Some(&read), "a second check reads the same");
+    }
+    if let Ok(event) = serde_json::from_slice::<serde_json::Value>(data) {
+        let _ = checked(&event);
+    }
 }

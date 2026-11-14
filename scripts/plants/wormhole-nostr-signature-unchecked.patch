@@ -1,0 +1,13 @@
+diff --git a/crates/pod-wormhole/src/nostr/event.rs b/crates/pod-wormhole/src/nostr/event.rs
+index 888c772..d1a66ef 100644
+--- a/crates/pod-wormhole/src/nostr/event.rs
++++ b/crates/pod-wormhole/src/nostr/event.rs
+@@ -125,7 +125,7 @@ pub fn checked(event: &Value) -> Option<Checked> {
+     }
+     let key = VerifyingKey::from_slice(&unhex(pubkey).filter(|k| k.len() == 32)?).ok()?;
+     let sig = Signature::from_slice(&unhex(text("sig")?)?).ok()?;
+-    key.verify_prehash(&id, &sig).ok()?;
++    let _ = key.verify_prehash(&id, &sig);
+     Some(Checked { id: hex(&id), pubkey: pubkey.to_string(), created_at, kind, tags, content: content.to_string() })
+ }
+ 

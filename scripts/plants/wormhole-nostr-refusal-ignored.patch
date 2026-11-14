@@ -1,0 +1,15 @@
+diff --git a/crates/pod-wormhole/src/nostr/relay.rs b/crates/pod-wormhole/src/nostr/relay.rs
+index 6f22030..f9cfbff 100644
+--- a/crates/pod-wormhole/src/nostr/relay.rs
++++ b/crates/pod-wormhole/src/nostr/relay.rs
+@@ -252,9 +252,7 @@ impl Relay {
+     async fn heed(&mut self, said: Said) -> Result<Option<Message>, Failed> {
+         match said {
+             Said::Event { sub, event } if sub == self.sub => self.take(&event).await,
+-            Said::Ok { accepted: false, message, .. } if !harmless(&message) => {
+-                Err(Failed::Refused(format!("the Nostr relay {} refused an event: {message}", self.shown)))
+-            }
++            Said::Ok { accepted: false, message, .. } if !harmless(&message) => Ok(None),
+             Said::Closed { sub, message } if sub == self.sub => {
+                 Err(Failed::Refused(format!("the Nostr relay {} ended the subscription: {message}", self.shown)))
+             }

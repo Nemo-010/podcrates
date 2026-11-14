@@ -1,0 +1,7 @@
+# The taker does not send its first message again: an ephemeral event that
+# reached no subscriber is gone, and the giver never hears the taker; the
+# test of a relay that loses the first messages must fail.
+ENTRY=T-550
+GROUP=wormhole
+EXPECT='test the_taker_sends_its_first_message_again_until_the_giver_answers \.\.\. FAILED'
+RUN='cargo test -p pod-wormhole --features standin --test nostr -- the_taker_sends_its_first_message_again_until_the_giver_answers --exact'
