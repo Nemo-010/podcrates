@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 
+use common::dead;
 use common::edge::{self, Edge, Route};
 use pod_core::{BoxFuture, Class, Connected, Dial, Failure, Stage, Target};
 use pod_testkit::stand;
@@ -86,12 +87,6 @@ async fn world() -> (stand::warp::Api, stand::Stand, Edge) {
 /// A dial that carries both doors to `to`.
 fn to(to: SocketAddr) -> Arc<common::Moved> {
     common::Moved::new(vec![(edge::door_v4(), to), (edge::door_v6(), to)])
-}
-
-/// A port of the loopback where nothing listens.
-fn dead() -> SocketAddr {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    listener.local_addr().unwrap()
 }
 
 /// A device registered at `served`, whose sessions take the direct dial
