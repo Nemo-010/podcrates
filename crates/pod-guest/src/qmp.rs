@@ -5,8 +5,9 @@
 //! JSON, each request gets a response, and a refusal is an `"error"`
 //! member.
 //!
-//! No JSON dependency: the crate sends `qmp_capabilities`, `send-key` and
-//! `quit`, with key names from a fixed table. The requests are formatted,
+//! No JSON dependency: the crate sends `qmp_capabilities`, `send-key`,
+//! `screendump` and `quit`, with key names from a fixed table and a path
+//! in a JSON string ([`json_text`]). The requests are formatted,
 //! and a response is read for an `"error"` member. An error object that
 //! [`response_ok`] does not find reads as success; so each request that the
 //! crate sends is one whose refusal the guest also shows.
@@ -120,6 +121,15 @@ impl Monitor {
         self.send(&send_key(qcodes))
     }
 
+    /// Write the screen of the guest to `file` (`screendump`, a PPM image).
+    /// A path that is not UTF-8 is a [`Class::Usage`] failure: JSON holds
+    /// text.
+    pub fn screendump(&mut self, file: &Path) -> Result<()> {
+        let path =
+            file.to_str().ok_or_else(|| failure(Class::Usage, format!("{}: not a UTF-8 path", file.display())))?;
+        self.send(&format!("{{\"execute\":\"screendump\",\"arguments\":{{\"filename\":{}}}}}", json_text(path)))
+    }
+
     /// Ask the emulator to exit. The response can be missing: the emulator
     /// can close the connection during `quit`, and that is not a failure.
     pub fn quit(&mut self) {
@@ -132,6 +142,21 @@ impl Monitor {
 pub fn send_key(qcodes: &[&str]) -> String {
     let keys: Vec<String> = qcodes.iter().map(|k| format!("{{\"type\":\"qcode\",\"data\":\"{k}\"}}")).collect();
     format!("{{\"execute\":\"send-key\",\"arguments\":{{\"keys\":[{}],\"hold-time\":{HOLD_MS}}}}}", keys.join(","))
+}
+
+/// `text` as a JSON string, with its quotes.
+pub fn json_text(text: &str) -> String {
+    let mut out = String::from("\"");
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if u32::from(c) < 0x20 => out.push_str(&format!("\\u{:04x}", u32::from(c))),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 /// True when a line is an event, not a response.

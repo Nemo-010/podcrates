@@ -1,0 +1,13 @@
+diff --git a/crates/pod-guest/src/ready.rs b/crates/pod-guest/src/ready.rs
+index 561984b..9d693d6 100644
+--- a/crates/pod-guest/src/ready.rs
++++ b/crates/pod-guest/src/ready.rs
+@@ -206,7 +206,7 @@ impl Scan {
+         }
+         let keep = self.text.len() - 1;
+         if self.carry.len() > keep {
+-            self.carry.drain(..self.carry.len() - keep);
++            self.carry.clear();
+         }
+         false
+     }

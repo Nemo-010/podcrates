@@ -1,0 +1,8 @@
+# The serial scan keeps no end of the bytes before: a text that two polls
+# cut is never found, and the wait ends at its deadline (T-595). The test of
+# the serial text must fail.
+ENTRY=T-595
+GROUP=guest
+EXPECT='test ready::tests::a_serial_text_is_found_across_two_polls \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- ready::tests::a_serial_text_is_found_across_two_polls'
+LIMIT=1800

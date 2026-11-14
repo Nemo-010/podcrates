@@ -43,6 +43,7 @@ pub mod fetch;
 pub mod modloop;
 pub mod plan;
 pub mod qmp;
+pub mod ready;
 pub mod squashfs;
 
 mod provision;
