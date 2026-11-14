@@ -229,7 +229,8 @@ file (also the new directory `etc/apt/apt.conf.d`), gives no `Failed`
 row, sets 0555 back, and its `identity` row names the closed `/etc`; on
 one root and on two layers
 (`closed::a_closed_etc_is_completed_and_keeps_its_mode`; as root it runs
-`closed::worker_completes_a_closed_etc` as uid 1000). The plants:
+`closed::worker_completes_a_closed_etc` as uid 1000, and CI runs it as
+root with `scripts/ci/root-uid1000-tests.sh`). The plants:
 `rootfs-t604-closed-dir-not-opened`, `rootfs-t604-mode-not-set-back`,
 `rootfs-t604-upper-dir-not-opened`, `rootfs-t604-make-in-closed-dir`,
 `rootfs-t604-identity-ignores-the-directory`.

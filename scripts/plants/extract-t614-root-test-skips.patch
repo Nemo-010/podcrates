@@ -1,0 +1,13 @@
+diff --git a/crates/pod-extract/src/drive/setid.rs b/crates/pod-extract/src/drive/setid.rs
+index 90d47ab..0c03bb9 100644
+--- a/crates/pod-extract/src/drive/setid.rs
++++ b/crates/pod-extract/src/drive/setid.rs
+@@ -37,7 +37,7 @@ fn set_id_bits_survive_the_write() {
+     let s = Scratch::new("setid");
+     run(s.path(), &[set_id_layer()]).unwrap();
+     assert_exact(s.path(), "the user of the test");
+-    if Ids::current().uid != 0 {
++    if Ids::current().uid != 1 {
+         pod_testkit::host::skip_line("the test does not run as root, so it cannot start a child as uid 1000");
+         return;
+     }

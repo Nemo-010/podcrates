@@ -129,6 +129,11 @@ at the tree. No test needs root, a namespace or the network. The walk and
 `openat2` refuse the same traversal on one kernel; the test that asserts
 `openat2` skips under an emulator that does not translate it.
 
+The tests with a worker of uid 1000 below run that worker only as root.
+CI runs them as root (`scripts/ci/root-uid1000-tests.sh`, a step of
+`ci.yml`), and a skip line fails the step (T-614; the plant
+`extract-t614-root-test-skips`).
+
 `drive::setid::set_id_bits_survive_the_write` extracts files of mode 4755,
 2755 and 6755 as the user of the test. As root it also runs the test
 binary again as uid 1000 and gid 1000
