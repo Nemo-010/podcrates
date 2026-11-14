@@ -7914,7 +7914,7 @@ caught by hand: `guest-t622-guard-leaves-the-emulator`.
 **Milestone:** M6
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7933,3 +7933,11 @@ Move the test to an integration test with `harness = false` that takes the child
 ```sh
 cargo test -p pod-hostprobe --all-features
 ```
+
+## Done
+
+2026-11-14, commit a06f4ca. No unit test runs the probes (call C532). `the_findings_of_this_host_read_back_to_the_same_text` (`src/report/tests.rs`) is removed, and so is `every_child_probe_runs_and_answers_in_a_child` (`src/lib.rs`), which had the same fault and printed most of the refusals. `tests/children.rs` (`harness = false`, the child flag first) takes their checks: with the feature `report`, the report of this host reads back with the same count of rows, the same rung and the same text.
+
+- `cargo test -p pod-hostprobe --all-features`: all passed, with no line "Unrecognized option" (62 before). `tests/children.rs`: 66 rows, 56 ok, 9 denied, 1 skipped; the report of 7215 bytes reads back to the same text.
+- Plant `hostprobe-t625-rung-not-read-back` (the reader gives another rung), caught by hand: `tests/children.rs` fails with "the rung of this host does not read back".
+- clippy, rustfmt and `cargo doc` of `pod-hostprobe` are clean; its README says that only `tests/children.rs` runs the probes and names the plant.

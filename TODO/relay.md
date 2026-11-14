@@ -7311,7 +7311,7 @@ sh scripts/ci/s3-tests.sh
 **Milestone:** M2
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7330,3 +7330,11 @@ After the new read, try the doors of the new record in order (the door that show
 ```sh
 cargo test -p pod-warp --all-features
 ```
+
+## Done
+
+2026-11-14, commit 3c0ebc7. After a door shows a key that is not the pinned key, `open_after_mismatch` reads the record again and tries each of its doors in the order of `door::doors`, the door that showed the key first when the record still lists it (call C530). A door that fails for another cause gives way to the next door (event `warp.door`). Each door that shows another key again is tried once more after `PIN_RETRY`. When each door fails, one failure names the mismatch and the chain of each door, and adds "does not match either" with `why_shown` when a door still shows another key; its stage, class and cause are those of a door that shows another key, else of the first door (C531). An example: `TLS handshake with the MASQUE front door 192.0.2.1:443: ... MASQUE peer key does not match the pinned key; ...; the device record was read again, and each of its doors failed: TCP to the MASQUE front door 192.0.2.1:443 ...: Connection refused (os error 111); TCP to the MASQUE front door [2001:db8::1]:443 ...: Connection refused (os error 111)`.
+
+- `cargo test -p pod-warp --all-features`: all passed. The new test `tests/net.rs` `after_another_key_each_door_of_the_record_read_again_is_tried` sends the first IPv4 dial to a second edge (another key) and each later IPv4 dial to a refusing port (`common::Moved::with_first`): the IPv6 door opens after 3 dials, and with the IPv6 door refused too the failure names the mismatch and both doors (stage `Connect`, no try again). The binary of `--test net` passed 30 runs of 30.
+- Plants, each caught by hand: `warp-fresh-record-first-door-ends` (a door that fails for another cause ends the try with its raw failure), `warp-fresh-record-mismatch-unnamed` (the failure drops the mismatch).
+- clippy, rustfmt and `cargo doc` of `pod-warp` are clean; the README of `pod-warp` names the behaviour, the test and the plants.
