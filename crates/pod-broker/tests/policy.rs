@@ -3,7 +3,7 @@
 
 use pod_broker::policy::{PATH_NEEDS_TLS_END, path_holds};
 use pod_broker::target::{Authority, parse_authority};
-use pod_broker::{Mode, Policy, Verdict};
+use pod_broker::{Mode, NoRule, Policy, Verdict};
 use pod_core::Class;
 
 fn at(text: &str) -> Authority {
@@ -104,6 +104,21 @@ fn the_rules_match_hosts_on_whole_labels_and_their_ports() {
 
 /// A tunnel shows no path: a host whose rules each have a path needs the
 /// TLS end of T-100.
+#[test]
+fn a_denied_target_names_the_half_of_the_rules_that_failed() {
+    let policy = Policy::from_json(ALLOW).unwrap().compile().unwrap();
+    let words = |target: &str| policy.no_rule(&at(target)).words(&at(target));
+    assert_eq!(policy.no_rule(&at("example.com:443")), NoRule::Host);
+    assert_eq!(words("example.com:443"), "no allow rule names the host example.com");
+    assert_eq!(policy.no_rule(&at("api.github.com:8080")), NoRule::Port(vec![80, 443]));
+    assert_eq!(words("api.github.com:8080"), "the rules of the host api.github.com take the ports 80, 443, not 8080");
+    assert_eq!(words("203.0.113.9:443"), "the rules of the host 203.0.113.9 take the port 8443, not 443");
+    assert_eq!(policy.no_rule(&at("api.github.com:443")), NoRule::Path);
+    assert_eq!(words("api.github.com:443"), "no allow rule of api.github.com:443 holds the path");
+    // A rule with no ports takes each port: the port is not the half that failed.
+    assert_eq!(policy.no_rule(&at("raw.githubusercontent.com:1")), NoRule::Path);
+}
+
 #[test]
 fn a_tunnel_to_a_host_with_path_rules_only_needs_a_tls_end() {
     let compiled = Policy::from_json(ALLOW).unwrap().compile().unwrap();

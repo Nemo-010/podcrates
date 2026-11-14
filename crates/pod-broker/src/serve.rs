@@ -6,7 +6,9 @@
 //! ambiguous request, 407 no token or a token of no job, 421 a CONNECT
 //! target and a `Host` that differ, 403 a refusal of a deny or of the
 //! policy, 502 the far end or the upstream failed, 504 the far end did not
-//! answer in time.
+//! answer in time. A 502 names what failed and the upstream proxy
+//! ([`crate::words`]); a 403 of `policy:no-rule` names the half of the
+//! rules that failed ([`crate::policy::NoRule`]).
 
 use std::net::SocketAddr;
 use std::time::Duration;
@@ -42,9 +44,11 @@ fn refuse(status: u16, rule: impl Into<String>, class: Class, words: impl Into<S
     Refusal { status, rule: rule.into(), stage: Stage::Proxy, class, words: words.into() }
 }
 
-fn of_failure(f: &Failure, rule: &str) -> Refusal {
+/// The 502 or 504 of a failed resolve or dial through `via` (the label of
+/// the upstream proxy): [`crate::words::of_failure`] says what failed.
+fn of_failure(f: &Failure, rule: &str, via: Option<&str>) -> Refusal {
     let status = if f.class == Class::Timeout { 504 } else { 502 };
-    Refusal { status, rule: rule.into(), stage: f.stage, class: f.class, words: f.chain() }
+    Refusal { status, rule: rule.into(), stage: f.stage, class: f.class, words: crate::words::of_failure(f, via) }
 }
 
 /// What the audit line of a connection says.
@@ -267,7 +271,10 @@ impl Broker {
             Verdict::Allow(rule) => rule,
             Verdict::PathsOnly if self.end.reads_requests() => PATH_NEEDS_TLS_END.to_string(),
             Verdict::PathsOnly => return Err(denied(PATH_NEEDS_TLS_END)),
-            Verdict::Deny(rule) => return Err(denied(&rule)),
+            Verdict::Deny(rule) => {
+                let why = lease.policy.no_rule(target).words(target);
+                return Err(refuse(403, rule.as_str(), Class::Policy, format!("denied by the rule {rule}: {why}")));
+            }
         };
         let addrs = match &target.host {
             Host::Ip(ip) => vec![SocketAddr::new(*ip, target.port)],
@@ -290,7 +297,7 @@ impl Broker {
         let found = tokio::time::timeout(wait, self.resolve.resolve(name, port, deadline)).await;
         let addrs = match found {
             Ok(Ok(addrs)) => addrs,
-            Ok(Err(f)) => return Err(of_failure(&f, "resolve")),
+            Ok(Err(f)) => return Err(of_failure(&f, "resolve", None)),
             Err(_) => return Err(refuse(504, "resolve", Class::Timeout, format!("no address of {name} in time"))),
         };
         if addrs.is_empty() {
@@ -319,7 +326,7 @@ impl Broker {
             let by_name = Target::Name { host: name.clone(), port: target.port };
             return match tokio::time::timeout(wait, self.dial.dial(&by_name, deadline)).await {
                 Ok(Ok(connected)) => Ok(connected.io),
-                Ok(Err(f)) => Err(of_failure(&f, "upstream")),
+                Ok(Err(f)) => Err(of_failure(&f, "upstream", self.dial.proxy_label(&by_name).as_deref())),
                 Err(_) => Err(refuse(504, "upstream", Class::Timeout, format!("{target} did not answer in time"))),
             };
         }
@@ -327,10 +334,11 @@ impl Broker {
         for addr in &checked.addrs {
             note.addr = Some(*addr);
             let left = deadline.saturating_duration_since(Instant::now());
-            let dialed = tokio::time::timeout(left, self.dial.dial(&Target::Addr(*addr), deadline)).await;
+            let to = Target::Addr(*addr);
+            let dialed = tokio::time::timeout(left, self.dial.dial(&to, deadline)).await;
             match dialed {
                 Ok(Ok(connected)) => return Ok(connected.io),
-                Ok(Err(f)) => last = Some(of_failure(&f, "upstream")),
+                Ok(Err(f)) => last = Some(of_failure(&f, "upstream", self.dial.proxy_label(&to).as_deref())),
                 Err(_) => {
                     last = Some(refuse(504, "upstream", Class::Timeout, format!("{target} did not answer in time")));
                     break;
@@ -352,8 +360,7 @@ impl Broker {
         if answer {
             let headers: &[(&str, &str)] =
                 if refusal.status == 407 { &[("Proxy-Authenticate", "Basic realm=\"pod-broker\"")] } else { &[] };
-            let words = if refusal.status >= 500 { "the far end failed" } else { refusal.words.as_str() };
-            let _ = io.write_all(&refusal_bytes(refusal.status, words, headers)).await;
+            let _ = io.write_all(&refusal_bytes(refusal.status, &refusal.words, headers)).await;
             let _ = io.shutdown().await;
         }
     }

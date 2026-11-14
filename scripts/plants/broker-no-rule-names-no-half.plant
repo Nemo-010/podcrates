@@ -1,0 +1,7 @@
+# A 403 of policy:no-rule that does not say whether the host or the port
+# failed, nor the ports that the rules take (T-609).
+ENTRY=T-609
+GROUP=proxy
+EXPECT='a_target_that_no_rule_allows_names_the_host_or_the_ports'
+RUN='cargo test -p pod-broker --all-features --test words'
+LIMIT=1800

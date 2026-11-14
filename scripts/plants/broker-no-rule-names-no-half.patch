@@ -1,0 +1,12 @@
+--- a/crates/pod-broker/src/serve.rs
++++ b/crates/pod-broker/src/serve.rs
+@@ -273,7 +273,8 @@
+             Verdict::PathsOnly => return Err(denied(PATH_NEEDS_TLS_END)),
+             Verdict::Deny(rule) => {
+                 let why = lease.policy.no_rule(target).words(target);
+-                return Err(refuse(403, rule.as_str(), Class::Policy, format!("denied by the rule {rule}: {why}")));
++                let _ = why;
++                return Err(refuse(403, rule.as_str(), Class::Policy, format!("denied by the rule {rule}")));
+             }
+         };
+         let addrs = match &target.host {

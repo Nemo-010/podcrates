@@ -1,0 +1,7 @@
+# The fixed words "the far end failed" on each 502: the job cannot tell
+# that the upstream proxy refused, nor which proxy (T-609).
+ENTRY=T-609
+GROUP=proxy
+EXPECT='a_refusal_of_the_upstream_proxy_gets_502_with_its_status_and_the_proxy'
+RUN='cargo test -p pod-broker --all-features --test words'
+LIMIT=1800
