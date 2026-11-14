@@ -535,6 +535,7 @@ pushes. No worktree branch is pushed.
 | `record-issues.yml` | each day | `TODO/github.txt` against GitHub |
 | `fuzz.yml` | each week | the fuzz targets |
 | `guest.yml` | each week, by hand | the tests of `pod-guest` with a real QEMU (TCG; KVM where `/dev/kvm` opens), one guest at a time, and a check that no emulator stays |
+| `guest-windows.yml` | by hand | the keep-alive mode of `pod-guest` on a real Windows Server 2019 guest under KVM: an unattended install from the evaluation ISO of `microsoft-windows-eval`, two next commands on new mailbox media through QMP, two controls (T-602) |
 | the other live and interop workflows of the moved code | each day, by hand | podssh's `relay-live`, `relay-layer-live`, `warp-live`, `quick-tunnel-*`, `transit-live`, `pair-code`, `piping`, `via`, `vless` and `wstunnel` interop, `forwarder-live`, `opentunnel-*`, `tor-live`, `ts-headscale`, `acme-interop`, `reverse-drops`; podnet's live steps of WARP and of the edge. Each moves with its crate |
 
 

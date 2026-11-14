@@ -1,0 +1,13 @@
+diff --git a/crates/pod-guest/src/swap.rs b/crates/pod-guest/src/swap.rs
+index a74117b..7d7634c 100644
+--- a/crates/pod-guest/src/swap.rs
++++ b/crates/pod-guest/src/swap.rs
+@@ -127,7 +127,7 @@ impl Swap {
+         let id = self.volume_id.wrapping_add(1);
+         let mut m = crate::mailbox(s, agent_cmd, request)?;
+         m.set_volume_id(id);
+-        let other = 1 - self.current;
++        let other = self.current;
+         let file = &self.files[other];
+         std::fs::write(file, m.image()).map_err(|e| io_at(file, e))?;
+         monitor.ask(&change_request(file)?)?;

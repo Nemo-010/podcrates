@@ -1,0 +1,8 @@
+# A swap gives the new medium the volume id of the old one (T-602), so
+# Windows takes it as the same volume and keeps its cache. The test of the
+# swap must fail.
+ENTRY=T-602
+GROUP=guest
+EXPECT='test swap::tests::each_next_command_is_a_new_medium_in_the_other_file \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- swap::tests::each_next_command_is_a_new_medium_in_the_other_file'
+LIMIT=1800

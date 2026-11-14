@@ -215,3 +215,26 @@ fn the_start_of_the_emulator_refuses_options_that_do_not_check() {
     let e = crate::emulator::spawn_uefi(&p, std::process::Stdio::null()).unwrap_err();
     assert_eq!(e.class, Class::Usage, "the check, not the missing program: {e}");
 }
+
+/// A USB mailbox is the drive `mbox` on a removable USB stick, after the
+/// one xHCI bus and before the other media; it has no NVMe device.
+#[test]
+fn a_usb_mailbox_is_a_removable_stick_and_not_an_nvme_disk() {
+    let medium = Medium { kind: MediumKind::Usb, path: "/m/stick.img".into(), readonly: false, boot: false };
+    let o = Options { mailbox: MailboxBus::Usb, media: vec![medium], usb_tablet: true, ..Options::default() };
+    assert!(o.check().is_ok());
+    let a = argv(&plan(Accel::Kvm, o));
+    let drives = each(&a, "-drive");
+    assert!(drives.contains(&"if=none,id=mbox,file=/run/guest/mailbox.img,format=raw,cache=writethrough"));
+    let devices = each(&a, "-device");
+    assert!(!devices.iter().any(|d| d.contains("drive=mbox") && d.starts_with("nvme")), "{devices:?}");
+    let stick = "usb-storage,bus=xhci.0,drive=mbox,removable=on,serial=wqmbox";
+    assert_eq!(devices.iter().filter(|d| **d == stick).count(), 1, "{devices:?}");
+    assert_eq!(devices.iter().filter(|d| **d == "qemu-xhci,id=xhci").count(), 1, "one USB bus");
+    let at = |s: &str| a.iter().position(|x| x == s).unwrap();
+    assert!(at("qemu-xhci,id=xhci") < at(stick), "the bus comes first");
+    assert!(at(stick) < a.iter().position(|x| x.starts_with("usb-storage,bus=xhci.0,drive=usb0")).unwrap());
+    // The mailbox alone also brings the bus.
+    let a = argv(&plan(Accel::Tcg, Options { mailbox: MailboxBus::Usb, ..Options::default() }));
+    assert_eq!(each(&a, "-device").iter().filter(|d| **d == "qemu-xhci,id=xhci").count(), 1);
+}

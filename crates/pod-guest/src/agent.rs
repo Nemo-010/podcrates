@@ -28,6 +28,14 @@
 //! token. With [`KEEP`] on the mailbox ([`Mode::KeepAlive`]) the agent does
 //! not shut the guest down: after each command it polls the mailbox for the
 //! next token, about one time each second.
+//!
+//! In that poll the agent writes [`READY`] again each time. The write
+//! reaches the device, so the guest learns of a new medium from the unit
+//! attention of the device, also when Windows polls no removable drive
+//! ([`crate::swap`]). A poll that does not find the mailbox looks for it
+//! again on each drive letter and does not end the agent: a missing
+//! [`KEEP`] after a command shuts the guest down, a missing medium does
+//! not.
 
 /// The file that marks the mailbox volume. The agent looks for it on each
 /// drive letter: Windows gives the letter, and it can change between boots.
@@ -104,8 +112,12 @@ if exist %WQ%\WQKEEP.TXT goto idle
 shutdown /s /t 0 /f
 goto :eof
 :idle
+>%WQ%\WQREADY.TXT echo WQREADY
 ping -n 2 127.0.0.1 >nul
-goto next
+if exist %WQ%\WQGO.TXT goto take
+if exist %WQ%\WQMARK.TXT goto idle
+set WQTRIES=0
+goto probe
 "#;
 
 /// The installer, for one run. It copies [`AGENT_CMD`] into the image and

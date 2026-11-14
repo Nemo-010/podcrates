@@ -1,0 +1,7 @@
+# The next command goes into the file of the medium in the guest (T-602),
+# not into the other file. The test of the swap must fail.
+ENTRY=T-602
+GROUP=guest
+EXPECT='test swap::tests::each_next_command_is_a_new_medium_in_the_other_file \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- swap::tests::each_next_command_is_a_new_medium_in_the_other_file'
+LIMIT=1800

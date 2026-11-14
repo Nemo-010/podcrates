@@ -1,0 +1,14 @@
+diff --git a/crates/pod-guest/src/swap.rs b/crates/pod-guest/src/swap.rs
+index a74117b..89faaad 100644
+--- a/crates/pod-guest/src/swap.rs
++++ b/crates/pod-guest/src/swap.rs
+@@ -40,9 +40,6 @@ use crate::{Fat16, Outcome, Plan, Request, Result, Settings, agent, failure, io_
+ /// [`agent::GO`]. `None` while the command runs or the agent has not yet
+ /// deleted its token.
+ pub fn settled(m: &Fat16, token: &str) -> Option<Outcome> {
+-    if m.get(agent::GO).is_some() {
+-        return None;
+-    }
+     crate::poll_outcome(m, token)
+ }
+ 

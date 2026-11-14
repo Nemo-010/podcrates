@@ -22,7 +22,9 @@ use pod_hostprobe::machine::Profile;
 
 pub mod options;
 
-pub use options::{Channel, Forward, Medium, MediumKind, Nic, NicModel, Options, Proto, UserNet, Virtio};
+pub use options::{
+    Channel, Forward, MAILBOX_DRIVE, MailboxBus, Medium, MediumKind, Nic, NicModel, Options, Proto, UserNet, Virtio,
+};
 
 /// Which accelerator to ask the emulator for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -105,9 +107,10 @@ pub struct Plan {
 /// The argv of the emulator for the UEFI flavour (q35, OVMF, NVMe), in
 /// order, with no program.
 ///
-/// The mailbox is a second NVMe device with `cache=writethrough`. The host
-/// writes the command into the image file and reads the result from it; a
-/// write-back cache can hold a result that the file does not have yet.
+/// The mailbox is a second NVMe device with `cache=writethrough`, or a USB
+/// stick with a removable medium ([`MailboxBus::Usb`]). The host writes the
+/// command into the image file and reads the result from it; a write-back
+/// cache can hold a result that the file does not have yet.
 ///
 /// `-nic none`: the guest gets no network, unless [`Plan::options`] asks
 /// for user-mode networking ([`Nic::User`]).
@@ -138,9 +141,11 @@ pub fn argv(p: &Plan) -> Vec<String> {
     push("-device");
     push("nvme,drive=root,serial=wqroot");
     push("-drive");
-    push(&format!("if=none,id=mbox,file={},format=raw,cache=writethrough", options::escape(&p.mailbox)));
-    push("-device");
-    push("nvme,drive=mbox,serial=wqmbox");
+    push(&format!("if=none,id={MAILBOX_DRIVE},file={},format=raw,cache=writethrough", options::escape(&p.mailbox)));
+    if p.options.mailbox == MailboxBus::Nvme {
+        push("-device");
+        push("nvme,drive=mbox,serial=wqmbox");
+    }
     push("-vga");
     push("std");
     push("-display");

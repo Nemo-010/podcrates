@@ -1,0 +1,18 @@
+diff --git a/crates/pod-guest/src/agent.rs b/crates/pod-guest/src/agent.rs
+index 51edb97..e279ea8 100644
+--- a/crates/pod-guest/src/agent.rs
++++ b/crates/pod-guest/src/agent.rs
+@@ -112,12 +112,8 @@ if exist %WQ%\WQKEEP.TXT goto idle
+ shutdown /s /t 0 /f
+ goto :eof
+ :idle
+->%WQ%\WQREADY.TXT echo WQREADY
+ ping -n 2 127.0.0.1 >nul
+-if exist %WQ%\WQGO.TXT goto take
+-if exist %WQ%\WQMARK.TXT goto idle
+-set WQTRIES=0
+-goto probe
++goto next
+ "#;
+ 
+ /// The installer, for one run. It copies [`AGENT_CMD`] into the image and

@@ -1,0 +1,7 @@
+# The idle agent ends when the medium is gone for a time and writes no
+# marker in its poll (T-602). The walk of a swap must fail.
+ENTRY=T-602
+GROUP=guest
+EXPECT='test agent::tests::the_idle_agent_waits_through_a_missing_medium_and_takes_the_new_one \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- agent::tests::the_idle_agent_waits_through_a_missing_medium_and_takes_the_new_one'
+LIMIT=1800

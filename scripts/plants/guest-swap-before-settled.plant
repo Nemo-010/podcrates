@@ -1,0 +1,8 @@
+# A result counts as settled while the token of the agent is still on the
+# medium (T-602), so a swap can come before the delete of the agent. The
+# test of the settled result must fail.
+ENTRY=T-602
+GROUP=guest
+EXPECT='test swap::tests::a_result_is_settled_only_after_the_agent_deleted_its_token \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- swap::tests::a_result_is_settled_only_after_the_agent_deleted_its_token'
+LIMIT=1800
