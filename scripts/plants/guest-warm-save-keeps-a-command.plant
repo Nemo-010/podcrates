@@ -1,0 +1,8 @@
+# The check of an idle agent takes a mailbox with a token, so a saved
+# state runs that command again at each restore (T-596,
+# PodUtils/podvm#350). The test of the idle agent must fail.
+ENTRY=T-596
+GROUP=guest
+EXPECT='test warm::tests::only_an_idle_agent_in_keep_alive_mode_is_saved \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- warm::tests::only_an_idle_agent_in_keep_alive_mode_is_saved'
+LIMIT=1800

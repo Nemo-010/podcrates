@@ -7,8 +7,10 @@
 //!
 //! No JSON dependency: the crate sends `qmp_capabilities`, `send-key`,
 //! `screendump` and `quit`, with key names from a fixed table and a path
-//! in a JSON string ([`json_text`]). The requests are formatted,
-//! and a response is read for an `"error"` member. An error object that
+//! in a JSON string ([`json_text`]), and for a warm start ([`crate::warm`])
+//! `stop`, `cont`, `migrate` and the queries of the status. The requests
+//! are formatted, and a response is read for an `"error"` member and for
+//! the words of a status ([`json_member`]). An error object that
 //! [`response_ok`] does not find reads as success; so each request that the
 //! crate sends is one whose refusal the guest also shows.
 //!
@@ -87,6 +89,13 @@ impl Monitor {
     }
 
     fn send(&mut self, body: &str) -> Result<()> {
+        self.ask(body).map(drop)
+    }
+
+    /// Send one request, `body` as it is, and return the line of its
+    /// response. A response with `"error"` is a [`Class::Protocol`]
+    /// failure that holds the line.
+    pub fn ask(&mut self, body: &str) -> Result<String> {
         self.writer
             .write_all(body.as_bytes())
             .and_then(|()| self.writer.write_all(b"\n"))
@@ -102,7 +111,7 @@ impl Monitor {
             }
         };
         if response_ok(&line) {
-            Ok(())
+            Ok(line)
         } else {
             Err(failure(Class::Protocol, format!("qmp refused {body}: {}", line.trim())))
         }
@@ -157,6 +166,24 @@ pub fn json_text(text: &str) -> String {
     }
     out.push('"');
     out
+}
+
+/// The text of the first member `key` of a response line whose value is a
+/// string, with no escape in it; `None` when there is no such member.
+///
+/// Enough for the words that the crate reads (`"status": "inmigrate"`):
+/// the emulator writes them with no escape.
+pub fn json_member(line: &str, key: &str) -> Option<String> {
+    let name = format!("\"{key}\"");
+    let mut rest = line;
+    while let Some(at) = rest.find(&name) {
+        rest = &rest[at + name.len()..];
+        let Some(value) = rest.trim_start().strip_prefix(':') else { continue };
+        let Some(value) = value.trim_start().strip_prefix('"') else { continue };
+        let end = value.find(['"', '\\'])?;
+        return (value.as_bytes()[end] == b'"').then(|| value[..end].to_string());
+    }
+    None
 }
 
 /// True when a line is an event, not a response.
@@ -245,6 +272,19 @@ mod tests {
         assert!(!is_event("{\"error\": \"nope\"}"));
         // A response that names an event in a string is a response.
         assert!(!is_event("{\"return\": \"event\"}"));
+    }
+
+    #[test]
+    fn a_member_of_a_response_is_read_with_or_with_no_space() {
+        let status = "{\"return\": {\"status\": \"inmigrate\", \"running\": false}}";
+        assert_eq!(json_member(status, "status").as_deref(), Some("inmigrate"));
+        assert_eq!(json_member("{\"return\":{\"status\":\"completed\"}}", "status").as_deref(), Some("completed"));
+        // A key in a value is not a member; a value that is not a string is
+        // no text.
+        assert_eq!(json_member("{\"desc\": \"status\", \"status\": \"failed\"}", "status").as_deref(), Some("failed"));
+        assert_eq!(json_member("{\"status\": 3}", "status"), None);
+        assert_eq!(json_member("{\"status\": \"a\\\"b\"}", "status"), None, "an escape is not read");
+        assert_eq!(json_member("{\"return\": {}}", "status"), None);
     }
 
     #[test]

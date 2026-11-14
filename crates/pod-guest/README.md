@@ -43,9 +43,13 @@ needs, with their dependencies ("The modloop", below).
 The crate is Linux only (`#![cfg(target_os = "linux")]`): on another
 target it is empty. It reads no variable of the environment and prints
 nothing. At run time it starts the emulator and `qemu-img` that the caller
-names. No test needs KVM or QEMU; the two tests that start a real emulator
-skip where no `qemu-system-x86_64` is on `PATH` (the KVM one also where
-`/dev/kvm` does not open).
+names. No test needs KVM or QEMU; the four tests that start a real
+emulator skip where no `qemu-system-x86_64` is on `PATH` (the KVM one also
+where `/dev/kvm` does not open; the two of the warm start also where no
+`qemu-img` is on `PATH`).
+
+A guest of the UEFI flavour in keep-alive mode can be saved once and
+restored at each later run in place of a boot ("The warm start", below).
 
 ## API
 
@@ -66,7 +70,8 @@ skip where no `qemu-system-x86_64` is on `PATH` (the KVM one also where
 | `dos` | `argv`, `stage(&s, ...)`, `run(&plan, batch, token, timeout)`, `batch_from_argv`, `DEFAULT_MEM_MIB`, `CPUS`, `DEFAULT_TIMEOUT_SECS`, the boot waits `TO_MENU_MS`, `TO_PROCEED_MS`, `TO_PROMPT_MS`, `MBOX_DRIVE`, `BAT` |
 | `fat16` | `Fat16` (`new`, `with_oem`, `from_image`, `put` (an 8.3 name, or a long name of up to `MAX_LONG_NAME` = 32 characters with VFAT entries and an alias `BASIS~N.EXT`), `get` (by the 8.3 name, the alias or the long name, in any case), `remove` (the file, its clusters and the long-name entries before it; `Ok(false)`: no such file), `list` (the long name where there is one), `is_mailbox`, `image`), `checksum` (of an 8.3 alias, for its long-name entries), `format`, `format_with`, `oem_bytes`, the geometry (16 MiB behind an MBR at LBA 2048, 4 KiB clusters), `LABEL`, `OEM` |
 | `fetch` | `Ceiling { max_bytes, fsize }` (the ceiling of one entry), `check_declared`, `Origin` (`get(from) -> Reply`: the caller's HTTP client; `from > 0` sends `Range: bytes=FROM-`), `Reply { status, length, range, body }`, `Stream::new(reader, declared)` (an origin of one stream that does not resume), `store(&mut origin, dest, want, ceiling, tries)` (the sha256 in hex; see "The store"), `partial` (`NAME.part`), `Span`, `parse_content_range`, `Refusal` (`DeclaredTooLarge`, `OverCeiling`, `Digest`, `Size`, `Range`, `Status`, `Broken`, `Busy`; `keeps_part`), `refusal(&failure)` |
-| `qmp` | `Monitor` (`connect`, `call`, `keys`, `screendump(file)`, `quit`), `send_key`, `json_text`, `is_event`, `response_ok`, `key(char)` (the `send-key` name and shift for a US layout), `HOLD_MS` |
+| `qmp` | `Monitor` (`connect`, `call`, `ask(body)` (the response line), `keys`, `screendump(file)`, `quit`), `send_key`, `json_text`, `json_member(line, key)` (a string member of a response), `is_event`, `response_ok`, `key(char)` (the `send-key` name and shift for a US layout), `HOLD_MS` |
+| `warm` | `fingerprint(&plan, base_digest, agent)` (`Fingerprint { qemu, cpu, firmware, base, agent, machine }`, `text()`), `qemu_version`, `host_cpu(cpuinfo)`, `machine_line(&plan)`, `stage_idle(&s, qemu_img, base, &plan, agent)`, `save(&plan, &fingerprint, dir, wait)`, `idle(&fat16)`, `restore(&s, qemu_img, &plan, &request, &warm)`, `incoming_argv(&plan, dir)`, `start(&s, qemu_img, base, &plan, agent, &request, &warm) -> (Child, Start)`, `Warm { dir, fingerprint, wait }`, `Start::{Warm, Cold(Cold)}`, `Cold::{Missing, Stale { saved, now }, Failed { why }}` (`NotFound`, `Config`, `Unavailable`), `cold(&failure)`, the file names `STATE`, `ROOT`, `MAILBOX`, `VARS`, `FINGERPRINT`, `FORMAT` ("The warm start") |
 | `modloop` | `modules(reader, kernel_release, names) -> ModuleSet` (`release`, `modules`: each `Module { path, name, bytes }` in load order, `builtin`, `dep`, `size()`), `Fault`, `fault(&failure)`, `MAX_SET`, `RELEASE_DIRS` |
 | `squashfs` | `Image::open(reader)` (`superblock`, `root`, `inode(reference)`, `entries(&dir)`, `lookup(path)`, `file_at(path)`, `read(&file)`, `ids`, `export(number)`), `Superblock::parse`, `Compressor`, `Inode`, `Kind`, `Dir`, `File`, `Entry`, `listing(bytes)`, `Fault`, `fault(&failure)`, the ceilings `MAX_FILE`, `MAX_LISTING`, `MAX_LINK` |
 
@@ -121,6 +126,51 @@ screen. The tests
 run against stand-ins: a mailbox file, a log that grows, a QMP server on a
 Unix socket that gives a script of frames, `sleep` and `sh -c 'exit 3'` as
 the emulator, and a provision whose emulator exits at once.
+
+## The warm start
+
+`warm` saves a booted guest in keep-alive mode once, and each later run
+restores it in place of a boot (PodUtils/podvm#350, item 7).
+
+1. Make the state: `stage_idle` (the overlay, and a mailbox with the agent
+   and `WQKEEP.TXT` but no token), the start of the emulator, `ready::wait`
+   for `Sign::Marker`, then `save(&plan, &fingerprint(..)?, dir, wait)`.
+   The save refuses a guest that is not an idle agent (`idle`: no
+   `WQREADY.TXT`, no `WQKEEP.TXT`, or a `WQGO.TXT`), sends QMP `stop`,
+   `migrate` to `file:DIR/state.bin`, copies the overlay, the mailbox and
+   the variable store, writes `fingerprint.txt` last, and sends `cont`: the
+   guest goes on. The files go to `DIR.part` and get the name `DIR` at the
+   end; a failed save keeps the state before it.
+2. Each run: `start` restores the state, or boots cold with `stage` when
+   the state is missing, stale or does not load. Both paths end with a
+   running emulator and the command of the request on the mailbox.
+
+| Step of the restore | What |
+| --- | --- |
+| The fingerprint | `fingerprint.txt` must be the text of `Warm::fingerprint`, line for line; else `Cold::Stale` with the first line that differs |
+| The disk | a thin qcow2 overlay over `DIR/root.qcow2` at `Plan::root`; the saved overlay stays as it is |
+| The mailbox | the saved one, with the next command and token (`next_command`), written before the emulator starts |
+| The variable store | the saved one at `Plan::firmware_vars`; the store of the caller comes back when the load fails |
+| The emulator | the machine line, then `-incoming file:DIR/state.bin`; `query-status` is `inmigrate`, then `paused`, then `cont` |
+
+| Input of the fingerprint | Value |
+| --- | --- |
+| `qemu` | the first line of `EMULATOR --version`, with the build of the package |
+| `cpu` | `tcg`; under KVM `host` and the sha256 of the vendor, family, model, model name, stepping and flags of the first processor (`-cpu host`) |
+| `firmware` | the sha256 of the firmware code |
+| `base` | the digest of the base that the caller pinned (empty is `Usage`) |
+| `agent` | the sha256 of the agent |
+| `machine` | `argv(&plan)` with each path of a run as a fixed name (`ROOT`, `MAILBOX`, `VARS`, `QMP`, `MEDIUM0.vhdx`, ...); the memory, the CPUs, the accelerator, the options and the arguments of the caller stay |
+
+A wrong or stale state boots cold; it never gives the answer of another
+guest. An emulator that cannot migrate a device is `Unavailable` with its
+reasons (`query-migrate` `blocked-reasons`), before the guest stops: QEMU
+8.2 refuses the NVMe disks of the plan line, and podvm measures QEMU 11. A
+save that does not end within `wait` is cancelled (`Timeout`). The path of
+the state is UTF-8 with no comma (the `file:` URI), and the overlay names
+its base by an absolute path (the qcow2 head is read): the copy is in
+another directory. The command reaches the restored agent through the
+mounted mailbox, as each command of a guest in keep-alive mode does.
 
 ## The options of a plan
 
@@ -281,6 +331,22 @@ The tests with a fake emulator run `/bin/sh` and skip with a line
 the QMP handshake and a request, stops it and checks that no emulator
 stays; they skip as the text above says. `guest.yml` runs them on a runner with
 QEMU, each week and by hand (`docs/design.md`, section 9).
+
+The tests of the warm start (`src/warm/tests.rs`, `src/warm/tests_start.rs`)
+check the fingerprint (no path of a run, each option, one line for each
+input, the CPU of the host, the version of a stand-in emulator), the
+restore line, the idle agent, and the save and the load against a QMP
+stand-in on a Unix socket (each file, the order of the requests, a blocked
+device, a command on the mailbox, a failed migration, a relative base, a
+status after the load, an emulator that exits). The fallback runs `start`
+with `true` as `qemu-img`: no state, a stale state and a state with a
+file missing boot cold, and so does a state whose emulator (`/bin/sh`)
+exits during the load, with the store of the caller back; a stand-in
+emulator with a QMP stand-in starts warm with the next command. Two tests
+in `src/warm/live.rs` start the QEMU of the host with a firmware of `hlt`:
+a line with no NVMe disk saves, loads, runs, and a stream cut short ends
+the emulator; the plan line saves from QEMU 11 and starts warm, and an
+older QEMU refuses the save with its reasons and `start` boots cold.
 
 The tests of the store (`src/fetch/tests/stand.rs`) run against the HTTP
 stand-in of `pod-testkit` on the loopback, with a small HTTP/1.1 client

@@ -23,6 +23,10 @@
 //! `cmd.exe` agent that a scheduled task starts, [`agent`]) and the DOS
 //! flavour ([`dos`]: SeaBIOS, IDE, a line typed into the console).
 //!
+//! A guest of the UEFI flavour in keep-alive mode can be saved once and
+//! restored at each later run in place of a boot ([`warm`]), with a
+//! fingerprint of each input of the state and a cold boot as the fallback.
+//!
 //! The crate also reads the squashfs modloop of a guest kernel
 //! ([`modloop::modules`], over the reader of [`squashfs`]): the modules that
 //! a guest needs, with their dependencies and a `modules.dep` of the set.
@@ -45,6 +49,7 @@ pub mod plan;
 pub mod qmp;
 pub mod ready;
 pub mod squashfs;
+pub mod warm;
 
 mod provision;
 mod scratch;
