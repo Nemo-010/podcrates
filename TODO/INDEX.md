@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**513 entries: 107 open, 9 partial, 6 blocked, 391 done.**
+**514 entries: 108 open, 9 partial, 6 blocked, 391 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 3 | 0 | 103 | 117 |
+| P1 | 12 | 3 | 0 | 103 | 118 |
 | P2 | 50 | 3 | 4 | 207 | 264 |
 | P3 | 46 | 3 | 2 | 79 | 130 |
-| **All** | 107 | 9 | 6 | 391 | 513 |
+| **All** | 108 | 9 | 6 | 391 | 514 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -560,3 +560,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-627](relay.md) | P3 | S | M2 | feature | done | `pod-link`: the stand-in of the S3 API behind the feature `s3-standin` (PodUtils/podnet#564) |
 | [T-628](podvm.md) | P2 | S | M7 | defect | open | `pod-guest`: the warm restore gives the next command on a new mailbox medium after the load |
 | [T-629](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: a plan with a boot medium gives the root disk no `bootindex`, so OVMF deletes the boot entry of the installed system |
+| [T-630](podvm.md) | P1 | S | M7 | defect | open | `pod-guest`: the swap of a USB mailbox fails while Windows locks the medium |

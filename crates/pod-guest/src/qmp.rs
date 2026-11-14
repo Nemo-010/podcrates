@@ -7,10 +7,12 @@
 //!
 //! No JSON dependency: the crate sends `qmp_capabilities`, `send-key`,
 //! `screendump` and `quit`, with key names from a fixed table and a path
-//! in a JSON string ([`json_text`]), and for a warm start ([`crate::warm`])
-//! `stop`, `cont`, `migrate` and the queries of the status. The requests
-//! are formatted, and a response is read for an `"error"` member and for
-//! the words of a status ([`json_member`]). An error object that
+//! in a JSON string ([`json_text`]), for a warm start ([`crate::warm`])
+//! `stop`, `cont`, `migrate` and the queries of the status, and the change
+//! of a medium ([`crate::swap`]). The requests are formatted. A response is
+//! read for an `"error"` member, for the words of a status
+//! ([`json_member`]), and for the lock of a drive in an entry of
+//! `query-block` ([`list_entries`], [`json_bool`]). An error object that
 //! [`response_ok`] does not find reads as success; so each request that the
 //! crate sends is one whose refusal the guest also shows.
 //!
@@ -186,6 +188,65 @@ pub fn json_member(line: &str, key: &str) -> Option<String> {
     None
 }
 
+/// The value of the first member `key` of `line` that is `true` or
+/// `false`; `None` when there is no such member.
+pub fn json_bool(line: &str, key: &str) -> Option<bool> {
+    let name = format!("\"{key}\"");
+    let mut rest = line;
+    while let Some(at) = rest.find(&name) {
+        rest = &rest[at + name.len()..];
+        let Some(value) = rest.trim_start().strip_prefix(':') else { continue };
+        let value = value.trim_start();
+        if value.starts_with("true") {
+            return Some(true);
+        }
+        if value.starts_with("false") {
+            return Some(false);
+        }
+    }
+    None
+}
+
+/// The objects in the list of a response (`{"return": [{..}, {..}]}`),
+/// each as its text.
+///
+/// The emulator writes the members of an object in no fixed order, so a
+/// caller reads the members of one entry in the text of that entry only.
+pub fn list_entries(line: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let (mut depth, mut start) = (0usize, 0usize);
+    let (mut text, mut escape) = (false, false);
+    for (i, c) in line.char_indices() {
+        if text {
+            if escape {
+                escape = false;
+            } else if c == '\\' {
+                escape = true;
+            } else if c == '"' {
+                text = false;
+            }
+            continue;
+        }
+        match c {
+            '"' => text = true,
+            '{' | '[' => {
+                if c == '{' && depth == 2 {
+                    start = i;
+                }
+                depth += 1;
+            }
+            '}' | ']' => {
+                depth = depth.saturating_sub(1);
+                if c == '}' && depth == 2 {
+                    out.push(&line[start..=i]);
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
 /// True when a line is an event, not a response.
 ///
 /// An event has `"event"`; a response has `"return"` or `"error"`. A line
@@ -285,6 +346,25 @@ mod tests {
         assert_eq!(json_member("{\"status\": 3}", "status"), None);
         assert_eq!(json_member("{\"status\": \"a\\\"b\"}", "status"), None, "an escape is not read");
         assert_eq!(json_member("{\"return\": {}}", "status"), None);
+    }
+
+    #[test]
+    fn a_bool_member_is_read_and_a_key_in_a_value_is_not_a_member() {
+        assert_eq!(json_bool("{\"locked\": true, \"x\": 1}", "locked"), Some(true));
+        assert_eq!(json_bool("{\"locked\":false}", "locked"), Some(false));
+        assert_eq!(json_bool("{\"desc\": \"locked\", \"locked\": true}", "locked"), Some(true));
+        assert_eq!(json_bool("{\"locked\": \"true\"}", "locked"), None, "a string is not a bool");
+        assert_eq!(json_bool("{\"return\": {}}", "locked"), None);
+    }
+
+    /// Each object of the list is one entry, with its nested objects and
+    /// with braces in its strings.
+    #[test]
+    fn each_object_of_a_list_response_is_one_entry() {
+        let line = "{\"return\": [{\"a\": {\"b\": [1, {\"c\": 2}]}, \"s\": \"}{\\\"[\"}, {\"d\": 3}]}";
+        assert_eq!(list_entries(line), vec!["{\"a\": {\"b\": [1, {\"c\": 2}]}, \"s\": \"}{\\\"[\"}", "{\"d\": 3}"]);
+        assert!(list_entries("{\"return\": []}").is_empty());
+        assert!(list_entries("{\"return\": {}}").is_empty());
     }
 
     #[test]

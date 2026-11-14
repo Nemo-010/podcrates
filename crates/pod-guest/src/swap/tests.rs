@@ -54,6 +54,12 @@ fn agent_done(file: &Path, token: &str, deleted: bool) {
 /// A QMP stand-in on `socket` that keeps each request line and answers
 /// `answer` to each one after the handshake.
 fn stand(socket: &Path, answer: &'static str) -> Arc<Mutex<Vec<String>>> {
+    stand_with(socket, move |_| answer.to_string())
+}
+
+/// A QMP stand-in on `socket` that keeps each request line and answers
+/// `reply` of it after the handshake.
+fn stand_with(socket: &Path, mut reply: impl FnMut(&str) -> String + Send + 'static) -> Arc<Mutex<Vec<String>>> {
     let _ = std::fs::remove_file(socket);
     let listener = UnixListener::bind(socket).expect("the QMP socket");
     let seen = Arc::new(Mutex::new(Vec::new()));
@@ -64,9 +70,8 @@ fn stand(socket: &Path, answer: &'static str) -> Arc<Mutex<Vec<String>>> {
         let _ = out.write_all(b"{\"QMP\": {\"version\": {}}}\n");
         for line in BufReader::new(conn).lines() {
             let Ok(line) = line else { break };
-            let ok = line.contains("qmp_capabilities");
+            let reply = if line.contains("qmp_capabilities") { "{\"return\": {}}".to_string() } else { reply(&line) };
             log.lock().unwrap_or_else(|e| e.into_inner()).push(line);
-            let reply = if ok { "{\"return\": {}}" } else { answer };
             if out.write_all(format!("{reply}\n").as_bytes()).is_err() {
                 break;
             }
@@ -179,12 +184,73 @@ fn no_swap_before_the_result_is_settled_and_a_refusal_keeps_the_medium() {
     let _ = std::fs::remove_dir_all(&d);
 }
 
+const LOCKED: &str = "{\"error\": {\"class\": \"GenericError\", \"desc\": \"Device 'mbox' is locked and force was not \
+                      specified, wait for tray to open and try again\"}}";
+
+/// A QMP stand-in of a drive whose medium the guest locks, as QEMU 8.2
+/// answers (`do_open_tray` of `block/qapi-sysemu.c`): a change with no
+/// `force` and no open tray is refused, and a `blockdev-open-tray` with no
+/// `force` leaves the tray closed. The guest locks each new medium again.
+fn locked_drive() -> impl FnMut(&str) -> String + Send + 'static {
+    let mut open = false;
+    move |line| {
+        let force = line.contains("\"force\":true");
+        let ok = "{\"return\": {}}".to_string();
+        match qmp::json_member(line, "execute").as_deref() {
+            Some("blockdev-open-tray") => {
+                open |= force;
+                ok
+            }
+            Some("blockdev-change-medium") if open || force => {
+                open = false;
+                ok
+            }
+            Some("blockdev-change-medium") => LOCKED.to_string(),
+            _ => ok,
+        }
+    }
+}
+
+/// Windows locks the medium that it has mounted. Each swap changes the
+/// locked medium, and a change with no `force` gets the refusal of QEMU.
+#[test]
+fn a_swap_changes_a_medium_that_the_guest_locked() {
+    let (d, plan, s, mut swap) = staged("swap-locked");
+    let seen = stand_with(&plan.monitor, locked_drive());
+    let mut monitor = qmp::Monitor::connect(&plan.monitor, Duration::from_secs(5)).unwrap();
+    let plain = "{\"execute\":\"blockdev-change-medium\",\"arguments\":{\"device\":\"mbox\",\"filename\":\"x\"}}";
+    let e = monitor.ask(plain).unwrap_err();
+    assert!(e.to_string().contains("is locked and force was not specified"), "the stand-in holds the lock: {e}");
+    for token in ["tok-2", "tok-3"] {
+        agent_done(swap.current(), swap.token(), true);
+        swap.next(&mut monitor, &s, agent::AGENT_CMD, &request("ver", token, Mode::KeepAlive))
+            .unwrap_or_else(|e| panic!("{token}: {e}"));
+        assert_eq!(swap.token(), token);
+    }
+    assert_eq!(swap.current(), plan.mailbox.as_path(), "two swaps: back to the first file");
+    assert_eq!(lines(&seen).iter().filter(|l| l.contains("blockdev-change-medium")).count(), 3);
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// The lock comes from the entry of the drive `mbox`: QEMU writes the
+/// members of an entry in no fixed order.
+#[test]
+fn the_lock_of_the_mailbox_is_read_from_its_entry_of_query_block() {
+    let block = "{\"return\": [{\"device\": \"root\", \"locked\": false, \"removable\": false}, {\"io-status\": \"ok\", \
+                 \"device\": \"mbox\", \"locked\": true, \"removable\": true, \"inserted\": {\"ro\": true, \"file\": \
+                 \"a.img\"}, \"tray_open\": false}]}";
+    assert_eq!(mailbox_locked(block), Some(true));
+    assert_eq!(mailbox_locked(&block.replace("\"locked\": true", "\"locked\": false")), Some(false));
+    assert_eq!(mailbox_locked(&block.replace("mbox", "usb0")), None, "no mailbox drive");
+    assert_eq!(mailbox_locked("{\"return\": []}"), None);
+}
+
 #[test]
 fn the_change_request_names_the_drive_and_the_file_as_json() {
     let r = change_request(Path::new("/run/a \"b\".img")).unwrap();
     assert_eq!(
         r,
-        "{\"execute\":\"blockdev-change-medium\",\"arguments\":{\"device\":\"mbox\",\"filename\":\"/run/a \\\"b\\\".img\",\"format\":\"raw\"}}"
+        "{\"execute\":\"blockdev-change-medium\",\"arguments\":{\"device\":\"mbox\",\"filename\":\"/run/a \\\"b\\\".img\",\"format\":\"raw\",\"force\":true}}"
     );
     let bad = <std::ffi::OsStr as std::os::unix::ffi::OsStrExt>::from_bytes(b"/run/\xff.img");
     assert_eq!(change_request(Path::new(bad)).unwrap_err().class, Class::Usage);
@@ -224,5 +290,104 @@ fn a_real_emulator_changes_the_medium_of_a_usb_mailbox() {
     drop(running);
     let want: Vec<std::result::Result<(bool, bool), String>> = vec![Ok((true, false)), Ok((true, false))];
     assert_eq!(files, want, "query-block names the new file and not the old one after each swap");
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// A guest of real mode, at the reset vector of the pc machine. It loops:
+/// REQUEST SENSE (it takes the reports of a new medium and clears the unit
+/// attention), then PREVENT ALLOW MEDIUM REMOVAL with the lock bit, to the
+/// ATAPI drive at the primary IDE ports. So it locks each medium that the
+/// drive gets, as Windows locks its mounted stick. No QMP command locks a
+/// tray: only a guest can.
+const LOCK_GUEST: [u8; 93] = [
+    0xba, 0xf6, 0x01, 0xb0, 0xa0, 0xee, // select the master drive
+    0xba, 0xf1, 0x01, 0x30, 0xc0, 0xee, // features 0: no DMA
+    0xba, 0xf4, 0x01, 0xee, 0xba, 0xf5, 0x01, 0xb0, 0x08, 0xee, // byte count 2048
+    0xba, 0xf7, 0x01, 0xb0, 0xa0, 0xee, // PACKET
+    0xba, 0xf0, 0x01, 0xb8, 0x03, 0x00, 0xef, 0x31, 0xc0, 0xef, // REQUEST SENSE,
+    0xb8, 0x12, 0x00, 0xef, 0x31, 0xc0, 0xef, 0xef, 0xef, // 18 bytes
+    0xba, 0xf7, 0x01, 0xec, 0xa8, 0x08, 0x74, 0x06, // while DRQ:
+    0xba, 0xf0, 0x01, 0xed, 0xeb, 0xf2, // read one word
+    0xba, 0xf7, 0x01, 0xb0, 0xa0, 0xee, // PACKET
+    0xba, 0xf0, 0x01, 0xb8, 0x1e, 0x00, 0xef, 0x31, 0xc0, 0xef, // PREVENT ALLOW MEDIUM REMOVAL,
+    0xb8, 0x01, 0x00, 0xef, 0x31, 0xc0, 0xef, 0xef, 0xef, // prevent
+    0xb9, 0xff, 0xff, 0xe2, 0xfe, // a short delay
+    0xeb, 0xa3, // to the start
+];
+
+/// The firmware of 64 KiB with [`LOCK_GUEST`] at its start and a far jump
+/// to it at the reset vector, 16 bytes before the end.
+fn lock_firmware() -> Vec<u8> {
+    let mut rom = vec![0xf4u8; 64 << 10];
+    rom[..LOCK_GUEST.len()].copy_from_slice(&LOCK_GUEST);
+    rom[0xfff0..0xfff5].copy_from_slice(&[0xea, 0x00, 0x00, 0x00, 0xf0]);
+    rom
+}
+
+/// Wait up to 30 s until the guest locks the medium of the mailbox.
+fn wait_locked(monitor: &mut qmp::Monitor) -> std::result::Result<(), String> {
+    let start = std::time::Instant::now();
+    while start.elapsed() < Duration::from_secs(30) {
+        let block = monitor.ask("{\"execute\":\"query-block\"}").map_err(|e| e.to_string())?;
+        if mailbox_locked(&block) == Some(true) {
+            return Ok(());
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    Err("the guest did not lock the medium within 30 s".into())
+}
+
+/// The QEMU of the host with a guest that locks the medium of the drive
+/// `mbox` (an ATAPI drive of the same tray code as the USB stick): a
+/// change with no `force` gets the refusal of the run on Windows, and two
+/// swaps change the locked medium.
+#[test]
+fn a_real_emulator_changes_a_medium_that_the_guest_locked() {
+    pod_testkit::need_tool!("qemu-system-x86_64");
+    let (d, plan, s, mut swap) = staged("swap-live-locked");
+    let rom = d.join("lock.rom");
+    std::fs::write(&rom, lock_firmware()).unwrap();
+    let mut args: Vec<String> = Vec::new();
+    for x in ["-machine", "pc", "-accel", "tcg", "-display", "none", "-nodefaults", "-bios"] {
+        args.push(x.into());
+    }
+    args.push(crate::plan::options::escape(&rom));
+    args.push("-drive".into());
+    args.push(format!("if=none,id=mbox,file={},format=raw,media=cdrom", crate::plan::options::escape(&plan.mailbox)));
+    args.push("-device".into());
+    args.push("ide-cd,drive=mbox,bus=ide.0,unit=0".into());
+    args.push("-qmp".into());
+    args.push(format!("unix:{},server=on,wait=off", plan.monitor.display()));
+    let child = emulator::spawn_emulator(&plan, &args, Stdio::null()).expect("the emulator starts");
+    let mut running = emulator::Running::new(&plan, child);
+    let mut monitor = qmp::Monitor::connect(&plan.monitor, Duration::from_secs(30)).expect("the QMP socket");
+    let mut run = || -> std::result::Result<(), String> {
+        wait_locked(&mut monitor)?;
+        // QEMU opens the file before it looks at the tray.
+        std::fs::copy(&plan.mailbox, other_file(&plan)).map_err(|e| e.to_string())?;
+        let plain = change_request(&other_file(&plan)).unwrap().replace(",\"force\":true", "");
+        match monitor.ask(&plain) {
+            Err(e) if e.to_string().contains("is locked and force was not specified") => {}
+            other => return Err(format!("a change with no force: {other:?}")),
+        }
+        for token in ["tok-2", "tok-3"] {
+            let before = swap.current().to_path_buf();
+            agent_done(&before, swap.token(), true);
+            let next = request("ver", token, Mode::KeepAlive);
+            swap.next(&mut monitor, &s, agent::AGENT_CMD, &next).map_err(|e| format!("{token}: {e}"))?;
+            let block = monitor.ask("{\"execute\":\"query-block\"}").map_err(|e| e.to_string())?;
+            let has = |p: &Path| block.contains(&qmp::json_text(p.to_str().unwrap()));
+            if !has(swap.current()) || has(&before) {
+                return Err(format!("{token}: query-block does not name only the new file: {block}"));
+            }
+            wait_locked(&mut monitor).map_err(|e| format!("{token}: {e}"))?;
+        }
+        Ok(())
+    };
+    let outcome = run();
+    drop(monitor);
+    let _ = running.child().kill();
+    drop(running);
+    assert_eq!(outcome, Ok(()));
     let _ = std::fs::remove_dir_all(&d);
 }

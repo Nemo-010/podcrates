@@ -16,7 +16,7 @@
 //!    a swap before the delete would let the agent delete the new token.
 //! 2. The host writes a new mailbox with the next command and a new volume
 //!    id into the other of two files, and sends `blockdev-change-medium`
-//!    for the drive [`MAILBOX_DRIVE`].
+//!    with `force` for the drive [`MAILBOX_DRIVE`] ([`change_request`]).
 //! 3. The emulator reports a unit attention at the next access of the
 //!    guest. The disk class driver of Windows marks the device for a
 //!    verify; FastFAT reads the boot sector, finds another volume id, drops
@@ -27,6 +27,12 @@
 //! The agent writes each file with a flush at its close on a hot-pluggable
 //! device, so a settled result is on the medium, and the swap drops no
 //! write of the guest.
+//!
+//! Windows locks the medium of the mounted stick (PREVENT ALLOW MEDIUM
+//! REMOVAL). With no `force` the emulator refuses the change and only asks
+//! the guest to eject. With `force` it opens the tray, drops the lock of
+//! the guest, changes the medium and closes the tray; the guest gets the
+//! same unit attention as for an unlocked medium.
 
 use std::path::{Path, PathBuf};
 
@@ -48,13 +54,26 @@ pub fn settled(m: &Fat16, token: &str) -> Option<Outcome> {
 
 /// The QMP request that puts `file` as the medium of the mailbox drive.
 /// A path that is not UTF-8 is [`Class::Usage`]: JSON holds text.
+///
+/// `force`: the guest locks the medium that it has mounted, and the
+/// emulator changes a locked medium only with `force`.
 pub fn change_request(file: &Path) -> Result<String> {
     let path = file.to_str().ok_or_else(|| failure(Class::Usage, format!("{}: not a UTF-8 path", file.display())))?;
     Ok(format!(
-        "{{\"execute\":\"blockdev-change-medium\",\"arguments\":{{\"device\":{},\"filename\":{},\"format\":\"raw\"}}}}",
+        "{{\"execute\":\"blockdev-change-medium\",\"arguments\":{{\"device\":{},\"filename\":{},\"format\":\"raw\",\"force\":true}}}}",
         qmp::json_text(MAILBOX_DRIVE),
         qmp::json_text(path)
     ))
+}
+
+/// The lock of the mailbox drive in a `query-block` response: true while
+/// the guest prevents the removal of the medium. `None` when no entry of
+/// the response is the drive [`MAILBOX_DRIVE`] or the entry has no lock.
+pub fn mailbox_locked(block: &str) -> Option<bool> {
+    qmp::list_entries(block)
+        .into_iter()
+        .find(|e| qmp::json_member(e, "device").as_deref() == Some(MAILBOX_DRIVE))
+        .and_then(|e| qmp::json_bool(e, "locked"))
 }
 
 /// The second file of the mailbox of `plan`: `MAILBOX.swap`, beside it.

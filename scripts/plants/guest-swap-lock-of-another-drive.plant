@@ -1,0 +1,8 @@
+# The lock of the mailbox is the first `locked` member of the whole
+# `query-block` response (T-630), so it can be the lock of another drive.
+# The test of the lock must fail.
+ENTRY=T-630
+GROUP=guest
+EXPECT='test swap::tests::the_lock_of_the_mailbox_is_read_from_its_entry_of_query_block \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- swap::tests::the_lock_of_the_mailbox_is_read_from_its_entry_of_query_block'
+LIMIT=1800
