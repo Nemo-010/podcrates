@@ -7369,7 +7369,7 @@ cargo test -p pod-extract --all-features
 **Milestone:** M6
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7388,3 +7388,26 @@ A 502 names the status line of the upstream proxy, or the dial error, and the pr
 ```sh
 cargo test -p pod-broker --all-features
 ```
+
+## Done
+
+2026-11-14, commit 7cbcfff. A refusal of the upstream proxy answers
+`502 Bad Gateway: the upstream proxy http://HOST:PORT answered "403
+Forbidden" to CONNECT ADDR:PORT`: the status with its RFC 9110 name, the
+proxy label and the target, with no reason phrase, no body and no
+credential (C469). Another 502 or 504 gives the failure and `(through the
+upstream proxy LABEL)`; the words lose the user information of each URL
+(`words::without_userinfo`, C470). A 403 of `policy:no-rule` names the
+half that failed: `denied by the rule policy:no-rule: the rules of the
+host example.com take the port 443, not 80`, or `no allow rule names the
+host example.com` (`Compiled::no_rule`, `NoRule`, C471). `cargo test -p
+pod-broker --all-features`: 80 tests passed, with 3 new unit tests of
+`words`, `a_denied_target_names_the_half_of_the_rules_that_failed`
+(`tests/policy.rs`) and `tests/words.rs` (2: a stand-in upstream on
+loopback that answers 403 with its own phrase and a body, through a
+proxy URL with a made-up user and password; a GET and a CONNECT that no
+rule allows). Plants (group `proxy`), each caught by hand with its
+EXPECT: `broker-502-names-no-upstream` and
+`broker-502-shows-the-proxy-body` (`tests/words.rs`),
+`broker-no-rule-names-no-half` (`tests/words.rs`),
+`broker-502-keeps-the-userinfo` (`--lib`).

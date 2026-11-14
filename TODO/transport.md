@@ -6989,7 +6989,7 @@ Each scheme that the command prints is in the rule of `scheme` of the README.
 **Milestone:** M1
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7008,3 +7008,19 @@ Add a service file for the host with the role "Windows evaluation media" (scheme
 ```sh
 cargo test -p pod-services --all-features
 ```
+
+## Done
+
+2026-11-14, commit fc371d9. The service `microsoft-windows-eval` (kind
+`guest-image`, about "Windows evaluation media") lists
+`software-download.microsoft.com` with the endpoint `server-2019` (the
+URL of podvm's `windows:2019`) and podvm's pins `server-2019-sha256` and
+`server-2019-bytes` (a HEAD answered the same length). Its watch
+`http-sha256` reads the primary volume descriptor (sector 16, 2048
+bytes, measured) by a range and compares the length (C472). `cargo test
+-p pod-services --all-features`: 99 tests passed, with
+`the_windows_evaluation_media_hold_the_pin_of_podvm` and the new id in
+`each_sum_of_a_guest_image_is_a_sha256` (`tests/podvm.rs`, 11). `cargo
+test -p pod-services-watch --all-features`: 75 passed, 1 ignored (the
+arguments of each watch). Plant `services-windows-eval-pin-moved` (group
+`services`), caught by hand with its EXPECT.
