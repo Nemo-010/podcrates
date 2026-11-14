@@ -12,9 +12,9 @@ is done. Git and the record keep finished work.
 1. Start the watcher (`sh scripts/agent/watch-org.sh 90` under the Monitor
    tool) and read the open COORD issues `(to podcrates)`.
 2. Read the answer of podnet on #139 (the profile of `kcp`, T-526).
-3. Read the takes of `v0.45.0` on #157, and the answers on #151 (the
-   values of sand-net, T-586), #152 (the measure of `AutoRun`, T-617)
-   and #156 (podnet's fix of the capnp reader, T-029). Then the work order of
+3. Read the answers that wait: the measure of `AutoRun` (T-617, podvm),
+   podnet's fix of the capnp reader (T-029, PodUtils/podnet#555), and the
+   values of sand-net (T-586). Then the work order of
    `TODO/PROGRESS.md`.
 
 ## In flight
@@ -23,8 +23,8 @@ is done. Git and the record keep finished work.
   43606425009, release 43608003241; the hand-off #157, COORD-097): the new
   crates `pod-udf` and `pod-qga`, `pod-guest` for podvm's Windows guest,
   the fix of a credential leak of `pod-proxy` (T-612), the rest of podvm's
-  QA defects. `v0.44.0` at `f6479c7`: each consumer took it (#154,
-  closed).
+  QA defects. Each consumer took it (#157, closed): podrunner `5096a3b`,
+  podvm `4a02d45e`, podnet `e84ebdf`, podssh `16d53cb`.
 - Each branch of an agent is merged; no agent runs. The owner reserves
   the names `pod-actions-store`, `pod-actions-results`, `pod-udf` and
   `pod-qga` on crates.io ("Owner actions" of `TODO/PROGRESS.md`).
