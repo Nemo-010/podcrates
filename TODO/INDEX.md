@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**512 entries: 112 open, 9 partial, 6 blocked, 385 done.**
+**512 entries: 111 open, 9 partial, 6 blocked, 386 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 102 | 116 |
 | P2 | 51 | 3 | 4 | 206 | 264 |
-| P3 | 50 | 3 | 2 | 75 | 130 |
-| **All** | 112 | 9 | 6 | 385 | 512 |
+| P3 | 49 | 3 | 2 | 76 | 130 |
+| **All** | 111 | 9 | 6 | 386 | 512 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -480,7 +480,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-547](relay.md) | P2 | S | M2 | feature | done | `pod-wormhole`: the count of words of a new code in `Config`, as magic-wormhole's `--code-length` (PodUtils/podnet#535) |
 | [T-548](relay.md) | P2 | S | M2 | feature | done | `pod-services`: magic-wormhole's TCP transit relay as a service of the kind `transit`, with the watch `transit-relay` (PodUtils/podnet#535) |
 | [T-549](adapters.md) | P2 | S | M3 | feature | done | `pod-warp`: name the certificate that the front door showed when its key is not the pinned one (PodUtils/podssh#234) |
-| [T-550](relay.md) | P3 | M | M2 | feature | open | `pod-wormhole`: Nostr's ephemeral events as a meeting point of the pairing by a code (PodUtils/podssh#235) |
+| [T-550](relay.md) | P3 | M | M2 | feature | done | `pod-wormhole`: Nostr's ephemeral events as a meeting point of the pairing by a code (PodUtils/podssh#235) |
 | [T-551](relay.md) | P3 | M | M2 | feature | open | `pod-wormhole`: WebTorrent's trackers as a meeting point of the pairing by a code (PodUtils/podssh#235) |
 | [T-552](transport.md) | P2 | S | M1 | feature | done | `pod-services`: the services `srv-us` and `tunnl-gg` of the kind `ssh-tunnel` (PodUtils/podssh#236) |
 | [T-553](fleet.md) | P2 | S | M8 | feature | done | `pod-job`: the container route `engine` and the need `container_engine`, for a container engine inside the unit (PodUtils/podrunner#91) |

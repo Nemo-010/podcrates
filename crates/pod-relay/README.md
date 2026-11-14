@@ -53,7 +53,7 @@ and prints nothing.
 | `pair` (feature `pair`) | `PairContext`, `create`, `status`, `stop`, `revoke`, `halt`, `rotate`, the stores of a pair and of an operator's part, `newest` (the stored pair with the most time left, or the next one), `Pair::for_node` (a node's part of the name and the node token that its user gives, call C130) |
 | `reverse` (feature `pair`) | `run` (the node), `NodeConfig`, `NodeState`, `Handler`, `TcpHandler`, `UdpHandler`, `local::{Target, LocalHandler}`, `channel` and `ChannelHandler` (each session to a service of the process, T-150), `Layered`, `E2e`, `routes::Routes`, `operator` (`OperatorLimits::eof_idle`, `EOF_IDLE`), `serve`, `Settings` (`half_close`, `drain`), `HALF_CLOSE_IDLE`, `DRAIN`, `wire::{Wire, Door, Carrier}`, the codecs |
 | `grant` (feature `grant`) | `Cert`, `Door`, `Mint`, `Spent`, `parse_public` |
-| `code` (feature `code`) | `exchange` (what the ends say), `run` (`give`, `take`, `give_with`, `take_with`, `Ends`, `Waits`; where no mailbox answers, the MQTT brokers of `Ends::brokers`, after the event `relay.code.broker`, T-277), `LIFETIME` |
+| `code` (feature `code`) | `exchange` (what the ends say), `run` (`give`, `take`, `give_with`, `take_with`, `Ends`, `Waits`; where no mailbox answers, the Nostr relays of `Ends::relays` after the event `relay.code.nostr` (`NOSTR_WORDS`, T-550), then the MQTT brokers of `Ends::brokers` after the event `relay.code.broker` (`BROKER_WORDS`, T-277), in the order of podssh's ruling Q77), `LIFETIME` |
 | `blocking` (feature `blocking`) | `Client`, `Config`, `NodeOptions` (`say`: the node's lines, call C131), `Say`, `Operator`, `Forward`, `Local`, `BlockingHandler`, `NodeChannel`, `OperatorChannel`, `Stopper` |
 | `failure` | the stage and the class of each error |
 | `fuzzing` (feature `fuzzing`) | the readers of the wire for `fuzz/` |
@@ -418,7 +418,9 @@ stand-in relay, the reverse road (its node, its operator, its framing, its
 fair queue, its layer, its spares, its window, its dialect, podnet's plain
 mode), the
 end-to-end channel over the layered road, a node's routes and shares, the
-grants, the pairing by code at a stand-in mailbox, the limits of a pool's
+grants, the pairing by code at a stand-in mailbox, at a stand-in Nostr
+relay before a stand-in broker (the plant `relay-code-nostr-after-brokers`),
+and at the broker after a mailbox and a relay with no giver, the limits of a pool's
 body, the failover, the forward opener over plain `ws://` to a stand-in
 relay (podnet's `bytes_go_through_a_local_relay`), the HTTP road against a
 stand-in role in memory (its invariants 6 to 10, and the one-POST form

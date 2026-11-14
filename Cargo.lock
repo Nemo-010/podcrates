@@ -1464,6 +1464,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "k256"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93f50113171a713f4a4231ef82eb26703607139b35dcb56241f0ceab2ae1f7d8"
+dependencies = [
+ "cpubits",
+ "ecdsa",
+ "elliptic-curve",
+ "primeorder",
+ "sha2 0.11.1",
+ "signature 3.0.0",
+ "wnaf",
+]
+
+[[package]]
 name = "kcp"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2579,6 +2594,7 @@ version = "0.46.0"
 dependencies = [
  "crypto_secretbox",
  "hkdf 0.13.0",
+ "k256",
  "pod-core",
  "pod-proxy",
  "pod-services",

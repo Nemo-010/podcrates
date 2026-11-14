@@ -7,8 +7,9 @@ the mailbox sees. The ends run SPAKE2 keyed by the whole code over the
 mailbox, then seal each later message in NaCl's SecretBox under a key of the
 shared key, as magic-wormhole's own client does, so that a peer of its
 Python library and this crate meet. When no mailbox answers, the ends can
-meet at the topic of the code at a public MQTT broker on port 443 instead
-(`mqtt`), with the same messages.
+meet at the tag of the code at a public Nostr relay (`nostr`), or at the
+topic of the code at a public MQTT broker (`mqtt`), on port 443, with the
+same messages.
 
 The base is podssh's `crates/podssh-relay/src/code/` (the mailbox client,
 the wormhole, the code and its word list). What the ends say once they hold
@@ -22,13 +23,16 @@ caller's protocol over a `Wormhole`; the exchange of podssh goes to
 | --- | --- |
 | `config` | `Config { appid, client_name, client_version, way, trust, connect_timeout, answer_limit, limits, words, events }`, `Config::new(appid, client_name, client_version, way)`, `CONNECT_TIMEOUT`, `ANSWER_LIMIT`, `LIMITS` |
 | `mailbox` | `Mailbox`: `connect(&url, &config, side)`, `list`, `allocate`, `claim`, `open`, `add`, `release`, `close`, `end`, `message(wait)`, `appid`, `shown`, `motd`; `Mood` (`Happy`, `Lonely`, `Scary`, `Errory`); `Message`; `crowded(&Failed)`; `ANSWER_LIMIT`, `KEPT_MOST` |
-| `wormhole` | `Wormhole`: `open(place, side, nameplate, id, &code, versions)` (a `Mailbox` or a `mqtt::Broker`), `agree(wait)`, `confirm(wait)`, `send`, `receive(wait)`, `close(mood)`, `fail(mood, failed)`, `shown`, `derive_key(purpose, len)` (magic-wormhole's `derive_key` of the agreed key: the transit key is `derive_key("APPID/transit-key", 32)`); `derive_key(&key, purpose, len)`, `phase_key`, `seal`, `open_sealed`, `NONCE`, `TAG`, `HELD_MOST`, `DERIVED_MOST` |
+| `wormhole` | `Wormhole`: `open(place, side, nameplate, id, &code, versions)` (a `Mailbox`, a `nostr::Relay` or a `mqtt::Broker`), `agree(wait)`, `confirm(wait)`, `send`, `receive(wait)`, `close(mood)`, `fail(mood, failed)`, `shown`, `derive_key(purpose, len)` (magic-wormhole's `derive_key` of the agreed key: the transit key is `derive_key("APPID/transit-key", 32)`); `derive_key(&key, purpose, len)`, `phase_key`, `seal`, `open_sealed`, `NONCE`, `TAG`, `HELD_MOST`, `DERIVED_MOST` |
 | `meet` | `Ends { mailboxes, config }`, `opened(&ends, versions)` (a new code at the first mailbox that answers), `joined(&ends, &code, versions, giver_wait)` (the giver's wormhole, the key made), `or_close` |
 | `mqtt` | `Brokers { points, config, resend }`, `Brokers::new(points, config)`, `Point { url, login }`, `Login { user, password }` (no `Debug` shows the password), `opened(&brokers, versions)` (a new code at the first broker that answers, the giver subscribed), `joined(&brokers, &code, versions, giver_wait)` (the taker's wormhole, the key made), `topic(appid, nameplate)`, `nameplate(&mut dyn Entropy)`, `Role` (`Giver`, `Taker`; `topics`), `PROTOCOL`, `KEEP_ALIVE`, `RESEND`, `NAMEPLATE_DIGITS`, `PAYLOAD_MOST`, `TO_GIVER`, `TO_TAKER` |
 | `mqtt::board` | `Board { point, config }` (also `mqtt::Board`): `new(point, config)`, `put(topic, payload)`, `take(topic, wait)` (`Ok(None)`: no note within the wait), `clear(topic)`, `shown`; `check_topic`, `check_payload`, `TOPIC_MOST` |
 | `mqtt::broker` | `Broker`: `connect(&point, &config, side, topic, role, resend)`, `add`, `message(wait)`, `disconnect`, `end`, `appid`, `inbox`, `shown`; `client_id`, `refusal`, `PING_EVERY`, `KEPT_MOST` |
 | `mqtt::packet` | the pure codec of MQTT 3.1.1: `Packet` (`Connect`, `ConnAck`, `Publish` with its `retain` flag, `Subscribe`, `SubAck`, `PingReq`, `PingResp`, `Disconnect`), `Connect`, `encode`, `decode(bytes, most)`, `encode_length`, `kind_name`, `Malformed`, `LENGTH_MOST`, `REFUSED` |
-| `place` | `Place` (`Mailbox`, `Broker`; `From` each): `shown`, `noun`, `appid`, and the steps of a wormhole at either |
+| `nostr` | `Relays { points, config, resend }`, `Relays::new(points, config)`, `opened(&relays, versions)` (a new code at the first relay that answers, the giver subscribed), `joined(&relays, &code, versions, giver_wait)` (the taker's wormhole, the key made), `KIND` (25431), `TAG` (`t`), `RESEND`, `SINCE_SLACK`, `CONTENT_MOST` |
+| `nostr::relay` | `Relay` (also `nostr::Relay`): `connect(&url, &config, side, tag, role, resend)`, `add`, `message(wait)`, `close`, `end`, `appid`, `inbox`, `pubkey`, `shown`; `KEPT_MOST` |
+| `nostr::event` | the pure events of NIP-01: `Key` (`new`, `drawn`, `from_secret`, `pubkey`, `sign(created_at, kind, tags, content)`), `id_of`, `checked(&event)` (the id and the BIP-340 signature checked), `Checked` (`tag`), `said(text)`, `Said` (`Event`, `Ok`, `Eose`, `Closed`, `Notice`, `Auth`, `Other`), `harmless(message)` |
+| `place` | `Place` (`Mailbox`, `Relay`, `Broker`; `From` each): `shown`, `noun`, `appid`, and the steps of a wormhole at either |
 | `phrase` | `Code`: `make(nameplate, words, &mut dyn Entropy)` (`Failed::Mine` for a count out of `check_words`), `parse(typed)`, `nameplate`, `password`, `for_terminal`, `words`; `check_words` (2 to 8), `nameplate_ok`, `WORDS` (3, the default), `WORDS_LEAST`, `WORDS_MOST`, `NAMEPLATE_MOST`, `TYPED_MOST` |
 | `words` | the PGP word list (`EVEN`, `ODD`, `list`, `word`, `find`) |
 | `message` | the pure reading of a mailbox's messages: `object`, `message_of`, `pake_of`, `words`, `hex`, `unhex`, `Message`, `WORDS_MOST` |
@@ -76,6 +80,41 @@ to take this one, are the caller's.
   a packet that was not asked for) is passed over with the reason, as the
   event `wormhole.broker`.
 
+## The Nostr meeting point
+
+`nostr::opened` and `nostr::joined` are the same two steps at a list of
+Nostr relays (PodUtils/podssh#235, PodUtils/podssh@T-545;
+`docs/decisions.md`, C546 to C549). The order of the meeting points is
+the caller's; podssh's ruling Q77 puts the relays after the mailboxes and
+before the brokers, as `pod-relay`'s runs do.
+
+* The giver draws a nameplate of 4 digits. The tag of the code is the
+  topic of `mqtt` (`pw` and 40 hex digits of SHA-256 over the AppID and
+  the nameplate), never the words, with the letter of its direction.
+* NIP-01 in text messages of a WebSocket with no subprotocol. One `REQ`
+  with the filter `{"kinds": [25431], "#t": [TAG], "since": START - 60}`;
+  then each message of the mailbox as the content of an event of the kind
+  25431 (of the ephemeral range, which a relay does not store for long),
+  with the one tag `["t", TAG]` of the other direction. Each event is
+  signed (BIP-340 Schnorr over secp256k1, `k256`) by a key drawn for the
+  pairing alone: no public key links two pairings.
+* Before a code is shown or typed, the connection proves the relay: the
+  `REQ` gets its `EOSE`, and an empty event to this end's own tag comes
+  back with `OK` true. A relay that is not there, closes the `REQ`
+  (`CLOSED`), refuses an event (`OK` false, but `mute:` and `duplicate:`),
+  sends a `NOTICE` and no `EOSE`, or keeps the event from its subscriber,
+  is passed over with its words, as the event `wormhole.nostr`. A
+  `NOTICE` is said as an event `wormhole.nostr` (info).
+* A received event is checked (its id and its signature), of the kind, of
+  the tag, and of another key; else it is dropped.
+* A relay keeps no ephemeral event, or keeps it a short time. The giver
+  holds its messages until it hears the taker; the taker sends its
+  messages again each `Relays::resend` (2 s) until it hears the giver,
+  each time as a new event (a later `created_at`), so that no relay drops
+  it as a duplicate.
+* A content is at most 64,000 bytes (`CONTENT_MOST`): the event stays
+  under the 65,536 bytes that strfry takes.
+
 ## The board of retained messages
 
 `mqtt::Board` keeps a note at a topic of one broker, for a caller that
@@ -107,7 +146,8 @@ that a stranger cannot guess.
 | `standin` | `standin`: the stand-in mailbox on the loopback, for the tests of this crate and of a consumer (`pod-relay`'s, podnet's); a consumer turns it on in `[dev-dependencies]`; no binary needs it (`scripts/check-probe.py`, ALLOWED) |
 
 The crate is pure Rust (SPAKE2 of the RustCrypto PAKEs on
-curve25519-dalek 4, `crypto_secretbox`, HKDF and SHA-2): no C, and it links
+curve25519-dalek 4, `crypto_secretbox`, HKDF, SHA-2, and the Schnorr
+signatures of `k256`): no C, and it links
 static on each target. The WebSocket and its way out are `pod-ws`'s.
 
 ## Settings
@@ -125,10 +165,12 @@ prints nothing.
 | The bound of the answer to a command (30 s) | `Config::answer_limit` |
 | The words of a new code (3; 2 to 8), as magic-wormhole's `--code-length` | `Config::words`; `opened` refuses another count before a dial |
 | The largest frame (256 KiB) and message (1 MiB) of a mailbox | `Config::limits` |
-| The lines for the user | `Config::events` (`pod_core::Events`): `wormhole.mailbox` (warn; a mailbox that failed, why), `wormhole.broker` (warn; a broker that failed, why) and `wormhole.motd` (info; the mailbox's words). No event holds the code or a password |
+| The lines for the user | `Config::events` (`pod_core::Events`): `wormhole.mailbox` (warn; a mailbox that failed, why), `wormhole.nostr` (warn; a Nostr relay that failed, why; info: its `NOTICE`), `wormhole.broker` (warn; a broker that failed, why) and `wormhole.motd` (info; the mailbox's words). No event holds the code or a password |
 | The mailbox URLs, their order, `--pair-mailbox`, `PODSSH_PAIR_MAILBOX`, the public ones | the caller: `Ends::mailboxes` (`pod-services` has the public ones) |
 | The MQTT brokers, their logins, their order, whether to take them (`PODSSH_MQTT`) | the caller: `Brokers::points` (`pod-services` has the public ones: the kind `mqtt-broker`, the endpoint `broker`, the facts `user` and `password`) |
 | How often the taker sends again at a broker (2 s) | `Brokers::resend` |
+| The Nostr relays, their order, whether to take them | the caller: `Relays::points` (`pod-services` has the public ones: the kind `nostr-relay`, the endpoint `relay`) |
+| How often the taker sends again at a Nostr relay (2 s) | `Relays::resend` |
 | How long a code lives, the bounds of the steps of an exchange | the caller: `Wormhole::agree(wait)`, `confirm`, `receive` |
 
 ## Failures
@@ -194,6 +236,7 @@ Differences from the source, each with a test:
 | podssh | `scripts/wormhole-peer.py`, `tests/mailbox_harness` (the Python server and peer) | the copies in `tests/` of this crate; podssh's `pair_code.rs` keeps its own for the role and the exchange |
 | podssh | none (PodUtils/podssh@T-737, new) | `pod_wormhole::mqtt::{opened, joined}` when no mailbox answers, with `Brokers` of the services of the kind `mqtt-broker` (`endpoint("broker")`, the facts `user` and `password`); `PODSSH_MQTT=no` and the line that names the third party are podssh's |
 | podssh | none (PodUtils/podssh@T-738, new) | `pod_wormhole::mqtt::Board` (`put`, `take`, `clear`) at the brokers of the kind `mqtt-broker`, for the URL of each piece of the resumable layer as a sealed note; the host of each piece is a service of the kind `file-host` of `pod-services` |
+| podssh | none (PodUtils/podssh@T-545, new) | `pod_wormhole::nostr::{opened, joined}` after the mailboxes, with `Relays` of the services of the kind `nostr-relay` (`endpoint("relay")`), or `pod_relay::code::run::Ends::relays`; the switch and the line that names the third party are podssh's |
 | podnet | none: podnet has no wormhole code | its transfer (T-102) takes `pod-wormhole` with its own `Config` (`appid`, `"podnet"`, its `Way`) |
 | podnet | `tests/transfer_harness/mod.rs`, its own stand-in mailbox | `pod_wormhole::standin` (`[dev-dependencies]`, feature `standin`) |
 | podnet | a random transit key in its sealed `transit` message | `Wormhole::derive_key("APPID/transit-key", 32)`, as magic-wormhole's transfer |
@@ -227,9 +270,20 @@ put, a clear and a take after the clear; a note put while a take waits; a
 topic or a payload out of bounds refused before a connection; a refused
 login. A code of 5 words over each mailbox and of 6 words over each
 broker meets; a count out of bounds fails before a dial.
+`tests/nostr.rs` runs the Nostr meeting point over a stand-in relay in
+Rust (`tests/harness/nostr.rs`), which keeps no event and passes each
+event to the subscriptions of the moment that hold it: two ends pair and
+move a message each way, each with a key of its own, two new keys at a
+second pairing; an event with the tag of another code is not delivered;
+the taker sends its first message again, each time as a new event, until
+the giver answers; a relay that closes the `REQ`, refuses the events, or
+says a `NOTICE` and no `EOSE` is passed over with its words; an event that
+does not check is refused by the stand-in and dropped by an end; each
+public relay takes the largest event. No Nostr relay of another party
+publishes a static release (C549): the stand-in is the relay of CI.
 `tests/live.rs` is `#[ignore]`: two ends meet at
-each public mailbox and pair at each public broker of `pod-services`
-(`live.yml`). `tests/board_live.rs` is `#[ignore]`: a board puts, takes
+each public mailbox and pair at each public Nostr relay and each public
+broker of `pod-services` (`live.yml`). `tests/board_live.rs` is `#[ignore]`: a board puts, takes
 and clears a note at each public broker (`live.yml`, each Thursday).
 
 ```sh
@@ -240,10 +294,14 @@ POD_WORMHOLE_TEST_PYTHON=.venv/bin/python POD_WORMHOLE_TEST_SERVER=required carg
 The plants `wormhole-version-unchecked`, `wormhole-held-unbounded`,
 `wormhole-mqtt-topic-constant`, `wormhole-mqtt-no-resend`,
 `wormhole-board-clear-not-retained`, `wormhole-board-clear-not-empty`,
-`wormhole-derived-key-salted`, `wormhole-code-words-fixed` and
-`wormhole-standin-not-crowded` (`scripts/plants/`) prove eight of the tests. The fuzz target
+`wormhole-derived-key-salted`, `wormhole-code-words-fixed`,
+`wormhole-standin-not-crowded`, `wormhole-nostr-tag-constant`,
+`wormhole-nostr-no-resend`, `wormhole-nostr-refusal-ignored` and
+`wormhole-nostr-signature-unchecked` (`scripts/plants/`) prove twelve
+of the tests. The fuzz target
 `mailbox_message` runs the pure reading of a mailbox's messages and the
-parser of a typed code; `mqtt_packet` runs the codec of MQTT and the topic.
+parser of a typed code; `mqtt_packet` runs the codec of MQTT and the topic; `nostr_message` runs
+the reading of a Nostr relay's messages and the check of an event.
 
 ## Sources
 

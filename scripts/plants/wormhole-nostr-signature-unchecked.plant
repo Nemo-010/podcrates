@@ -1,0 +1,7 @@
+# The signature of an event is not checked: the stand-in passes on, and an
+# end takes, an event that a stranger forged; the test of an event that
+# does not check must fail.
+ENTRY=T-550
+GROUP=wormhole
+EXPECT='test an_event_that_does_not_check_is_refused_and_dropped \.\.\. FAILED'
+RUN='cargo test -p pod-wormhole --features standin --test nostr -- an_event_that_does_not_check_is_refused_and_dropped --exact'

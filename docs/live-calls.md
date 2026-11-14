@@ -48,8 +48,8 @@ hides a red run that is ours.
 
 ## The inventory
 
-The rows count 41 calls: 2 replace, 7 stub + weekly, 26 keep live, and
-6 infrastructure. Of the 26 that stay live, 4 get a server on the loopback
+The rows count 44 calls: 2 replace, 8 stub + weekly, 28 keep live, and
+6 infrastructure. Of the 28 that stay live, 4 get a server on the loopback
 that proves the code of the client (L10, L18, L19, L35). "Each day" is the cron
 of the workflow.
 
@@ -66,6 +66,7 @@ of the workflow.
 | L41 | the release archive `linux_amd64.tar.gz` of SeaweedFS 4.53 from github.com | step "pod-link against SeaweedFS" of `ci.yml` (`scripts/ci/s3-tests.sh`) | no service: it installs the S3-compatible server of the loopback tests of the s3 carrier (`crates/pod-link/tests/s3_seaweedfs.rs`) | each push | no | infrastructure | the SHA-256 of the archive and the tries of `scripts/retry.sh` (`scripts/ci/fetch-tool.sh`; T-623, call C540) |
 | L7 | the public mailboxes relay.magic-wormhole.io and mailbox.mw.leastauthority.com | `crates/pod-wormhole/tests/live.rs`, `crates/pod-relay/tests/pair_code_live.rs` | two ends meet at each public mailbox | Thursday, by hand | no | keep live | a watch of the mailboxes that the consumers use with no setup (podssh Q65); the code is proven against magic-wormhole's own server on the loopback |
 | L8 | the public MQTT broker public.cloud.shiftr.io | the same two files | two ends pair at each public broker | Thursday, by hand | yes: the Eclipse sandbox gave no answer (run 43172235777) | keep live | a watch of the brokers; the code is proven against Mosquitto in `ci.yml` (C95) |
+| L44 | the public Nostr relays relay.primal.net and offchain.pub (`wss://`, 443) | `crates/pod-wormhole/tests/live.rs` (`two_ends_meet_at_each_public_nostr_relay`), step "pod-wormhole and pod-relay, one short pairing through each public mailbox, Nostr relay and MQTT broker" of `live.yml` | two ends pair through the tag of a code at each relay of the kind `nostr-relay`: the key, the versions and a message each way (T-550) | Thursday, by hand | unknown: new; from a cloud session relay.damus.io closed each connection and nos.lol gave no answer, so neither is in the catalog (C548) | stub + weekly | the stand-in relay of `crates/pod-wormhole/tests/harness/nostr.rs` proves the client on each push (`crates/pod-wormhole/tests/nostr.rs`, `crates/pod-relay/tests/pair_code.rs`); no relay of another party publishes a static release (C549) |
 | L9 | the owner's relay and its pool (tcp.ssh.relay.ajam.dev) | `crates/pod-relay/tests/live.rs` and the other `*_live.rs` of `pod-relay`, job `relay` of `live.yml` | the contract of the live relay: mint, pair, reverse, idle, drops, grants | by hand | no: runs 43221128869 and 43221537246 passed from a direct egress (T-327) | keep live | the stand-ins of `crates/pod-relay/tests/stand_in` and `crates/pod-relay/tests/e2e_harness` prove the client; the self-hosted relay of T-036 later (T-361) |
 | L10 | the GSRN relay gs.thc.org | `crates/pod-gsr/tests/live.rs` | 1 MiB crosses the real relay | by hand, in no workflow | unknown | keep live | the stand-in of `crates/pod-gsr/tests/loopback.rs`; gs-netcat 1.4.43 as the other end (T-357) |
 | L11 | GitHub's evaluator of expressions | T-280 (open) | the conformance of `pod-actions-expr` and `pod-actions-workflow` | planned | no | keep live | only GitHub's runner evaluates as GitHub does |
@@ -78,7 +79,7 @@ of the workflow.
 
 ### `services.yml`
 
-`crates/pod-services-watch` runs 179 watches of 82 service files each day
+`crates/pod-services-watch` runs 197 watches of 88 service files each day
 and by hand. A watch is a check of a fact of another party: each one is
 **keep live** by its purpose. Its offline tests run each watch kind against
 the stand-ins of `crates/pod-testkit/src/stand.rs`
@@ -88,7 +89,7 @@ the stand-ins of `crates/pod-testkit/src/stand.rs`
 | --- | --- | --- | --- | --- | --- |
 | L12 | `http-json`, `http-text`, `http-status`, `http-sha256`, `crate-file` | the relay, GitHub, tailscale, syncthing, tox, npm, PyPI, FreeDOS, Microsoft, crates.io and more | no | keep live | |
 | L13 | `tls-name`, `tls-names`, `tls-roots` | the relay, Cloudflare, localtunnel, trycloudflare, WARP | no (IPv6 addresses: yes, a route probe skips them) | keep live | |
-| L14 | `websocket-upgrade`, `forward-banner` | croc, the mailboxes, shiftr, the forwarders, Yggdrasil peers | no | keep live | |
+| L14 | `websocket-upgrade`, `forward-banner` | croc, the mailboxes, the Nostr relays, shiftr, the forwarders, Yggdrasil peers | no | keep live | |
 | L15 | `rdap` | rdap.org and the servers of IANA's bootstrap | no | keep live | |
 | L16 | `oci-ping`, `oci-digest` | 8 registries | yes: 429 of ECR Public (run 42803032733) | keep live | one more try after `Retry-After` |
 | L17 | `github-file`, `github-files`, `github-release`, `github-ssh-keys` | api.github.com, raw files | no | keep live | `GITHUB_TOKEN` of the job |

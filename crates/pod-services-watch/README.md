@@ -72,7 +72,7 @@ another kind.
 | `Net` (`context`, `dial`, `trust`, `client`, `dns`, `services`, `bases`, `github_token`, `today`, `limit`), `Bases` (`public`, `at`) | the way out of each check: the runner fills it, a test gives its stand-ins |
 | `args::Args` | the arguments of a watch and the values that they name |
 | `schema::arguments(kind)`, `schema::faults(service, watch, is_service)` | the arguments of each watch kind, and the faults of one watch |
-| `schema::kind_facts(kind)` (`KindFacts`: `endpoints`, `need`, `optional`, `words`, `when`), `schema::service_faults(service)` | the endpoints and the facts of a service kind with a table (`file-host`, T-416; `transit`, T-548), and the faults of one service: a missing endpoint or fact, a type, a word, a fact that the kind does not name, a fact that a word needs |
+| `schema::kind_facts(kind)` (`KindFacts`: `endpoints`, `need`, `optional`, `words`, `when`), `schema::service_faults(service)` | the endpoints and the facts of a service kind with a table (`file-host`, T-416; `transit`, T-548; `nostr-relay`, T-550), and the faults of one service: a missing endpoint or fact, a type, a word, a fact that the kind does not name, a fact that a word needs |
 | `file_host::trip(service, net, bytes, boundary)` (`Trip`: `url`, `fetched`, `deleted`, `lines`), `file_host::multipart`, `answer_url`, `fetch_url`, `page_link`, `served` | the round trip of one file host by the facts of its kind (T-528): the upload form, the URL of the answer, the download (by a segment, or by the link of the page at the URL), the compare, the delete by token. A refusal names its status and the start of its text |
 
 The library reads no variable and no file, and prints nothing.
@@ -85,7 +85,7 @@ kind. Each kind goes through the dial of `pod-proxy` and the TLS of
 
 | Kind | Module | How |
 | --- | --- | --- |
-| `http-json`, `http-status`, `http-text`, `github-ssh-keys` | `http.rs` | a GET; a JSON pointer; with `member`, each host of the role is in the document, and more hosts there are counted, not found; with `key`, each endpoint is the item of the list whose member `key` is its fact `fact-prefix` + NAME, with its host in a member of `member`, its port in `port-member` and `true` in each member of `true-members`; more items with the port and the true members are counted, not found; with `url-member`, the URL in that member of each item adds the members `host`, `port` and each parameter of its query (Syncthing's pool). A host compares in lower case, an IP address in its one text form |
+| `http-json`, `http-status`, `http-text`, `github-ssh-keys` | `http.rs` | a GET (of the type `accept`, else `application/json`: a Nostr relay gives its NIP-11 document to `application/nostr+json` alone); a JSON pointer; with `member`, each host of the role is in the document, and more hosts there are counted, not found; with `key`, each endpoint is the item of the list whose member `key` is its fact `fact-prefix` + NAME, with its host in a member of `member`, its port in `port-member` and `true` in each member of `true-members`; more items with the port and the true members are counted, not found; with `url-member`, the URL in that member of each item adds the members `host`, `port` and each parameter of its query (Syncthing's pool). A host compares in lower case, an IP address in its one text form |
 | `http-sha256` | `sha.rs` | a streamed GET (a `Range` for a range of sectors); the length is the `Content-Length` or the total of `Content-Range` |
 | `tls-name`, `tls-names` | `tls.rs` | a verified handshake; for `tls-names`, one for the host and one for the address, at each address; an IPv6 address is not checked on a host with no route for IPv6 (`Net::ipv6`, which the runner probes) |
 | `dns-srv`, `dns-addresses`, `doh-answer` | `dns.rs` | DNS over HTTPS (`pod_dns::Way`); `doh-answer` asks each resolver of the service in the one form, each IPv6 one only with a route for IPv6 |
@@ -113,8 +113,10 @@ fact or a service that the data does not have (`schema::faults`). A run
 checks the same before the network.
 
 A service kind can have a table of its facts (`schema::kind_facts`; the
-kinds `file-host` and `transit` have one: a `transit` service has the
-endpoint `relay`, whose scheme tells TCP from WebSocket, and no fact). `data::each_service_has_the_facts_of_its_kind`
+kinds `file-host`, `transit` and `nostr-relay` have one: a `transit`
+service has the endpoint `relay`, whose scheme tells TCP from WebSocket,
+and no fact; a `nostr-relay` has the endpoint `relay` and the facts
+`message-bytes-most` and `subscriptions-most`, and can have `software`). `data::each_service_has_the_facts_of_its_kind`
 fails when a built-in service of such a kind misses an endpoint or a fact
 of the table, has a fact of another type or a word that the table does
 not name, or has a fact that the table does not name. A run checks the

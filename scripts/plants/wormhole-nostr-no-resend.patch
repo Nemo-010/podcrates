@@ -1,0 +1,13 @@
+diff --git a/crates/pod-wormhole/src/nostr/relay.rs b/crates/pod-wormhole/src/nostr/relay.rs
+index 6f22030..9c905c4 100644
+--- a/crates/pod-wormhole/src/nostr/relay.rs
++++ b/crates/pod-wormhole/src/nostr/relay.rs
+@@ -209,7 +209,7 @@ impl Relay {
+         }
+         let deadline = Instant::now() + wait;
+         loop {
+-            let resending = self.role == Role::Taker && !self.heard && !self.unanswered.is_empty();
++            let resending = false;
+             let next = if resending { deadline.min(self.next_resend) } else { deadline };
+             // A message that is there goes before the timer.
+             let read = tokio::select! {

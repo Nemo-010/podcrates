@@ -8,10 +8,12 @@
 //! leaves after one exchange, whatever its end, so that a wrong code, a
 //! guess or a success spends the code.
 //!
-//! Where no mailbox answers, the ends meet at the MQTT brokers of [`Ends`]
-//! (podssh T-737): the giver after each mailbox failed to answer, the taker
-//! after it found no giver at a mailbox (call C115), each after an event
-//! that a third party carries the messages.
+//! Where no mailbox answers, the ends meet at the next places of [`Ends`]
+//! in the order of podssh's ruling Q77: the Nostr relays (T-550), then the
+//! MQTT brokers (podssh T-737). The giver goes on after each place of a
+//! kind failed to answer; the taker goes on after it found no giver there
+//! too (call C115). Each kind starts with an event that a third party
+//! carries the messages ([`NOSTR_WORDS`], [`BROKER_WORDS`]).
 //!
 //! The runs are one for each [`Kind`] of exchange: [`give_with`] and
 //! [`take_with`] move an offer, an answer and the giver's last words, as
@@ -25,6 +27,7 @@ use pod_core::Event;
 use pod_identity::PublicKey;
 use pod_wormhole::meet::or_close;
 use pod_wormhole::mqtt::{self, Brokers, Point};
+use pod_wormhole::nostr::{self, Relays};
 use pod_ws::url::WsUrl;
 use serde_json::Value;
 
@@ -37,19 +40,21 @@ use super::{Code, Failed, LIFETIME};
 pub struct Ends {
     /// The mailboxes, in order.
     pub mailboxes: Vec<WsUrl>,
-    /// The MQTT brokers, in order, after the mailboxes; none: no MQTT.
+    /// The Nostr relays, in order, after the mailboxes; none: no Nostr.
+    pub relays: Vec<WsUrl>,
+    /// The MQTT brokers, in order, after the relays; none: no MQTT.
     pub brokers: Vec<Point>,
-    /// How often a taker at a broker sends its messages again
-    /// ([`mqtt::RESEND`]).
+    /// How often a taker at a relay or a broker sends its messages again
+    /// ([`mqtt::RESEND`], [`nostr::RESEND`]).
     pub resend: Duration,
     /// The caller's AppID, name, way out, trust and events.
     pub config: pod_wormhole::Config,
 }
 
 impl Ends {
-    /// The ends at `mailboxes` alone, with no broker.
+    /// The ends at `mailboxes` alone, with no relay and no broker.
     pub fn new(mailboxes: Vec<WsUrl>, config: pod_wormhole::Config) -> Ends {
-        Ends { mailboxes, brokers: Vec::new(), resend: mqtt::RESEND, config }
+        Ends { mailboxes, relays: Vec::new(), brokers: Vec::new(), resend: mqtt::RESEND, config }
     }
 
     /// The ends as `pod-wormhole` takes them.
@@ -57,16 +62,54 @@ impl Ends {
         pod_wormhole::Ends { mailboxes: self.mailboxes.clone(), config: self.config.clone() }
     }
 
+    /// The relays as `pod_wormhole::nostr` takes them.
+    pub fn relays(&self) -> Relays {
+        Relays { points: self.relays.clone(), config: self.config.clone(), resend: self.resend }
+    }
+
     /// The brokers as `pod_wormhole::mqtt` takes them.
     pub fn brokers(&self) -> Brokers {
         Brokers { points: self.brokers.clone(), config: self.config.clone(), resend: self.resend }
     }
 
-    /// The event before the first broker.
-    fn to_brokers(&self, why: &str) {
-        self.config.events.event(Event::warn("relay.code.broker", format!("{why}; {BROKER_WORDS}")));
+    /// The places after the mailboxes, in order, each with its event:
+    /// the relays, then the brokers (podssh's ruling Q77), those that the
+    /// caller gave.
+    fn next_places(&self) -> Vec<Next> {
+        let all = [(Next::Relays, !self.relays.is_empty()), (Next::Brokers, !self.brokers.is_empty())];
+        all.into_iter().filter(|(_, given)| *given).map(|(next, _)| next).collect()
+    }
+
+    /// The event before the first place of `next`.
+    fn say_next(&self, next: Next, why: &str) {
+        let (kind, words) = match next {
+            Next::Relays => ("relay.code.nostr", NOSTR_WORDS),
+            Next::Brokers => ("relay.code.broker", BROKER_WORDS),
+        };
+        self.config.events.event(Event::warn(kind, format!("{why}; {words}")));
     }
 }
+
+/// A kind of place after the mailboxes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Next {
+    Relays,
+    Brokers,
+}
+
+impl Next {
+    /// The noun of a place of the kind, for the words of an event.
+    fn noun(self) -> &'static str {
+        match self {
+            Next::Relays => "Nostr relay",
+            Next::Brokers => "broker",
+        }
+    }
+}
+
+/// What the event before the first Nostr relay says.
+pub const NOSTR_WORDS: &str = "the next meeting point is a public Nostr relay: a third party that nobody vouches \
+     for carries the messages of the pairing, and its proof keeps the secret";
 
 /// What the event before the first broker says.
 pub const BROKER_WORDS: &str = "the next meeting point is a public MQTT broker: a third party that nobody vouches \
@@ -265,46 +308,63 @@ pub async fn take_with<T>(
 
 /// A new code at the first mailbox of `ends` that answers, and its
 /// wormhole, this end's `pake` added: what a giver shows. `versions` goes in
-/// its version phase.
-/// Where no mailbox answers, the first broker that answers.
+/// its version phase. Where no mailbox answers, the first relay that
+/// answers, then the first broker.
 pub async fn opened(ends: &Ends, versions: Value) -> Result<(Wormhole, Code), Failed> {
-    match pod_wormhole::opened(&ends.wormhole(), versions.clone()).await {
-        Err(Failed::Unreachable(why)) if !ends.brokers.is_empty() => {
-            ends.to_brokers("no mailbox answered");
-            mqtt::opened(&ends.brokers(), versions).await.map_err(|e| both(&why, e))
+    let mut missed = match pod_wormhole::opened(&ends.wormhole(), versions.clone()).await {
+        Err(Failed::Unreachable(why)) => vec![why],
+        other => return other,
+    };
+    let mut noun = "mailbox";
+    for next in ends.next_places() {
+        ends.say_next(next, &format!("no {noun} answered"));
+        let opened = match next {
+            Next::Relays => nostr::opened(&ends.relays(), versions.clone()).await,
+            Next::Brokers => mqtt::opened(&ends.brokers(), versions.clone()).await,
+        };
+        match opened {
+            Err(Failed::Unreachable(why)) => missed.push(why),
+            other => return other,
         }
-        other => other,
+        noun = next.noun();
     }
+    Err(Failed::Unreachable(missed.join("; ")))
 }
 
 /// The wormhole of `code` at the mailbox where its giver waits, the key
 /// made: each mailbox of `ends` in order, by its list of nameplates, and
 /// where it lists none, by the giver's `pake` within `waits.giver`.
-/// Where no mailbox has the giver, each broker in order, by the giver's
-/// answer within `waits.giver`.
+/// Where no mailbox has the giver, each relay in order, then each broker,
+/// by the giver's answer within `waits.giver`.
 pub async fn joined(ends: &Ends, code: &Code, versions: Value, waits: &Waits) -> Result<Wormhole, Failed> {
     let at_mailboxes = pod_wormhole::joined(&ends.wormhole(), code, versions.clone(), waits.giver).await;
-    let why = match at_mailboxes {
-        Err(Failed::Unreachable(why)) if !ends.brokers.is_empty() => why,
-        // A giver that reached no mailbox waits at a broker, which this end
-        // may not reach from a mailbox (call C115).
-        Err(Failed::Nobody) if !ends.brokers.is_empty() => String::new(),
+    // A giver that reached no mailbox waits at a later place, which this end
+    // may not reach from a mailbox (call C115).
+    let (mut missed, mut reached) = match at_mailboxes {
+        Err(Failed::Unreachable(why)) => (vec![why], false),
+        Err(Failed::Nobody) => (Vec::new(), true),
         other => return other,
     };
-    ends.to_brokers(if why.is_empty() { "no mailbox has the giver" } else { "no mailbox answered" });
-    match mqtt::joined(&ends.brokers(), code, versions, waits.giver).await {
-        Err(Failed::Unreachable(_)) if why.is_empty() => Err(Failed::Nobody),
-        other => other.map_err(|e| both(&why, e)),
+    let (mut noun, mut answered) = ("mailbox", reached);
+    for next in ends.next_places() {
+        let why = if answered { format!("no {noun} has the giver") } else { format!("no {noun} answered") };
+        ends.say_next(next, &why);
+        let joined = match next {
+            Next::Relays => nostr::joined(&ends.relays(), code, versions.clone(), waits.giver).await,
+            Next::Brokers => mqtt::joined(&ends.brokers(), code, versions.clone(), waits.giver).await,
+        };
+        answered = match joined {
+            Err(Failed::Unreachable(why)) => {
+                missed.push(why);
+                false
+            }
+            Err(Failed::Nobody) => true,
+            other => return other,
+        };
+        reached |= answered;
+        noun = next.noun();
     }
-}
-
-/// The failure of the brokers, with what the mailboxes said when none
-/// answered either.
-fn both(mailboxes: &str, brokers: Failed) -> Failed {
-    match brokers {
-        Failed::Unreachable(why) if !mailboxes.is_empty() => Failed::Unreachable(format!("{mailboxes}; {why}")),
-        other => other,
-    }
+    if reached { Err(Failed::Nobody) } else { Err(Failed::Unreachable(missed.join("; "))) }
 }
 
 fn now_ms() -> i64 {

@@ -1,0 +1,22 @@
+diff --git a/crates/pod-wormhole/src/nostr.rs b/crates/pod-wormhole/src/nostr.rs
+index f614475..70ada22 100644
+--- a/crates/pod-wormhole/src/nostr.rs
++++ b/crates/pod-wormhole/src/nostr.rs
+@@ -84,7 +84,7 @@ pub async fn opened(relays: &Relays, versions: Value) -> Result<(Wormhole, Code)
+     let plate = nameplate(&mut OsEntropy).map_err(|_| Failed::NoRandom)?;
+     // A count of words out of its bounds fails here, before a relay.
+     let code = Code::make(&plate, relays.config.words, &mut OsEntropy)?;
+-    let tag = topic(&relays.config.appid, &plate);
++    let tag = topic(&relays.config.appid, "0000");
+     let mut missed = Vec::new();
+     for url in &relays.points {
+         let relay = match Relay::connect(url, &relays.config, &side, &tag, Role::Giver, relays.resend).await {
+@@ -106,7 +106,7 @@ pub async fn opened(relays: &Relays, versions: Value) -> Result<(Wormhole, Code)
+ /// and sent again until the giver answers within `giver`.
+ pub async fn joined(relays: &Relays, code: &Code, versions: Value, giver: Duration) -> Result<Wormhole, Failed> {
+     let side = new_side()?;
+-    let tag = topic(&relays.config.appid, code.nameplate());
++    let tag = topic(&relays.config.appid, "0000");
+     let (mut missed, mut reached) = (Vec::new(), false);
+     for url in &relays.points {
+         let relay = match Relay::connect(url, &relays.config, &side, &tag, Role::Taker, relays.resend).await {

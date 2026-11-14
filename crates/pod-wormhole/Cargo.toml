@@ -32,6 +32,10 @@ rand_core_06 = { package = "rand_core", version = "0.6", default-features = fals
 crypto_secretbox = { version = "0.1", default-features = false, features = ["alloc", "salsa20"] }
 hkdf = { workspace = true }
 sha2 = { workspace = true }
+# Pure Rust, no C. BIP-340 Schnorr signatures over secp256k1 for the events
+# of a Nostr relay (src/nostr), with a fresh key for each pairing; on the
+# elliptic-curve 0.14 that p256 and p384 of the workspace take.
+k256 = { version = "0.14", default-features = false, features = ["schnorr"] }
 zeroize = { workspace = true }
 
 [dev-dependencies]
@@ -55,6 +59,10 @@ required-features = ["standin"]
 
 [[test]]
 name = "broker"
+required-features = ["standin"]
+
+[[test]]
+name = "nostr"
 required-features = ["standin"]
 
 [[test]]
