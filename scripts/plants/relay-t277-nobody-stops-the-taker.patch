@@ -1,13 +1,12 @@
 diff --git a/crates/pod-relay/src/code/run.rs b/crates/pod-relay/src/code/run.rs
-index 387e74d..2325eba 100644
 --- a/crates/pod-relay/src/code/run.rs
 +++ b/crates/pod-relay/src/code/run.rs
-@@ -342,7 +342,7 @@ pub async fn joined(ends: &Ends, code: &Code, versions: Value, waits: &Waits) ->
-     // may not reach from a mailbox (call C115).
-     let (mut missed, mut reached) = match at_mailboxes {
-         Err(Failed::Unreachable(why)) => (vec![why], false),
--        Err(Failed::Nobody) => (Vec::new(), true),
-+        Err(Failed::Nobody) if ends.mailboxes.is_empty() => (Vec::new(), true),
+@@ -426,7 +426,7 @@
+             missed.push(why);
+             false
+         }
+-        Err(Failed::Nobody) => true,
++        Err(Failed::Nobody) if ends.mailboxes.is_empty() => true,
          other => return other,
      };
-     let (mut noun, mut answered) = ("mailbox", reached);
+     reached |= at_mailbox;

@@ -1,0 +1,12 @@
+diff --git a/crates/pod-wormhole/src/ntfy/link.rs b/crates/pod-wormhole/src/ntfy/link.rs
+--- a/crates/pod-wormhole/src/ntfy/link.rs
++++ b/crates/pod-wormhole/src/ntfy/link.rs
+@@ -186,7 +186,7 @@
+ 
+     /// The `since` of the next read.
+     fn since(&self) -> String {
+-        self.last.clone().unwrap_or_else(|| self.start.to_string())
++        self.start.to_string()
+     }
+ 
+     /// One poll of the inbox: its messages kept; `false` when the server

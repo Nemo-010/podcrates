@@ -6325,7 +6325,7 @@ C561.
 **Milestone:** M2
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -6410,6 +6410,108 @@ cargo test -p pod-relay --all-features --test pair_code
 cargo test -p pod-services --all-features
 cargo test -p pod-wormhole --all-features --test live -- --ignored
 ```
+
+## Correction
+
+2026-11-14: the Problem and the Approach say that a message is at most
+4,096 bytes. ntfy 2.37.2 keeps a body of the whole `message-size-limit`
+as an attachment (`util.Peek` marks the limit reached at 4,096 bytes):
+ntfy.sh, ntfy.envs.net and ntfy.adminforge.de gave a body of 4,095 bytes
+back as the message and kept one of 4,096 as `attachment.txt`, so the
+bound is 4,095 and a message of 4,096 bytes fails before the send (C570).
+The Approach's "the place after the mailboxes" stands, as podssh#237 asks;
+the run has no probe of the way, so the caller sets
+`Ends::upgrade_refused` from its own probe (C573). The premise did not
+measure ntfy.sh: from a cloud session ntfy.sh, ntfy.envs.net and
+ntfy.adminforge.de paired two ends on HTTP/2 and on HTTP/1.1, and
+ntfy.jae.fi got 502 from the proxy (C569). ntfy publishes a static binary
+with `checksums.txt`: CI runs release 2.37.2 on the loopback (C572).
+
+## Done
+
+2026-11-14, commit `4e5b956` (the code, the tests, the services, the step
+of CI) and the commit of the plants and the record after it. Calls C568 to
+C573.
+
+- `pod_wormhole::ntfy` (`crates/pod-wormhole/src/ntfy.rs`,
+  `crates/pod-wormhole/src/ntfy/link.rs`,
+  `crates/pod-wormhole/src/ntfy/conn.rs`,
+  `crates/pod-wormhole/src/ntfy/wire.rs`): `Servers { points, config,
+  pace, h2 }`, `Pace { poll, waiting, retry }`, `Point::parse`, `opened`,
+  `joined`, `MESSAGE_MOST` 4,095, `POLL` 1 s, `WAITING` 5 s, `RETRY` 5 s,
+  `SINCE_SLACK` 60 s; `Topic::connect` proves the server (the stream's
+  `open` line on HTTP/2, a poll's `200` on HTTP/1.1), `add`,
+  `message(wait)`, `close`, `end`; `conn::dial`, `Conn` (`Http1`, `Http2`:
+  `request`, `stream`, `end`); `wire::said`, `content`, `refusal`,
+  `Lines`. `Place::Ntfy`. The events `wormhole.ntfy`. The topic is
+  `mqtt::topic` of the AppID and the nameplate with its direction, never
+  of the words.
+- `pod-services`: the kind `ntfy-server`, `ntfy-sh` (rank 1),
+  `envs-ntfy` (rank 2) and `adminforge-ntfy` (rank 3) with
+  `message-bytes-most`, `requests-burst`, `request-refill-seconds`,
+  `messages-per-day` and `account-required`; `pod-services-watch`:
+  `kind_facts("ntfy-server")`.
+- `pod-relay`: `Ends::ntfy`, `Ends::upgrade_refused`, `Ends::pace` and
+  `Ends::ntfy()`; `opened` and `joined` try the mailboxes, the ntfy
+  servers, the Nostr relays, the trackers, then the brokers, and the ntfy
+  servers first where `upgrade_refused` is set, with the event
+  `relay.code.ntfy` (`NTFY_WORDS`, after `no mailbox answered` or
+  `UPGRADE_REFUSED`) before the first server.
+- CI: `scripts/ci/ntfy-tests.sh` (a step of `ci.yml`) fetches ntfy 2.37.2
+  by its SHA-256 and runs `crates/pod-wormhole/tests/ntfy.rs` against
+  `ntfy serve` on 127.0.0.1; run here, it said "binwiederhier/ntfy: two
+  ends paired". Rows L48 and L49 of `docs/live-calls.md`.
+- Tests: `cargo test -p pod-wormhole --all-features`: 56 unit tests (6 new
+  of `ntfy` and `ntfy::wire`: a point, the topic, the lines of ntfy's
+  documents, the bound of a message, a refusal, the lines of the parts)
+  and `crates/pod-wormhole/tests/ntfy.rs` (10) on the stand-in server of
+  `crates/pod-wormhole/tests/harness/ntfy.rs` and
+  `crates/pod-wormhole/tests/harness/ntfy_tls.rs`; `cargo test -p
+  pod-relay --all-features --test pair_code`: 16 passed (2 new); `cargo
+  test -p pod-services --all-features`: `crates/pod-services/tests/ntfy.rs`
+  (1) and the others pass; `cargo test -p pod-services-watch
+  --all-features` passes. `cargo test -p pod-wormhole --all-features
+  --test live -- --ignored two_ends_meet_at_each_public_ntfy_server`: the
+  three servers paired on HTTP/2 and on HTTP/1.1, from a cloud session
+  through its HTTPS proxy. `live.yml` runs it each Thursday (row L48).
+- Plants: each proven by hand (`git apply`, the run of its `RUN`, `git
+  apply -R`). `wormhole-ntfy-topic-of-code` fails
+  `two_ends_pair_by_polls_that_take_turns_with_the_posts_on_http1` (a
+  request names the topic of the whole code);
+  `wormhole-ntfy-connection-each-request` fails the same test (16
+  connections, not 2); `wormhole-ntfy-size-unchecked` fails
+  `a_message_of_4096_bytes_or_more_fails_before_the_send` (the stand-in
+  refused the body with `413`); `wormhole-ntfy-since-start` fails
+  `a_read_takes_what_came_since_its_start_then_since_the_last_id` (each
+  poll asks since the start); `wormhole-ntfy-limit-fails` fails
+  `a_post_answered_429_goes_again_after_the_wait` ("the taker: Refused");
+  `wormhole-ntfy-polls-on-h2` fails
+  `two_ends_pair_on_one_http2_connection_each_with_a_stream` (polls on
+  HTTP/2); `relay-code-ntfy-after-relays` fails
+  `where_no_mailbox_answers_the_ends_meet_at_an_ntfy_server_before_a_relay`
+  (the ends met at the relay); `relay-code-ntfy-not-first` fails
+  `where_the_upgrade_is_refused_the_ends_meet_at_an_ntfy_server_before_a_mailbox`
+  (the ends met at the mailbox). The patches of
+  `relay-code-nostr-after-brokers`, `relay-code-trackers-after-brokers`,
+  `relay-t277-brokers-not-tried` and `relay-t277-nobody-stops-the-taker`
+  are made again on the new `next_places`, `opened` and `joined`; each
+  still fails its test.
+  The fuzz target `ntfy_message` runs `ntfy::wire::said`, `Lines` and
+  `refusal` (`fuzz/`, its seeds in fuzz/seeds/ntfy_message).
+- In place: the test target `tracker` of `pod-wormhole` needs the feature
+  `standin` (its harness takes the stand-in mailbox), and its
+  `[[test]]` did not say so.
+- podssh's part (PodUtils/podssh@T-496): set `Ends::ntfy` of its runs of a
+  code to the endpoint `server` of each service of
+  `pod_services::of_kind("ntfy-server")`, in the order of the ranks
+  (`ntfy::Point::parse(&service.endpoint("server")?.url())`), or to the
+  server that `PODSSH_PAIR_NTFY` names, and empty it for `no`; set
+  `Ends::upgrade_refused` where its probe found that the way out refuses
+  the WebSocket upgrade (as its Piping Server road learns it); show the
+  event `relay.code.ntfy` as the line of the third party. A caller of
+  `pod-wormhole` alone calls `ntfy::opened` and `ntfy::joined` with
+  `Servers::new(points, config)`. ntfy.sh takes 250 messages a day from
+  one address, and a pairing posts seven.
 
 # T-541: `pod-link`: the dns and icmp carriers stop at the wrap of the sequence of the ARQ: `dgram_tls` never calls `rekeyed` (PodUtils/podnet#540)
 

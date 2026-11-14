@@ -1,0 +1,7 @@
+# A message of 4,096 bytes or more goes to the server, which keeps it as
+# an attachment or refuses it; the test of the bound before the send must
+# fail.
+ENTRY=T-554
+GROUP=wormhole
+EXPECT='test a_message_of_4096_bytes_or_more_fails_before_the_send \.\.\. FAILED'
+RUN='cargo test -p pod-wormhole --features standin --test ntfy -- a_message_of_4096_bytes_or_more_fails_before_the_send --exact'

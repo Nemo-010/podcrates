@@ -1,0 +1,7 @@
+# The runs of a code try the Nostr relays before the ntfy servers, against
+# the place that PodUtils/podssh#237 asks: the ends meet at the relay; the
+# test of the ntfy server before the relay must fail.
+ENTRY=T-554
+GROUP=relay
+EXPECT='test where_no_mailbox_answers_the_ends_meet_at_an_ntfy_server_before_a_relay \.\.\. FAILED'
+RUN='cargo test -p pod-relay --all-features --test pair_code -- where_no_mailbox_answers_the_ends_meet_at_an_ntfy_server_before_a_relay --exact'

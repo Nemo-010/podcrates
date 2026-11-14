@@ -1,13 +1,12 @@
 diff --git a/crates/pod-relay/src/code/run.rs b/crates/pod-relay/src/code/run.rs
-index 919df6b..09f4793 100644
 --- a/crates/pod-relay/src/code/run.rs
 +++ b/crates/pod-relay/src/code/run.rs
-@@ -336,7 +336,7 @@ pub async fn take_with<T>(
- /// answers, then the first tracker, then the first broker.
- pub async fn opened(ends: &Ends, versions: Value) -> Result<(Wormhole, Code), Failed> {
-     let mut missed = match pod_wormhole::opened(&ends.wormhole(), versions.clone()).await {
--        Err(Failed::Unreachable(why)) => vec![why],
-+        Err(Failed::Unreachable(why)) if ends.mailboxes.is_empty() => vec![why],
+@@ -381,7 +381,7 @@
+         }
+     }
+     match pod_wormhole::opened(&ends.wormhole(), versions.clone()).await {
+-        Err(Failed::Unreachable(why)) => missed.push(why),
++        Err(Failed::Unreachable(why)) if ends.mailboxes.is_empty() => missed.push(why),
          other => return other,
      };
      let mut noun = "mailbox";

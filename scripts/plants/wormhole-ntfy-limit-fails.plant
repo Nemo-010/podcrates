@@ -1,0 +1,6 @@
+# An answer 429 is a refusal, not a wait: a visitor past its burst loses
+# the pairing; the test of a POST limited twice must fail.
+ENTRY=T-554
+GROUP=wormhole
+EXPECT='test a_post_answered_429_goes_again_after_the_wait \.\.\. FAILED'
+RUN='cargo test -p pod-wormhole --features standin --test ntfy -- a_post_answered_429_goes_again_after_the_wait --exact'

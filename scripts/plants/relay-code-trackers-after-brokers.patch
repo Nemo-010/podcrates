@@ -1,10 +1,9 @@
 diff --git a/crates/pod-relay/src/code/run.rs b/crates/pod-relay/src/code/run.rs
-index 919df6b..d64d89e 100644
 --- a/crates/pod-relay/src/code/run.rs
 +++ b/crates/pod-relay/src/code/run.rs
-@@ -91,8 +91,8 @@ impl Ends {
-     fn next_places(&self) -> Vec<Next> {
+@@ -117,8 +117,8 @@
          let all = [
+             (Next::Ntfy, !self.ntfy.is_empty() && !self.ntfy_first()),
              (Next::Relays, !self.relays.is_empty()),
 -            (Next::Trackers, !self.trackers.is_empty()),
              (Next::Brokers, !self.brokers.is_empty()),

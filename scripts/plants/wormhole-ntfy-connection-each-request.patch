@@ -1,0 +1,12 @@
+diff --git a/crates/pod-wormhole/src/ntfy/conn.rs b/crates/pod-wormhole/src/ntfy/conn.rs
+--- a/crates/pod-wormhole/src/ntfy/conn.rs
++++ b/crates/pod-wormhole/src/ntfy/conn.rs
+@@ -138,7 +138,7 @@
+                     let asked = exchange(stream, point, config, method, target, body);
+                     match tokio::time::timeout(limit, asked).await {
+                         Ok(Ok((answer, stream))) => {
+-                            *kept = stream;
++                            *kept = stream.and(None);
+                             return Ok(answer);
+                         }
+                         Ok(Err(_)) if reused => {}

@@ -1,0 +1,7 @@
+# Each read asks for the messages since this end's start, not since the
+# last id: each poll reads each kept message again; the test of the since
+# of each read must fail.
+ENTRY=T-554
+GROUP=wormhole
+EXPECT='test a_read_takes_what_came_since_its_start_then_since_the_last_id \.\.\. FAILED'
+RUN='cargo test -p pod-wormhole --features standin --test ntfy -- a_read_takes_what_came_since_its_start_then_since_the_last_id --exact'

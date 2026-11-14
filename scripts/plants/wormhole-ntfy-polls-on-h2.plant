@@ -1,0 +1,7 @@
+# On HTTP/2 an end polls in place of reading the stream of its topic: it
+# spends a request of its visitor each second; the test of one stream on
+# each connection of HTTP/2 must fail.
+ENTRY=T-554
+GROUP=wormhole
+EXPECT='test two_ends_pair_on_one_http2_connection_each_with_a_stream \.\.\. FAILED'
+RUN='cargo test -p pod-wormhole --features standin --test ntfy -- two_ends_pair_on_one_http2_connection_each_with_a_stream --exact'
