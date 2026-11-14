@@ -1,7 +1,8 @@
 //! Where the two ends of a code meet: a mailbox of magic-wormhole, the tag
-//! of the code at a Nostr relay ([`crate::nostr`]), or the topic of the
-//! code at an MQTT broker ([`crate::mqtt`]). The wormhole says the same
-//! messages at each; a relay and a broker hold no nameplate and have no
+//! of the code at a Nostr relay ([`crate::nostr`]), the swarm of the code
+//! at a WebTorrent tracker ([`crate::tracker`]), or the topic of the code
+//! at an MQTT broker ([`crate::mqtt`]). The wormhole says the same messages
+//! at each; a relay, a tracker and a broker hold no nameplate and have no
 //! mood.
 
 use std::time::Duration;
@@ -10,11 +11,13 @@ use crate::Failed;
 use crate::mailbox::{Mailbox, Message, Mood};
 use crate::mqtt::Broker;
 use crate::nostr::Relay;
+use crate::tracker::Tracker;
 
 /// A meeting point of one code.
 pub enum Place {
     Mailbox(Mailbox),
     Relay(Relay),
+    Tracker(Tracker),
     Broker(Broker),
 }
 
@@ -30,6 +33,12 @@ impl From<Relay> for Place {
     }
 }
 
+impl From<Tracker> for Place {
+    fn from(tracker: Tracker) -> Place {
+        Place::Tracker(tracker)
+    }
+}
+
 impl From<Broker> for Place {
     fn from(broker: Broker) -> Place {
         Place::Broker(broker)
@@ -42,16 +51,18 @@ impl Place {
         match self {
             Place::Mailbox(m) => &m.shown,
             Place::Relay(r) => &r.shown,
+            Place::Tracker(t) => &t.shown,
             Place::Broker(b) => &b.shown,
         }
     }
 
-    /// The word of the kind, for a line: `mailbox`, `Nostr relay` or
-    /// `broker`.
+    /// The word of the kind, for a line: `mailbox`, `Nostr relay`,
+    /// `WebTorrent tracker` or `broker`.
     pub fn noun(&self) -> &'static str {
         match self {
             Place::Mailbox(_) => "mailbox",
             Place::Relay(_) => "Nostr relay",
+            Place::Tracker(_) => "WebTorrent tracker",
             Place::Broker(_) => "broker",
         }
     }
@@ -61,16 +72,17 @@ impl Place {
         match self {
             Place::Mailbox(m) => m.appid(),
             Place::Relay(r) => r.appid(),
+            Place::Tracker(t) => t.appid(),
             Place::Broker(b) => b.appid(),
         }
     }
 
-    /// Open the mailbox `id`; a relay and a broker subscribed to the code's
-    /// tag or topic at their connection.
+    /// Open the mailbox `id`; a relay, a tracker and a broker subscribed to
+    /// the code's tag, swarm or topic at their connection.
     pub async fn open(&mut self, id: &str) -> Result<(), Failed> {
         match self {
             Place::Mailbox(m) => m.open(id).await,
-            Place::Relay(_) | Place::Broker(_) => Ok(()),
+            Place::Relay(_) | Place::Tracker(_) | Place::Broker(_) => Ok(()),
         }
     }
 
@@ -79,16 +91,18 @@ impl Place {
         match self {
             Place::Mailbox(m) => m.add(phase, body).await,
             Place::Relay(r) => r.add(phase, body).await,
+            Place::Tracker(t) => t.add(phase, body).await,
             Place::Broker(b) => b.add(phase, body).await,
         }
     }
 
     /// The next message, within `wait`. A mailbox gives this end's own
-    /// messages too; a relay and a broker do not.
+    /// messages too; a relay, a tracker and a broker do not.
     pub async fn message(&mut self, wait: Duration) -> Result<Option<Message>, Failed> {
         match self {
             Place::Mailbox(m) => m.message(wait).await,
             Place::Relay(r) => r.message(wait).await,
+            Place::Tracker(t) => t.message(wait).await,
             Place::Broker(b) => b.message(wait).await,
         }
     }
@@ -97,17 +111,21 @@ impl Place {
     pub async fn release(&mut self, nameplate: &str) -> Result<(), Failed> {
         match self {
             Place::Mailbox(m) => m.release(nameplate).await,
-            Place::Relay(_) | Place::Broker(_) => Ok(()),
+            Place::Relay(_) | Place::Tracker(_) | Place::Broker(_) => Ok(()),
         }
     }
 
     /// Close the mailbox `id` with `mood`, end the subscription at the
-    /// relay, or disconnect from the broker.
+    /// relay, leave the swarm at the tracker, or disconnect from the broker.
     pub async fn close(&mut self, id: &str, mood: Mood) -> Result<(), Failed> {
         match self {
             Place::Mailbox(m) => m.close(id, mood).await,
             Place::Relay(r) => {
                 r.close().await;
+                Ok(())
+            }
+            Place::Tracker(t) => {
+                t.close(mood).await;
                 Ok(())
             }
             Place::Broker(b) => {
@@ -122,6 +140,7 @@ impl Place {
         match self {
             Place::Mailbox(m) => m.end().await,
             Place::Relay(r) => r.end().await,
+            Place::Tracker(t) => t.end().await,
             Place::Broker(b) => b.end().await,
         }
     }

@@ -1,0 +1,83 @@
+# A public WebTorrent tracker (tracker.webtorrent.dev, Aquatic): a meeting
+# point of the pairing by code after the Nostr relays and before the MQTT
+# brokers (pod-wormhole's tracker; PodUtils/podssh#235,
+# PodUtils/podssh@T-695). The ends announce in the swarm of one info_hash
+# with no account; the taker's offers and the giver's answers carry the
+# messages in their sdp. Each peer of the swarm can read them, so the ends
+# send ciphertext alone. It passes one answer to each offer. A filter of
+# piracy refuses the domain: the facts filter-list, filter-list-part and
+# filter-category say so, and podssh's manual shows them.
+id = "webtorrent-dev-tracker"
+kind = "webtorrent-tracker"
+party = "webtorrent.dev (the operator of its domain; its page names no one)"
+about = "The public WebTorrent tracker at tracker.webtorrent.dev, JSON over a WebSocket on port 443"
+
+[rank]
+value = 2
+source = { measured = "two ends paired through the tracker with no account, through the HTTPS proxy of a cloud session; it carried an sdp of 12,000 bytes and not one of 14,000 (docs/decisions.md, C557)", read = 2026-11-14 }
+
+[[endpoint]]
+name = "tracker"
+scheme = "wss"
+host = "tracker.webtorrent.dev"
+port = 443
+path = "/"
+source = { url = "https://webtorrent.dev/", read = 2026-11-14, note = "the page calls tracker.webtorrent.dev a free-to-use, public WebTorrent tracker; https://tracker.webtorrent.dev/ answers 302 to it" }
+
+[[endpoint]]
+name = "site"
+role = "document"
+scheme = "https"
+host = "webtorrent.dev"
+port = 443
+path = "/"
+source = { url = "https://webtorrent.dev/", read = 2026-11-14 }
+
+[[fact]]
+name = "sdp-bytes-most"
+value = 12000
+unit = "bytes"
+source = { measured = "an offer whose sdp held 12,000 bytes came to the other peer, and one of 14,000 did not, through the HTTPS proxy of a cloud session (C557)", read = 2026-11-14 }
+
+[[fact]]
+name = "software"
+value = "aquatic"
+source = { url = "https://webtorrent.dev/", read = 2026-11-14, note = "the page says that the tracker runs Aquatic; a second answer to one offer gets 'Could not find the offer corresponding to your answer'" }
+
+[[fact]]
+name = "filter-list"
+value = "hagezi"
+source = { url = "https://domain.web.pkgforge.dev/category/tracker.webtorrent.dev", read = 2026-11-14, note = "the source of the category, as PodUtils/podssh@T-546 read it" }
+
+[[fact]]
+name = "filter-list-part"
+value = "anti.piracy"
+source = { url = "https://domain.web.pkgforge.dev/category/tracker.webtorrent.dev", read = 2026-11-14, note = "the list of hagezi that holds tracker.webtorrent.dev" }
+
+[[fact]]
+name = "filter-category"
+value = "Questionable Content"
+source = { url = "https://domain.web.pkgforge.dev/category/tracker.webtorrent.dev", read = 2026-11-14, note = "the category of Cloudflare Gateway that the list maps to: a filter of piracy refuses the domain" }
+
+[[watch]]
+kind = "websocket-upgrade"
+endpoint = "tracker"
+
+[[watch]]
+kind = "http-text"
+endpoint = "site"
+contains = "Aquatic"
+
+[[watch]]
+kind = "http-json"
+url = "https://domain.web.pkgforge.dev/category/tracker.webtorrent.dev"
+pointer = "/categories/0"
+facts = ["filter-category"]
+members = ["name"]
+
+[[watch]]
+kind = "http-json"
+url = "https://domain.web.pkgforge.dev/category/tracker.webtorrent.dev"
+pointer = "/categories/0/sources/0"
+facts = ["filter-list", "filter-list-part"]
+members = ["source", "as"]

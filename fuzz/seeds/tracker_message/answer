@@ -1,0 +1,1 @@
+{"action":"announce","answer":{"sdp":"{\"from\":1,\"got\":2,\"m\":[{\"body\":\"00ff\",\"phase\":\"version\"}],\"side\":\"64117e70d2\",\"tag\":\"pwcd5eb49f1688af65e0a26912f2b383335009f8a6\"}","type":"answer"},"info_hash":"96cf24fda5cd28b64eb2","offer_id":"cd9d24f8c1f1060be642","peer_id":"3caad38dbf85d2e18811"}

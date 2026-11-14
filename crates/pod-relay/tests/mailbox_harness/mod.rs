@@ -42,6 +42,11 @@ pub mod broker;
 #[cfg(feature = "plain-ws")]
 #[path = "../../../pod-wormhole/tests/harness/nostr.rs"]
 pub mod nostr;
+// The stand-in WebTorrent tracker of pod-wormhole's tests, for the runs
+// that meet at a tracker (T-551).
+#[cfg(feature = "plain-ws")]
+#[path = "../../../pod-wormhole/tests/harness/tracker.rs"]
+pub mod tracker;
 
 /// How long a server may take to listen, and a peer to say a line.
 pub const LIMIT: Duration = Duration::from_secs(60);

@@ -234,6 +234,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "tracker_message"
+path = "fuzz_targets/tracker_message.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "session_record"
 path = "fuzz_targets/session_record.rs"
 test = false

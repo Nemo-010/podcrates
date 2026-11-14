@@ -1,0 +1,10 @@
+{
+  "name": "pod-wormhole-test-tracker",
+  "private": true,
+  "license": "0BSD",
+  "description": "webtorrent/bittorrent-tracker on 127.0.0.1 for the tests of the meeting point at a WebTorrent tracker",
+  "type": "module",
+  "dependencies": {
+    "bittorrent-tracker": "11.2.3"
+  }
+}

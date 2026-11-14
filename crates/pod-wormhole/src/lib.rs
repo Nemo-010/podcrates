@@ -23,6 +23,9 @@
 //! * [`nostr`]: a meeting point between the mailboxes and the brokers: the
 //!   tag of the code at a public Nostr relay, events of an ephemeral kind
 //!   signed by a key of the pairing alone, with the same messages.
+//! * [`tracker`]: a meeting point between the Nostr relays and the brokers:
+//!   the swarm of the code at a public WebTorrent tracker, the messages in
+//!   the offers of the taker and the answers of the giver.
 //! * [`phrase`] and [`words`]: the code, the nameplate and the words of the
 //!   PGP list; [`message`]: the pure reading of a mailbox's messages.
 //! * `standin` (feature `standin`): a mailbox on the loopback for the tests
@@ -33,9 +36,8 @@
 //! mailbox URLs and the way out are a [`Config`] and a list of URLs: the
 //! crate reads no variable of the environment, keeps no process state, and
 //! prints nothing. The lines for the user are `pod_core::Event`s of the
-//! kinds `wormhole.mailbox`, `wormhole.nostr`, `wormhole.broker` and
-//! `wormhole.motd`; none
-//! holds the code.
+//! kinds `wormhole.mailbox`, `wormhole.nostr`, `wormhole.tracker`,
+//! `wormhole.broker` and `wormhole.motd`; none holds the code.
 //!
 //! **Typed failures.** [`Failed`] keeps its variants, which a caller
 //! matches, and is also a `pod_core::Failure` with its stage and its class.
@@ -54,6 +56,7 @@ pub mod phrase;
 pub mod place;
 #[cfg(feature = "standin")]
 pub mod standin;
+pub mod tracker;
 pub mod words;
 pub mod wormhole;
 

@@ -43,7 +43,7 @@ pub use {
     link::{ARQ_MTU, KCP_MTU, link_arq, link_frame, link_kcp, link_poll_wire},
     netlab::netlab_counters,
     turn::stun_message,
-    wormhole::{mqtt_packet, nostr_message},
+    wormhole::{mqtt_packet, nostr_message, tracker_message},
 };
 
 /// Text from a peer made safe for one line (`pod_core::text::one_line`;

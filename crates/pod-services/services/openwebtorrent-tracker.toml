@@ -1,0 +1,82 @@
+# A public WebTorrent tracker (tracker.openwebtorrent.com): a meeting point
+# of the pairing by code after the Nostr relays and before the MQTT brokers
+# (pod-wormhole's tracker; PodUtils/podssh#235, PodUtils/podssh@T-695). The
+# ends announce in the swarm of one info_hash with no account; the taker's
+# offers and the giver's answers carry the messages in their sdp. Each peer
+# of the swarm can read them, so the ends send ciphertext alone. A filter
+# of piracy refuses the domain: the facts filter-list, filter-list-part and
+# filter-category say so, and podssh's manual shows them.
+id = "openwebtorrent-tracker"
+kind = "webtorrent-tracker"
+party = "OpenWebTorrent (the project of openwebtorrent.com)"
+about = "The public WebTorrent tracker of OpenWebTorrent, JSON over a WebSocket on port 443"
+
+[rank]
+value = 1
+source = { measured = "two ends paired through the tracker with no account, through the HTTPS proxy of a cloud session; it carried an sdp of 60,000 bytes (docs/decisions.md, C557)", read = 2026-11-14 }
+
+[[endpoint]]
+name = "tracker"
+scheme = "wss"
+host = "tracker.openwebtorrent.com"
+port = 443
+path = "/"
+source = { url = "https://openwebtorrent.com/", read = 2026-11-14, note = "the page names wss://tracker.openwebtorrent.com as the tracker URL, free for anyone to use with no registration" }
+
+[[endpoint]]
+name = "site"
+role = "document"
+scheme = "https"
+host = "openwebtorrent.com"
+port = 443
+path = "/"
+source = { url = "https://openwebtorrent.com/", read = 2026-11-14 }
+
+[[fact]]
+name = "sdp-bytes-most"
+value = 60000
+unit = "bytes"
+source = { measured = "an offer whose sdp held 60,000 bytes came to the other peer, and one of 120,000 did not, through the HTTPS proxy of a cloud session (C557)", read = 2026-11-14 }
+
+[[fact]]
+name = "software"
+value = "openwebtorrent-tracker"
+source = { url = "https://github.com/openwebtorrent/openwebtorrent-tracker", read = 2026-11-14, note = "the C++ tracker of the organisation of the site, which links its GitHub organisation; the tracker answers with its keys in alphabetical order and refuses an offer with no type and sdp ('announce: wrong offer item field format')" }
+
+[[fact]]
+name = "filter-list"
+value = "hagezi"
+source = { url = "https://domain.web.pkgforge.dev/category/tracker.openwebtorrent.com", read = 2026-11-14, note = "the source of the category, as PodUtils/podssh@T-546 read it" }
+
+[[fact]]
+name = "filter-list-part"
+value = "anti.piracy"
+source = { url = "https://domain.web.pkgforge.dev/category/tracker.openwebtorrent.com", read = 2026-11-14, note = "the list of hagezi that holds openwebtorrent.com" }
+
+[[fact]]
+name = "filter-category"
+value = "Questionable Content"
+source = { url = "https://domain.web.pkgforge.dev/category/tracker.openwebtorrent.com", read = 2026-11-14, note = "the category of Cloudflare Gateway that the list maps to: a filter of piracy refuses the domain" }
+
+[[watch]]
+kind = "websocket-upgrade"
+endpoint = "tracker"
+
+[[watch]]
+kind = "http-text"
+endpoint = "site"
+contains = "wss://tracker.openwebtorrent.com"
+
+[[watch]]
+kind = "http-json"
+url = "https://domain.web.pkgforge.dev/category/tracker.openwebtorrent.com"
+pointer = "/categories/0"
+facts = ["filter-category"]
+members = ["name"]
+
+[[watch]]
+kind = "http-json"
+url = "https://domain.web.pkgforge.dev/category/tracker.openwebtorrent.com"
+pointer = "/categories/0/sources/0"
+facts = ["filter-list", "filter-list-part"]
+members = ["source", "as"]

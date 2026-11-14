@@ -14,7 +14,9 @@
 //! looks at the brokers (call C115). The Nostr relays come between the
 //! mailboxes and the brokers (T-550, podssh's ruling Q77), after an event
 //! of their own; planted (`relay-code-nostr-after-brokers`): the brokers
-//! first.
+//! first. The WebTorrent trackers come between the relays and the brokers
+//! (T-551), after an event of their own; planted
+//! (`relay-code-trackers-after-brokers`): the brokers first.
 #![cfg(all(feature = "pair", feature = "code"))]
 
 mod cleanup;
@@ -350,6 +352,59 @@ async fn a_taker_that_finds_no_giver_at_a_mailbox_or_a_relay_looks_at_the_broker
     assert_eq!(taken.mailbox, broker.url.shown());
     let said = said.lock().unwrap();
     for line in ["no mailbox has the giver", "no Nostr relay has the giver", "no Nostr relay answered"] {
+        assert!(said.iter().any(|l| l.starts_with(line)), "{line}: {said:?}");
+    }
+}
+
+/// The ends at `mailboxes`, then at the Nostr relay `relay`, then at the
+/// WebTorrent tracker `tracker`, then at the broker `broker`.
+#[cfg(feature = "plain-ws")]
+fn ends_with_tracker(mailboxes: Vec<WsUrl>, relay: &WsUrl, tracker: &WsUrl, broker: &WsUrl, said: &Said) -> Ends {
+    let mut ends = ends_with_relay(mailboxes, relay, broker, said);
+    ends.trackers = vec![tracker.clone()];
+    ends
+}
+
+#[cfg(feature = "plain-ws")]
+#[tokio::test]
+async fn where_no_mailbox_or_relay_answers_the_ends_meet_at_a_tracker_before_a_broker() {
+    let tracker = mailbox_harness::tracker::start().await;
+    let broker = mailbox_harness::broker::start().await;
+    let said = Said::default();
+    let ends = ends_with_tracker(vec![nobody_there()], &nobody_there(), &tracker.url, &broker.url, &said);
+    let p = pairing_between(&ends, &ends, same).await;
+    let given = p.given.unwrap_or_else(|e| panic!("the giver: {e}"));
+    let taken = p.taken.unwrap_or_else(|e| panic!("the taker: {e}"));
+    assert_eq!((given.operator, given.done.admitted, taken.offer.node), (OPERATOR, true, NODE));
+    assert_eq!(given.mailbox, tracker.url.shown(), "the lines name the tracker");
+    assert_eq!(taken.mailbox, tracker.url.shown());
+    assert!(broker.published().is_empty(), "no byte at the broker");
+    let said = said.lock().unwrap();
+    for words in [run::NOSTR_WORDS, run::TRACKER_WORDS] {
+        let told = said.iter().filter(|line| line.contains(words)).count();
+        assert_eq!(told, 2, "one event at each end before its first place of the kind: {said:?}");
+    }
+    assert!(said.iter().any(|l| l.starts_with("no Nostr relay answered")), "{said:?}");
+    assert!(said.iter().all(|line| !line.contains(run::BROKER_WORDS)), "{said:?}");
+    assert!(said.iter().all(|line| !line.contains(&p.code)), "no line holds the code");
+}
+
+#[cfg(feature = "plain-ws")]
+#[tokio::test]
+async fn a_taker_that_finds_no_giver_at_a_tracker_looks_at_the_brokers() {
+    let tracker = mailbox_harness::tracker::start().await;
+    let broker = mailbox_harness::broker::start().await;
+    let said = Said::default();
+    // The giver reaches no tracker; the taker reaches one, which has no
+    // giver of the code.
+    let giver = ends_with_tracker(vec![nobody_there()], &nobody_there(), &nobody_there(), &broker.url, &said);
+    let taker = ends_with_tracker(vec![nobody_there()], &nobody_there(), &tracker.url, &broker.url, &said);
+    let p = pairing_between(&giver, &taker, same).await;
+    p.given.unwrap_or_else(|e| panic!("the giver: {e}"));
+    let taken = p.taken.unwrap_or_else(|e| panic!("the taker: {e}"));
+    assert_eq!(taken.mailbox, broker.url.shown());
+    let said = said.lock().unwrap();
+    for line in ["no WebTorrent tracker has the giver", "no WebTorrent tracker answered"] {
         assert!(said.iter().any(|l| l.starts_with(line)), "{line}: {said:?}");
     }
 }

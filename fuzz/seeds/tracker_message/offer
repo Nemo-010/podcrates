@@ -1,0 +1,1 @@
+{"action":"announce","offer":{"type":"offer","sdp":"{\"from\":0,\"got\":0,\"m\":[{\"body\":\"7b7d\",\"phase\":\"pake\"}],\"side\":\"90adbb8d1e\",\"tag\":\"pwcd5eb49f1688af65e0a26912f2b383335009f8a6\"}"},"offer_id":"f44ec9b4804b50149099","peer_id":"b15a061e78f57f64e16e","info_hash":"96cf24fda5cd28b64eb2"}
