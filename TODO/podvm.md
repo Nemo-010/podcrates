@@ -7845,3 +7845,30 @@ An ignored test, run in `live.yml`, that runs `Udf::find("/sources/boot.wim")` o
 ```sh
 cargo test -p pod-udf --all-features -- --ignored
 ```
+
+# T-622: `pod-guest`: the provision stops the emulator on each error after the spawn (PodUtils/podvm#370)
+
+**Source:** PodUtils/podvm#370 (COORD-115 of podvm; PodUtils/podvm@T-1893).
+**Category:** defect
+**Milestone:** M7
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`provision` (`crates/pod-guest/src/provision.rs`) stops the emulator when `ready::wait` fails, but not when `type_into_console` fails: the `?` returns the error and drops the child with QEMU still running. podvm measured it: a second QMP client on the socket made the typing fail (`qmp read: Resource temporarily unavailable`), and `qemu-system-x86_64` still ran after podvm ended. A QMP error of any cause leaves the same emulator. podvm's rule is that no emulator stays after a run.
+
+## Premise
+
+- Read: PodUtils/podvm#370; `crates/pod-guest/src/provision.rs`, `emulator.rs` (`stop_emulator`), `ready.rs` and its tests (the QMP stand-in).
+
+## Approach
+
+A guard that owns the child after the spawn and stops the emulator on drop (`stop_emulator`), so that each error path stops it; the success path takes the child out of the guard. Check the other functions of the crate that spawn an emulator (`run`, the warm start of T-596) for the same fault. A test: a QMP stand-in that fails the `send-key`, and no emulator process is left; a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features
+```
