@@ -1,28 +1,34 @@
 //! The wait for a guest that is ready, in place of a fixed sleep.
 //!
-//! Three signs, each one read from the host with no help from the guest
+//! Four signs, each one read from the host with no help from the guest
 //! but the one it gives:
 //!
 //! * [`Sign::Marker`]: the agent wrote [`crate::agent::READY`] to the
 //!   mailbox (a provisioned image).
 //! * [`Sign::Serial`]: the serial log of the plan holds a text.
 //! * [`Sign::Screen`]: the screen changed after the first dump of QMP
-//!   `screendump`, then stayed the same for `settle` (an image with no
-//!   agent yet: the shell of a provision boot is at its prompt).
+//!   `screendump`, then stayed the same for `settle` but for a cursor (an
+//!   image with no agent yet: the shell of a provision boot is at its
+//!   prompt).
+//! * [`Sign::After`]: a fixed time passed since the start of the wait.
 //!
 //! [`wait`] polls each sign until one holds, the emulator exits, or the
 //! deadline comes; each end but the first is a failure with the cause
 //! [`Unready`].
 
 use std::io::{Read, Seek, SeekFrom};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Child;
 use std::time::{Duration, Instant};
 
 use pod_core::{Class, Failure, Stage};
-use sha2::{Digest, Sha256};
 
-use crate::{Fat16, Plan, Result, agent, io_at, qmp};
+use crate::{Fat16, Plan, Result, agent, io_at};
+
+mod screen;
+
+pub use screen::CURSOR;
+use screen::Screen;
 
 /// The time that a screen must stay the same after it changed.
 pub const SETTLE: Duration = Duration::from_secs(5);
@@ -39,8 +45,15 @@ pub enum Sign {
     /// The serial log of the plan ([`Plan::serial`]) holds this text.
     Serial(String),
     /// The screen changed after the first dump, then stayed the same for
-    /// `settle`.
+    /// `settle`. A change in a box of [`CURSOR`] (a cursor that blinks, the
+    /// pointer) is no change. The settled screen must differ from the first
+    /// dump, and must show more than one colour outside such a box, so that
+    /// a black boot phase is not a ready guest.
     Screen { settle: Duration },
+    /// This time passed since the start of [`wait`]: the fixed wait for a
+    /// guest that gives no other sign. The provision starts the wait right
+    /// after the spawn of the emulator.
+    After(Duration),
 }
 
 impl std::fmt::Display for Sign {
@@ -48,7 +61,12 @@ impl std::fmt::Display for Sign {
         match self {
             Sign::Marker => write!(f, "the marker {} of the agent", agent::READY),
             Sign::Serial(text) => write!(f, "the text {text:?} on the serial line"),
-            Sign::Screen { settle } => write!(f, "a screen that changed and then stayed the same for {settle:?}"),
+            Sign::Screen { settle } => write!(
+                f,
+                "a screen with content that changed and then stayed the same for {settle:?}, but for a box of {}x{} pixels",
+                CURSOR.0, CURSOR.1
+            ),
+            Sign::After(time) => write!(f, "the end of {time:?} after the start of the wait"),
         }
     }
 }
@@ -86,7 +104,7 @@ impl std::fmt::Display for Unready {
         match self {
             Unready::Deadline { after, signs } => {
                 let signs: Vec<String> = signs.iter().map(Sign::to_string).collect();
-                write!(f, "the guest was not ready within {}s: no {}", after.as_secs(), signs.join(", no "))
+                write!(f, "the guest was not ready within {}s; no sign held: {}", after.as_secs(), signs.join("; "))
             }
             Unready::Exited { status } => write!(f, "the emulator exited ({status}) before the guest was ready"),
         }
@@ -144,6 +162,8 @@ enum Watch {
     Marker,
     Serial(Scan),
     Screen(Screen),
+    /// The time at which the sign holds.
+    After(Instant),
 }
 
 impl Watch {
@@ -152,6 +172,7 @@ impl Watch {
             Sign::Marker => Watch::Marker,
             Sign::Serial(text) => Watch::Serial(Scan::new(text.as_bytes())),
             Sign::Screen { settle } => Watch::Screen(Screen::new(*settle)),
+            Sign::After(time) => Watch::After(Instant::now() + *time),
         }
     }
 
@@ -162,6 +183,7 @@ impl Watch {
             }
             Watch::Serial(scan) => scan.poll(&plan.serial),
             Watch::Screen(screen) => screen.poll(&plan.monitor),
+            Watch::After(at) => Instant::now() >= *at,
         }
     }
 }
@@ -210,58 +232,6 @@ impl Scan {
         }
         false
     }
-}
-
-/// The poll of the screen through QMP `screendump`.
-struct Screen {
-    settle: Duration,
-    monitor: Option<qmp::Monitor>,
-    last: Option<[u8; 32]>,
-    /// When the screen last changed, after the first dump.
-    changed: Option<Instant>,
-}
-
-impl Screen {
-    fn new(settle: Duration) -> Screen {
-        Screen { settle, monitor: None, last: None, changed: None }
-    }
-
-    fn poll(&mut self, socket: &Path) -> bool {
-        let Some(frame) = self.dump(socket) else { return false };
-        let now = Instant::now();
-        if self.last.is_none() {
-            // The first dump: the screen of the boot, the base of a change.
-        } else if self.last != Some(frame) {
-            self.changed = Some(now);
-        } else if self.changed.is_some_and(|at| now.duration_since(at) >= self.settle) {
-            return true;
-        }
-        self.last = Some(frame);
-        false
-    }
-
-    /// The digest of one dump of the screen; `None` when the monitor is not
-    /// there yet or refused. A broken connection is made again at the next
-    /// poll.
-    fn dump(&mut self, socket: &Path) -> Option<[u8; 32]> {
-        if self.monitor.is_none() {
-            self.monitor = qmp::Monitor::connect(socket, Duration::ZERO).ok();
-        }
-        let file = dump_path(socket);
-        let done = self.monitor.as_mut()?.screendump(&file);
-        if done.is_err() {
-            self.monitor = None;
-            return None;
-        }
-        let bytes = std::fs::read(&file).ok()?;
-        let _ = std::fs::remove_file(&file);
-        Sha256::digest(&bytes).as_slice().try_into().ok()
-    }
-}
-
-/// The file of a dump: beside the QMP socket, in the per-run directory.
-fn dump_path(socket: &Path) -> PathBuf {
-    socket.with_file_name("screen.ppm")
 }
 
 #[cfg(test)]

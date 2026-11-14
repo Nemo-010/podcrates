@@ -8181,3 +8181,38 @@ Give the `usb-storage` device of the mailbox an id (`id=wqmbox`), and name it wi
 ```sh
 cargo test -p pod-guest --all-features
 ```
+
+# T-633: `pod-guest`: the screen sign of the readiness fails on Validation OS, so the provision never types into a Windows guest
+
+**Source:** PodUtils/podvm#372 (COORD-116 of podvm; PodUtils/podvm@T-1894).
+**Category:** defect
+**Milestone:** M7
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+podvm reports a regression of `v0.45.0` (T-595): the provision of a Windows guest never types the installer. `kvm.yml` run 43171009630 (podcrates before `v0.45.0`, a fixed wait) provisions Validation OS 26100.9278 under KVM. Run 43619241341 (`v0.45.0`) fails on the same image, and on 26100.9818, with `Ready { signs: [Sign::Screen { settle: 15 s }], deadline: 600 s, every: 500 ms }`:
+
+```text
+the guest was not ready within 600s: no a screen that changed and then stayed the same for 15s
+```
+
+Under KVM the console of Validation OS has a cursor that blinks, so the sha256 of a dump never stays the same. Under TCG (settle 5 s, then 60 s) the wait ends early, on a black screen with only the pointer (dumps at about 3 and 4 minutes), the keys go nowhere, and the setup ends with `the installer wrote no SETUP.TXT`. The ask: a sign that holds after a fixed time from the spawn (`Sign::After`; this alone unblocks podvm), a screen sign that ignores a cursor and must differ from the first dump, tests with the QMP stand-in. The text of a failed wait reads badly ("no a screen").
+
+## Premise
+
+- Read: PodUtils/podvm#372; the Done section of T-595 and calls C451 to C454; `crates/pod-guest/src/ready.rs`, `crates/pod-guest/src/ready/tests.rs`, `crates/pod-guest/src/provision.rs`; the caller of podvm (`podvm-windows`: the provision before `v0.45.0` slept its `wait`, `--timeout` with 240 s by default).
+- Not measured: a Windows guest. This host has no KVM; the live proof is the next Windows provision of podvm.
+
+## Approach
+
+`Sign::After(time)`: it holds when `time` passed since the start of `wait` (call C591). The screen sign reads each dump as a P6 PPM, counts a change whose pixels fit in a box of 32x32 as no change, and compares each dump to the dump of the last change (call C592). The settled screen must differ from the first dump and must not be blank (call C593). A new text of `Unready::Deadline` (call C594). Tests with the QMP stand-in and PPM frames; a plant for each test.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features --lib -- ready::
+sh scripts/plant-each.sh guest-ready-a-cursor-is-a-change guest-ready-a-blank-screen-is-ready guest-ready-the-first-screen-again-is-ready guest-ready-after-holds-at-once guest-ready-a-still-screen-is-ready
+```

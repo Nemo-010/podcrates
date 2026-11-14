@@ -16,7 +16,8 @@ use crate::{Fat16, Plan, Result, Settings, agent, convert_argv, emulator, failur
 ///
 /// The keys go to the console when `ready` holds ([`crate::ready::wait`]:
 /// for an image with no agent yet, a screen that settles,
-/// [`crate::ready::Ready::screen`]). An emulator that exits first, or no
+/// [`crate::ready::Ready::screen`], or a fixed time after the spawn,
+/// [`crate::ready::Sign::After`]). An emulator that exits first, or no
 /// ready guest within the deadline, is a failure with the cause
 /// [`crate::ready::Unready`]. Each failure after the spawn stops the
 /// emulator, also a failure of the keys. `wait` bounds the power-off after
