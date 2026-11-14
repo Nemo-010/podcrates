@@ -8050,7 +8050,7 @@ cargo test -p pod-guest --all-features
 **Milestone:** M7
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8076,3 +8076,11 @@ Verify the cause in the source of OVMF and on this host (call C574). When a plan
 cargo test -p pod-guest --all-features --lib -- plan::
 sh scripts/plant-each.sh guest-boot-medium-drops-the-root-disk
 ```
+
+## Done
+
+2026-11-14, commit 5950498. The cause holds (call C574): `SetBootOrderFromQemu` of OVMF keeps only the boot options that the boot order of QEMU names, and `PruneBootVariables` deletes the others, also the entry of an installed system on a root disk with no boot index. `argv` now gives the root disk `bootindex=1` when a medium boots first, and no boot index otherwise (call C575: the medium first, the root disk next). The live test of the Windows install (`install` in `tests/windows_keep_live.rs`) gives its root disk `bootindex=1`; its `boot` has no medium and uses `argv`.
+
+Run on this host (QEMU 8.2.2, TCG, `OVMF_CODE_4M.fd` of Ubuntu's `ovmf` 2024.02-2ubuntu0.10): a GPT disk whose ESP holds the UEFI shell at `\EFI\pod\app.efi`, which only a `Boot####` entry names (`bcfg boot add` in a first boot, as setup writes its entry), and a CD with `bootindex=0` whose loader returns `EFI_TIMEOUT`, as the prompt of a Windows CD. With no boot index on the disk, the firmware starts the EFI Internal Shell after the CD; a later boot with the fixed line finds the entry deleted. With `bootindex=1` on the disk, the firmware starts the entry after the CD.
+
+`cargo test -p pod-guest --all-features`: 158 unit tests passed, 1 ignored (new: `plan::options::tests::a_medium_that_boots_first_keeps_the_root_disk_in_the_boot_order`, which fails on the code before the fix). Plant, caught by hand: `guest-boot-medium-drops-the-root-disk`. The live proof stays with T-602: the parent dispatches `guest-windows.yml` again after the merge.
