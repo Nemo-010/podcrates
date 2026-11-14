@@ -1,0 +1,6 @@
+# The info_hash is one constant: the codes of each nameplate and each
+# application share one swarm; the test of the info_hash must fail.
+ENTRY=T-551
+GROUP=wormhole
+EXPECT='test tracker::tests::an_info_hash_is_20_hex_digits_of_the_tag_alone \.\.\. FAILED'
+RUN='cargo test -p pod-wormhole --lib -- tracker::tests::an_info_hash_is_20_hex_digits_of_the_tag_alone --exact'

@@ -1,0 +1,12 @@
+diff --git a/crates/pod-wormhole/src/tracker/link.rs b/crates/pod-wormhole/src/tracker/link.rs
+index 4ea8027..df2ceb9 100644
+--- a/crates/pod-wormhole/src/tracker/link.rs
++++ b/crates/pod-wormhole/src/tracker/link.rs
+@@ -302,7 +302,6 @@ impl Tracker {
+             return Ok(None);
+         }
+         match &self.peer {
+-            Some(peer) if peer != peer_id => return Ok(None),
+             Some(_) => {}
+             None if note.indexed().any(|(n, _)| n == self.got) => self.peer = Some(peer_id.to_string()),
+             None => return Ok(None),

@@ -8,7 +8,7 @@
 //!
 //! Then each end sends its messages in a [`Note`]: the taker in an offer,
 //! the giver in the answer to an offer of the taker. A note carries each
-//! message that the other end does not have yet, by the count of this
+//! message that the other end does not have, by the count of this
 //! end's messages in the other end's last note; a message that the other
 //! end has twice is dropped by its index. The taker offers again each
 //! `resend` while it waits, so that a lost offer is sent again and the
@@ -59,7 +59,7 @@ pub struct Tracker {
     acked: usize,
     /// How many messages of the other end this end has.
     got: u64,
-    /// The messages that came and are not read yet.
+    /// The messages that came and that no step has read.
     kept: VecDeque<Message>,
     /// The `peer_id` of the other end, once it was heard: a note of
     /// another peer is a stranger's.

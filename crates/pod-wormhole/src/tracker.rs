@@ -17,7 +17,7 @@
 //!   at once to a peer of the swarm and keeps no copy: an offer that
 //!   reaches no peer is gone, and the next one carries the messages again.
 //! * The giver can speak only in an answer to an offer: it answers each
-//!   offer of the taker with its messages that the taker does not have yet.
+//!   offer of the taker with its messages that the taker does not have.
 //!   Each offer and each answer holds a [`wire::Note`]: the tag of the
 //!   code, the side, the messages from an index, and the count of the
 //!   other end's messages that the sender has ([`link`]).

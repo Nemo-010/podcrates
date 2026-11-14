@@ -6147,7 +6147,7 @@ commit of the plants and the record after it. Calls C546 to C551.
 **Milestone:** M2
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -6223,6 +6223,100 @@ cargo test -p pod-relay --all-features --test pair_code
 cargo test -p pod-services --all-features
 cargo test -p pod-wormhole --all-features --test live -- --ignored
 ```
+
+## Correction
+
+2026-11-14: the premise says that a tracker reads no field of an offer or
+an answer and that any JSON passes. bittorrent-tracker 11.2.3 reads none,
+but tracker.openwebtorrent.com refuses an offer with no object of `type`
+and `sdp`, and tracker.webtorrent.dev (Aquatic) answers "Invalid request":
+the messages go as a note in the `sdp` (C556). tracker.webtorrent.dev also
+passes one answer to each offer, so the giver answers a fresh offer for
+each message, keeps one offer to answer, and answers the taker's offers at
+its close (C558). The Approach's "the giver answers each offer with its
+next message or an empty one" becomes a note with each message that the
+taker lacks and the counts of each end. The premise did not measure a
+public tracker: from a cloud session, tracker.openwebtorrent.com and
+tracker.webtorrent.dev paired two ends; tracker.files.fm:7073 (not on 443)
+got no tunnel from the proxy, and tracker.btorrent.xyz answered 502 (C557).
+
+## Done
+
+2026-11-14, commit `ce519c7` (the code, the tests, the services, the step
+of CI) and the commit of the plants and the record after it. Calls C556 to
+C561.
+
+- `pod_wormhole::tracker` (`crates/pod-wormhole/src/tracker.rs`,
+  `crates/pod-wormhole/src/tracker/link.rs`,
+  `crates/pod-wormhole/src/tracker/wire.rs`): `Trackers { points, config,
+  resend }`, `opened`, `joined`, `info_hash(tag)`, `RESEND` 2 s, `SDP_MOST`
+  10,000, `LINGER` 10 s, `ANNOUNCE_LEAST` 1 s, `ANNOUNCE_MOST` 120 s;
+  `Tracker::connect` proves the tracker (the answer to an announce of
+  `started`), `add`, `message(wait)`, `close(mood)` (the giver's linger,
+  the taker's last count, then `stopped`); `wire::said`, `wire::Note`
+  (`to_sdp`, `indexed`), `wire::note_of`. `Place::Tracker`. The events
+  `wormhole.tracker`.
+- `pod-services`: the kind `webtorrent-tracker`, `openwebtorrent-tracker`
+  (rank 1) and `webtorrent-dev-tracker` (rank 2), with `sdp-bytes-most`,
+  `software` and the filter list of each (`filter-list` hagezi,
+  `filter-list-part` anti.piracy, `filter-category` "Questionable
+  Content"); `pod-services-watch`: `kind_facts("webtorrent-tracker")`. The
+  8 watches of the two files hold from a cloud session
+  (`cargo run -p pod-services-watch -- --service openwebtorrent-tracker
+  --service webtorrent-dev-tracker`).
+- `pod-relay`: `Ends::trackers` and `Ends::trackers()`; `opened` and
+  `joined` try the mailboxes, the Nostr relays, the trackers, then the
+  brokers, with the event `relay.code.tracker` (`TRACKER_WORDS`) before
+  the first tracker.
+- CI: `scripts/ci/tracker-tests.sh` (a step of `ci.yml`) runs
+  `crates/pod-wormhole/tests/tracker.rs` against bittorrent-tracker 11.2.3
+  from `scripts/ci/bittorrent-tracker/package-lock.json`; run here, it
+  said "webtorrent/bittorrent-tracker: two ends paired". Row L47 of
+  `docs/live-calls.md`; `scripts/check-workflows.py` takes
+  registry.npmjs.org as a host of the downloads.
+- Tests: `cargo test -p pod-wormhole --all-features`: 50 unit tests (4 new
+  of `tracker` and `tracker::wire`: the `info_hash`, the bounds, the
+  messages of bittorrent-tracker, a note both ways) and
+  `crates/pod-wormhole/tests/tracker.rs` (9) on the stand-in tracker of
+  `crates/pod-wormhole/tests/harness/tracker.rs`, 30 runs in a loop with
+  no failure; `cargo test -p pod-relay --all-features --test pair_code`:
+  14 passed (2 new); `cargo test -p pod-services --all-features`:
+  `crates/pod-services/tests/tracker.rs` (1) and the others pass.
+  `cargo test -p pod-wormhole --all-features --test live -- --ignored
+  two_ends_meet_at_each_public_webtorrent_tracker`: both trackers paired,
+  from a cloud session through its HTTPS proxy. `live.yml` runs it each
+  Thursday (row L46 of `docs/live-calls.md`).
+- Plants: each proven by hand (`git apply`, the run of its `RUN`, `git
+  apply -R`). `wormhole-tracker-empty-answer` fails
+  `two_ends_pair_through_the_swarm_of_a_code_and_move_messages_each_way`
+  ("the taker: Nobody"); `wormhole-tracker-no-resend` fails
+  `a_lost_offer_is_offered_again_until_the_giver_answers` ("the taker
+  after its losses: Nobody"); `wormhole-tracker-info-hash-constant` fails
+  `tracker::tests::an_info_hash_is_20_hex_digits_of_the_tag_alone`;
+  `wormhole-tracker-refusal-ignored` fails
+  `a_tracker_that_refuses_or_says_nothing_is_passed_over_with_its_words`
+  (the words of the refusal are not said); `wormhole-tracker-stranger-heard`
+  fails `a_stranger_in_the_swarm_after_the_taker_is_not_heard` (the
+  stranger's phase 0 does not open); `relay-code-trackers-after-brokers`
+  fails `where_no_mailbox_or_relay_answers_the_ends_meet_at_a_tracker_before_a_broker`
+  (the ends met at the broker). The patches of
+  `relay-code-nostr-after-brokers` and `relay-t277-brokers-not-tried` are
+  made again on the new `Ends::next_places` and `opened`; each still fails
+  its test, and `relay-t277-nobody-stops-the-taker` too. The fuzz target
+  `tracker_message` runs `tracker::wire::said`, `note_of` and
+  `Note::to_sdp` (`fuzz/`, its seeds in fuzz/seeds/tracker_message).
+- podssh's part (PodUtils/podssh@T-695): set `Ends::trackers` of its runs
+  of a code to the endpoint `tracker` of each service of
+  `pod_services::of_kind("webtorrent-tracker")`, in the order of the ranks
+  (`WsUrl::parse(&service.endpoint("tracker")?.url())`); give a switch that
+  empties it (as `PODSSH_MQTT` empties `Ends::brokers`); show the event
+  `relay.code.tracker` as the line of the third party; show in the manual
+  the facts `filter-list`, `filter-list-part` and `filter-category` of each
+  tracker (a filter of piracy refuses each domain). A caller of
+  `pod-wormhole` alone calls `tracker::opened` and `tracker::joined` with
+  `Trackers::new(points, config)`, and keeps the giver reading (`receive`)
+  or closing while the taker waits for its messages: the giver speaks only
+  in an answer to an offer.
 
 # T-554: `pod-wormhole`: an ntfy topic as a meeting point of the pairing where a proxy refuses the WebSocket upgrade (PodUtils/podssh#237)
 

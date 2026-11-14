@@ -1,0 +1,13 @@
+diff --git a/crates/pod-wormhole/src/tracker/link.rs b/crates/pod-wormhole/src/tracker/link.rs
+index 4ea8027..bc8f98d 100644
+--- a/crates/pod-wormhole/src/tracker/link.rs
++++ b/crates/pod-wormhole/src/tracker/link.rs
+@@ -276,7 +276,7 @@ impl Tracker {
+                 self.heed_interval(interval);
+                 Ok(())
+             }
+-            Said::Failure(words) if self.peer.is_none() => {
++            Said::Failure(words) if false => {
+                 Err(Failed::Refused(format!("the WebTorrent tracker {} refused: {words}", self.shown)))
+             }
+             // After the other end was heard, a refusal is of an answer to a

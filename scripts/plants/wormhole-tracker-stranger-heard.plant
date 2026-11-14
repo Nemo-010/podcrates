@@ -1,0 +1,7 @@
+# The giver takes the notes of each peer, not of the taker alone: a
+# stranger with the taker's side puts its own phases into the exchange;
+# the test of a stranger in the swarm must fail.
+ENTRY=T-551
+GROUP=wormhole
+EXPECT='test a_stranger_in_the_swarm_after_the_taker_is_not_heard \.\.\. FAILED'
+RUN='cargo test -p pod-wormhole --features standin --test tracker -- a_stranger_in_the_swarm_after_the_taker_is_not_heard --exact'

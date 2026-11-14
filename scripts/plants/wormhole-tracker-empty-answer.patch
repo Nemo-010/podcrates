@@ -1,0 +1,13 @@
+diff --git a/crates/pod-wormhole/src/tracker/link.rs b/crates/pod-wormhole/src/tracker/link.rs
+index 4ea8027..b46ae6a 100644
+--- a/crates/pod-wormhole/src/tracker/link.rs
++++ b/crates/pod-wormhole/src/tracker/link.rs
+@@ -362,7 +362,7 @@ impl Tracker {
+     async fn answer(&mut self, offer_id: &str) -> Result<(), Failed> {
+         let Some(peer) = self.peer.clone() else { return Ok(()) };
+         self.held = None;
+-        let answer = json!({ "type": "answer", "sdp": self.note().to_sdp() });
++        let answer = json!({ "type": "answer", "sdp": Note { messages: Vec::new(), ..self.note() }.to_sdp() });
+         let mut message = self.announcing(None);
+         message["to_peer_id"] = json!(peer);
+         message["offer_id"] = json!(offer_id);

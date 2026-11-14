@@ -1,13 +1,15 @@
 diff --git a/crates/pod-relay/src/code/run.rs b/crates/pod-relay/src/code/run.rs
-index 387e74d..14e91ec 100644
+index 919df6b..26447e9 100644
 --- a/crates/pod-relay/src/code/run.rs
 +++ b/crates/pod-relay/src/code/run.rs
-@@ -76,7 +76,7 @@ impl Ends {
-     /// the relays, then the brokers (podssh's ruling Q77), those that the
-     /// caller gave.
+@@ -90,9 +90,9 @@ impl Ends {
+     /// those that the caller gave.
      fn next_places(&self) -> Vec<Next> {
--        let all = [(Next::Relays, !self.relays.is_empty()), (Next::Brokers, !self.brokers.is_empty())];
-+        let all = [(Next::Brokers, !self.brokers.is_empty()), (Next::Relays, !self.relays.is_empty())];
+         let all = [
++            (Next::Brokers, !self.brokers.is_empty()),
+             (Next::Relays, !self.relays.is_empty()),
+             (Next::Trackers, !self.trackers.is_empty()),
+-            (Next::Brokers, !self.brokers.is_empty()),
+         ];
          all.into_iter().filter(|(_, given)| *given).map(|(next, _)| next).collect()
      }
- 

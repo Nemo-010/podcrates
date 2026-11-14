@@ -1,0 +1,7 @@
+# The giver answers each offer with a note that holds no message: it can
+# speak only in an answer, so the taker never hears the giver's pake; the
+# test of a pairing through the swarm must fail.
+ENTRY=T-551
+GROUP=wormhole
+EXPECT='test two_ends_pair_through_the_swarm_of_a_code_and_move_messages_each_way \.\.\. FAILED'
+RUN='cargo test -p pod-wormhole --features standin --test tracker -- two_ends_pair_through_the_swarm_of_a_code_and_move_messages_each_way --exact'

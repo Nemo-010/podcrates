@@ -5,8 +5,8 @@
 //! it. Two ends pair through the swarm of a code and move a message each
 //! way, each with a `peer_id` of its own for the pairing; the swarm of
 //! another code is another one; a lost offer is offered again; the giver
-//! announces again each interval; a stranger in the swarm after the taker
-//! is not heard; a tracker that refuses or says nothing is passed over
+//! announces again each interval; a stranger in the swarm after the taker,
+//! with the taker's side, is not heard; a tracker that refuses or says nothing is passed over
 //! with its words; no announce holds the words of the code.
 
 mod harness;
@@ -175,17 +175,14 @@ async fn the_giver_announces_again_each_interval() {
     giver.close(Mood::Lonely).await;
 }
 
-/// A peer in the swarm of `code` at `url` that offers a `pake` of its own.
-async fn stranger(url: &WsUrl, code: &Code) -> pod_ws::RelaySession<pod_ws::url::Stream> {
+/// A peer in the swarm of `code` at `url` that says it is the taker of
+/// `side` and offers the taker's next phases with bytes of its own.
+async fn stranger(url: &WsUrl, code: &Code, side: &str) -> pod_ws::RelaySession<pod_ws::url::Stream> {
     let session = pod_ws::url::dial(url, &harness::way(), &pod_ws::Trust::Default, LIMIT, None).await.unwrap();
     let tag = mqtt::topic(harness::APPID, code.nameplate());
-    let note = Note {
-        tag: tag.clone(),
-        side: "5555555555".into(),
-        from: 0,
-        got: 0,
-        messages: vec![("pake".into(), b"{}".to_vec())],
-    };
+    let junk = vec![0x55; 64];
+    let messages = vec![("version".into(), junk.clone()), ("0".into(), junk)];
+    let note = Note { tag: tag.clone(), side: side.into(), from: 1, got: 0, messages };
     let offer = json!({
         "action": "announce", "info_hash": tracker::info_hash(&tag), "peer_id": "s".repeat(20), "numwant": 1,
         "offers": [{ "offer": { "type": "offer", "sdp": note.to_sdp() }, "offer_id": "o".repeat(20) }],
@@ -203,8 +200,11 @@ async fn a_stranger_in_the_swarm_after_the_taker_is_not_heard() {
     let (taker, heard) = meet(&ends, &mut giver, &code, LIMIT).await;
     let mut taker = taker.expect("the taker");
     assert!(heard);
-    // The stand-in gives the stranger's offer to the first peer: the giver.
-    let _stranger = stranger(&stand.url, &code).await;
+    // A stranger who read the taker's side in an offer; the stand-in gives
+    // its offer to the first peer: the giver.
+    let first = stand.announces().into_iter().find_map(|a| a.offers.first().cloned()).expect("an offer");
+    let side = pod_wormhole::tracker::wire::note_of(&first).expect("a note").side;
+    let _stranger = stranger(&stand.url, &code, &side).await;
     confirm(&mut giver, &mut taker).await;
     taker.send(b"the answer").await.unwrap();
     assert_eq!(giver.receive(LIMIT).await.unwrap(), b"the answer");

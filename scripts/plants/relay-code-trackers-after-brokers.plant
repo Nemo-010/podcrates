@@ -1,0 +1,7 @@
+# The runs of a code try the MQTT brokers before the WebTorrent trackers,
+# against podssh's ruling Q77: the ends meet at the broker; the test of the
+# tracker before the broker must fail.
+ENTRY=T-551
+GROUP=relay
+EXPECT='test where_no_mailbox_or_relay_answers_the_ends_meet_at_a_tracker_before_a_broker \.\.\. FAILED'
+RUN='cargo test -p pod-relay --all-features --test pair_code -- where_no_mailbox_or_relay_answers_the_ends_meet_at_a_tracker_before_a_broker --exact'

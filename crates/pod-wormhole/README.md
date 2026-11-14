@@ -141,7 +141,7 @@ after the Nostr relays and before the brokers, as `pod-relay`'s runs do.
   the `sdp` alone (tracker.openwebtorrent.com and tracker.webtorrent.dev
   refuse an offer with no `type` and `sdp`): the ends put a `Note` there,
   `{"tag", "side", "from", "got", "m": [{"phase", "body"}]}`: this end's
-  messages that the other end does not have yet, and the count of the
+  messages that the other end does not have, and the count of the
   other end's messages that this end has. A message that comes twice is
   dropped by its index; a note of another tag, of this side, or of a peer
   that is not the first one heard is dropped.
@@ -343,7 +343,8 @@ makes a skip a failure): two ends pair and move messages each way, each
 with a `peer_id` of its own, two new ones at a second pairing, the giver's
 last word delivered at its close; the swarm of another code is another
 one; a lost offer is offered again; the giver announces again each
-interval; a stranger in the swarm after the taker is not answered; a
+interval; a stranger in the swarm after the taker, with the taker's
+side, is not heard; a
 tracker that refuses or says nothing is passed over with its words; each
 public tracker carries the largest `sdp`.
 `tests/live.rs` is `#[ignore]`: two ends meet at
