@@ -48,6 +48,9 @@ DOWNLOADS = {
     "raw.githubusercontent.com", "crates.io", "static.crates.io", "index.crates.io", "static.rust-lang.org",
     "pypi.org", "files.pythonhosted.org", "ziglang.org",
 }
+# A server of another party that a script runs on the loopback is no
+# host of another party (call C151).
+LOOPBACK = {"127.0.0.1", "localhost"}
 HOST = re.compile(r"https?://([A-Za-z0-9.-]+)")
 SCRIPT = re.compile(r"(scripts/[A-Za-z0-9/_.-]+\.(?:sh|py))")
 SHA = re.compile(r"^[^@\s]+@[0-9a-f]{40}$")
@@ -93,7 +96,7 @@ def network(root: Path, path: Path) -> list[str]:
     """The faults of a workflow of NO_NETWORK: a test with `--ignored`, and
     a host that is not a host of the downloads, in its text or in a script
     of `scripts/` that it runs."""
-    allowed = set(DOWNLOADS)
+    allowed = set(DOWNLOADS) | LOOPBACK
     mirrors = root / "scripts" / "zig-mirrors.txt"
     if mirrors.is_file():
         allowed |= set(HOST.findall(mirrors.read_text(encoding="utf-8")))

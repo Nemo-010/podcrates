@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**509 entries: 115 open, 8 partial, 6 blocked, 380 done.**
+**509 entries: 114 open, 8 partial, 6 blocked, 381 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 102 | 116 |
-| P2 | 53 | 2 | 4 | 204 | 263 |
+| P2 | 52 | 2 | 4 | 205 | 263 |
 | P3 | 51 | 3 | 2 | 72 | 128 |
-| **All** | 115 | 8 | 6 | 380 | 509 |
+| **All** | 114 | 8 | 6 | 381 | 509 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -553,6 +553,6 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-620](podvm.md) | P3 | S | M7 | chore | open | `pod-udf`: a live test against a Windows ISO by Range requests |
 | [T-621](upkeep.md) | P2 | S | M5 | defect | done | `pod-warp`: the test `a_close_by_the_caller_fails_the_flows_of_the_session` fails at times with a refused connection to the edge stand-in |
 | [T-622](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: the provision stops the emulator on each error after the spawn (PodUtils/podvm#370) |
-| [T-623](relay.md) | P2 | S | M2 | chore | open | `pod-link`: the S3 carrier against a real S3-compatible server |
+| [T-623](relay.md) | P2 | S | M2 | chore | done | `pod-link`: the S3 carrier against a real S3-compatible server |
 | [T-624](relay.md) | P2 | S | M2 | defect | open | `pod-warp`: after a key that is not the pinned one, the client tries each door of the new record and names the mismatch |
 | [T-625](podvm.md) | P3 | S | M6 | chore | open | `pod-hostprobe`: the test of the report runs the probes in a child that libtest refuses |

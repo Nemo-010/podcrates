@@ -1,0 +1,9 @@
+# The tests of the s3 carrier against SeaweedFS: with
+# POD_LINK_TEST_S3=required, a host that names no server must fail, not
+# skip. RUN names no endpoint.
+ENTRY=T-623
+GROUP=link
+EXPECT='POD_LINK_TEST_S3=required, but POD_LINK_TEST_S3_ENDPOINT names no server'
+RUN='POD_LINK_TEST_S3=required POD_LINK_TEST_S3_ENDPOINT= cargo test -p pod-link --all-features --test s3_seaweedfs'
+LIMIT=1800
+SWITCH=1

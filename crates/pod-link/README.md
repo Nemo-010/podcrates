@@ -847,6 +847,22 @@ checks SigV4 and the conditions; feature `s3`):
   `link-s3-run-past-a-gap`, `link-s3-budget-unchecked`,
   `link-s3-old-session-taken`, `link-s3-prune-skipped`,
   `s3-sign-query-unsorted` (`scripts/plants/`).
+- [x] A real S3-compatible server takes the requests (T-623, call C540):
+  `tests/s3_seaweedfs.rs` against the pinned SeaweedFS 4.53 on the
+  loopback (`scripts/ci/s3-tests.sh` in `ci.yml`; with no
+  `POD_LINK_TEST_S3_ENDPOINT` each test skips, and
+  `POD_LINK_TEST_S3=required` makes a skip a failure), with pages of one
+  key: `a_link_over_the_objects_of_the_server_carries_streams`,
+  `prune_removes_each_object_read_from_the_server`,
+  `the_server_holds_the_conditions_and_the_pages_of_the_carrier`
+  (`If-None-Match: *` gives 412 on a key that is there, `If-Match` 412 on
+  another ETag, `max-keys`, `start-after`),
+  `a_wrong_secret_and_a_missing_bucket_end_the_bind`,
+  `a_listener_takes_no_session_older_than_its_bind`,
+  `the_budget_ends_a_session_whose_peer_removes_nothing`. The plants
+  `link-s3-numeric-reference-kept` (SeaweedFS writes the ETag of a
+  listing as `&#34;...&#34;`, which the stand-in does not) and
+  `link-s3-seaweedfs-skip-fails`.
 - The credentials from the environment or a profile file, and exit 77 with
   no word of a missing credential, are podnet's (the crate reads no
   environment): `Credentials` comes from the caller.

@@ -1,0 +1,17 @@
+diff --git a/crates/pod-link/src/s3/xml.rs b/crates/pod-link/src/s3/xml.rs
+index fb556c1..7697da1 100644
+--- a/crates/pod-link/src/s3/xml.rs
++++ b/crates/pod-link/src/s3/xml.rs
+@@ -59,11 +59,7 @@ pub fn unescape(text: &str) -> String {
+             "gt" => Some('>'),
+             "quot" => Some('"'),
+             "apos" => Some('\''),
+-            _ => name
+-                .strip_prefix("#x")
+-                .and_then(|h| u32::from_str_radix(h, 16).ok())
+-                .or_else(|| name.strip_prefix('#').and_then(|d| d.parse().ok()))
+-                .and_then(char::from_u32),
++            _ => None,
+         };
+         match ch {
+             Some(ch) => out.push(ch),
