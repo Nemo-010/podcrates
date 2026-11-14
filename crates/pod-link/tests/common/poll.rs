@@ -156,22 +156,44 @@ async fn relay(mut near: DuplexStream, mut tcp: TcpStream, idle: Duration, fault
     }
 }
 
-/// A raw request of HTTP/1.1 of the client `client` to the listener at
-/// `local` of the key `server`: the status of its answer.
-pub async fn raw(server: &PublicKey, client: Arc<Identity>, local: std::net::SocketAddr, request: &str) -> u16 {
+/// A connection of TLS of the client `client` to the listener at `local`
+/// of the key `server`.
+pub type Raw = tokio_rustls::client::TlsStream<TcpStream>;
+
+/// A connection of the client `client` to the listener at `local` of the
+/// key `server`: an error when the listener closes it in the handshake.
+pub async fn connect(server: &PublicKey, client: Arc<Identity>, local: std::net::SocketAddr) -> std::io::Result<Raw> {
     let config = pod_tls::peer::client_config(ring(), client, KeyName::Key(*server), &[b"http/1.1"]).unwrap();
-    let tcp = TcpStream::connect(local).await.unwrap();
+    let tcp = TcpStream::connect(local).await?;
     let name = rustls::pki_types::ServerName::IpAddress(local.ip().into());
-    let mut tls = tokio_rustls::TlsConnector::from(config).connect(name, tcp).await.unwrap();
-    tls.write_all(request.as_bytes()).await.unwrap();
+    let mut tls = tokio_rustls::TlsConnector::from(config).connect(name, tcp).await?;
+    // The listener closes a connection past its cap after the handshake of
+    // TLS 1.3 of the client: a read finds the close.
+    tls.flush().await?;
+    Ok(tls)
+}
+
+/// Send `request` on `tls`: the status of its answer, whose body goes.
+pub async fn ask_on(tls: &mut Raw, request: &str) -> std::io::Result<u16> {
+    tls.write_all(request.as_bytes()).await?;
     let mut head = Vec::new();
     let mut byte = [0u8];
     while !head.ends_with(b"\r\n\r\n") {
-        tls.read_exact(&mut byte).await.unwrap();
+        tls.read_exact(&mut byte).await?;
         head.push(byte[0]);
     }
-    let line = String::from_utf8_lossy(&head).into_owned();
-    line.split(' ').nth(1).unwrap().parse().unwrap()
+    let text = String::from_utf8_lossy(&head).into_owned();
+    let length = text.lines().find_map(|l| l.to_ascii_lowercase().strip_prefix("content-length:").map(str::to_owned));
+    let mut body = vec![0u8; length.map_or(0, |v| v.trim().parse().unwrap())];
+    tls.read_exact(&mut body).await?;
+    Ok(text.split(' ').nth(1).unwrap().parse().unwrap())
+}
+
+/// A raw request of HTTP/1.1 of the client `client` to the listener at
+/// `local` of the key `server`: the status of its answer.
+pub async fn raw(server: &PublicKey, client: Arc<Identity>, local: std::net::SocketAddr, request: &str) -> u16 {
+    let mut tls = connect(server, client, local).await.unwrap();
+    ask_on(&mut tls, request).await.unwrap()
 }
 
 /// The key of the identity `n`.

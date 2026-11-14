@@ -1,15 +1,16 @@
 diff --git a/crates/pod-link/src/poll/answer.rs b/crates/pod-link/src/poll/answer.rs
+index 22ceb62..5773b43 100644
 --- a/crates/pod-link/src/poll/answer.rs
 +++ b/crates/pod-link/src/poll/answer.rs
-@@ -130,9 +130,9 @@
-     }
-     let skip = (up.next - seq).min(body.len() as u64);
-     Counters::add(&s.stats.duplicate, skip);
--    if end > up.next {
-+    if !body.is_empty() {
-         if let Some(pipe) = up.pipe.as_mut()
--            && pipe.write_all(&body[skip as usize..]).await.is_err()
-+            && pipe.write_all(body).await.is_err()
-         {
-             // The link of this side is gone: its end goes down.
-             up.pipe = None;
+@@ -161,9 +161,9 @@ async fn up<S: AsyncRead + AsyncWrite + Unpin>(
+             let mut up = session.up.lock().await;
+             let skip = up.next.saturating_sub(at).min(part.len() as u64);
+             Counters::add(&s.stats.duplicate, skip);
+-            if to > up.next {
++            if !part.is_empty() {
+                 if let Some(pipe) = up.pipe.as_mut()
+-                    && pipe.write_all(&part[skip as usize..]).await.is_err()
++                    && pipe.write_all(&part).await.is_err()
+                 {
+                     // The link of this side is gone: its end goes down.
+                     up.pipe = None;

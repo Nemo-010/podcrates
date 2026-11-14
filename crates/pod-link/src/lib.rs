@@ -30,12 +30,17 @@
 //! same TLS under one stream of QUIC, over UDP or the caller's datagrams),
 //! with the feature `udp`, `udp::Udp` (the same TLS over KCP over UDP), with
 //! the feature `dns`, `dns::Dns` (the same TLS over the ARQ over DNS queries
-//! and TXT answers), and with the feature `icmp`, `icmp::Icmp` (the same TLS
-//! over the ARQ over ICMP echo messages). Each carrier says with
+//! and TXT answers), with the feature `icmp`, `icmp::Icmp` (the same TLS
+//! over the ARQ over ICMP echo messages), and with the feature `s3`,
+//! `s3::S3` (the same TLS over objects of a bucket of the S3 API). Each carrier says with
 //! [`Carrier::available`] why the host cannot use it, and a listener gives
 //! the key that its peer proved with [`Listener::accept_peer`]. The
 //! registry of the carriers, their order and their flags are the
 //! consumer's (call C117).
+//!
+//! [`split::Split`] runs one link over two carriers: the bytes of the
+//! dialer up one, the bytes of the listener down the other, and the loss of
+//! either half ends the session with its name.
 //!
 //! A carrier that loses datagrams ([`datagram::Datagrams`]) carries a link
 //! through the selective-repeat ARQ: [`arq::ArqStream`] makes one ordered
@@ -54,7 +59,7 @@
 pub mod arq;
 mod carrier;
 pub mod datagram;
-#[cfg(any(feature = "dns", feature = "icmp"))]
+#[cfg(any(feature = "dns", feature = "icmp", feature = "s3"))]
 mod dgram_tls;
 #[cfg(feature = "dns")]
 pub mod dns;
@@ -69,13 +74,17 @@ mod link;
 pub mod memory;
 #[cfg(feature = "tcp")]
 mod pin;
+mod pipes;
 #[cfg(feature = "poll")]
 pub mod poll;
 #[cfg(any(feature = "h2", feature = "poll"))]
 mod post_url;
 #[cfg(feature = "quic")]
 pub mod quic;
+#[cfg(feature = "s3")]
+pub mod s3;
 mod settings;
+pub mod split;
 mod state;
 mod stream;
 #[cfg(feature = "tcp")]

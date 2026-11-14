@@ -1,0 +1,13 @@
+diff --git a/crates/pod-link/src/split/run.rs b/crates/pod-link/src/split/run.rs
+index 47bb4be..7aadfef 100644
+--- a/crates/pod-link/src/split/run.rs
++++ b/crates/pod-link/src/split/run.rs
+@@ -162,7 +162,7 @@ async fn recv_main(mut r: ReadHalf<BoxIo>, mut to: DuplexStream, half: Half, s:
+                     gone = true;
+                 }
+             }
+-            kind::BEAT => {}
++            kind::BEAT | kind::END => {}
+             kind::LOST => return s.lose(told(&frame.1), "the peer lost it"),
+             kind::END => {
+                 let _ = to.shutdown().await;

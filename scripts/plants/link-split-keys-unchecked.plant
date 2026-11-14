@@ -1,0 +1,6 @@
+# The split listener joins two halves that proved two keys (T-500).
+ENTRY=T-500
+GROUP=link
+EXPECT='halves of two keys are refused'
+RUN='cargo test -p pod-link --all-features --test split the_listener_joins_the_halves'
+LIMIT=1800

@@ -46,9 +46,8 @@ mod dial;
 mod down;
 mod lane;
 mod listen;
-mod pipes;
 mod session;
-mod wire;
+pub(crate) mod wire;
 
 /// The reader of HTTP/1.1 and of SSE, for the fuzz target `link_poll_wire`
 /// (feature `fuzzing`). It is no API.
@@ -101,6 +100,9 @@ pub const MAX_HANDSHAKES: usize = 64;
 
 /// The default count of sessions that a listener holds.
 pub const MAX_SESSIONS: usize = 256;
+
+/// The default count of connections that a listener holds at once.
+pub const MAX_CONNECTIONS: usize = 1024;
 
 /// The default cap of the bytes down that the sessions of a listener keep
 /// for their dialers: the full window of 64 sessions.
@@ -200,10 +202,14 @@ pub struct Poll {
     pub max_handshakes: usize,
     /// The most sessions that a listener holds (at least 1).
     pub max_sessions: usize,
+    /// The most connections that a listener holds at once (at least 1); a
+    /// connection past them closes at its accept.
+    pub max_connections: usize,
     /// The most bytes down that the sessions of a listener keep for their
     /// dialers (at least [`MIN_BYTES`]): a session waits for room, and an
     /// open with no room for one batch answers 429. Each session holds two
-    /// pipes of [`BATCH`] and a buffer of 64 KiB besides.
+    /// pipes of 64 KiB and a buffer of 16 KiB besides; a connection reads a
+    /// body by parts of at most 64 KiB, and keeps no whole body.
     pub max_bytes: usize,
     /// A listener answers a push (SSE, chunked); else 406.
     pub push: bool,
@@ -223,6 +229,7 @@ impl fmt::Debug for Poll {
             .field("idle", &self.idle)
             .field("max_handshakes", &self.max_handshakes)
             .field("max_sessions", &self.max_sessions)
+            .field("max_connections", &self.max_connections)
             .field("max_bytes", &self.max_bytes)
             .field("push", &self.push)
             .finish()
@@ -247,6 +254,7 @@ impl Poll {
             idle: IDLE,
             max_handshakes: MAX_HANDSHAKES,
             max_sessions: MAX_SESSIONS,
+            max_connections: MAX_CONNECTIONS,
             max_bytes: MAX_BYTES,
             push: true,
         }
@@ -287,8 +295,8 @@ impl Poll {
         if [self.connect_timeout, self.handshake_timeout, self.answer_timeout].contains(&Duration::ZERO) {
             return usage("a time limit is 0");
         }
-        if self.max_handshakes == 0 || self.max_sessions == 0 {
-            return usage("max_handshakes or max_sessions is 0: give 1 or more");
+        if self.max_handshakes == 0 || self.max_sessions == 0 || self.max_connections == 0 {
+            return usage("max_handshakes, max_sessions or max_connections is 0: give 1 or more");
         }
         if self.max_bytes < MIN_BYTES {
             return usage("max_bytes is less than one batch (256 KiB)");

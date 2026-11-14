@@ -1,0 +1,7 @@
+# A poll listener reads the whole body of a POST up before it goes into the
+# link: each connection keeps a body of up to 256 KiB (T-525).
+ENTRY=T-525
+GROUP=link
+EXPECT='the first part of the body in the link in time'
+RUN='cargo test -p pod-link --all-features --test poll_lanes a_body_up_goes_into_the_link'
+LIMIT=1800

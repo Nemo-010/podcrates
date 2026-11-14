@@ -1,0 +1,7 @@
+# The s3 carrier puts an object with no If-None-Match: a PUT again after a lost
+# answer writes the object again, and two writers can share a key (T-494).
+ENTRY=T-494
+GROUP=link
+EXPECT='each PUT again found its object'
+RUN='cargo test -p pod-link --all-features --test s3 a_put_whose_answer_was_lost'
+LIMIT=1800

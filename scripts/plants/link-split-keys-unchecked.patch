@@ -1,0 +1,12 @@
+diff --git a/crates/pod-link/src/split/listen.rs b/crates/pod-link/src/split/listen.rs
+index 184bc71..1da195f 100644
+--- a/crates/pod-link/src/split/listen.rs
++++ b/crates/pod-link/src/split/listen.rs
+@@ -131,6 +131,7 @@ fn join(hello: Hello, waiting: &mut HashMap<[u8; 16], (Instant, Hello)>, timing:
+     let (up, down) = if hello.up { (hello, other) } else { (other, hello) };
+     if let (Some(a), Some(b)) = (up.peer, down.peer)
+         && a != b
++        && false
+     {
+         let _ = out.try_send(Err(err(CarrierErrorKind::Refused, format!("the up half proved {a}, the down half {b}"))));
+         return;

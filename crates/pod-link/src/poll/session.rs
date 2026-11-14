@@ -16,7 +16,15 @@ use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
 use super::budget::{Budget, Charge};
-use super::pipes::{Ends, Pipes, State, pipes, until};
+use crate::pipes::{Ends, Pipes, State, pipes, until};
+
+/// The bytes of each pipe of a session on a listener: the pump drains the
+/// pipe down into the bytes kept, and a body up goes in by parts, so a
+/// larger pipe adds memory and no speed.
+pub(super) const PIPE: usize = 64 << 10;
+
+/// The most bytes that the pump of a session reads at once.
+const PUMP: usize = 16 << 10;
 
 fn locked<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
@@ -156,7 +164,7 @@ impl Down {
 /// than the window; wait for the room of the bytes read in the budget of
 /// the listener before they go in.
 async fn pump(down: Arc<Down>, mut from: DuplexStream) {
-    let mut buf = vec![0u8; 64 << 10];
+    let mut buf = vec![0u8; PUMP];
     loop {
         let room = loop {
             let notified = down.room.notified();
@@ -240,16 +248,16 @@ pub(super) struct Table {
     sessions: Mutex<HashMap<u128, Arc<Session>>>,
     max: usize,
     window: usize,
-    pipe: usize,
+    batch: usize,
     budget: Arc<Budget>,
 }
 
 impl Table {
     /// At most `max` sessions, and `max_bytes` bytes down kept for their
-    /// dialers; each session keeps at most `window` bytes down and has two
-    /// pipes of `pipe` bytes.
-    pub fn new(max: usize, max_bytes: usize, window: usize, pipe: usize) -> Table {
-        Table { sessions: Mutex::new(HashMap::new()), max, window, pipe, budget: Budget::new(max_bytes) }
+    /// dialers; each session keeps at most `window` bytes down, and an open
+    /// needs the room of one `batch`.
+    pub fn new(max: usize, max_bytes: usize, window: usize, batch: usize) -> Table {
+        Table { sessions: Mutex::new(HashMap::new()), max, window, batch, budget: Budget::new(max_bytes) }
     }
 
     /// The bytes down that the sessions keep now.
@@ -262,11 +270,11 @@ impl Table {
         if let Some(session) = sessions.get(&id) {
             return if session.key == key { Opened::Again } else { Opened::Stranger };
         }
-        if sessions.len() >= self.max || !self.budget.has_room(self.pipe) {
+        if sessions.len() >= self.max || !self.budget.has_room(self.batch) {
             return Opened::Busy;
         }
         let ends = Ends::new();
-        let (io, far) = pipes(self.pipe, ends.clone());
+        let (io, far) = pipes(PIPE, ends.clone());
         let charge = self.budget.none();
         let kept = Kept { base: 0, buf: VecDeque::new(), fin: false, sent: 0, turn: 0, charge };
         let down = Arc::new(Down {

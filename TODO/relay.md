@@ -5156,7 +5156,7 @@ dns suite (`crates/pod-link/tests/dns.rs`, 7), the loss suite
 **Milestone:** M2
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -5178,6 +5178,30 @@ no such part.
 ```sh
 cargo test --workspace --all-features
 ```
+
+## Done
+
+2026-11-14, commit `fa8adb4`. Read: PodUtils/podnet@T-279 (its rules of row
+E2-4 of PodUtils/podnet#468; no test yet). `s3::S3` behind the feature `s3`
+(with `poll` for its HTTP/1.1 and pipes; sha2 and hmac of the workspace for
+SigV4, no new crate): the keys `open/SESSION`, `up/SESSION/SEQ` and
+`down/SESSION/SEQ` under the prefix of a link, a PUT with
+`If-None-Match: *`, a GET with `If-Match`, objects of 256 KiB, 8 in flight,
+a poll of 100 ms to 5 s, a page of 1000 keys, a budget of 1 GiB for each
+end of a session with a warning at 80 %, an opt-in prune; the TLS of the
+tcp carrier over the objects; a listener takes the sessions that open
+after its bind (calls C489 to C491). The endpoint, the key, the region and
+the TLS of `https` are the caller's; the static probe binds the carrier.
+Tests: `tests/s3.rs`, 8 passed (15 runs in a loop), against a stand-in of
+the S3 API (`tests/common/s3.rs`) that checks SigV4 and the conditions;
+the unit tests of `s3::sign` (the four examples of the documentation of
+the S3 API), `s3::xml`, `s3::client` and `s3::stream`. The plants
+`link-s3-put-unconditional`, `link-s3-run-past-a-gap`,
+`link-s3-budget-unchecked`, `link-s3-old-session-taken`,
+`link-s3-prune-skipped` and `s3-sign-query-unsorted` are caught.
+`cargo test -p pod-link --all-features`: 203 passed. A test against a
+server of another party on the loopback of CI is not part of this entry
+(call C491).
 
 # T-495: `pod-link`: the HTTP poll simplex carrier (PodUtils/podnet#521)
 
@@ -5391,7 +5415,7 @@ After T-301 (`pod-e2e`) and T-310 (the ARQ).
 **Milestone:** M2
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -5417,6 +5441,25 @@ cargo test --workspace --all-features
 ## Start condition
 
 After T-493 to T-495 (the simplex carriers).
+
+## Done
+
+2026-11-14, commit `bdf5370`. Read: PodUtils/podnet@T-302 (its rules of row
+E7-1 of PodUtils/podnet#473; no test yet). `split::Split` joins two
+carriers of any kind, with no feature: a hello on each half, the join of
+the halves of a session at the listener (two keys refused), `DATA` and
+`END` on the main direction of each half, beats after 10 s of silence on
+each direction, the loss of a half after 30 s of silence, a failure or an
+early end, named on each side by `split::Lost` (`up-carrier lost`,
+`down-carrier lost`) with a `LOST` frame on the other half (call C492). No
+half takes over the other: podnet's "upstream fallback" of the control
+channel is not done, as it is a promotion of the up half (call C493). The
+pipes of the poll carriers are the module `pipes` of the crate now.
+Tests: `tests/split.rs`, 5 passed (20 runs in a loop), among them 1 MiB
+down a fast half and 64 KiB up a half of the ARQ at 3 % loss; the plants
+`link-split-silence-unseen`, `link-split-keys-unchecked` and
+`link-split-end-ignored` are caught. `cargo test -p pod-link
+--all-features`: 209 passed.
 
 # T-510: `pod-e2e`: a fuzz target of the opener of the records
 
@@ -5812,7 +5855,7 @@ pass; `cargo test -p pod-link --all-features`: 157 passed.
 **Milestone:** M2
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -5832,6 +5875,26 @@ Make the pipes of a session on the listener smaller (the pump drains the pipe do
 ```sh
 cargo test -p pod-link --all-features --test poll_lanes
 ```
+
+## Done
+
+2026-11-14, commit `c3b3403`. A poll listener reads the body of a POST up
+by parts of at most 64 KiB (`wire::Conn::part`) and writes each part into
+the link at once; a cut in a body keeps the part that went in, and the
+POST again skips it (call C488). Each other body is read by parts and
+dropped, so no connection keeps a whole body, and a body needs no cap of
+its own. The pipes of a session on a listener are 64 KiB, the buffer of
+its pump 16 KiB. `Poll::max_connections` (1024) caps the connections at
+once; one past it closes at its accept (`Stats::turned_away`). Throughput
+on the loopback, 32 MiB each way, 3 runs: up 96 to 116 MiB/s before and
+107 to 269 after; down 59 to 98 before and 54 to 100 after. Tests
+`a_connection_past_the_cap_closes_and_the_others_stay` and
+`a_body_up_goes_into_the_link_by_parts_and_a_cut_keeps_its_part`; the
+plants `link-poll-connections-uncapped` and `link-poll-body-kept-whole`
+make them fail; the plants `link-poll-duplicate-taken`,
+`link-poll-handshake-inline` and `link-poll-open-room-unchecked` follow the
+new code and are caught. `cargo test -p pod-link --all-features --test
+poll_lanes`: 9 passed; the crate: 190 passed.
 
 # T-526: `pod-link`: the arithmetic of the crate `kcp` wraps by design: no overflow checks for it, and the fix upstream
 
@@ -7213,3 +7276,30 @@ cargo test --manifest-path fuzz/Cargo.toml --lib
 - `cargo test --manifest-path fuzz/Cargo.toml --lib`: 13 passed, 4 ignored.
 - Plants, each caught by hand: `proxy-unix-host-in-label` (`a_unix_proxy_has_no_host_and_no_user`), `proxy-exec-assignment-shown` (`the_label_and_the_errors_of_a_spec_hold_no_secret`), `fuzz-proxy-unix-user-shown` (the fuzz target on the seed `unix-at`).
 - clippy of `pod-proxy` and of the fuzz library, rustfmt, `cargo doc` and `scripts/agent/check-windows.sh` and `scripts/agent/check-macos.sh` are clean; the README of `pod-proxy` lists the new tests, and `fuzz/README.md` the checks of `proxy_url`.
+
+# T-623: `pod-link`: the S3 carrier against a real S3-compatible server
+
+**Source:** T-494 (a finding of its work).
+**Category:** chore
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The S3 carrier (T-494) is proven only against a stand-in of the crate, which checks signatures with the signer of the crate. The examples of the AWS documentation prove the signer, but no test shows that a real S3-compatible server takes the requests: the path style, `If-None-Match` on a PUT, the pages of a listing, and the codes of its errors. podnet's own test runs against a local S3-compatible server.
+
+## Premise
+
+- Read: the report of T-494 and calls C489 to C491; `crates/pod-link/tests/s3.rs`; `scripts/ci/` (the scripts that run a server of another party pinned by digest, for example `coredns-tests.sh`); `docs/live-calls.md`.
+
+## Approach
+
+Pin a server of another party (MinIO or SeaweedFS) by digest, run it on the loopback of CI from a script of `scripts/ci/`, add a row to `docs/live-calls.md`, and run the tests of `tests/s3.rs` against it, under a feature or as ignored tests that the script runs.
+
+## Prove
+
+```sh
+sh scripts/ci/s3-tests.sh
+```

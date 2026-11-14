@@ -1,0 +1,14 @@
+diff --git a/crates/pod-link/src/s3/listen.rs b/crates/pod-link/src/s3/listen.rs
+index 4fc9083..ff72ac9 100644
+--- a/crates/pod-link/src/s3/listen.rs
++++ b/crates/pod-link/src/s3/listen.rs
+@@ -78,7 +78,8 @@ pub(super) async fn bind(
+ ) -> Result<S3Listener, CarrierError> {
+     let dir = format!("{}open/", base(prefix));
+     // One try: a refused key or a missing bucket is an error of the bind.
+-    let seen: HashSet<String> = sessions(&client, &dir, s.page).await.map_err(Fault::into_error)?.into_iter().collect();
++    sessions(&client, &dir, s.page).await.map_err(Fault::into_error)?;
++    let seen = HashSet::new();
+     let address = if prefix.is_empty() { client.bucket.clone() } else { format!("{}/{prefix}", client.bucket) };
+     let (out, results) = mpsc::channel(QUEUE);
+     let door = Door {

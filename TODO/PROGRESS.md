@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 506 entries: 118 open, 8 partial, 6 blocked, 374 done.
+`TODO/INDEX.md` holds 507 entries: 116 open, 8 partial, 6 blocked, 377 done.
 
 ## State
 
@@ -72,9 +72,9 @@ online"): the work for podrunner and podnet comes first, then podssh and
 podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
-First: The Windows guest of podvm (#152): T-602. Then the link carriers
-of M2 for podnet (item 3c): T-526, T-494, T-500 and T-525. Then the items
-below, in order.
+First: T-622 (PodUtils/podvm#370, #158) and the next tag (`v0.46.0`).
+The Windows guest of podvm (#152): T-602. Then the link carriers of M2
+for podnet (item 3c): T-526. Then the items below, in order.
 
 1. **The defects and asks of the consumers:** T-550, T-551 and
    T-554 (Nostr, WebTorrent's trackers and ntfy as meeting points of a
@@ -109,9 +109,7 @@ below, in order.
    c. `v0.40.0` holds the poll, quic, udp, dns and icmp carriers of
       `pod-link` and the gate of E2-1. The tag after: T-419 (the facts of
       the file hosts from the live run of the file hosts, `live.yml`); T-526 (partial: the fix of `kcp`
-      upstream); T-494 (S3 simplex); T-500 (an up and a down carrier);
-      T-525 (the bytes of a poll listener outside the cap of
-      `max_bytes`).
+      upstream); T-623 (the S3 carrier against a real S3 server).
    d. Then: T-496 (DNS stream), T-498 (a WireGuard peer), T-499 (NAT
       traversal with the relay), T-515 (the congestion window of the ARQ,
       with the first carrier over a shared path), T-514 (a stream-aware

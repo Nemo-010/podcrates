@@ -1,0 +1,7 @@
+# SigV4 of the s3 carrier signs the query in its own order, not sorted by name:
+# the server refuses the signature (T-494).
+ENTRY=T-494
+GROUP=link
+EXPECT='GET Bucket'
+RUN='cargo test -p pod-link --all-features --lib s3::sign'
+LIMIT=1800

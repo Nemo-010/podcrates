@@ -1,0 +1,13 @@
+diff --git a/crates/pod-link/src/s3/client.rs b/crates/pod-link/src/s3/client.rs
+index afbe17c..82460d2 100644
+--- a/crates/pod-link/src/s3/client.rs
++++ b/crates/pod-link/src/s3/client.rs
+@@ -276,7 +276,7 @@ impl Client {
+     /// is there already (412) is the one of a PUT whose answer was lost.
+     pub async fn put(&self, key: &str, body: &[u8]) -> Result<(), Fault> {
+         let reply =
+-            self.send("PUT", key, &[], &[("If-None-Match", "*")], body, MAX_ERROR).await.map_err(Fault::Again)?;
++            self.send("PUT", key, &[], &[], body, MAX_ERROR).await.map_err(Fault::Again)?;
+         match reply.status {
+             200..=299 | 412 => Ok(()),
+             _ => Err(self.refusal("PUT", &reply)),

@@ -32,6 +32,10 @@ dns = ["tcp", "dep:pod-dns"]
 # The ICMP echo carrier: the ARQ under the TLS of `tcp`, its frames in the
 # data of echo messages (`icmp`). The raw socket uses libc on unix.
 icmp = ["tcp"]
+# The object-storage carrier: the TLS of `tcp` over objects of a bucket of
+# the S3 API, with SigV4 of sha2 and hmac (`s3`); the HTTP/1.1 and the
+# pipes of `poll`.
+s3 = ["poll", "dep:sha2", "dep:hmac"]
 # The reader of HTTP/1.1 and of SSE of the poll carriers is public in
 # `poll::fuzzing`, for the fuzz target `link_poll_wire` of fuzz/. No
 # consumer turns this on.
@@ -66,6 +70,9 @@ base64 = { workspace = true, optional = true }
 # with an EDNS0 size, the read of its TXT, the question of a query and the
 # build of an answer (pod_dns::txt).
 pod-dns = { workspace = true, optional = true }
+# SigV4 of the s3 carrier: SHA-256 and HMAC, pure Rust.
+sha2 = { workspace = true, optional = true }
+hmac = { workspace = true, optional = true }
 # The driver of a link, the streams, the carriers and the keepalive's clock.
 tokio = { workspace = true, features = ["io-util", "net", "time", "sync", "rt", "macros"] }
 tracing = { workspace = true }

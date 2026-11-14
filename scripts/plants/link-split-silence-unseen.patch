@@ -1,0 +1,13 @@
+diff --git a/crates/pod-link/src/split/run.rs b/crates/pod-link/src/split/run.rs
+index 47bb4be..c139764 100644
+--- a/crates/pod-link/src/split/run.rs
++++ b/crates/pod-link/src/split/run.rs
+@@ -80,7 +80,7 @@ impl Shared {
+ pub(super) fn run(end: End, timing: Timing) -> Pipes {
+     let ends = Ends::new();
+     let (io, far) = pipes(FRAME, ends.clone());
+-    let s = Arc::new(Shared { ends, progress: watch::channel(Progress::default()).0, timing, lost: Mutex::new(None) });
++    let s = Arc::new(Shared { ends, progress: watch::channel(Progress::default()).0, timing: Timing { lost_after: Duration::from_secs(86_400), ..timing }, lost: Mutex::new(None) });
+     let (out_r, out_w) = tokio::io::split(end.out);
+     let (in_r, in_w) = tokio::io::split(end.into);
+     tokio::spawn(send_main(out_w, far.to_peer, end.out_half, s.clone()));

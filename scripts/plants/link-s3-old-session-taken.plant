@@ -1,0 +1,7 @@
+# A listener of the s3 carrier takes the sessions whose open objects were in
+# the bucket before its bind (T-494).
+ENTRY=T-494
+GROUP=link
+EXPECT='no listener took the old session'
+RUN='cargo test -p pod-link --all-features --test s3 a_listener_takes_no_session_older'
+LIMIT=1800

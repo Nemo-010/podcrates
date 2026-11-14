@@ -1,0 +1,6 @@
+# The reader of the s3 carrier with prune removes no object it read (T-494).
+ENTRY=T-494
+GROUP=link
+EXPECT='each object was removed'
+RUN='cargo test -p pod-link --all-features --test s3 prune_removes_each_object'
+LIMIT=1800
