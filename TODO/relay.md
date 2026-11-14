@@ -7363,3 +7363,30 @@ cargo test -p pod-warp --all-features
 - `cargo test -p pod-warp --all-features`: all passed. The new test `tests/net.rs` `after_another_key_each_door_of_the_record_read_again_is_tried` sends the first IPv4 dial to a second edge (another key) and each later IPv4 dial to a refusing port (`common::Moved::with_first`): the IPv6 door opens after 3 dials, and with the IPv6 door refused too the failure names the mismatch and both doors (stage `Connect`, no try again). The binary of `--test net` passed 30 runs of 30.
 - Plants, each caught by hand: `warp-fresh-record-first-door-ends` (a door that fails for another cause ends the try with its raw failure), `warp-fresh-record-mismatch-unnamed` (the failure drops the mismatch).
 - clippy, rustfmt and `cargo doc` of `pod-warp` are clean; the README of `pod-warp` names the behaviour, the test and the plants.
+
+# T-627: `pod-link`: the stand-in of the S3 API behind the feature `s3-standin` (PodUtils/podnet#564)
+
+**Source:** PodUtils/podnet#564 (COORD-082 of podnet; PodUtils/podnet@T-279).
+**Category:** feature
+**Milestone:** M2
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The stand-in of the S3 API that the tests of the carrier `s3` use is in `crates/pod-link/tests/common`, so a consumer cannot use it. podnet made a copy for its tests of `link_s3` (tests/link_s3_standin/mod.rs of podnet), and the two copies can drift apart.
+
+## Premise
+
+- Read: PodUtils/podnet#564; `crates/pod-link/tests/common/s3.rs` (the stand-in `StandIn` and `key`); `crates/pod-link/tests/s3.rs`; the feature `standin` of `crates/pod-wg/Cargo.toml` and `crates/pod-devtunnel/Cargo.toml` (`src/standin.rs`).
+
+## Approach
+
+Move the stand-in into a module `s3::standin` of the crate behind a new feature `s3-standin` (which takes `s3`), with a public API: start, the endpoint, the buckets, the keys under a prefix, and the faults that the tests use. The tests of `s3.rs` take it from the crate (`required-features`). The README of the crate lists the feature, and it says that no binary turns it on. Tell podnet on the hand-off that it can remove its copy.
+
+## Prove
+
+```sh
+cargo test -p pod-link --all-features --test s3
+```
