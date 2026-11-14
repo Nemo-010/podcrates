@@ -169,6 +169,15 @@ takes `up` and `x` in one session. The test, `tests/http_road_flow.rs`,
 ends a session of 20 MiB each way with such a caller, in each form (plant
 `relay-t477-serial-writes-down`).
 
+When the caller drops its stream before the session's end, the split and
+serial forms send one `POST /v1/http/s/ID/close` with the session's key,
+within `client::LIMIT` (20 s), and the end is `1000 client closed` (T-478).
+The role then frees the session, its target and its windows at once, not
+at its idle limit. The test, `tests/http_road_gone.rs` (2 tests), drops
+the caller's stream after 512 KiB of 4 MiB down, in each form; the
+stand-in records one close within the bound (plants
+`relay-t478-serial-no-close`, `relay-t478-split-no-close`).
+
 The one-POST form (T-559, PodUtils/podssh#239) carries the session on one
 connection: `POST /v1/http/one/HOST/PORT` of HTTP/1.1 with
 `Transfer-Encoding: chunked` both ways. Each write of the caller goes up

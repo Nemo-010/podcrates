@@ -20,7 +20,7 @@ use tokio::sync::mpsc::{self, error::TrySendError};
 use super::OFFSET;
 use super::client::{End, LIMIT, Retry, Shared, Then, closed, gather_more, refused};
 use super::conn::Conn;
-use super::split::{acknowledged, batch};
+use super::split::{acknowledged, batch, caller_gone};
 
 /// The first pause after an exchange that carried nothing.
 const PAUSE_FIRST: Duration = Duration::from_millis(50);
@@ -28,7 +28,8 @@ const PAUSE_FIRST: Duration = Duration::from_millis(50);
 /// 4 MiB at the role's largest bound.
 const HELD: usize = 4;
 
-/// The session's exchanges, until it ends or the caller is gone.
+/// The session's exchanges, until it ends or the caller is gone; then
+/// one `close` ([`caller_gone`]).
 pub(super) async fn run(mut conn: Conn, s: Arc<Shared>, ours: DuplexStream) {
     let (mut from_app, to_app) = tokio::io::split(ours);
     let (down, downs) = mpsc::channel(HELD);
@@ -46,7 +47,7 @@ pub(super) async fn run(mut conn: Conn, s: Arc<Shared>, ours: DuplexStream) {
         let room = match down.try_reserve() {
             Ok(permit) => Some(permit),
             Err(TrySendError::Full(())) => None,
-            Err(TrySendError::Closed(())) => return,
+            Err(TrySendError::Closed(())) => return caller_gone(&mut conn, &s).await,
         };
         if waiting.is_none() {
             // The caller's bytes; else the pause, or room in the channel.
@@ -64,7 +65,7 @@ pub(super) async fn run(mut conn: Conn, s: Arc<Shared>, ours: DuplexStream) {
                 () = tokio::time::sleep(pause), if room.is_some() => {}
                 freed = down.reserve(), if room.is_none() => {
                     if freed.is_err() {
-                        return;
+                        return caller_gone(&mut conn, &s).await;
                     }
                     continue;
                 }

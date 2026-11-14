@@ -178,9 +178,12 @@ pub(super) struct Shared {
 }
 
 impl Shared {
-    /// The path of `what` of this session, with `query`.
+    /// The path of `what` of this session, with `query` when it has one.
     pub fn path(&self, what: &str, query: &str) -> String {
-        format!("{SESSION}{}/{what}?{query}", self.id)
+        match query {
+            "" => format!("{SESSION}{}/{what}", self.id),
+            _ => format!("{SESSION}{}/{what}?{query}", self.id),
+        }
     }
 
     /// A request of this session, with its key.

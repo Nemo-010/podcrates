@@ -1,0 +1,22 @@
+diff --git a/crates/pod-relay/src/http_road/serial.rs b/crates/pod-relay/src/http_road/serial.rs
+index 9fb39f8..eb2552e 100644
+--- a/crates/pod-relay/src/http_road/serial.rs
++++ b/crates/pod-relay/src/http_road/serial.rs
+@@ -47,7 +47,7 @@ pub(super) async fn run(mut conn: Conn, s: Arc<Shared>, ours: DuplexStream) {
+         let room = match down.try_reserve() {
+             Ok(permit) => Some(permit),
+             Err(TrySendError::Full(())) => None,
+-            Err(TrySendError::Closed(())) => return caller_gone(&mut conn, &s).await,
++            Err(TrySendError::Closed(())) => return,
+         };
+         if waiting.is_none() {
+             // The caller's bytes; else the pause, or room in the channel.
+@@ -65,7 +65,7 @@ pub(super) async fn run(mut conn: Conn, s: Arc<Shared>, ours: DuplexStream) {
+                 () = tokio::time::sleep(pause), if room.is_some() => {}
+                 freed = down.reserve(), if room.is_none() => {
+                     if freed.is_err() {
+-                        return caller_gone(&mut conn, &s).await;
++                        return;
+                     }
+                     continue;
+                 }

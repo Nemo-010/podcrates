@@ -109,6 +109,8 @@ pub struct Record {
     /// The requests `up`: the batches that went with no bytes down.
     pub ups: u64,
     pub ended: Option<(u16, String)>,
+    /// The requests `close`.
+    pub closes: u64,
     /// The requests of the one-POST form, the token of the last one, and
     /// whether a body of the form came to its last chunk.
     pub ones: u64,
@@ -121,12 +123,18 @@ pub struct StandIn {
     plan: Plan,
     up: Mutex<Up>,
     record: Mutex<Record>,
+    closed: tokio::sync::Notify,
 }
 
 impl StandIn {
     pub fn new(plan: Plan) -> Arc<StandIn> {
         let up = Mutex::new(Up::new(plan.room));
-        Arc::new(StandIn { plan, up, record: Mutex::default() })
+        Arc::new(StandIn { plan, up, record: Mutex::default(), closed: tokio::sync::Notify::new() })
+    }
+
+    /// Wait for a request `close`.
+    pub async fn closed(&self) {
+        self.closed.notified().await;
     }
 
     /// The road to this stand-in.
@@ -185,6 +193,8 @@ impl StandIn {
                 Some(answer(200, &[], doc.as_bytes()))
             }
             Some(Route::Session(id, kind)) if id == ID && key == Some(KEY) => {
+                // Each close counts, also one after the end.
+                self.record(|r| r.closes += u64::from(matches!(kind, Kind::Close)));
                 if let Some(gone) = self.gone() {
                     return Some(gone);
                 }
@@ -217,6 +227,7 @@ impl StandIn {
                     }
                     Kind::Close => {
                         self.end(1000, "client closed");
+                        self.closed.notify_one();
                         Some(answer(204, &[], b""))
                     }
                 }
