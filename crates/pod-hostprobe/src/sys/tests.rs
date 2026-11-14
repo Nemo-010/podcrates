@@ -376,3 +376,32 @@ fn a_pidfd_signals_its_process_and_not_a_reaped_one() {
     assert_eq!(pidfd_send_signal(pidfd, 0), Err(ESRCH), "a reaped process took a signal");
     let _ = close(pidfd);
 }
+
+/// `sigblock` blocks the set in the calling thread only, and `sigrestore`
+/// gives back the earlier mask. It runs in a thread of its own, so that no
+/// other test sees the mask.
+#[test]
+fn sigblock_blocks_the_set_in_this_thread_and_sigrestore_gives_it_back() {
+    fn blocked() -> u64 {
+        let status = std::fs::read_to_string("/proc/thread-self/status").expect("/proc/thread-self/status");
+        let word = status.lines().find_map(|l| l.strip_prefix("SigBlk:")).expect("SigBlk").trim().to_string();
+        u64::from_str_radix(&word, 16).expect("a hex mask")
+    }
+    let set = sigbit(SIGHUP) | sigbit(SIGQUIT);
+    let seen = std::thread::spawn(move || {
+        let before = blocked();
+        let mut old = 0u64;
+        sigblock(set, &mut old).expect("sigblock");
+        let during = blocked();
+        sigrestore(old).expect("sigrestore");
+        (before, old, during, blocked())
+    })
+    .join()
+    .expect("the thread");
+    let (before, old, during, after) = seen;
+    assert_eq!(old, before, "the earlier mask");
+    assert_eq!(during & set, set, "the set is not blocked: {during:x}");
+    assert_eq!(during & !set, before & !set, "sigblock changed other signals");
+    assert_eq!(after, before, "sigrestore did not give back the mask");
+    assert_eq!(blocked() & set, 0, "the block reached another thread");
+}

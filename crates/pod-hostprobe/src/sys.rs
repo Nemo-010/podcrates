@@ -468,6 +468,9 @@ pub use proc::*;
 mod pidfd;
 pub use pidfd::*;
 
+mod sigmask;
+pub use sigmask::*;
+
 mod statx;
 pub use statx::statx_at;
 

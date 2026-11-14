@@ -1,0 +1,7 @@
+# The thread of a foreground hold blocks no signal: a shutdown signal that
+# the caller blocks lands on that thread and ends the process (T-616).
+ENTRY=T-616
+GROUP=supervise
+EXPECT='the holder ended at a shutdown signal'
+RUN='cargo test -p pod-supervise --test foreground'
+LIMIT=1800
