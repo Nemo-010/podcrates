@@ -7190,7 +7190,7 @@ arguments of each watch). Plant `services-windows-eval-pin-moved` (group
 **Milestone:** M1
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7210,3 +7210,32 @@ Run xturn at that commit in CI: a pinned `erlef/setup-beam` (Erlang and Elixir o
 ```sh
 sh scripts/ci/turn-tests.sh
 ```
+
+## Done
+
+2026-11-14, commit `392e82d` (the script, the test, the patch of
+xsockets, the plants, the steps of `ci.yml` and `plants.yml`, the README
+of `pod-turn` and calls C587, C588) and the commit that closes this
+entry. xturn is at github.com/Lazarus404/xturn (not xirsys/xturn, which
+does not hold the commit). It runs on Linux only with a patch: xsockets
+1.0.0 opens each relay socket with the option `recverr`, which no
+`gen_udp` of Erlang/OTP knows, so each Allocate fails with badarg
+(measured; call C588). With the patch, xturn signs each answer to a
+signed request with MESSAGE-INTEGRITY-SHA256 alone, with the SHA-256 key
+(measured; call C587). `scripts/ci/turn-tests.sh` builds xturn at the
+commit with the Erlang/OTP 29.0.5 and the Elixir 1.20.3 of its
+`.tool-versions` (`erlef/setup-beam` v1.24.1 in CI; the builds of
+builds.hex.pm here) and the packages of its `mix.lock`, and runs it on
+127.0.0.1:3508. `tests/xturn.rs`, 2 tests: a full allocation with
+USERHASH and SHA-256 (Allocate, CreatePermission, a Send, ChannelBind,
+ChannelData, Refresh, the close), each answer checked for
+MESSAGE-INTEGRITY-SHA256 with the SHA-256 key and no MESSAGE-INTEGRITY;
+a success of the Allocate and of a Refresh whose MESSAGE-INTEGRITY-SHA256
+changed on the way, which the client refuses (`Error::Integrity`,
+`Mismatch`). `sh scripts/ci/turn-tests.sh` passed in 43 s with
+`POD_TURN_TEST_COTURN_BIN` (coturn 4.6.1 of Ubuntu), libjuice 1.7.4 and
+xturn: the 4 lines of `tests/xturn.rs` and each line of before. `cargo
+test -p pod-turn --all-features`: no failure. Plants, each caught by
+hand: `turn-xturn-sha256-unchecked` (the client does not check
+MESSAGE-INTEGRITY-SHA256: the test of the changed answer fails),
+`turn-xturn-skip-fails`. `sh scripts/plant-each.sh --apply`: 0 stale.
