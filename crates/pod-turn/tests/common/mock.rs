@@ -83,6 +83,9 @@ pub struct Control {
     pub alternate: Option<Alternate>,
     /// The relay sockets that a RESERVATION-TOKEN keeps, by the token.
     pub reserved: HashMap<[u8; 8], Arc<UdpSocket>>,
+    /// Each success carries a NONCE that announces PASSWORD-ALGORITHMS, and
+    /// no PASSWORD-ALGORITHMS: the answer of a party on the path.
+    pub downgraded_successes: bool,
 }
 
 pub type Shared = Arc<Mutex<Control>>;
@@ -163,7 +166,12 @@ impl Mock {
         attributes: &[(u16, &[u8])],
         key: Option<&[u8]>,
     ) -> Vec<u8> {
-        let bytes = stun::message(message_type(method, class), id, attributes);
+        let cookie = stun::nonce_cookie(SecurityFeature::PasswordAlgorithms.bit()) + "path";
+        let mut attributes = attributes.to_vec();
+        if class == Class::Success && self.control.lock().unwrap().downgraded_successes {
+            attributes.push((stun::NONCE, cookie.as_bytes()));
+        }
+        let bytes = stun::message(message_type(method, class), id, &attributes);
         let Some(key) = key else { return bytes };
         match self.algorithm() {
             PasswordAlgorithm::Md5 => stun::signed(&bytes, key),

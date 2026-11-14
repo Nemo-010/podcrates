@@ -5864,8 +5864,9 @@ against coturn can use them.
 ## Done
 
 2026-11-14, commits `623f6c4` (the code, the tests, the README of
-`pod-turn` and `pod-tls`, the script and calls C562 to C567) and `bc34417`
-(the plants). Each option of the Problem:
+`pod-turn` and `pod-tls`, the script and calls C562 to C567), `bc34417`
+(the plants) and the commit that closes this entry (the test of a dropped
+success, and its plant). Each option of the Problem:
 
 - The nonce cookie (call C562): `SecurityFeature` reads PASSWORD-ALGORITHMS
   and username anonymity in both orders of the 24 bits (erratum 6290 of
@@ -5874,7 +5875,9 @@ against coturn can use them.
   order (call C566). The nonce of RFC 8489, B.1 is `AAAC`, not `AAAB`: in
   the order of the erratum it announces username anonymity alone. A 401
   or 438 that announces PASSWORD-ALGORITHMS and holds none fails with
-  `Error::Downgrade`; another such answer is dropped.
+  `Error::Downgrade`; another such answer is dropped
+  (`a_success_with_a_downgraded_nonce_is_dropped`: the Refresh goes again
+  and fails by time).
 - USERHASH (RFC 8489, 14.4): sent in place of USERNAME when the nonce
   announces username anonymity; `stun::userhash`. Proven by the request of
   RFC 8489, B.1 as erratum 6268 corrects it (its USERHASH, and its
@@ -5897,7 +5900,7 @@ against coturn can use them.
   ADDRESS-ERROR-CODE 440 of IPv6 (the client drops the unspecified
   address); coturn 4.6.1 answers both families with IPv4 alone.
 - Tests: `cargo test -p pod-turn --all-features`: 28 unit (8 new),
-  `turn_redirect` 9, `turn_allocation` 4, `turn_udp` 12, `turn_tls` 4,
+  `turn_redirect` 10, `turn_allocation` 4, `turn_udp` 12, `turn_tls` 4,
   `coturn` 7 and `coturn_options` 6 (skip with no coturn), `live` 1
   ignored. `sh scripts/ci/turn-tests.sh` passed with the pinned image of
   coturn 4.18.0 (dockerd started here) and with
@@ -5908,7 +5911,7 @@ against coturn can use them.
   `cargo test -p pod-turn --no-default-features --features stun`: 18
   passed.
 - Plants, each caught by hand: `turn-downgrade-not-checked`,
-  `turn-downgraded-answer-kept`, `turn-userhash-not-sent`,
+  `turn-downgraded-answer-kept`, `turn-downgraded-success-taken`, `turn-userhash-not-sent`,
   `turn-userhash-without-colon`, `turn-feature-one-order`,
   `turn-redirect-not-followed`, `turn-redirect-followed-twice`,
   `turn-redirect-realm-unchecked`, `turn-alternate-domain-unsigned`,
@@ -5924,8 +5927,7 @@ against coturn can use them.
 - Not proven against a server of another party: the nonce cookie and
   USERHASH (coturn has neither; T-403 looks for a server with SHA-256), a
   dual allocation with an IPv6 relay (the host here has no IPv6, and
-  coturn relays on 127.0.0.1 alone), and the drop of a downgraded answer
-  that is no 401 or 438 (its unit test alone).
+  coturn relays on 127.0.0.1 alone).
 
 # T-396: `pod-link`: a TCP carrier with TLS 1.3 that pins the Ed25519 key of the peer, and its accept side (PodUtils/podnet#513)
 

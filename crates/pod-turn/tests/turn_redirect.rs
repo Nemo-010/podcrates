@@ -15,7 +15,7 @@ use common::{
     LIMIT, PASSWORD, Refusing, USER, knobs, seen, tls_mock, tls_mock_beside, tls_settings, udp_mock, udp_settings,
 };
 use pod_core::{Class, Failure, Stage, Target};
-use pod_turn::stun::{ALLOCATE, SecurityFeature};
+use pod_turn::stun::{ALLOCATE, REFRESH, SecurityFeature};
 use pod_turn::{Client, Error, Transport};
 
 async fn within<T>(future: impl std::future::Future<Output = T>) -> T {
@@ -56,6 +56,26 @@ async fn a_nonce_of_username_anonymity_gets_userhash() {
         assert!(control.seen[1..].iter().all(|s| s.userhash && s.user.is_none()), "{bits:06x}: {:?}", control.seen);
         assert!(control.seen.iter().any(|s| s.code == 438), "the fresh nonce keeps USERHASH");
     }
+}
+
+/// A success whose nonce announces PASSWORD-ALGORITHMS with none is dropped
+/// as if it never came (RFC 8489, 9.2.5): the Refresh goes again until its
+/// limit, and fails by time.
+#[tokio::test]
+async fn a_success_with_a_downgraded_nonce_is_dropped() {
+    pod_testkit::need_loopback!();
+    let mock = udp_mock(knobs(false)).await;
+    let mut settings = udp_settings(mock.addr, USER, PASSWORD);
+    settings.limits.rto = std::time::Duration::from_millis(20);
+    settings.limits.retransmits = 2;
+    settings.limits.request_timeout = std::time::Duration::from_millis(400);
+    let mut client = within(Client::allocate(settings)).await.unwrap();
+    mock.control.lock().unwrap().downgraded_successes = true;
+    let e = within(client.refresh()).await.unwrap_err();
+    assert!(matches!(e, Error::Timeout { method: REFRESH, .. }), "{e:?}");
+    assert_eq!(seen(&mock.control)[2..], [(REFRESH, 0); 3], "each send got a success that was dropped");
+    mock.control.lock().unwrap().downgraded_successes = false;
+    within(client.refresh()).await.unwrap();
 }
 
 /// With no feature in the cookie the client sends USERNAME.

@@ -126,11 +126,11 @@ client.address_error();                                 // the family that the s
 - **The nonce cookie** (RFC 8489, 9.2; call C562). A nonce that starts
   with `obMatJos2` and announces PASSWORD-ALGORITHMS in a 401 or 438 with
   none fails the request (`Error::Downgrade`); another answer with such a
-  nonce is dropped. A nonce that announces username anonymity makes each
-  request send USERHASH in place of USERNAME. Each feature reads in both
-  orders of the bits: erratum 6290 (bit 0 is the least significant) and
-  the text of 9.2 with the example of RFC 8656, 20 (bit 0 is the most
-  significant).
+  nonce is dropped, and the request waits on. A nonce that announces
+  username anonymity makes each request send USERHASH in place of
+  USERNAME. Each feature reads in both orders of the bits: erratum 6290
+  (bit 0 is the least significant) and the text of 9.2 with the example
+  of RFC 8656, 20 (bit 0 is the most significant).
 - **A redirect** (RFC 8489, 10; RFC 8656, 7.4; call C563). A 300 with
   ALTERNATE-SERVER to the Allocate is followed once: a new transport
   through the caller's `UdpSource` or dialer, the same user and password,
