@@ -1710,3 +1710,30 @@ the job `test` of `ci.yml`, builds the library test binaries of
 hand: "set_id_bits_survive_the_write skipped as root".
 `check-workflows.py`: 0 faults. The next CI run proves the step on a
 runner.
+
+# T-621: `pod-warp`: the test `a_close_by_the_caller_fails_the_flows_of_the_session` fails at times with a refused connection to the edge stand-in
+
+**Source:** the full check of the merge at `f3fd493` (2026-11-14), on a host where two agents built at the same time.
+**Category:** defect
+**Milestone:** M5
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`cargo test -p pod-warp --test net` failed once at `crates/pod-warp/tests/net.rs:251`: `connect()` gave `TCP to the MASQUE front door 192.0.2.1:443 through the moved dial of the test: Connection refused (os error 111)`. The test passed 8 runs of 8 alone after it. The moved dial carries the door to the stand-in edge of `world()`, so the edge was not yet listening, or another test on the host took its port, when the dial came.
+
+## Premise
+
+- Read: `crates/pod-warp/tests/net.rs` (`world`, `dead`, and the moved dial: `crates/pod-warp/tests/net.rs:380`), `crates/pod-warp/tests/common/edge.rs` (the listener of the stand-in edge, its port, and its loop of accepts).
+
+## Approach
+
+Find why the stand-in refused: a listener that is bound after `world()` returns, a port that the edge picks before it binds, or an accept loop that ends after one session. Make the stand-in bind before `world()` returns and keep its listener for the life of the test. A loop of the test under load (for example 50 runs beside a build) proves it.
+
+## Prove
+
+```sh
+cargo test -p pod-warp --all-features --test net
+```
