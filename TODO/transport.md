@@ -6016,7 +6016,7 @@ static probe links to itself over the carrier.
 **Milestone:** M1
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -6054,6 +6054,36 @@ keep the entry open with what the reading found.
 ```sh
 sh scripts/ci/turn-tests.sh
 ```
+
+## Done
+
+2026-11-14, commits `6ef5f6e` (the script, the program, the test, the
+plants, the README of `pod-turn` and call C576) and the commit that
+closes this entry. The search (call C576) read coturn, pion/turn and
+pion/stun (STUNner and LiveKit take them), processone/stun (eturnal),
+turn-rs, xturn and libjuice. libjuice 1.7.4 alone takes the whole
+request of RFC 8489, 9.2 and builds in seconds with no other package;
+it has no release binary and no image, so `scripts/ci/turn-tests.sh`
+fetches its source at the commit `b89c792e3612faf2f12cf35bcc56857313a06be3`,
+checks the id, and builds its TURN server with `scripts/ci/juice-turn.c`
+on 127.0.0.1:3498. `tests/juice.rs`, 2 tests: the 401 has the nonce
+cookie `AAAD` (both features) and offers SHA-256 and MD5; the client
+sends USERHASH, the PASSWORD-ALGORITHMS of the 401, PASSWORD-ALGORITHM
+SHA-256 and MESSAGE-INTEGRITY-SHA256 alone, and libjuice answers a
+success; a wrong password gets 401. libjuice signs each answer with
+MESSAGE-INTEGRITY and the MD5 key alone, so the client refuses the
+success (`Error::Integrity`), and the test asserts that refusal. The
+check of an answer's MESSAGE-INTEGRITY-SHA256 by a server of another
+party stays with the mock and the vector: xturn signs so, but needs
+Erlang and Elixir in CI (a finding for the parent). `sh
+scripts/ci/turn-tests.sh` passed with `POD_TURN_TEST_COTURN_BIN` (coturn
+4.6.1 of Ubuntu) and libjuice 1.7.4: the 3 lines of `tests/juice.rs` and
+each line of before. `cargo test -p pod-turn --all-features`: no
+failure. Plants, each caught by hand: `turn-juice-sha256-key-of-md5`
+(the SHA-256 key is the MD5 key: libjuice answers 401),
+`turn-juice-md5-preferred` (the client takes MD5: no
+MESSAGE-INTEGRITY-SHA256 goes), `turn-juice-skip-fails`. `sh
+scripts/plant-each.sh --apply`: 0 stale.
 
 # T-407: `pod-proxy`: fuzz targets of the server face of a proxy
 
