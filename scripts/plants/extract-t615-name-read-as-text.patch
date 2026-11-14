@@ -1,0 +1,13 @@
+diff --git a/crates/pod-extract/src/remove.rs b/crates/pod-extract/src/remove.rs
+index 7c8fc65..e89cf68 100644
+--- a/crates/pod-extract/src/remove.rs
++++ b/crates/pod-extract/src/remove.rs
+@@ -181,7 +181,7 @@ pub(crate) fn remove_at_to(parent: i64, name: &[u8], limit: usize) -> Result<boo
+     }
+     loop {
+         if let Some(e) = w.next() {
+-            if unlink(w.fd(), &e.name)?.is_none() {
++            if unlink(w.fd(), String::from_utf8_lossy(&e.name).as_bytes())?.is_none() {
+                 // A directory that does not open stays, and the removal of
+                 // its parent gives the error.
+                 w.descend(&e.name, open_closed)?;

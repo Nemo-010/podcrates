@@ -1,0 +1,6 @@
+# The walk takes a tree past its depth limit (T-615).
+ENTRY=T-615
+GROUP=extract
+EXPECT='a tree of 8 levels under a limit of 5'
+RUN='cargo test -p pod-extract --all-features --lib drive::deep'
+LIMIT=1800

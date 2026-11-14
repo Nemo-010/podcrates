@@ -1,0 +1,13 @@
+diff --git a/crates/pod-extract/src/tree.rs b/crates/pod-extract/src/tree.rs
+index 291de62..de60727 100644
+--- a/crates/pod-extract/src/tree.rs
++++ b/crates/pod-extract/src/tree.rs
+@@ -138,7 +138,7 @@ impl Walk {
+             let flags = sys::O_RDONLY | sys::O_DIRECTORY | sys::O_NOFOLLOW | sys::O_CLOEXEC;
+             let fd = sys::openat(self.cur, &dots, flags, 0).map_err(|e| error::sys("cannot open \"..\"", e))?;
+             let want = self.stack.last().map(|f| f.id);
+-            if id(fd).ok() != want {
++            if id(fd).is_err() && want.is_none() {
+                 let _ = sys::close(fd);
+                 let text = format!(
+                     "the directory above {:?} moved during the walk, so the walk stops and does not go up out of \

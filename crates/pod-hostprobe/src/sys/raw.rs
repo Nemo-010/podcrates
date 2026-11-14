@@ -310,11 +310,17 @@ impl CBuf {
     /// Returns `None` when `s` contains an interior NUL, because a path the
     /// kernel would silently truncate is not the path the caller named.
     pub fn new(s: &str) -> Option<CBuf> {
-        if s.as_bytes().contains(&0) {
+        CBuf::from_bytes(s.as_bytes())
+    }
+
+    /// [`CBuf::new`] of bytes: a name of a listing need not be UTF-8, and a
+    /// lossy text of it names another file.
+    pub fn from_bytes(b: &[u8]) -> Option<CBuf> {
+        if b.contains(&0) {
             return None;
         }
-        let mut v = Vec::with_capacity(s.len() + 1);
-        v.extend_from_slice(s.as_bytes());
+        let mut v = Vec::with_capacity(b.len() + 1);
+        v.extend_from_slice(b);
         v.push(0);
         Some(CBuf(v))
     }

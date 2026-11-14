@@ -1,0 +1,7 @@
+# The walk goes up through ".." with no check of its identity, so a
+# directory that moved takes the walk out of the tree (T-615).
+ENTRY=T-615
+GROUP=extract
+EXPECT='the way up from a directory that moved'
+RUN='cargo test -p pod-extract --all-features --lib drive::deep'
+LIMIT=1800

@@ -20,6 +20,15 @@ fn absolute_and_dotdot_are_refused_lexically() {
     assert!(!is_archive_root("./etc"));
 }
 
+/// A path deeper than the walk of the removal takes is refused: the crate
+/// does not make a tree that it cannot remove.
+#[test]
+fn a_path_deeper_than_the_walk_is_refused() {
+    let max = crate::tree::MAX_DEPTH;
+    assert_eq!(components(&"a/".repeat(max)).map(|p| p.len()), Ok(max));
+    assert_eq!(components(&"a/".repeat(max + 1)), Err(Refusal::TooDeep(max)), "a path past MAX_DEPTH was not refused");
+}
+
 /// A real OCI layer writes `bin/` and `bin`, with no `./` prefix, and a
 /// trailing slash on a directory. Neither is a defect.
 #[test]

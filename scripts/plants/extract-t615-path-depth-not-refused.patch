@@ -1,0 +1,13 @@
+diff --git a/crates/pod-extract/src/safety.rs b/crates/pod-extract/src/safety.rs
+index 0354e0b..eadce35 100644
+--- a/crates/pod-extract/src/safety.rs
++++ b/crates/pod-extract/src/safety.rs
+@@ -118,7 +118,7 @@ pub fn components(path: &str) -> std::result::Result<Vec<&str>, Refusal> {
+     if out.is_empty() {
+         return Err(Refusal::Empty);
+     }
+-    if out.len() > crate::tree::MAX_DEPTH {
++    if out.len() > 2 * crate::tree::MAX_DEPTH {
+         return Err(Refusal::TooDeep(crate::tree::MAX_DEPTH));
+     }
+     Ok(out)

@@ -4,6 +4,9 @@
 //!   the cause [`Refused`] (the entry and the digest of the layer);
 //! * a blob that does not agree with its digest: `Class::Protocol`, with the
 //!   cause [`Mismatch`];
+//! * a tree deeper than the walk takes: `Class::Unsupported`, with the cause
+//!   [`crate::tree::TooDeep`];
+//! * a directory that moved during a walk of the tree: `Class::TempFail`;
 //! * a compression or a digest algorithm that the crate cannot read:
 //!   `Class::Unsupported`;
 //! * a refused system call: the class of its errno, with the
@@ -80,7 +83,7 @@ pub fn mismatch(f: &Failure) -> Option<&Mismatch> {
     cause(f)
 }
 
-fn cause<T: std::error::Error + 'static>(f: &Failure) -> Option<&T> {
+pub(crate) fn cause<T: std::error::Error + 'static>(f: &Failure) -> Option<&T> {
     let mut next: Option<&(dyn std::error::Error + 'static)> = Some(f);
     while let Some(e) = next {
         if let Some(t) = e.downcast_ref::<T>() {

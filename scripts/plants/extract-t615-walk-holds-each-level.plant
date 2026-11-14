@@ -1,0 +1,7 @@
+# The walk keeps the descriptor of each level open, so a tree deeper than
+# RLIMIT_NOFILE stops open_tree and the removal early (T-615).
+ENTRY=T-615
+GROUP=extract
+EXPECT='the worker under a low descriptor limit failed'
+RUN='cargo test -p pod-extract --all-features --lib drive::deep'
+LIMIT=1800

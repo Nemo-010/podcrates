@@ -30,6 +30,12 @@ fn a_negative_return_decodes_as_the_errno_and_not_as_a_value() {
 fn a_path_with_an_interior_nul_is_refused_rather_than_truncated() {
     assert!(CBuf::new("/tmp/a\0b").is_none());
     assert!(CBuf::new("/tmp/ab").is_some());
+    // A name of a listing that is not UTF-8 keeps its bytes.
+    assert!(CBuf::from_bytes(b"a\0b").is_none());
+    let c = CBuf::from_bytes(b"x\xff").unwrap();
+    // SAFETY: the buffer holds the two bytes and the NUL.
+    let kept = unsafe { std::slice::from_raw_parts(c.ptr() as *const u8, 3) };
+    assert_eq!(kept, b"x\xff\0");
 }
 
 /// A short buffer is a kernel write past the end of it, and the shape is

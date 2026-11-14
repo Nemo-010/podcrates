@@ -1,0 +1,12 @@
+diff --git a/crates/pod-extract/src/tree.rs b/crates/pod-extract/src/tree.rs
+index 291de62..5b4becc 100644
+--- a/crates/pod-extract/src/tree.rs
++++ b/crates/pod-extract/src/tree.rs
+@@ -122,7 +122,6 @@ impl Walk {
+         };
+         let left = sys::getdents64(fd).unwrap_or_default();
+         self.stack.push(Frame { name: n.to_vec(), id, left });
+-        self.leave_cur();
+         self.cur = fd;
+         Ok(true)
+     }
