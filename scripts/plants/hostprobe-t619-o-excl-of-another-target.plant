@@ -2,6 +2,6 @@
 # of the build, so a create opens a file that is there (T-619).
 ENTRY=T-619
 GROUP=hostprobe
-EXPECT='O_CREAT | O_EXCL refuses a file that is there'
+EXPECT='O_CREAT \| O_EXCL refuses a file that is there'
 RUN='cargo test -p pod-hostprobe --lib -- sys::tests::the_creation_flags_and_the_errno_numbers_are_the_kernels --exact'
 LIMIT=1800
