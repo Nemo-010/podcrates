@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**502 entries: 119 open, 8 partial, 6 blocked, 369 done.**
+**502 entries: 116 open, 8 partial, 6 blocked, 372 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 101 | 115 |
-| P2 | 54 | 2 | 4 | 200 | 260 |
-| P3 | 54 | 3 | 2 | 66 | 125 |
-| **All** | 119 | 8 | 6 | 369 | 502 |
+| P2 | 52 | 2 | 4 | 202 | 260 |
+| P3 | 53 | 3 | 2 | 67 | 125 |
+| **All** | 116 | 8 | 6 | 372 | 502 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -433,13 +433,13 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-491](podvm.md) | P2 | S | M6 | feature | done | `pod-enter`: a fresh proc on the `/proc` of the image in the namespace rung (PodUtils/podvm#296) |
 | [T-492](podvm.md) | P2 | M | M6 | feature | done | `pod-enter`: an entry that joins the mount namespace of a running payload, for exec (PodUtils/podvm#297) |
 | [T-493](relay.md) | P2 | M | M2 | feature | done | `pod-link`: the DNS simplex carrier (PodUtils/podnet#521) |
-| [T-494](relay.md) | P2 | M | M2 | feature | open | `pod-link`: the object-storage (S3) simplex carrier (PodUtils/podnet#521) |
+| [T-494](relay.md) | P2 | M | M2 | feature | done | `pod-link`: the object-storage (S3) simplex carrier (PodUtils/podnet#521) |
 | [T-495](relay.md) | P2 | M | M2 | feature | done | `pod-link`: the HTTP poll simplex carrier (PodUtils/podnet#521) |
 | [T-496](relay.md) | P2 | L | M2 | feature | open | `pod-link`: the DNS stream carrier with a pipelined window of queries (PodUtils/podnet#521) |
 | [T-497](relay.md) | P2 | M | M2 | feature | done | `pod-link`: the ICMP echo carrier (PodUtils/podnet#521) |
 | [T-498](relay.md) | P2 | M | M2 | feature | open | `pod-link`: a WireGuard peer as a carrier, over `pod-wg` (PodUtils/podnet#521) |
 | [T-499](relay.md) | P2 | L | M2 | feature | open | `pod-link`: NAT traversal with a fall back to the relay (PodUtils/podnet#521) |
-| [T-500](relay.md) | P2 | M | M2 | feature | open | `pod-link`: one session over an up carrier and a down carrier (PodUtils/podnet#521) |
+| [T-500](relay.md) | P2 | M | M2 | feature | done | `pod-link`: one session over an up carrier and a down carrier (PodUtils/podnet#521) |
 | [T-501](transport.md) | P2 | M | M1 | feature | open | `pod-turn`: the TCP relay of RFC 6062 (PodUtils/podnet#521) |
 | [T-502](transport.md) | P3 | M | M1 | feature | open | `pod-testkit`: a headscale harness for the tests of a Tailscale node (PodUtils/podnet#521) |
 | [T-503](podvm.md) | P3 | S | M6 | defect | done | `pod-netlab`: three fixes of the knob flags: an empty `--udp`, the range of a number, the words of a flag (PodUtils/podvm#298) |
@@ -456,7 +456,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-518](relay.md) | P3 | S | M2 | chore | done | `pod-link`: a fuzz target of the HTTP/1.1 of the poll carriers |
 | [T-520](relay.md) | P2 | S | M2 | feature | done | `pod-link`: the default of the congestion window of KCP against podnet's gate of 20 % loss (PodUtils/podnet#515) |
 | [T-521](relay.md) | P2 | S | M2 | chore | done | `pod-link`: a fuzz target of the datagrams of the udp carrier (the input of KCP) |
-| [T-525](relay.md) | P3 | S | M2 | feature | open | `pod-link`: the bytes of a poll listener outside `max_bytes` (the pipes of each session, the connections after their handshake) |
+| [T-525](relay.md) | P3 | S | M2 | feature | done | `pod-link`: the bytes of a poll listener outside `max_bytes` (the pipes of each session, the connections after their handshake) |
 | [T-526](relay.md) | P3 | S | M2 | chore | partial | `pod-link`: the arithmetic of the crate `kcp` wraps by design: no overflow checks for it, and the fix upstream |
 | [T-527](fleet.md) | P1 | S | M8 | feature | done | `pod-job`: the CPU time and the peak of resident memory of a job in `run-report.v1` (githome's G-06, #83) |
 | [T-528](transport.md) | P2 | M | M1 | defect | done | `pod-services`: three of the four file hosts fail live from GitHub: the download URL of tmpfiles.org, the upload form of litterbox, the busy answer of 0x0.st (PodUtils/podssh#230) |
