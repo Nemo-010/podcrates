@@ -36,6 +36,9 @@ icmp = ["tcp"]
 # the S3 API, with SigV4 of sha2 and hmac (`s3`); the HTTP/1.1 and the
 # pipes of `poll`.
 s3 = ["poll", "dep:sha2", "dep:hmac"]
+# The stand-in of the S3 API on the loopback (`s3::standin`), for the tests
+# of this crate and of a consumer; no binary turns it on.
+s3-standin = ["s3"]
 # The reader of HTTP/1.1 and of SSE of the poll carriers is public in
 # `poll::fuzzing`, for the fuzz target `link_poll_wire` of fuzz/. No
 # consumer turns this on.
@@ -100,3 +103,15 @@ pod-session = { workspace = true }
 sha2 = { workspace = true }
 # `test-util` gives the keepalive's tests a paused clock.
 tokio = { workspace = true, features = ["io-util", "net", "time", "sync", "rt", "rt-multi-thread", "macros", "test-util"] }
+
+[[test]]
+name = "s3"
+required-features = ["s3-standin"]
+
+[[test]]
+name = "s3_standin"
+required-features = ["s3-standin"]
+
+[[test]]
+name = "s3_seaweedfs"
+required-features = ["s3-standin"]

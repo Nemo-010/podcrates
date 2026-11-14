@@ -6,12 +6,10 @@
 //!
 //! The server is `POD_LINK_TEST_S3_ENDPOINT` (`http://127.0.0.1:PORT`), and
 //! its bucket `POD_LINK_TEST_S3_BUCKET` (`links` when not set) takes the
-//! made-up key of `common::s3::key`. A host with no endpoint skips each
-//! test with the reason, unless `POD_LINK_TEST_S3=required`, which
+//! made-up key of `pod_link::s3::standin::key`. A host with no endpoint
+//! skips each test with the reason, unless `POD_LINK_TEST_S3=required`, which
 //! `scripts/ci/s3-tests.sh` sets with the pinned release. Each test works
 //! under its own prefix, so the tests run side by side in one bucket.
-
-#![cfg(feature = "s3")]
 
 mod common;
 
@@ -22,6 +20,7 @@ use common::tcp::{Direct, id, ring};
 use common::{echo, limit, pattern};
 use pod_identity::KeyName;
 use pod_link::s3::sign::{self, Signing};
+use pod_link::s3::standin;
 use pod_link::s3::{Credentials, Endpoint, S3, S3Listener};
 use pod_link::tcp::Keys;
 use pod_link::{Carrier, CarrierErrorKind, Link, Listener, Role, Settings};
@@ -53,7 +52,7 @@ fn fresh(tag: &str) -> String {
 fn carrier(n: u8, endpoint: &Endpoint, clients: &[u8]) -> S3 {
     let keys = Keys::new(clients.iter().map(|c| KeyName::Key(id(*c).public())));
     let way = Arc::new(Direct::default());
-    let mut s3 = S3::new(ring(), id(n), way, endpoint.clone(), common::s3::key()).with_clients(keys);
+    let mut s3 = S3::new(ring(), id(n), way, endpoint.clone(), standin::key()).with_clients(keys);
     (s3.object, s3.page) = (16 << 10, 1);
     (s3.poll_min, s3.poll_max) = (Duration::from_millis(10), Duration::from_millis(200));
     s3
@@ -118,8 +117,7 @@ async fn objects(endpoint: &Endpoint, bucket: &str, prefix: &str) -> Vec<(String
         if let Some(t) = &token {
             query.push(("continuation-token", t));
         }
-        let (status, body) =
-            request(endpoint, &common::s3::key(), "GET", &format!("/{bucket}"), &query, &[], &[]).await;
+        let (status, body) = request(endpoint, &standin::key(), "GET", &format!("/{bucket}"), &query, &[], &[]).await;
         assert_eq!(status, 200, "the listing of {prefix}: {body}");
         for object in each(&body, "Contents") {
             let size = each(object, "Size").first().and_then(|s| s.parse().ok()).unwrap_or(0);
@@ -220,7 +218,7 @@ async fn prune_removes_each_object_read_from_the_server() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn the_server_holds_the_conditions_and_the_pages_of_the_carrier() {
     let Some((endpoint, bucket)) = server() else { return };
-    let key = common::s3::key();
+    let key = standin::key();
     let dir = format!("{}/", fresh("conditions"));
     let (first, second) = (format!("/{bucket}/{dir}a"), format!("/{bucket}/{dir}b"));
     let put = |path: String, body: &'static [u8]| {
@@ -250,7 +248,7 @@ async fn the_server_holds_the_conditions_and_the_pages_of_the_carrier() {
 async fn a_wrong_secret_and_a_missing_bucket_end_the_bind() {
     let Some((endpoint, bucket)) = server() else { return };
     let mut wrong = carrier(1, &endpoint, &[2]);
-    wrong.credentials = Credentials::new(common::s3::key().access_key, "another-made-up-secret");
+    wrong.credentials = Credentials::new(standin::key().access_key, "another-made-up-secret");
     let e = wrong.bind(&bucket, &fresh("wrong")).await.expect_err("a refused bind");
     assert_eq!(e.kind, CarrierErrorKind::Refused, "{e}");
     assert!(e.to_string().contains("SignatureDoesNotMatch"), "{e}");

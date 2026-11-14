@@ -1,0 +1,13 @@
+diff --git a/crates/pod-link/src/s3/standin.rs b/crates/pod-link/src/s3/standin.rs
+index ceed10c..5a7fb3e 100644
+--- a/crates/pod-link/src/s3/standin.rs
++++ b/crates/pod-link/src/s3/standin.rs
+@@ -184,7 +184,7 @@ async fn run(listener: TcpListener, state: Arc<State>, mut stop: oneshot::Receiv
+     let mut connections = JoinSet::new();
+     loop {
+         tokio::select! {
+-            _ = &mut stop => break,
++            _ = std::future::pending::<()>() => break,
+             accepted = listener.accept() => {
+                 let Ok((tcp, _)) = accepted else { break };
+                 while connections.try_join_next().is_some() {}

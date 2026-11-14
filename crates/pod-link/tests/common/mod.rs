@@ -16,8 +16,6 @@ pub mod icmp;
 pub mod poll;
 #[cfg(feature = "quic")]
 pub mod quic;
-#[cfg(feature = "s3")]
-pub mod s3;
 #[cfg(feature = "tcp")]
 pub mod tcp;
 #[cfg(feature = "udp")]

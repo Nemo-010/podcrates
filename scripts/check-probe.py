@@ -24,6 +24,8 @@ ALLOWED = {
     ("pod-proxy", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
     ("pod-gsr", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
     ("pod-link", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
+    ("pod-link", "s3-standin"): "the stand-in of the S3 API of the tests of this crate and of a consumer; "
+                                "a consumer turns it on in [dev-dependencies] only, and no binary carries it",
     ("pod-hold", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
     ("pod-e2e", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
     ("pod-relay", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",

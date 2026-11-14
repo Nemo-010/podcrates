@@ -19,8 +19,9 @@ T-493 the DNS simplex carrier over the ARQ (feature `dns`;
 PodUtils/podnet#468 row E2-3; calls C274 and C275), T-497 the ICMP echo
 carrier over the ARQ (feature `icmp`; PodUtils/podnet#469 row E3-2; calls
 C276 and C277) and T-494 the object-storage carrier over a bucket of the S3
-API (feature `s3`; PodUtils/podnet#468 row E2-4; calls C489 to C491), and
-T-500 the split of one session over an up carrier and a down carrier
+API (feature `s3`; PodUtils/podnet#468 row E2-4; calls C489 to C491) and
+T-627 its stand-in for the tests of a consumer (feature `s3-standin`;
+PodUtils/podnet#564; call C552), and T-500 the split of one session over an up carrier and a down carrier
 (`split`; PodUtils/podnet#473 row E7-1; calls C492 and C493). The crate
 reads no environment, keeps no global state and prints nothing.
 
@@ -234,6 +235,7 @@ let io = split.connect("SHA256:...@link.example", "SHA256:...@https://relay.exam
 | `s3::S3Listener` | `accept_key`; a `Listener` (`address` is `BUCKET[/PREFIX]`); it takes the sessions that open after its bind; a drop ends its task and its handshakes under way, and the sessions that it gave live on |
 | `s3::Endpoint`, `s3::Style`, `s3::Credentials` | `Endpoint::parse("http[s]://HOST[:PORT][/PATH]")` (`secure`, `host`, `port`, `base`); `Style::Path` (`HOST/BUCKET/KEY`, the default) or `VirtualHost` (`BUCKET.HOST/KEY`); `Credentials::new(access_key, secret_key)` and `session_token`, whose Debug hides the secret and the token |
 | `s3::sign` | SigV4 of the S3 API: `authorization(&credentials, &Signing)`, `canonical_query`, `uri_encode`, `sha256_hex`, `hex`, `amz_date`, `days_from_civil`, `EMPTY_HASH` (a stand-in of a test checks a request with it) |
+| `s3::standin` (feature `s3-standin`) | the stand-in of the S3 API on the loopback, for the tests of this crate and of a consumer: `key()` (the made-up key that it takes); `StandIn::start(&buckets)` (on the runtime of the caller), `StandIn::start_thread(&buckets)` (on a thread with its own runtime, for a test with no runtime or one that blocks it); `addr`, `url` (`http://127.0.0.1:PORT`), `endpoint` (an `Endpoint`), `buckets` (the `Bucket`s of `Object`s, locked), `keys(bucket, prefix)`, `counts` (`Counts`: `puts`, `gets`, `lists`, `deletes`, `exists` (412), `refused` (403), `lost`), `lose_puts(n)` (the fault: drop the answers of the next `n` PUTs that took their object). It serves HTTP/1.1 with keep-alive in path style: the PUT with `If-None-Match: *`, the GET with `If-Match`, the DELETE, `ListObjectsV2` with `prefix`, `max-keys`, `start-after` and the continuation token. It checks the SigV4 of each request with the signer of the crate and the payload hash: no signature or a wrong one is 403. A drop closes its port and each connection |
 | `s3::{NAME, ALPN, OBJECT, MIN_OBJECT, MAX_OBJECT, IN_FLIGHT, POLL_MIN, POLL_MAX, BUDGET, PAGE, CONNECT_TIMEOUT, ANSWER_TIMEOUT, HANDSHAKE_TIMEOUT, IDLE, MAX_HANDSHAKES}` | the constants of the s3 carrier |
 | `split::Split` | one session over two carriers: `new(up, down)` (each an `Arc<dyn Carrier>`); the fields `beat` (10 s), `lost_after` (30 s, more than `beat`), `join_timeout` (30 s); `check`; `addresses(text)` (the two addresses of `UP|DOWN`); `connect(up, down)` (the dial of both halves and their join); `bind(up, down)`; as a `Carrier` (`split`): `dial("UP\|DOWN")`, `listen("UP\|DOWN")`, the facts of both halves (the cost of the dearer). An error of a carrier names its half |
 | `split::SplitListener` | `accept_peer` (the joined session and the key that both halves proved); a `Listener` (`address` is `UP\|DOWN`); each half that waits more than `join_timeout` for the other goes; a drop ends its tasks |
@@ -271,6 +273,7 @@ let io = split.connect("SHA256:...@link.example", "SHA256:...@https://relay.exam
 | `dns` | the dns carrier (`dns`): `tcp`, and `pod-dns` for the DNS query and the TXT answer |
 | `icmp` | the icmp carrier (`icmp`): `tcp`, and libc on unix for the raw socket |
 | `s3` | the s3 carrier (`s3`): `poll` (its HTTP/1.1 and its pipes), and sha2 and hmac for SigV4 |
+| `s3-standin` | `s3`, and the stand-in of the S3 API in `s3::standin`, for the tests of this crate and of a consumer (in `[dev-dependencies]`); no binary turns it on |
 | `fuzzing` | `poll`, and the reader of HTTP/1.1 and of SSE of the poll carriers in `poll::fuzzing`, for the fuzz target `link_poll_wire`; no API, and no consumer turns it on |
 
 ## The wire
@@ -816,8 +819,8 @@ that hold them (`tests/icmp.rs`, `tests/icmp_raw.rs`, feature `icmp`):
 
 The asks of PodUtils/podnet#521 for the object-storage simplex carrier
 (PodUtils/podnet@T-279, row E2-4 of PodUtils/podnet#468) and the tests that
-hold them (`tests/s3.rs`, a stand-in of the S3 API on the loopback that
-checks SigV4 and the conditions; feature `s3`):
+hold them (`tests/s3.rs`, the stand-in of the S3 API on the loopback that
+checks SigV4 and the conditions, `s3::standin`; feature `s3-standin`):
 
 - [x] A link over objects with TLS carries streams through the caller's way
   out, and each end learns the key of the other; the keys of a session:
@@ -863,6 +866,16 @@ checks SigV4 and the conditions; feature `s3`):
   `link-s3-numeric-reference-kept` (SeaweedFS writes the ETag of a
   listing as `&#34;...&#34;`, which the stand-in does not) and
   `link-s3-seaweedfs-skip-fails`.
+- [x] The stand-in is public for the tests of a consumer (T-627,
+  PodUtils/podnet#564; `tests/s3_standin.rs`): a request with no
+  signature gets 403, and a drop closes the port and each connection, on
+  its own thread and on the runtime of the caller:
+  `a_request_with_no_signature_gets_403_and_a_drop_ends_the_thread_of_the_standin`,
+  `a_drop_of_a_standin_on_the_runtime_of_the_caller_closes_its_connections`.
+  The plants `link-s3-standin-unsigned-taken`,
+  `link-s3-standin-signature-unchecked` (a wrong secret passes the
+  stand-in: `a_wrong_secret_and_a_missing_bucket_end_the_bind_and_the_dial`
+  fails) and `link-s3-standin-runs-after-drop`.
 - The credentials from the environment or a profile file, and exit 77 with
   no word of a missing credential, are podnet's (the crate reads no
   environment): `Credentials` comes from the caller.
@@ -911,7 +924,7 @@ pipes under a switch, and the ARQ over the `Lossy` shim at 3 % loss):
 | PodUtils/podnet@T-282: the ICMP echo carrier | `icmp::Icmp` (feature `icmp`): one row of the registry holds `Box::new(Icmp::new(provider, identity).with_clients(keys))` with `alpn = b"podnet/1"`; the dial address is `KEY@HOST`; the listener is `listen("IPv4")`. The real path needs `CAP_NET_RAW` (`available()` says so, and the test skips); `connect_over` and `accept_over` over `datagram::lossy::Lossy` run the same framing with no privilege (calls C276, C277) |
 | PodUtils/podnet@T-271, PodUtils/podnet@T-272: the HTTP/1.1 long poll, the SSE and chunked stream | `poll::Poll` (feature `poll`): a row of the registry for each form holds `Box::new(Poll::new(provider, identity, way).with_form(form).with_clients(keys))`; the dial address is `KEY@https://HOST[:PORT]/PATH`; one listener (`listen("IP:PORT")`) serves each form. podnet's `server_push=false` is a listener with `push` false: the dialer of `sse` or `chunked` then takes the long poll. The lanes are `POST PATH/up` and `POST PATH/down?since=N` (podnet's), with `PATH/open` first |
 | PodUtils/podnet@T-280: the HTTP poll simplex carrier | `poll::Poll` with `Form::Simplex` (`httppoll`): `POST PATH/up` (202 and `Pod-Ack`), `GET PATH/out?since=N` (204 when empty), 64 KiB, a backoff of 100 ms to 5 s; `facts().cost` is `Cost::Highest`. Each lane is a request of its own, and the answer of each POST acknowledges it, so the split of PodUtils/podnet@T-302 can take one lane |
-| PodUtils/podnet@T-279: the object-storage simplex carrier | `s3::S3` (feature `s3`): one row of the registry holds `Box::new(S3::new(provider, identity, way, endpoint, credentials).with_tls(tls).with_clients(keys))` with `alpn = b"podnet/1"`, podnet's `--s3-prune` as `prune`; the dial address is `KEY@BUCKET[/PREFIX]`, the listen address `BUCKET[/PREFIX]`; the credentials come from podnet's environment or profile file |
+| PodUtils/podnet@T-279: the object-storage simplex carrier | `s3::S3` (feature `s3`): one row of the registry holds `Box::new(S3::new(provider, identity, way, endpoint, credentials).with_tls(tls).with_clients(keys))` with `alpn = b"podnet/1"`, podnet's `--s3-prune` as `prune`; the dial address is `KEY@BUCKET[/PREFIX]`, the listen address `BUCKET[/PREFIX]`; the credentials come from podnet's environment or profile file. The tests of `link_s3` take `s3::standin` (a dev-dependency with the feature `s3-standin`) in place of podnet's copy in tests/link_s3_standin/mod.rs: `StandIn::start_thread` for a test that starts podnet processes, `url()` for `--s3-endpoint`, `counts().refused` for podnet's `refused`; the profile file of the key is podnet's (from `key()`) |
 | PodUtils/podnet@T-302: one session split across an up carrier and a down carrier | `split::Split::new(up, down)` of two carriers of the registry; `--up-carrier` and `--down-carrier` give `connect(up, down)` and `bind(up, down)` (or `dial("UP\|DOWN")`); a loss of a half is `split::Lost` (`lost`, `lost_in`), whose text is podnet's report |
 | PodUtils/podnet@T-277: the selective-repeat ARQ for any lossy carrier | `arq::ArqStream` over a `datagram::Datagrams` (each lossy carrier of podnet gives one), then `Link::new` over the stream; `arq::ArqHandle::rekey_wanted` is the ask of the record layer (PodUtils/podnet@T-298) for a rekey; podnet's `tests/link_arq.rs` takes `datagram::lossy::Lossy` over `datagram::memory::pair` as its shim |
 | exit 64, 69, 77 of a carrier | `CarrierError::class().exit_code()` |
