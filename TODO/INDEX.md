@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**512 entries: 108 open, 9 partial, 6 blocked, 389 done.**
+**512 entries: 107 open, 9 partial, 6 blocked, 390 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 102 | 116 |
 | P2 | 50 | 3 | 4 | 207 | 264 |
-| P3 | 47 | 3 | 2 | 78 | 130 |
-| **All** | 108 | 9 | 6 | 389 | 512 |
+| P3 | 46 | 3 | 2 | 79 | 130 |
+| **All** | 107 | 9 | 6 | 390 | 512 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -421,7 +421,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-475](adapters.md) | P3 | S | M3 | feature | done | `pod-warp`: the rules `port:N=WAY` and `tcp:HOST:PORT=WAY` in the reader of the rules (PodUtils/podnet#518) |
 | [T-476](relay.md) | P2 | M | M2 | feature | done | `pod-relay`: the invariants 6 to 10 of the HTTP road, client and server, with a test of lost acknowledgements (PodUtils/podssh#221) |
 | [T-477](relay.md) | P1 | S | M2 | defect | done | `pod-relay`: the serial form of the HTTP road deadlocks when the bytes down block the bytes up (PodUtils/podssh#222) |
-| [T-478](relay.md) | P3 | S | M2 | defect | open | `pod-relay`: the client of the HTTP road never sends `close`, so a caller that drops its stream leaves the session at the role |
+| [T-478](relay.md) | P3 | S | M2 | defect | done | `pod-relay`: the client of the HTTP road never sends `close`, so a caller that drops its stream leaves the session at the role |
 | [T-480](adapters.md) | P2 | S | M3 | feature | done | `pod-warp`: the API sends a team's token with a registration and names the base that answered |
 | [T-481](adapters.md) | P2 | M | M3 | feature | open | `pod-warp`: a session to a connect-ip server of the user's own over HTTP/3 (RFC 9484) |
 | [T-482](relay.md) | P2 | S | M2 | defect | open | `pod-netstack`: a stream dropped before its handshake ends finishes the handshake later |
