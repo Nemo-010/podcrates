@@ -871,8 +871,10 @@ checks SigV4 and the conditions, `s3::standin`; feature `s3-standin`):
   signature gets 403, and a drop closes the port and each connection, on
   its own thread and on the runtime of the caller:
   `a_request_with_no_signature_gets_403_and_a_drop_ends_the_thread_of_the_standin`,
-  `a_drop_of_a_standin_on_the_runtime_of_the_caller_closes_its_connections`.
-  The plants `link-s3-standin-unsigned-taken`,
+  `a_drop_of_a_standin_on_the_runtime_of_the_caller_closes_its_connections`;
+  a path with a bad escape gets 403 and `max-keys=0` lists no key, with no
+  panic: `a_bad_escape_and_a_listing_of_no_key_get_an_answer_and_no_panic`.
+  The plants `link-s3-standin-unsigned-taken`, `link-s3-standin-escape-panics`,
   `link-s3-standin-signature-unchecked` (a wrong secret passes the
   stand-in: `a_wrong_secret_and_a_missing_bucket_end_the_bind_and_the_dial`
   fails) and `link-s3-standin-runs-after-drop`.

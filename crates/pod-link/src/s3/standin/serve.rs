@@ -174,10 +174,11 @@ pub(super) async fn serve(mut tcp: TcpStream, state: Arc<State>) {
                     Tally::add(&tally.lists);
                     let prefix = q("prefix").unwrap_or_default();
                     let after = q("continuation-token").or(q("start-after")).unwrap_or_default();
-                    let max: usize = q("max-keys").and_then(|v| v.parse().ok()).unwrap_or(1000).max(1);
+                    let max: usize = q("max-keys").and_then(|v| v.parse().ok()).unwrap_or(1000);
                     let keys: Vec<_> =
                         store.iter().filter(|(k, _)| k.starts_with(&prefix) && k.as_str() > after.as_str()).collect();
-                    let cut = keys.len() > max;
+                    // max-keys=0 lists no key and cuts nothing, as S3 does.
+                    let cut = max > 0 && keys.len() > max;
                     let mut xml = String::from("<?xml version=\"1.0\"?><ListBucketResult>");
                     for (k, o) in keys.iter().take(max) {
                         xml.push_str(&format!(
