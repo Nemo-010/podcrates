@@ -1,0 +1,11 @@
+--- a/crates/pod-services/services/microsoft-windows-eval.toml
++++ b/crates/pod-services/services/microsoft-windows-eval.toml
+@@ -18,7 +18,7 @@
+ 
+ [[fact]]
+ name = "server-2019-sha256"
+-value = "549bca46c055157291be6c22a3aaaed8330e78ef4382c99ee82c896426a1cee1"
++value = "549bca46c055157291be6c22a3aaaed8330e78ef4382c99ee82c896426a1cee2"
+ source = { ruling = "PodUtils/podvm crates/podvm-windows/src/catalog.rs, the entry 2019, at 7a05b85", read = 2026-11-14, note = "the pin of dockur/windows src/define.sh; podvm checks it against the bytes at each download" }
+ 
+ [[fact]]

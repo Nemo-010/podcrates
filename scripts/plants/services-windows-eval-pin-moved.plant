@@ -1,0 +1,7 @@
+# The sha256 of the Windows evaluation ISO differs from the pin of podvm's
+# windows:2019: the test of the pin must fail (T-611).
+ENTRY=T-611
+GROUP=services
+EXPECT='test the_windows_evaluation_media_hold_the_pin_of_podvm \.\.\. FAILED'
+RUN='cargo test -p pod-services --all-features --test podvm -- the_windows_evaluation_media_hold_the_pin_of_podvm --exact'
+LIMIT=1800
