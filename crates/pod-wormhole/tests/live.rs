@@ -193,3 +193,54 @@ async fn two_ends_meet_at_each_public_webtorrent_tracker() {
     }
     assert!(failed.is_empty(), "the trackers that failed: {failed:?}");
 }
+
+/// Two ends of one code pair through the topic of the code at each public
+/// ntfy server (the services of the kind `ntfy-server`), on HTTP/2 (one
+/// connection for the stream and the POSTs) and on HTTP/1.1 (the polls and
+/// the POSTs in turns): the key agreed, the versions checked and a message
+/// each way. Each server and each form alone, so that each one is proven.
+/// A pairing posts seven messages; ntfy.sh takes 250 a day from one
+/// address.
+#[tokio::test]
+#[ignore = "live: the public ntfy servers"]
+async fn two_ends_meet_at_each_public_ntfy_server() {
+    use pod_wormhole::ntfy::{self, Point, Servers};
+
+    let servers: Vec<&pod_services::Service> = pod_services::of_kind("ntfy-server").collect();
+    assert!(!servers.is_empty(), "the catalog lists no ntfy server");
+    let mut failed = Vec::new();
+    for service in servers {
+        let endpoint = service.endpoint("server").expect("the endpoint server");
+        let point = Point::parse(&endpoint.url()).unwrap();
+        for h2 in [true, false] {
+            let config = Config::new(harness::APPID, "pod-wormhole-live", "0.0.0", harness::live_way());
+            let ends = Servers { h2, ..Servers::new(vec![point.clone()], config) };
+            let versions = json!({ "live": 1 });
+            let shown = format!("{} ({})", point.shown(), if h2 { "HTTP/2 offered" } else { "HTTP/1.1" });
+            let run = async {
+                let (mut giver, code) = ntfy::opened(&ends, versions.clone()).await?;
+                let wait = Duration::from_secs(60);
+                let (taker, heard) =
+                    tokio::join!(ntfy::joined(&ends, &code, versions.clone(), wait), giver.agree(wait));
+                let (mut taker, heard) = (taker?, heard?);
+                assert!(heard, "{shown}: the giver heard the taker");
+                let (mine, theirs) = tokio::join!(giver.confirm(wait), taker.confirm(wait));
+                assert_eq!((mine?, theirs?), (versions.clone(), versions.clone()), "{shown}");
+                giver.send(b"from the giver").await?;
+                assert_eq!(taker.receive(wait).await?, b"from the giver", "{shown}");
+                taker.send(b"from the taker").await?;
+                assert_eq!(giver.receive(wait).await?, b"from the taker", "{shown}");
+                tokio::join!(giver.close(Mood::Happy), taker.close(Mood::Happy));
+                Ok::<_, pod_wormhole::Failed>(())
+            };
+            match run.await {
+                Ok(()) => eprintln!("{shown} ({}): two ends paired through a topic", service.id()),
+                Err(why) => {
+                    eprintln!("{shown} ({}): {why}", service.id());
+                    failed.push(format!("{} {shown}: {why}", service.id()));
+                }
+            }
+        }
+    }
+    assert!(failed.is_empty(), "the servers that failed: {failed:?}");
+}

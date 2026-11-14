@@ -10,7 +10,7 @@ repository.workspace = true
 [features]
 # The stand-in mailbox on the loopback (src/standin.rs): for the tests of
 # this crate and of a consumer; no binary needs it.
-standin = ["dep:pod-proxy", "tokio/net", "tokio/io-util", "tokio/sync", "tokio/rt"]
+standin = ["tokio/net", "tokio/io-util", "tokio/sync", "tokio/rt"]
 
 [dependencies]
 # The failure with its stage and class, the events, the entropy, the text
@@ -19,8 +19,14 @@ pod-core = { workspace = true, features = ["async"] }
 # The WebSocket to the mailbox, through the caller's way out; the server
 # half for the stand-in.
 pod-ws = { workspace = true }
-# The head of an upgrade, for the stand-in.
-pod-proxy = { workspace = true, optional = true }
+# The head of an upgrade, for the stand-in; the requests of HTTP/1.1 of an
+# ntfy server (src/ntfy).
+pod-proxy = { workspace = true }
+# HTTP/2 of an ntfy server, where TLS chose it: the stream of a topic and
+# the POSTs on one connection (pure Rust, as pod-ws and pod-dns take it).
+h2 = { workspace = true }
+http = { workspace = true }
+bytes = { workspace = true }
 tokio = { workspace = true, features = ["time"] }
 serde_json = { workspace = true }
 # Pure Rust, no C. SPAKE2 of the RustCrypto PAKEs, on the curve25519-dalek 4
@@ -41,9 +47,13 @@ zeroize = { workspace = true }
 [dev-dependencies]
 pod-testkit = { workspace = true }
 # The way of the tests: a direct dial and TLS on ring.
-pod-proxy = { workspace = true }
 pod-tls = { workspace = true }
 rustls = { workspace = true, features = ["ring"] }
+# The certificates of the stand-in ntfy server behind TLS
+# (pod-tls tests/common/cert_for_test.rs), minted in pure Rust.
+p256 = { workspace = true }
+tokio-rustls = { workspace = true }
+rustls-pki-types = { workspace = true }
 # The public mailboxes of the live test.
 pod-services = { workspace = true }
 tokio = { workspace = true, features = ["io-util", "net", "time", "sync", "rt", "rt-multi-thread", "macros", "test-util"] }
@@ -63,6 +73,14 @@ required-features = ["standin"]
 
 [[test]]
 name = "nostr"
+required-features = ["standin"]
+
+[[test]]
+name = "ntfy"
+required-features = ["standin"]
+
+[[test]]
+name = "tracker"
 required-features = ["standin"]
 
 [[test]]

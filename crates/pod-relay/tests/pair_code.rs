@@ -16,7 +16,12 @@
 //! of their own; planted (`relay-code-nostr-after-brokers`): the brokers
 //! first. The WebTorrent trackers come between the relays and the brokers
 //! (T-551), after an event of their own; planted
-//! (`relay-code-trackers-after-brokers`): the brokers first.
+//! (`relay-code-trackers-after-brokers`): the brokers first. The ntfy
+//! servers come between the mailboxes and the relays (T-554), after an
+//! event of their own; planted (`relay-code-ntfy-after-relays`): the relays
+//! first. Where the way out refuses the upgrade, the ntfy servers come
+//! before the mailboxes; planted (`relay-code-ntfy-not-first`): the
+//! mailboxes first.
 #![cfg(all(feature = "pair", feature = "code"))]
 
 mod cleanup;
@@ -407,6 +412,63 @@ async fn a_taker_that_finds_no_giver_at_a_tracker_looks_at_the_brokers() {
     for line in ["no WebTorrent tracker has the giver", "no WebTorrent tracker answered"] {
         assert!(said.iter().any(|l| l.starts_with(line)), "{line}: {said:?}");
     }
+}
+
+/// The ends at `mailboxes`, then at the ntfy server `server`, then at the
+/// Nostr relay `relay`, then at the broker `broker`.
+#[cfg(feature = "plain-ws")]
+fn ends_with_ntfy(
+    mailboxes: Vec<WsUrl>,
+    server: &pod_wormhole::ntfy::Point,
+    relay: &WsUrl,
+    broker: &WsUrl,
+    said: &Said,
+) -> Ends {
+    let mut ends = ends_with_relay(mailboxes, relay, broker, said);
+    ends.ntfy = vec![server.clone()];
+    let poll = Duration::from_millis(100);
+    ends.pace = pod_wormhole::ntfy::Pace { poll, waiting: poll * 2, retry: poll };
+    ends
+}
+
+#[cfg(feature = "plain-ws")]
+#[tokio::test]
+async fn where_no_mailbox_answers_the_ends_meet_at_an_ntfy_server_before_a_relay() {
+    let server = mailbox_harness::ntfy::start().await;
+    let relay = mailbox_harness::nostr::start().await;
+    let broker = mailbox_harness::broker::start().await;
+    let said = Said::default();
+    let ends = ends_with_ntfy(vec![nobody_there()], &server.url, &relay.url, &broker.url, &said);
+    let p = pairing_between(&ends, &ends, same).await;
+    let given = p.given.unwrap_or_else(|e| panic!("the giver: {e}"));
+    let taken = p.taken.unwrap_or_else(|e| panic!("the taker: {e}"));
+    assert_eq!((given.operator, given.done.admitted, taken.offer.node), (OPERATOR, true, NODE));
+    assert_eq!(given.mailbox, server.url.shown(), "the lines name the ntfy server");
+    assert_eq!(taken.mailbox, server.url.shown());
+    assert!(relay.events().is_empty(), "no event at the relay");
+    let said = said.lock().unwrap();
+    let told: Vec<&String> = said.iter().filter(|line| line.contains(run::NTFY_WORDS)).collect();
+    assert_eq!(told.len(), 2, "one event at each end before its first ntfy server: {said:?}");
+    assert!(told.iter().all(|l| l.starts_with("no mailbox answered")), "{said:?}");
+    assert!(said.iter().all(|line| !line.contains(run::NOSTR_WORDS)), "{said:?}");
+    assert!(said.iter().all(|line| !line.contains(&p.code)), "no line holds the code");
+}
+
+#[cfg(feature = "plain-ws")]
+#[tokio::test]
+async fn where_the_upgrade_is_refused_the_ends_meet_at_an_ntfy_server_before_a_mailbox() {
+    let server = mailbox_harness::ntfy::start().await;
+    let (_, mailbox, _keep) = mailboxes("ntfy").await.into_iter().next().expect("the stand-in mailbox");
+    let said = Said::default();
+    let mut ends = ends_with_ntfy(vec![mailbox], &server.url, &nobody_there(), &nobody_there(), &said);
+    ends.upgrade_refused = true;
+    let p = pairing_between(&ends, &ends, same).await;
+    let given = p.given.unwrap_or_else(|e| panic!("the giver: {e}"));
+    let taken = p.taken.unwrap_or_else(|e| panic!("the taker: {e}"));
+    assert_eq!((given.mailbox, taken.mailbox), (server.url.shown(), server.url.shown()), "the ntfy server first");
+    let said = said.lock().unwrap();
+    let told = said.iter().filter(|l| l.starts_with(run::UPGRADE_REFUSED) && l.contains(run::NTFY_WORDS)).count();
+    assert_eq!(told, 2, "one event at each end before its first ntfy server: {said:?}");
 }
 
 #[tokio::test]

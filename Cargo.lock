@@ -2592,9 +2592,13 @@ dependencies = [
 name = "pod-wormhole"
 version = "0.46.0"
 dependencies = [
+ "bytes",
  "crypto_secretbox",
+ "h2",
  "hkdf 0.13.0",
+ "http",
  "k256",
+ "p256",
  "pod-core",
  "pod-proxy",
  "pod-services",
@@ -2603,10 +2607,12 @@ dependencies = [
  "pod-ws",
  "rand_core 0.6.4",
  "rustls",
+ "rustls-pki-types",
  "serde_json",
  "sha2 0.11.1",
  "spake2",
  "tokio",
+ "tokio-rustls",
  "zeroize",
 ]
 
