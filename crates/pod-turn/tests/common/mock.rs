@@ -5,12 +5,14 @@
 // to a relay socket on the loopback, and Data indications and ChannelData
 // back. Its own reading of the rules, apart from the client; it shares the
 // codec, whose vectors are RFC 5769's and a SHA-256 vector computed apart.
+// The options of an Allocate are in `mock_alloc.rs`: the nonce cookie,
+// USERHASH and the 300 redirect are here.
 
 use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, SocketAddr};
 use std::sync::{Arc, Mutex};
 
-use pod_turn::stun::{self, Class, PasswordAlgorithm, message_type};
+use pod_turn::stun::{self, Class, PasswordAlgorithm, SecurityFeature, message_type};
 use tokio::net::UdpSocket;
 use tokio::sync::mpsc;
 
@@ -24,6 +26,28 @@ pub struct Knobs {
     pub sha256: bool,
     /// The most lifetime that it gives, in seconds.
     pub max_lifetime: u32,
+    /// The 24 bits of the security features of the nonce cookie; `None`
+    /// writes a nonce with no cookie. With username anonymity, a request
+    /// must send USERHASH; with none, USERNAME.
+    pub cookie: Option<u32>,
+    /// A party on the path takes PASSWORD-ALGORITHMS out of each challenge.
+    pub strip_algorithms: bool,
+    /// The mock sets the DF bit for DONT-FRAGMENT; else it answers 420.
+    pub dont_fragment: bool,
+    /// The mock gives IPv6 relayed addresses ([::1] and the port of its IPv4
+    /// relay socket, as the host can have no IPv6); else it answers 440.
+    pub ipv6: bool,
+    /// The TLS mock serves the ALPN `stun.turn`.
+    pub alpn: bool,
+}
+
+/// A 300 (Try Alternate) of each Allocate: before the challenge as coturn
+/// sends it, or after it, signed with the key of the user.
+#[derive(Debug, Clone)]
+pub struct Alternate {
+    pub to: SocketAddr,
+    pub after_challenge: bool,
+    pub domain: Option<String>,
 }
 
 /// One request that the mock read, and its answer (0 for a success).
@@ -31,6 +55,10 @@ pub struct Knobs {
 pub struct Seen {
     pub method: u16,
     pub user: Option<String>,
+    /// The request sent USERHASH.
+    pub userhash: bool,
+    /// The types of its attributes, in order.
+    pub attributes: Vec<u16>,
     pub nonce: Option<Vec<u8>>,
     pub algorithm: Option<u16>,
     pub code: u16,
@@ -49,6 +77,15 @@ pub struct Control {
     /// The Send indications and the ChannelData that it relayed.
     pub sent: u32,
     pub channel_data: u32,
+    /// The Send indications with DONT-FRAGMENT that it relayed.
+    pub sent_dont_fragment: u32,
+    /// The redirect of each Allocate.
+    pub alternate: Option<Alternate>,
+    /// The relay sockets that a RESERVATION-TOKEN keeps, by the token.
+    pub reserved: HashMap<[u8; 8], Arc<UdpSocket>>,
+    /// Each success carries a NONCE that announces PASSWORD-ALGORITHMS, and
+    /// no PASSWORD-ALGORITHMS: the answer of a party on the path.
+    pub downgraded_successes: bool,
 }
 
 pub type Shared = Arc<Mutex<Control>>;
@@ -62,14 +99,14 @@ pub struct Session {
     pub client: SocketAddr,
     nonce: Vec<u8>,
     nonces: u32,
-    alloc: Option<Alloc>,
+    pub(super) alloc: Option<Alloc>,
 }
 
-struct Alloc {
-    owner: String,
-    relay: Arc<UdpSocket>,
-    permissions: HashSet<IpAddr>,
-    channels: HashMap<u16, SocketAddr>,
+pub(super) struct Alloc {
+    pub owner: String,
+    pub relay: Arc<UdpSocket>,
+    pub permissions: HashSet<IpAddr>,
+    pub channels: HashMap<u16, SocketAddr>,
 }
 
 impl Session {
@@ -78,7 +115,7 @@ impl Session {
     }
 }
 
-const SUCCESS: u16 = 0;
+pub(super) const SUCCESS: u16 = 0;
 
 pub struct Mock {
     pub knobs: Knobs,
@@ -92,10 +129,20 @@ impl Mock {
         if self.knobs.sha256 { PasswordAlgorithm::Sha256 } else { PasswordAlgorithm::Md5 }
     }
 
-    /// The key of `user`, when the mock knows the user.
-    fn key(&self, user: &[u8]) -> Option<Vec<u8>> {
-        let (name, password) = self.knobs.users.iter().find(|(name, _)| name.as_bytes() == user)?;
-        Some(self.algorithm().key(name, &self.knobs.realm, password))
+    /// The user of a request and the key: by USERHASH when the nonce
+    /// cookie announces username anonymity, else by USERNAME; `None` for a
+    /// user that the mock does not know, or for the other attribute.
+    fn user_and_key(&self, read: &stun::Message<'_>) -> Option<(String, Vec<u8>)> {
+        let realm = &self.knobs.realm;
+        let anonymity = self.knobs.cookie.is_some_and(|bits| bits & SecurityFeature::UsernameAnonymity.bits() != 0);
+        let (name, password) = match (anonymity, read.attribute(stun::USERHASH), read.attribute(stun::USERNAME)) {
+            (true, Some(hash), None) => {
+                self.knobs.users.iter().find(|(name, _)| stun::userhash(name, realm) == hash)?
+            }
+            (false, None, Some(user)) => self.knobs.users.iter().find(|(name, _)| name.as_bytes() == user)?,
+            _ => return None,
+        };
+        Some((name.clone(), self.algorithm().key(name, realm, password)))
     }
 
     fn offered(&self) -> Vec<u8> {
@@ -104,14 +151,14 @@ impl Mock {
 
     fn fresh_nonce(&self, session: &mut Session) -> Vec<u8> {
         session.nonces += 1;
-        let prefix = if self.knobs.sha256 { "obMatJos2AAAB" } else { "mock-nonce-" };
+        let prefix = self.knobs.cookie.map_or_else(|| "mock-nonce-".to_string(), stun::nonce_cookie);
         session.nonce = format!("{prefix}{}", session.nonces).into_bytes();
         session.nonce.clone()
     }
 
     /// An answer of `method` with `class` and `attributes`, signed with
     /// `key` unless it is a challenge.
-    fn answer(
+    pub(super) fn answer(
         &self,
         method: u16,
         class: Class,
@@ -119,7 +166,12 @@ impl Mock {
         attributes: &[(u16, &[u8])],
         key: Option<&[u8]>,
     ) -> Vec<u8> {
-        let bytes = stun::message(message_type(method, class), id, attributes);
+        let cookie = stun::nonce_cookie(SecurityFeature::PasswordAlgorithms.bit()) + "path";
+        let mut attributes = attributes.to_vec();
+        if class == Class::Success && self.control.lock().unwrap().downgraded_successes {
+            attributes.push((stun::NONCE, cookie.as_bytes()));
+        }
+        let bytes = stun::message(message_type(method, class), id, &attributes);
         let Some(key) = key else { return bytes };
         match self.algorithm() {
             PasswordAlgorithm::Md5 => stun::signed(&bytes, key),
@@ -127,7 +179,14 @@ impl Mock {
         }
     }
 
-    fn error(&self, method: u16, id: &[u8; 12], code: u16, more: &[(u16, &[u8])], key: Option<&[u8]>) -> Vec<u8> {
+    pub(super) fn error(
+        &self,
+        method: u16,
+        id: &[u8; 12],
+        code: u16,
+        more: &[(u16, &[u8])],
+        key: Option<&[u8]>,
+    ) -> Vec<u8> {
         let value = [[0, 0, (code / 100) as u8, (code % 100) as u8].as_slice(), b"mock".as_slice()].concat();
         let mut attributes = vec![(stun::ERROR_CODE, value.as_slice())];
         attributes.extend_from_slice(more);
@@ -138,7 +197,7 @@ impl Mock {
         let nonce = self.fresh_nonce(session);
         let offered = self.offered();
         let mut more = vec![(stun::REALM, self.knobs.realm.as_bytes()), (stun::NONCE, nonce.as_slice())];
-        if self.knobs.sha256 {
+        if self.knobs.sha256 && !self.knobs.strip_algorithms {
             more.push((stun::PASSWORD_ALGORITHMS, offered.as_slice()));
         }
         self.error(method, id, code, &more, None)
@@ -150,6 +209,8 @@ impl Mock {
         let seen = Seen {
             method,
             user: text(stun::USERNAME),
+            userhash: read.attribute(stun::USERHASH).is_some(),
+            attributes: read.attributes.iter().map(|(k, _)| *k).collect(),
             nonce: read.attribute(stun::NONCE).map(<[u8]>::to_vec),
             algorithm,
             code,
@@ -171,7 +232,12 @@ impl Mock {
         if class != Class::Request {
             return Vec::new();
         }
-        let user = read.attribute(stun::USERNAME);
+        let alternate = self.control.lock().unwrap().alternate.clone().filter(|_| method == stun::ALLOCATE);
+        if let Some(alternate) = alternate.as_ref().filter(|a| !a.after_challenge) {
+            self.note(method, &read, 300);
+            return vec![self.redirect(&id, alternate, None)];
+        }
+        let user = read.attribute(stun::USERNAME).or(read.attribute(stun::USERHASH));
         let signed = read.attribute(stun::MESSAGE_INTEGRITY).is_some()
             || read.attribute(stun::MESSAGE_INTEGRITY_SHA256).is_some();
         if user.is_none() || !signed {
@@ -182,8 +248,8 @@ impl Mock {
             self.note(method, &read, 438);
             return vec![self.challenge(session, method, &id, 438)];
         }
-        let user = user.unwrap_or_default();
-        let Some(key) = self.key(user).filter(|key| self.verify(bytes, &read, key).is_ok()) else {
+        let Some((user, key)) = self.user_and_key(&read).filter(|(_, key)| self.verify(bytes, &read, key).is_ok())
+        else {
             self.note(method, &read, 401);
             return vec![self.challenge(session, method, &id, 401)];
         };
@@ -197,15 +263,19 @@ impl Mock {
             self.note(method, &read, 438);
             return vec![self.challenge(session, method, &id, 438)];
         }
+        if let Some(alternate) = &alternate {
+            self.note(method, &read, 300);
+            return vec![self.redirect(&id, alternate, Some(&key))];
+        }
         let owner = self.control.lock().unwrap().owner.clone();
         if let Some(alloc) = &session.alloc {
             let owner = owner.unwrap_or_else(|| alloc.owner.clone());
-            if user != owner.as_bytes() {
+            if user != owner {
                 self.note(method, &read, 441);
                 return vec![self.error(method, &id, 441, &[], Some(&key))];
             }
         }
-        let (code, answer) = self.method(session, method, &read, &key).await;
+        let (code, answer) = self.method(session, method, &read, &user, &key).await;
         self.note(method, &read, code);
         vec![answer]
     }
@@ -225,35 +295,30 @@ impl Mock {
         stun::integrity_sha256(bytes, key).map_err(|e| e.to_string())
     }
 
-    async fn method(&self, session: &mut Session, method: u16, read: &stun::Message<'_>, key: &[u8]) -> (u16, Vec<u8>) {
+    /// A 300 with ALTERNATE-SERVER and the ALTERNATE-DOMAIN of
+    /// `alternate`, signed with `key` after the challenge.
+    fn redirect(&self, id: &[u8; 12], alternate: &Alternate, key: Option<&[u8]>) -> Vec<u8> {
+        let to = stun::write_address(alternate.to, None);
+        let mut more = vec![(stun::ALTERNATE_SERVER, to.as_slice())];
+        more.extend(alternate.domain.as_ref().map(|d| (stun::ALTERNATE_DOMAIN, d.as_bytes())));
+        self.error(stun::ALLOCATE, id, 300, &more, key)
+    }
+
+    async fn method(
+        &self,
+        session: &mut Session,
+        method: u16,
+        read: &stun::Message<'_>,
+        user: &str,
+        key: &[u8],
+    ) -> (u16, Vec<u8>) {
         let id = read.id;
         let peer = read.attribute(stun::XOR_PEER_ADDRESS).and_then(|v| stun::read_address(v, Some(&id)).ok());
         let asked = read.attribute(stun::LIFETIME).map(|v| u32::from_be_bytes([v[0], v[1], v[2], v[3]]));
         let lifetime = asked.unwrap_or(600).min(self.knobs.max_lifetime);
         let fail = |code| (code, self.error(method, &id, code, &[], Some(key)));
         match method {
-            stun::ALLOCATE => {
-                if session.alloc.is_some() {
-                    return fail(437);
-                }
-                if read.attribute(stun::REQUESTED_TRANSPORT) != Some(&[17, 0, 0, 0][..]) {
-                    return fail(442);
-                }
-                let relay = Arc::new(UdpSocket::bind("127.0.0.1:0").await.unwrap());
-                let relayed = relay.local_addr().unwrap();
-                spawn_relay(relay.clone(), session.client, self.relayed.clone());
-                let user = String::from_utf8_lossy(read.attribute(stun::USERNAME).unwrap()).into_owned();
-                let alloc = Alloc { owner: user, relay, permissions: HashSet::new(), channels: HashMap::new() };
-                session.alloc = Some(alloc);
-                let (r, m) = (stun::write_address(relayed, Some(&id)), stun::write_address(session.client, Some(&id)));
-                let life = lifetime.to_be_bytes();
-                let attributes = [
-                    (stun::XOR_RELAYED_ADDRESS, r.as_slice()),
-                    (stun::XOR_MAPPED_ADDRESS, &m),
-                    (stun::LIFETIME, &life),
-                ];
-                (SUCCESS, self.answer(method, Class::Success, &id, &attributes, Some(key)))
-            }
+            stun::ALLOCATE => self.allocate(session, read, user, key, lifetime).await,
             stun::REFRESH => {
                 if session.alloc.is_none() {
                     return fail(437);
@@ -287,7 +352,11 @@ impl Mock {
         let peer = read.attribute(stun::XOR_PEER_ADDRESS).and_then(|v| stun::read_address(v, Some(&read.id)).ok());
         let (Some(alloc), Some(peer), Some(data)) = (&session.alloc, peer, read.attribute(stun::DATA)) else { return };
         if alloc.permissions.contains(&peer.ip()) {
-            self.control.lock().unwrap().sent += 1;
+            {
+                let mut control = self.control.lock().unwrap();
+                control.sent += 1;
+                control.sent_dont_fragment += u32::from(read.attribute(stun::DONT_FRAGMENT).is_some());
+            }
             let _ = alloc.relay.send_to(data, peer).await;
         }
     }
@@ -325,7 +394,7 @@ impl Mock {
 }
 
 /// Read what peers send to `relay`, for the session of `client`.
-fn spawn_relay(relay: Arc<UdpSocket>, client: SocketAddr, out: mpsc::UnboundedSender<Relayed>) {
+pub(super) fn spawn_relay(relay: Arc<UdpSocket>, client: SocketAddr, out: mpsc::UnboundedSender<Relayed>) {
     tokio::spawn(async move {
         let mut buf = vec![0u8; 65_536];
         while let Ok((n, peer)) = relay.recv_from(&mut buf).await {

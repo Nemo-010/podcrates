@@ -1,0 +1,7 @@
+# The client does not follow the 300 of the Allocate; the test of the
+# redirect between two coturns must fail. It needs docker and openssl.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test a_300_of_the_first_allocate_is_followed_to_the_alternate \.\.\. FAILED'
+RUN='sh scripts/ci/turn-tests.sh'
+LIMIT=1800

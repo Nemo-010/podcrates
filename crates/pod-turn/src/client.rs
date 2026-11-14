@@ -4,8 +4,10 @@
 //! TURN-2), and never changes the user or the password of a live
 //! allocation: a new credential needs a new client and a new Allocate.
 
+mod allocation;
 mod error;
 mod exchange;
+mod open;
 mod settings;
 mod wire;
 
@@ -14,16 +16,17 @@ use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
+use pod_core::Target;
 use pod_core::entropy::Entropy;
-use pod_core::{BoxedIo, Target};
 use tokio::time::Instant;
 
+pub use allocation::{AddressError, Allocation, Family, Port};
 pub use error::{Error, Event, Kept};
 pub use settings::{Clock, Credentials, Limits, Opened, Settings, SystemUdp, TokioClock, Transport, UdpSource};
 
 use crate::stun::{
-    self, ALLOCATE, CHANNEL_BIND, CHANNEL_NUMBER, CREATE_PERMISSION, Class, DATA, LIFETIME, REFRESH,
-    REQUESTED_TRANSPORT, SEND, TRANSPORT_UDP, TransactionId, XOR_MAPPED_ADDRESS, XOR_PEER_ADDRESS, XOR_RELAYED_ADDRESS,
+    self, ALLOCATE, CHANNEL_BIND, CHANNEL_NUMBER, CREATE_PERMISSION, Class, DATA, DONT_FRAGMENT, LIFETIME, REFRESH,
+    REQUESTED_TRANSPORT, SEND, TRANSPORT_UDP, TransactionId, XOR_MAPPED_ADDRESS, XOR_PEER_ADDRESS,
 };
 use exchange::{Auth, Value};
 use wire::{Conn, FIRST_CHANNEL, LAST_CHANNEL};
@@ -44,7 +47,14 @@ pub struct Client {
     entropy: Box<dyn Entropy + Send>,
     software: Option<String>,
     auth: Option<Auth>,
-    relayed: SocketAddr,
+    /// The ALPN protocol that the server chose over TLS.
+    alpn: Option<Vec<u8>>,
+    /// DONT-FRAGMENT in each Send indication.
+    dont_fragment: bool,
+    /// One relayed address, or two of a dual allocation.
+    relayed: Vec<SocketAddr>,
+    reservation: Option<[u8; 8]>,
+    address_error: Option<AddressError>,
     mapped: Option<SocketAddr>,
     lifetime: Duration,
     /// When the server last gave the allocation its lifetime.
@@ -63,15 +73,17 @@ pub struct Client {
 impl Client {
     /// Connect to the server of `settings` and allocate a relayed address
     /// for UDP: the first Allocate goes with no credentials, the 401 gives
-    /// the realm and the nonce, and the Allocate goes again with them.
+    /// the realm and the nonce, and the Allocate goes again with them. A 300
+    /// (Try Alternate) to the Allocate is followed once, to another server,
+    /// through the same transport of the settings.
     pub async fn allocate(settings: Settings) -> Result<Client, Error> {
         settings.check()?;
-        let Settings { server, transport, credentials, realm, limits, clock, entropy, software } = settings;
+        let Settings { server, transport, credentials, realm, limits, clock, entropy, software, allocation } = settings;
         let deadline = clock.now() + limits.connect_timeout;
-        let conn = connect(&server, &transport, deadline, limits.connect_timeout).await?;
+        let link = open::connect(&server, &transport, None, deadline, limits.connect_timeout).await?;
         let now = clock.now();
         let mut client = Client {
-            conn,
+            conn: link.conn,
             server,
             credentials,
             realm,
@@ -80,7 +92,11 @@ impl Client {
             entropy,
             software,
             auth: None,
-            relayed: SocketAddr::from(([0, 0, 0, 0], 0)),
+            alpn: link.alpn,
+            dont_fragment: allocation.dont_fragment,
+            relayed: Vec::new(),
+            reservation: None,
+            address_error: None,
             mapped: None,
             lifetime: Duration::ZERO,
             granted: now,
@@ -91,27 +107,69 @@ impl Client {
             recent: VecDeque::new(),
             open: false,
         };
-        let attributes =
-            [(REQUESTED_TRANSPORT, Value::Bytes(vec![TRANSPORT_UDP, 0, 0, 0])), client.lifetime_attribute()];
-        let reply = client.transact(ALLOCATE, &attributes).await?;
+        let mut attributes =
+            vec![(REQUESTED_TRANSPORT, Value::Bytes(vec![TRANSPORT_UDP, 0, 0, 0])), client.lifetime_attribute()];
+        attributes.extend(allocation.attributes());
+        let reply = match client.transact(ALLOCATE, &attributes).await {
+            Err(Error::Alternate { method: ALLOCATE, to, domain }) => {
+                client.redirect(to, domain, &transport).await?;
+                let again = client.transact(ALLOCATE, &attributes).await;
+                again.map_err(|error| Error::Redirected { to, error: Box::new(error) })?
+            }
+            other => other?,
+        };
         let read = stun::decode(&reply).map_err(Error::Decode)?;
-        let relayed = read.attribute(XOR_RELAYED_ADDRESS).ok_or_else(|| Error::Protocol {
-            kind: read.kind,
-            why: "an Allocate success with no XOR-RELAYED-ADDRESS".into(),
-        })?;
-        client.relayed = stun::read_address(relayed, Some(&read.id))
-            .map_err(|why| Error::Protocol { kind: read.kind, why: format!("XOR-RELAYED-ADDRESS: {why}") })?;
+        let granted = match allocation::granted(&read, &allocation).and_then(|g| Ok((g, lifetime_of(&read)?))) {
+            Ok(granted) => granted,
+            Err(error) => {
+                // RFC 8656, 7.3: an allocation that the client cannot use is deleted.
+                let _ = client.transact(REFRESH, &[(LIFETIME, Value::Bytes(vec![0; 4]))]).await;
+                return Err(error);
+            }
+        };
+        let (allocation::Granted { relayed, reservation, address_error }, lifetime) = granted;
+        (client.relayed, client.reservation, client.address_error) = (relayed, reservation, address_error);
         client.mapped = read.attribute(XOR_MAPPED_ADDRESS).and_then(|v| stun::read_address(v, Some(&read.id)).ok());
-        client.lifetime = lifetime_of(&read)?;
+        client.lifetime = lifetime;
         client.granted = client.clock.now();
         client.open = true;
-        tracing::debug!(server = %client.server, relayed = %client.relayed, "TURN: allocated");
+        tracing::debug!(server = %client.server, relayed = ?client.relayed, "TURN: allocated");
         Ok(client)
     }
 
-    /// The relayed transport address: the address that peers send to.
+    /// The relayed transport address: the address that peers send to; the
+    /// first one of a dual allocation.
     pub fn relayed_address(&self) -> SocketAddr {
-        self.relayed
+        self.relayed[0]
+    }
+
+    /// Each relayed transport address: two of a dual allocation
+    /// ([`Family::Both`]), else one.
+    pub fn relayed_addresses(&self) -> &[SocketAddr] {
+        &self.relayed
+    }
+
+    /// The token of the port that the server keeps for a later Allocate
+    /// ([`Port::EvenAndNext`]); it goes in [`Allocation::reservation`].
+    pub fn reservation_token(&self) -> Option<[u8; 8]> {
+        self.reservation
+    }
+
+    /// The family that a dual allocation did not get, and why.
+    pub fn address_error(&self) -> Option<&AddressError> {
+        self.address_error.as_ref()
+    }
+
+    /// The ALPN protocol that the server chose over TLS (`stun.turn` when
+    /// the transport offered it and the server took it).
+    pub fn alpn(&self) -> Option<&[u8]> {
+        self.alpn.as_deref()
+    }
+
+    /// The server of the allocation: the one of the settings, or the one
+    /// that a redirect named.
+    pub fn server(&self) -> &Target {
+        &self.server
     }
 
     /// The address of this client that the server saw, when it said so.
@@ -196,7 +254,10 @@ impl Client {
         }
         let id = self.new_id()?;
         let address = stun::write_address(peer, Some(&id));
-        let attributes = [(XOR_PEER_ADDRESS, address.as_slice()), (DATA, data)];
+        let mut attributes = vec![(XOR_PEER_ADDRESS, address.as_slice()), (DATA, data)];
+        if self.dont_fragment {
+            attributes.push((DONT_FRAGMENT, &[]));
+        }
         let bytes = stun::message(stun::message_type(SEND, Class::Indication), &id, &attributes);
         self.conn.send(&bytes).await
     }
@@ -321,6 +382,7 @@ impl std::fmt::Debug for Client {
             .field("server", &self.server)
             .field("username", &self.credentials.username())
             .field("relayed", &self.relayed)
+            .field("alpn", &self.alpn.as_deref().map(String::from_utf8_lossy))
             .field("mapped", &self.mapped)
             .field("lifetime", &self.lifetime)
             .field("permissions", &self.permissions.len())
@@ -337,20 +399,4 @@ fn lifetime_of(read: &stun::Message<'_>) -> Result<Duration, Error> {
     let secs = <[u8; 4]>::try_from(value)
         .map_err(|_| Error::Protocol { kind: read.kind, why: format!("a LIFETIME of {} bytes", value.len()) })?;
     Ok(Duration::from_secs(u64::from(u32::from_be_bytes(secs))))
-}
-
-/// Open the transport: the caller's UDP socket, or the caller's dial and
-/// the TLS handshake of the caller's context.
-async fn connect(server: &Target, transport: &Transport, deadline: Instant, limit: Duration) -> Result<Conn, Error> {
-    match transport {
-        Transport::Udp(source) => {
-            let (socket, addr) = source.open(server, deadline).await.map_err(Error::Connect)?;
-            Ok(Conn::udp(socket, addr))
-        }
-        Transport::Tls { dialer, context, trust, server_name } => {
-            let connected = dialer.dial(server, deadline).await.map_err(Error::Connect)?;
-            let tls = context.connect_over(connected.io, server_name, trust, limit).await.map_err(Error::Connect)?;
-            Ok(Conn::stream(Box::new(tls) as BoxedIo))
-        }
-    }
 }

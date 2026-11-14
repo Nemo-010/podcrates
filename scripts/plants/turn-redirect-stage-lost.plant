@@ -1,0 +1,7 @@
+# A refused redirect becomes a failure at the stage Relay; the test of
+# the words and the stage of the way out must fail.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test (.*::)?a_redirect_that_the_way_out_refuses_fails_with_its_words \.\.\. FAILED'
+RUN='cargo test -p pod-turn --all-features --test turn_redirect -- a_redirect_that_the_way_out_refuses_fails_with_its_words --exact'
+LIMIT=1800

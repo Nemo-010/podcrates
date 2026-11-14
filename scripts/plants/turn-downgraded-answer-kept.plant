@@ -1,0 +1,7 @@
+# An answer with a downgraded nonce is not dropped; the unit test of the
+# drop must fail.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test (.*::)?an_answer_with_a_downgraded_nonce_is_dropped \.\.\. FAILED'
+RUN='cargo test -p pod-turn --all-features --lib -- an_answer_with_a_downgraded_nonce_is_dropped'
+LIMIT=1800

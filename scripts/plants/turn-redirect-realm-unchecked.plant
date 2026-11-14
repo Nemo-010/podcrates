@@ -1,0 +1,7 @@
+# After a redirect the client takes any realm; the test of the realm of
+# the first server must fail.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test (.*::)?the_alternate_must_give_the_realm_of_the_first_server \.\.\. FAILED'
+RUN='cargo test -p pod-turn --all-features --test turn_redirect -- the_alternate_must_give_the_realm_of_the_first_server --exact'
+LIMIT=1800

@@ -2907,7 +2907,7 @@ The remote mint and the unit host of podrunner use mutual TLS with pinned keys o
 
 ## Premise
 
-- Read: `with_no_client_auth` is at `crates/pod-tls/src/context.rs:226`, `crates/pod-tls/src/server.rs:70`, `crates/pod-tls/src/kept.rs:104`, `crates/pod-tls/src/ech/config.rs:89` and `crates/pod-tls/src/fragment.rs:339`. This agrees with the issue.
+- Read: `with_no_client_auth` is at `crates/pod-tls/src/context.rs:251`, `crates/pod-tls/src/server.rs:70`, `crates/pod-tls/src/kept.rs:104`, `crates/pod-tls/src/ech/config.rs:89` and `crates/pod-tls/src/fragment.rs:339`. This agrees with the issue.
 - Not measured: a handshake with a client certificate. Not read: the contract of the design review.
 
 ## Approach
@@ -5809,7 +5809,7 @@ README of `pod-turn`.
 **Milestone:** M1
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -5860,6 +5860,74 @@ with no EVEN-PORT, no DONT-FRAGMENT and no address family holds. coturn
 logs "TURN/STUN ALPN supported" and has the options `--alternate-server`
 and `--tls-alternate-server`: a test of ALTERNATE-SERVER and of the ALPN
 against coturn can use them.
+
+## Done
+
+2026-11-14, commits `623f6c4` (the code, the tests, the README of
+`pod-turn` and `pod-tls`, the script and calls C562 to C567), `bc34417`
+(the plants) and the commit that closes this entry (the test of a dropped
+success, and its plant). Each option of the Problem:
+
+- The nonce cookie (call C562): `SecurityFeature` reads PASSWORD-ALGORITHMS
+  and username anonymity in both orders of the 24 bits (erratum 6290 of
+  RFC 8489, 18.1, and the text of 9.2 with the example of RFC 8656, 20).
+  coturn writes no cookie, so neither its source nor its answer gives the
+  order (call C566). The nonce of RFC 8489, B.1 is `AAAC`, not `AAAB`: in
+  the order of the erratum it announces username anonymity alone. A 401
+  or 438 that announces PASSWORD-ALGORITHMS and holds none fails with
+  `Error::Downgrade`; another such answer is dropped
+  (`a_success_with_a_downgraded_nonce_is_dropped`: the Refresh goes again
+  and fails by time).
+- USERHASH (RFC 8489, 14.4): sent in place of USERNAME when the nonce
+  announces username anonymity; `stun::userhash`. Proven by the request of
+  RFC 8489, B.1 as erratum 6268 corrects it (its USERHASH, and its
+  MESSAGE-INTEGRITY-SHA256 with the key of `TheMatrIX`) and by the mock;
+  coturn has no USERHASH (call C566).
+- ALTERNATE-SERVER (call C563): one redirect of the Allocate to another
+  server, the same credentials, the realm of the settings or of the first
+  server, ALTERNATE-DOMAIN only from a 300 signed with SHA-256; a refusal
+  of the caller's way out fails with its words and its stage
+  (`Error::Redirected`). Against coturn: a second coturn with
+  `--alternate-server` and `--tls-alternate-server` (call C567).
+- The ALPN `stun.turn` (call C565): `Transport::Tls { alpn }`, off in
+  `Settings::tls`; `Client::alpn`; `pod_tls::Context::connect_over_alpn`.
+- The options of an Allocate (call C564): `Settings::allocation`
+  (`Allocation`, `Family`, `Port`), `Client::{relayed_addresses,
+  reservation_token, address_error}`, DONT-FRAGMENT in each Send
+  indication. Measured on 127.0.0.1: coturn 4.18.0 gives an even port and
+  a token, and the next port for the token; takes DONT-FRAGMENT; answers
+  IPv6 with 440; answers both families with IPv4, `0.0.0.0:0` and
+  ADDRESS-ERROR-CODE 440 of IPv6 (the client drops the unspecified
+  address); coturn 4.6.1 answers both families with IPv4 alone.
+- Tests: `cargo test -p pod-turn --all-features`: 28 unit (8 new),
+  `turn_redirect` 10, `turn_allocation` 4, `turn_udp` 12, `turn_tls` 4,
+  `coturn` 7 and `coturn_options` 6 (skip with no coturn), `live` 1
+  ignored. `sh scripts/ci/turn-tests.sh` passed with the pinned image of
+  coturn 4.18.0 (dockerd started here) and with
+  `POD_TURN_TEST_COTURN_BIN=/usr/bin/turnserver` (coturn 4.6.1 of
+  Ubuntu); the 13 lines of `tests/coturn*.rs` and the line of
+  ADDRESS-ERROR-CODE (the image alone). `cargo test -p pod-tls
+  --all-features`: `caller_tls` 4 (1 new), each target passed.
+  `cargo test -p pod-turn --no-default-features --features stun`: 18
+  passed.
+- Plants, each caught by hand: `turn-downgrade-not-checked`,
+  `turn-downgraded-answer-kept`, `turn-downgraded-success-taken`, `turn-userhash-not-sent`,
+  `turn-userhash-without-colon`, `turn-feature-one-order`,
+  `turn-redirect-not-followed`, `turn-redirect-followed-twice`,
+  `turn-redirect-realm-unchecked`, `turn-alternate-domain-unsigned`,
+  `turn-redirect-stage-lost`, `turn-alpn-not-offered`,
+  `turn-reservation-token-dropped`, `turn-dont-fragment-not-in-send`,
+  `turn-family-unchecked`, `turn-unspecified-relay-kept`,
+  `tls-connect-over-alpn-ignored`, and through coturn
+  `turn-coturn-redirect-not-followed`, `turn-coturn-alpn-not-offered`,
+  `turn-coturn-unspecified-relay-kept`, `turn-coturn-options-skip-fails`;
+  `turn-stale-nonce-not-taken` (its patch takes the new context),
+  `turn-coturn-skip-fails` and `turn-coturn-channel-data-not-padded` are
+  caught again. `sh scripts/plant-each.sh --apply`: 0 stale.
+- Not proven against a server of another party: the nonce cookie and
+  USERHASH (coturn has neither; T-403 looks for a server with SHA-256), a
+  dual allocation with an IPv6 relay (the host here has no IPv6, and
+  coturn relays on 127.0.0.1 alone).
 
 # T-396: `pod-link`: a TCP carrier with TLS 1.3 that pins the Ed25519 key of the peer, and its accept side (PodUtils/podnet#513)
 

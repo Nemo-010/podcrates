@@ -1,0 +1,14 @@
+diff --git a/crates/pod-turn/src/client/allocation.rs b/crates/pod-turn/src/client/allocation.rs
+index 04b12fd..41f45ac 100644
+--- a/crates/pod-turn/src/client/allocation.rs
++++ b/crates/pod-turn/src/client/allocation.rs
+@@ -112,9 +112,6 @@ impl Allocation {
+             Port::Even => out.push((EVEN_PORT, Value::Bytes(vec![0]))),
+             Port::EvenAndNext => out.push((EVEN_PORT, Value::Bytes(vec![0x80]))),
+         }
+-        if let Some(token) = self.reservation {
+-            out.push((RESERVATION_TOKEN, Value::Bytes(token.to_vec())));
+-        }
+         if self.dont_fragment {
+             out.push((DONT_FRAGMENT, Value::Bytes(Vec::new())));
+         }

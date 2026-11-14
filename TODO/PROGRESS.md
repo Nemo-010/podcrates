@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 512 entries: 109 open, 9 partial, 6 blocked, 388 done.
+`TODO/INDEX.md` holds 512 entries: 108 open, 9 partial, 6 blocked, 389 done.
 
 ## State
 
@@ -78,10 +78,7 @@ The Windows guest of podvm (#152): T-602 (the first run of
 for podnet (item 3c): T-526. Then the items below, in order.
 
 1. **The defects and asks of the consumers:** T-554 (ntfy as a meeting
-   point of a code, PodUtils/podssh#237); T-381 (the options of
-   RFC 8489 and RFC 8656 that `pod-turn` leaves out; coturn on the
-   loopback proves the client on each push, so a test against coturn goes
-   with each option), T-403 (the SHA-256 credentials against a server of
+   point of a code, PodUtils/podssh#237); T-403 (the SHA-256 credentials against a server of
    another party: coturn keys with SHA-1 alone); T-478 (the client of
    the HTTP road never sends `close`); T-378 (`pod-devtunnel`, GitHub #94 and
    PodUtils/podssh#216: partial: the client side is in `v0.33.0` for

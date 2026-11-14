@@ -1,0 +1,17 @@
+diff --git a/crates/pod-turn/src/client.rs b/crates/pod-turn/src/client.rs
+index 80c91d6..8fd7ca7 100644
+--- a/crates/pod-turn/src/client.rs
++++ b/crates/pod-turn/src/client.rs
+@@ -113,7 +113,11 @@ impl Client {
+         let reply = match client.transact(ALLOCATE, &attributes).await {
+             Err(Error::Alternate { method: ALLOCATE, to, domain }) => {
+                 client.redirect(to, domain, &transport).await?;
+-                let again = client.transact(ALLOCATE, &attributes).await;
++                let mut again = client.transact(ALLOCATE, &attributes).await;
++                while let Err(Error::Alternate { to, domain, .. }) = again {
++                    client.redirect(to, domain, &transport).await?;
++                    again = client.transact(ALLOCATE, &attributes).await;
++                }
+                 again.map_err(|error| Error::Redirected { to, error: Box::new(error) })?
+             }
+             other => other?,

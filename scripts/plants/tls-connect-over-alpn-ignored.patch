@@ -1,0 +1,13 @@
+diff --git a/crates/pod-tls/src/context.rs b/crates/pod-tls/src/context.rs
+index 31189c4..edcd557 100644
+--- a/crates/pod-tls/src/context.rs
++++ b/crates/pod-tls/src/context.rs
+@@ -190,7 +190,7 @@ impl Context {
+         S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+     {
+         let mut config = self.config_for(trust)?;
+-        if !alpn.is_empty() {
++        if false && !alpn.is_empty() {
+             let mut copy = (*config).clone();
+             copy.alpn_protocols = alpn.iter().map(|p| p.to_vec()).collect();
+             config = Arc::new(copy);

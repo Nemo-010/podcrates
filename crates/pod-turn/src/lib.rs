@@ -29,6 +29,6 @@ mod client;
 
 #[cfg(feature = "turn")]
 pub use client::{
-    Client, Clock, Credentials, Error, Event, Kept, Limits, Opened, Settings, SystemUdp, TokioClock, Transport,
-    UdpSource,
+    AddressError, Allocation, Client, Clock, Credentials, Error, Event, Family, Kept, Limits, Opened, Port, Settings,
+    SystemUdp, TokioClock, Transport, UdpSource,
 };

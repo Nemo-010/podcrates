@@ -1,0 +1,13 @@
+diff --git a/crates/pod-turn/src/stun_sha256.rs b/crates/pod-turn/src/stun_sha256.rs
+index f48a333..1b77b02 100644
+--- a/crates/pod-turn/src/stun_sha256.rs
++++ b/crates/pod-turn/src/stun_sha256.rs
+@@ -73,7 +73,7 @@ pub fn nonce_cookie(features: u32) -> String {
+ /// `user:realm`. The caller gives each text after its preparation
+ /// (OpaqueString); this function does none.
+ pub fn userhash(user: &str, realm: &str) -> [u8; 32] {
+-    Sha256::digest(format!("{user}:{realm}").as_bytes()).into()
++    Sha256::digest(format!("{user}{realm}").as_bytes()).into()
+ }
+ 
+ /// The bytes of a MESSAGE-INTEGRITY-SHA256 attribute that this codec writes:

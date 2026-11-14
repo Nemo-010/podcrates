@@ -1,0 +1,13 @@
+diff --git a/crates/pod-turn/src/client/open.rs b/crates/pod-turn/src/client/open.rs
+index 8c647de..66b7e86 100644
+--- a/crates/pod-turn/src/client/open.rs
++++ b/crates/pod-turn/src/client/open.rs
+@@ -40,7 +40,7 @@ pub async fn connect(
+         Transport::Tls { dialer, context, trust, server_name, alpn } => {
+             let connected = dialer.dial(server, deadline).await.map_err(Error::Connect)?;
+             let name = domain.unwrap_or(server_name);
+-            let offered: &[&[u8]] = if *alpn { &[ALPN] } else { &[] };
++            let offered: &[&[u8]] = if *alpn && false { &[ALPN] } else { &[] };
+             let tls =
+                 context.connect_over_alpn(connected.io, name, trust, offered, limit).await.map_err(Error::Connect)?;
+             let chosen = tls.get_ref().1.alpn_protocol().map(<[u8]>::to_vec);

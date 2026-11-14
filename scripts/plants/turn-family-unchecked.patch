@@ -1,0 +1,13 @@
+diff --git a/crates/pod-turn/src/client/allocation.rs b/crates/pod-turn/src/client/allocation.rs
+index 04b12fd..8240c96 100644
+--- a/crates/pod-turn/src/client/allocation.rs
++++ b/crates/pod-turn/src/client/allocation.rs
+@@ -167,7 +167,7 @@ pub(super) fn granted(read: &stun::Message<'_>, asked: &Allocation) -> Result<Gr
+         (Family::Both, [one]) => address_error.as_ref().is_none_or(|e| e.family != *one),
+         _ => false,
+     };
+-    if !fits {
++    if !fits && asked.family == Family::Server {
+         let why = format!("relayed addresses of the families {families:?} for an Allocate of {:?}", asked.family);
+         return Err(protocol(why));
+     }

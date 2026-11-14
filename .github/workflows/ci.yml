@@ -163,10 +163,11 @@ jobs:
       # made-up key that the script gives the server. A skip fails the step.
       - name: pod-link against SeaweedFS
         run: sh scripts/ci/s3-tests.sh
-      # The TURN client of pod-turn over UDP and over TLS, and the STUN codec
-      # of pod-proxy, against coturn on 127.0.0.1 (T-380, T-358): the image
-      # of images/coturn/, pinned to a digest, with a made-up user and a
-      # certificate that the script makes. A skip fails the step.
+      # The TURN client of pod-turn over UDP and over TLS with the options of
+      # T-381, and the STUN codec of pod-proxy, against coturn on 127.0.0.1
+      # (T-380, T-358): the image of images/coturn/, pinned to a digest, with
+      # a made-up user and a certificate that the script makes, and a second
+      # coturn that redirects to the first. A skip fails the step.
       - name: pod-turn and pod-proxy against coturn
         run: sh scripts/ci/turn-tests.sh
       # The drop of the capabilities of a root payload (T-221) skips as

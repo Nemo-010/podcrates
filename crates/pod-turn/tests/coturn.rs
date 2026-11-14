@@ -7,112 +7,33 @@
 //! password (401), and a certificate of another root.
 //!
 //! `scripts/ci/turn-tests.sh` starts coturn on 127.0.0.1 with the login of
-//! this file and sets `POD_TURN_TEST_COTURN_UDP`, `POD_TURN_TEST_COTURN_TLS`
-//! (`HOST:PORT`) and `POD_TURN_TEST_COTURN_CA` (the PEM of the root of its
-//! certificate). With none of them each test skips with the reason, unless
+//! `tests/common/coturn.rs` and names it in the variables that file reads.
+//! With none of them each test skips with the reason, unless
 //! `POD_TURN_TEST_COTURN=required`, which the script sets.
 
 mod common;
 
 use std::io::{self, IoSliceMut};
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use common::{LIMIT, Loopback, Shared5Tuple, echo_peer};
+use common::coturn::{PASSWORD, REALM_NAME, USER, bound_socket, coturn, echoed, tls_settings, udp_settings, within};
+use common::echo_peer;
 use pod_core::{Datagrams, RecvMeta, Transmit};
 use pod_turn::stun::{self, ALLOCATE, Class, NONCE, PASSWORD_ALGORITHMS, REALM, REFRESH};
-use pod_turn::{Client, Credentials, Error, Event, Settings, Transport};
+use pod_turn::{Client, Error, Event, Transport};
 
-/// The made-up login of `scripts/ci/turn-tests.sh`: coturn's `--user` and
-/// `--realm`.
-const USER: &str = "pod-turn-test";
-const PASSWORD: &str = "made-up-coturn-password";
-const REALM_NAME: &str = "coturn.test";
 /// A user that coturn does not know.
 const OTHER_USER: &str = "pod-turn-other";
-/// The name of coturn's certificate.
-const NAME: &str = "coturn.test";
 /// coturn's `--max-allocate-lifetime`.
 const MAX_LIFETIME: Duration = Duration::from_secs(1800);
 /// coturn's `--stale-nonce`: the life of a nonce.
 const STALE: Duration = Duration::from_secs(2);
 /// The longest wait for coturn to free a deleted allocation (1 s measured).
 const FREED: Duration = Duration::from_secs(4);
-
-/// Where coturn listens, and the root of its certificate.
-struct Coturn {
-    udp: SocketAddr,
-    tls: SocketAddr,
-    ca: PathBuf,
-}
-
-/// coturn of the variables, or `None` with a line when they name none.
-/// `POD_TURN_TEST_COTURN=required` makes no coturn a failure.
-fn coturn() -> Option<Coturn> {
-    let var = |name: &str| std::env::var(name).ok().filter(|v| !v.is_empty());
-    let named = (var("POD_TURN_TEST_COTURN_UDP"), var("POD_TURN_TEST_COTURN_TLS"), var("POD_TURN_TEST_COTURN_CA"));
-    let (Some(udp), Some(tls), Some(ca)) = named else {
-        let why = "POD_TURN_TEST_COTURN_UDP, POD_TURN_TEST_COTURN_TLS and POD_TURN_TEST_COTURN_CA name no coturn";
-        assert!(
-            std::env::var("POD_TURN_TEST_COTURN").as_deref() != Ok("required"),
-            "POD_TURN_TEST_COTURN=required: no coturn here: {why}"
-        );
-        println!("skipped: {why}");
-        return None;
-    };
-    let address = |v: String| v.parse::<SocketAddr>().expect("HOST:PORT of coturn, an IP address");
-    Some(Coturn { udp: address(udp), tls: address(tls), ca: PathBuf::from(ca) })
-}
-
-async fn within<T>(future: impl std::future::Future<Output = T>) -> T {
-    tokio::time::timeout(pod_testkit::host::scaled(LIMIT), future).await.expect("the test's bound")
-}
-
-/// The settings of a client over UDP through `socket`, with the realm that
-/// coturn must offer.
-fn udp_settings(coturn: &Coturn, socket: &Arc<pod_core::SystemDatagrams>, user: &str, password: &str) -> Settings {
-    let source = Arc::new(Shared5Tuple(socket.clone()));
-    let mut settings = Settings::udp(pod_core::Target::Addr(coturn.udp), Credentials::new(user, password), source);
-    settings.realm = Some(REALM_NAME.into());
-    settings.software = Some("pod-turn-coturn-test".into());
-    settings
-}
-
-/// The settings of a client over TLS: the loopback dial, and the root of
-/// the script alone, or the default roots.
-fn tls_settings(coturn: &Coturn, own_root: bool) -> Settings {
-    let provider = Arc::new(rustls::crypto::ring::default_provider());
-    let context = pod_tls::Context::new(provider, pod_tls::Settings::new(pod_tls::Words::new("pod-turn-test")));
-    let target = pod_core::Target::Addr(coturn.tls);
-    let mut settings = Settings::tls(target, Credentials::new(USER, PASSWORD), Arc::new(Loopback), Arc::new(context));
-    if let Transport::Tls { trust, server_name, .. } = &mut settings.transport {
-        if own_root {
-            *trust = pod_tls::Trust::File(coturn.ca.clone());
-        }
-        *server_name = NAME.into();
-    }
-    settings.realm = Some(REALM_NAME.into());
-    settings
-}
-
-async fn bound_socket() -> Arc<pod_core::SystemDatagrams> {
-    Arc::new(pod_core::SystemDatagrams::bind("127.0.0.1:0".parse().unwrap()).await.unwrap())
-}
-
-/// The next event must be `echo:` and `sent` from `peer`, on `channel`.
-async fn echoed(client: &mut Client, peer: SocketAddr, channel: Option<u16>, sent: &[u8]) {
-    match within(client.recv()).await.unwrap() {
-        Event::Data { peer: from, channel: on, data } => {
-            assert_eq!((from, on), (peer, channel));
-            assert_eq!(data, [b"echo:".as_slice(), sent].concat());
-        }
-        other => panic!("{other:?}"),
-    }
-}
 
 /// A permission, a Send echo, a channel, and a ChannelData echo of each
 /// length class: on TLS, 3 and 1001 bytes take padding, 0 and 4 none.

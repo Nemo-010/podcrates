@@ -1,0 +1,16 @@
+diff --git a/crates/pod-turn/src/stun_sha256.rs b/crates/pod-turn/src/stun_sha256.rs
+index f48a333..4f1b2f7 100644
+--- a/crates/pod-turn/src/stun_sha256.rs
++++ b/crates/pod-turn/src/stun_sha256.rs
+@@ -46,10 +46,7 @@ impl SecurityFeature {
+     /// 9.2, and the example of RFC 8656, 20). Bits 2 to 21 are unassigned, so
+     /// no feature has a bit of the other in either order.
+     pub const fn bits(self) -> u32 {
+-        match self {
+-            SecurityFeature::PasswordAlgorithms => 0x80_0001,
+-            SecurityFeature::UsernameAnonymity => 0x40_0002,
+-        }
++        self.bit()
+     }
+ 
+     /// True when `nonce` starts with the cookie and announces the feature.

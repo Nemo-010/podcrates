@@ -1,0 +1,13 @@
+diff --git a/crates/pod-turn/src/client/exchange.rs b/crates/pod-turn/src/client/exchange.rs
+index 2c79efd..bc23f10 100644
+--- a/crates/pod-turn/src/client/exchange.rs
++++ b/crates/pod-turn/src/client/exchange.rs
+@@ -190,7 +190,7 @@ impl Client {
+         };
+         let user = self.credentials.username();
+         let key = algorithm.key(user, &realm, self.credentials.password());
+-        let userhash = SecurityFeature::UsernameAnonymity.announced_by(&nonce).then(|| stun::userhash(user, &realm));
++        let userhash = None::<[u8; 32]>;
+         self.auth = Some(Auth { realm, nonce, algorithm, offered, key, userhash });
+         Ok(())
+     }

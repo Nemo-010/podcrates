@@ -59,8 +59,21 @@ pub enum Error {
     /// The server answered each send of a request of `method` with 438
     /// (Stale Nonce).
     StaleNonce { method: u16, tries: u32 },
-    /// The server's realm is not the one of the settings.
+    /// The server's realm is not the one of the settings, or after a
+    /// redirect not the one of the first server.
     Realm { expected: String, offered: String },
+    /// The server redirected a request of `method` to `to` (300 Try
+    /// Alternate), and the client did not follow: the client follows one
+    /// redirect of the Allocate alone, to another server. `domain` is the
+    /// ALTERNATE-DOMAIN of an answer signed with MESSAGE-INTEGRITY-SHA256.
+    Alternate { method: u16, to: SocketAddr, domain: Option<String> },
+    /// The Allocate that followed the redirect to `to` failed: the way out
+    /// of the caller refused it, or the server there failed it.
+    Redirected { to: SocketAddr, error: Box<Error> },
+    /// The nonce of a challenge to a request of `method` announces
+    /// PASSWORD-ALGORITHMS, and the challenge holds none (RFC 8489, 9.2.5): a
+    /// party on the path took the attribute out to force MD5.
+    Downgrade { method: u16 },
     /// The entropy gave no transaction id.
     NoRandom,
     /// The allocation is closed, or its lifetime ended.
@@ -88,7 +101,9 @@ impl Error {
             Error::Decode(_) | Error::Frame { .. } | Error::Protocol { .. } | Error::Integrity { .. } => {
                 Class::Protocol
             }
-            Error::StaleNonce { .. } => Class::Protocol,
+            Error::StaleNonce { .. } | Error::Downgrade { .. } => Class::Protocol,
+            Error::Alternate { .. } => Class::Unavailable,
+            Error::Redirected { error, .. } => error.class(),
             Error::Realm { .. } => Class::Config,
             Error::Server { code, .. } => match code {
                 401 | 441 => Class::Refused,
@@ -106,6 +121,8 @@ impl Error {
     pub fn code(&self) -> Option<u16> {
         match self {
             Error::Server { code, .. } => Some(*code),
+            Error::Alternate { .. } => Some(300),
+            Error::Redirected { error, .. } => error.code(),
             _ => None,
         }
     }
@@ -147,6 +164,22 @@ impl fmt::Display for Error {
                 pod_core::text::one_line(offered),
                 pod_core::text::one_line(expected)
             ),
+            Error::Alternate { method, to, .. } => write!(
+                f,
+                "TURN: the server redirected the {} request to {to} (300 Try Alternate); \
+                 the client follows one redirect of an Allocate, to another server",
+                method_name(*method)
+            ),
+            Error::Redirected { to, error } => {
+                let inner = error.to_string();
+                write!(f, "TURN: the redirect to {to}: {}", inner.strip_prefix("TURN: ").unwrap_or(&inner))
+            }
+            Error::Downgrade { method } => write!(
+                f,
+                "TURN: the nonce of the challenge to the {} request announces PASSWORD-ALGORITHMS, \
+                 and the challenge holds none: a downgrade on the path",
+                method_name(*method)
+            ),
             Error::NoRandom => f.write_str("TURN: the system gave no random bytes for a transaction id"),
             Error::NoAllocation => f.write_str("TURN: the allocation is closed or expired"),
             Error::NoChannel(n) => write!(f, "TURN: no channel 0x{n:04x} is bound"),
@@ -164,6 +197,7 @@ impl std::error::Error for Error {
             Error::Io(e) => Some(e),
             Error::Decode(e) => Some(e),
             Error::Integrity { error, .. } => Some(error),
+            Error::Redirected { error, .. } => Some(error.as_ref()),
             _ => None,
         }
     }
@@ -174,6 +208,11 @@ impl From<Error> for Failure {
         let class = e.class();
         match e {
             Error::Connect(failure) => failure,
+            // The stage of the way out stays: a refused redirect is a dial's failure.
+            Error::Redirected { ref error, .. } => {
+                let stage = if let Error::Connect(failure) = error.as_ref() { failure.stage } else { Stage::Relay };
+                Failure::caused(stage, class, e.to_string(), e)
+            }
             other => Failure::caused(Stage::Relay, class, other.to_string(), other),
         }
     }
@@ -239,5 +278,25 @@ mod tests {
         assert_eq!(e(499, ""), "TURN: the server answered the Allocate request with 499");
         let refresh = Error::Server { method: REFRESH, code: 441, reason: String::new() };
         assert!(refresh.to_string().ends_with("with 441 (Wrong Credentials)"), "{refresh}");
+    }
+
+    /// A refused redirect keeps the words and the stage of the way out.
+    #[test]
+    fn a_refused_redirect_keeps_the_words_and_the_stage_of_the_way_out() {
+        let to: SocketAddr = "192.0.2.7:3478".parse().unwrap();
+        let refused = Failure::new(Stage::Connect, Class::Policy, "the policy refuses 192.0.2.7:3478");
+        let e = Error::Redirected { to, error: Box::new(Error::Connect(refused)) };
+        assert_eq!(e.to_string(), "TURN: the redirect to 192.0.2.7:3478: the policy refuses 192.0.2.7:3478");
+        assert_eq!(e.class(), Class::Policy);
+        let failure = Failure::from(e);
+        assert_eq!((failure.stage, failure.class), (Stage::Connect, Class::Policy));
+        let again = Error::Alternate { method: ALLOCATE, to, domain: None };
+        assert_eq!(again.code(), Some(300));
+        let twice = Error::Redirected { to, error: Box::new(again) };
+        assert!(
+            twice.to_string().contains(": the server redirected the Allocate request to 192.0.2.7:3478"),
+            "{twice}"
+        );
+        assert_eq!(twice.code(), Some(300));
     }
 }

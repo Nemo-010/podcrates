@@ -1,0 +1,13 @@
+diff --git a/crates/pod-turn/src/client/exchange.rs b/crates/pod-turn/src/client/exchange.rs
+index 2c79efd..065ea32 100644
+--- a/crates/pod-turn/src/client/exchange.rs
++++ b/crates/pod-turn/src/client/exchange.rs
+@@ -251,7 +251,7 @@ impl Client {
+                     () = self.clock.sleep_until(wait) => break,
+                 };
+                 match frame {
+-                    Frame::Stun(bytes) if answers(&bytes, &id) && !ignored(&bytes) => return Ok(bytes),
++                    Frame::Stun(bytes) if answers(&bytes, &id) => return Ok(bytes),
+                     other => self.incoming(other),
+                 }
+             }

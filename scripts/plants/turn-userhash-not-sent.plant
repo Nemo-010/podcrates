@@ -1,0 +1,7 @@
+# The client sends USERNAME where the nonce announces username anonymity;
+# the test of USERHASH must fail.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test (.*::)?a_nonce_of_username_anonymity_gets_userhash \.\.\. FAILED'
+RUN='cargo test -p pod-turn --all-features --test turn_redirect -- a_nonce_of_username_anonymity_gets_userhash --exact'
+LIMIT=1800

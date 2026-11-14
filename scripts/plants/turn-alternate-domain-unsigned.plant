@@ -1,0 +1,7 @@
+# The client takes ALTERNATE-DOMAIN from a 300 that SHA-256 does not sign;
+# the test of the domain must fail.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test (.*::)?alternate_domain_counts_only_in_a_300_signed_with_sha256 \.\.\. FAILED'
+RUN='cargo test -p pod-turn --all-features --test turn_redirect -- alternate_domain_counts_only_in_a_300_signed_with_sha256 --exact'
+LIMIT=1800

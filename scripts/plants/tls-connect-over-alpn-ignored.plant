@@ -1,0 +1,7 @@
+# connect_over_alpn offers no ALPN; the test of the ALPN on a copy must
+# fail.
+ENTRY=T-381
+GROUP=tls
+EXPECT='test connect_over_alpn_offers_the_protocols_on_a_copy \.\.\. FAILED'
+RUN='cargo test -p pod-tls --all-features --test caller_tls -- connect_over_alpn_offers_the_protocols_on_a_copy --exact'
+LIMIT=1800

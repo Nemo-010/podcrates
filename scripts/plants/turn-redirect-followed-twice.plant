@@ -1,0 +1,7 @@
+# The client follows each 300 of the Allocate; the test of a second
+# redirect must fail at its bound.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test (.*::)?a_second_redirect_or_one_to_the_same_server_fails \.\.\. FAILED'
+RUN='cargo test -p pod-turn --all-features --test turn_redirect -- a_second_redirect_or_one_to_the_same_server_fails --exact'
+LIMIT=1800

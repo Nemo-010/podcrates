@@ -1,0 +1,16 @@
+diff --git a/crates/pod-turn/src/client.rs b/crates/pod-turn/src/client.rs
+index 80c91d6..e9ad219 100644
+--- a/crates/pod-turn/src/client.rs
++++ b/crates/pod-turn/src/client.rs
+@@ -111,11 +111,6 @@ impl Client {
+             vec![(REQUESTED_TRANSPORT, Value::Bytes(vec![TRANSPORT_UDP, 0, 0, 0])), client.lifetime_attribute()];
+         attributes.extend(allocation.attributes());
+         let reply = match client.transact(ALLOCATE, &attributes).await {
+-            Err(Error::Alternate { method: ALLOCATE, to, domain }) => {
+-                client.redirect(to, domain, &transport).await?;
+-                let again = client.transact(ALLOCATE, &attributes).await;
+-                again.map_err(|error| Error::Redirected { to, error: Box::new(error) })?
+-            }
+             other => other?,
+         };
+         let read = stun::decode(&reply).map_err(Error::Decode)?;

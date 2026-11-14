@@ -1,0 +1,13 @@
+diff --git a/crates/pod-turn/src/client/error.rs b/crates/pod-turn/src/client/error.rs
+index b576d29..f270a81 100644
+--- a/crates/pod-turn/src/client/error.rs
++++ b/crates/pod-turn/src/client/error.rs
+@@ -210,7 +210,7 @@ impl From<Error> for Failure {
+             Error::Connect(failure) => failure,
+             // The stage of the way out stays: a refused redirect is a dial's failure.
+             Error::Redirected { ref error, .. } => {
+-                let stage = if let Error::Connect(failure) = error.as_ref() { failure.stage } else { Stage::Relay };
++                let stage = if let Error::Connect(_) = error.as_ref() { Stage::Relay } else { Stage::Relay };
+                 Failure::caused(stage, class, e.to_string(), e)
+             }
+             other => Failure::caused(Stage::Relay, class, other.to_string(), other),

@@ -1,0 +1,14 @@
+diff --git a/crates/pod-turn/src/client/open.rs b/crates/pod-turn/src/client/open.rs
+index 8c647de..eeb91d0 100644
+--- a/crates/pod-turn/src/client/open.rs
++++ b/crates/pod-turn/src/client/open.rs
+@@ -65,9 +65,6 @@ impl Client {
+         if self.server == target || self.conn.server() == Some(to) {
+             return Err(Error::Alternate { method: ALLOCATE, to, domain });
+         }
+-        if self.realm.is_none() {
+-            self.realm = self.auth.as_ref().map(|auth| auth.realm.clone());
+-        }
+         let deadline = self.clock.now() + self.limits.connect_timeout;
+         let link = connect(&target, transport, domain.as_deref(), deadline, self.limits.connect_timeout)
+             .await

@@ -1,0 +1,7 @@
+# The client takes an answer whose nonce announces PASSWORD-ALGORITHMS with
+# none; the test of the dropped success must fail.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test a_success_with_a_downgraded_nonce_is_dropped \.\.\. FAILED'
+RUN='cargo test -p pod-turn --all-features --test turn_redirect -- a_success_with_a_downgraded_nonce_is_dropped --exact'
+LIMIT=1800

@@ -99,3 +99,40 @@ fn a_callers_configuration_is_used_as_it_is() {
     assert!(context.roots_for(&trust).is_err(), "the caller's roots cannot be listed");
     assert_eq!(trust.clone(), trust, "a configuration equals itself");
 }
+
+/// `connect_over_alpn` offers its protocols on a copy: a server that serves
+/// `stun.turn` chooses it, and the caller's configuration still offers none.
+/// `connect_over` offers none, so the same server chooses none.
+#[tokio::test]
+async fn connect_over_alpn_offers_the_protocols_on_a_copy() {
+    pod_testkit::need_loopback!();
+    for (each, provider) in tls::providers() {
+        let context = tls::context(provider.clone());
+        let (acceptor, roots) = cert::server_for(NAME).expect("a test server");
+        let mut served = (**acceptor.config()).clone();
+        served.alpn_protocols = vec![b"stun.turn".to_vec()];
+        let acceptor = tokio_rustls::TlsAcceptor::from(Arc::new(served));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+        let addr = listener.local_addr().expect("an address");
+        let task = tokio::spawn(async move {
+            let mut chosen = Vec::new();
+            for _ in 0..2 {
+                let (stream, _) = listener.accept().await.expect("a connection");
+                let mut tls = acceptor.accept(stream).await.expect("the handshake");
+                chosen.push(tls.get_ref().1.alpn_protocol().map(<[u8]>::to_vec));
+                let _ = tls.shutdown().await;
+            }
+            chosen
+        });
+        let config = callers_config(roots, provider);
+        let trust = Trust::caller(config.clone()).expect("no ALPN");
+        for alpn in [&[&b"stun.turn"[..]][..], &[]] {
+            let tcp = tokio::net::TcpStream::connect(addr).await.expect("connect");
+            let tls = context.connect_over_alpn(tcp, NAME, &trust, alpn, TIMEOUT).await.expect("the handshake");
+            assert_eq!(tls.get_ref().1.alpn_protocol(), alpn.first().copied(), "{each}");
+        }
+        let chosen = tokio::time::timeout(TIMEOUT, task).await.expect("the server in time").expect("the server");
+        assert_eq!(chosen, [Some(b"stun.turn".to_vec()), None], "{each}");
+        assert!(config.alpn_protocols.is_empty(), "{each}: the caller's configuration is not changed");
+    }
+}

@@ -2,7 +2,9 @@
 // loopback; a UDP peer that echoes; and the settings of a client for it.
 #![allow(dead_code)]
 
+pub mod coturn;
 pub mod mock;
+pub mod mock_alloc;
 
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
@@ -30,12 +32,19 @@ pub const NAME: &str = "turn.test";
 /// The bound of each wait of a test.
 pub const LIMIT: Duration = Duration::from_secs(10);
 
+/// The knobs of a mock with the users of the tests: with `sha256` it offers
+/// SHA-256 and MD5, and its nonce announces PASSWORD-ALGORITHMS.
 pub fn knobs(sha256: bool) -> Knobs {
     Knobs {
         realm: REALM.into(),
         users: vec![(USER.into(), PASSWORD.into()), (OTHER_USER.into(), OTHER_PASSWORD.into())],
         sha256,
         max_lifetime: 3600,
+        cookie: sha256.then_some(pod_turn::stun::SecurityFeature::PasswordAlgorithms.bit()),
+        strip_algorithms: false,
+        dont_fragment: true,
+        ipv6: false,
+        alpn: false,
     }
 }
 
@@ -45,6 +54,8 @@ pub struct Running {
     pub control: Shared,
     /// The roots that trust the mock's certificate (TLS only).
     pub roots: Option<rustls::RootCertStore>,
+    /// The acceptor of the TLS mock, for another mock with its certificate.
+    pub acceptor: Option<tokio_rustls::TlsAcceptor>,
 }
 
 /// The mock over UDP on 127.0.0.1.
@@ -84,19 +95,36 @@ pub async fn udp_mock(knobs: Knobs) -> Running {
             }
         }
     });
-    Running { addr, control, roots: None }
+    Running { addr, control, roots: None, acceptor: None }
 }
 
 /// The mock over TLS on TCP on 127.0.0.1: one session for each connection.
 pub async fn tls_mock(knobs: Knobs) -> Running {
     let (acceptor, roots) = cert::server_for(NAME).unwrap();
+    tls_mock_with(knobs, acceptor, roots).await
+}
+
+/// A second TLS mock with the certificate of `first`: a redirect between
+/// them needs one root.
+pub async fn tls_mock_beside(first: &Running, knobs: Knobs) -> Running {
+    tls_mock_with(knobs, first.acceptor.clone().unwrap(), first.roots.clone().unwrap()).await
+}
+
+async fn tls_mock_with(knobs: Knobs, acceptor: tokio_rustls::TlsAcceptor, roots: rustls::RootCertStore) -> Running {
+    let served = if knobs.alpn {
+        let mut config = (**acceptor.config()).clone();
+        config.alpn_protocols = vec![b"stun.turn".to_vec()];
+        tokio_rustls::TlsAcceptor::from(Arc::new(config))
+    } else {
+        acceptor.clone()
+    };
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let control: Shared = Arc::new(Mutex::new(Control::default()));
     let shared = control.clone();
     tokio::spawn(async move {
         while let Ok((tcp, from)) = listener.accept().await {
-            let acceptor = acceptor.clone();
+            let acceptor = served.clone();
             let (relayed, from_relays) = mpsc::unbounded_channel::<Relayed>();
             let mock = Mock { knobs: knobs.clone(), control: shared.clone(), relayed };
             tokio::spawn(async move {
@@ -105,7 +133,7 @@ pub async fn tls_mock(knobs: Knobs) -> Running {
             });
         }
     });
-    Running { addr, control, roots: Some(roots) }
+    Running { addr, control, roots: Some(roots), acceptor: Some(acceptor) }
 }
 
 /// One connection of the TLS mock: each message cut by its own length,
@@ -271,6 +299,26 @@ impl pod_turn::UdpSource for Shared5Tuple {
         Box::pin(async move {
             let pod_core::Target::Addr(addr) = server else { panic!("the tests use addresses") };
             Ok((self.0.clone() as Arc<dyn pod_core::Datagrams>, *addr))
+        })
+    }
+}
+
+/// The caller's UDP source, which refuses one address as a policy of the
+/// way out would, and opens a socket of the system for each other one.
+pub struct Refusing(pub SocketAddr);
+
+impl pod_turn::UdpSource for Refusing {
+    fn open<'a>(
+        &'a self,
+        server: &'a pod_core::Target,
+        deadline: tokio::time::Instant,
+    ) -> pod_core::BoxFuture<'a, Result<pod_turn::Opened, pod_core::Failure>> {
+        Box::pin(async move {
+            if *server == pod_core::Target::Addr(self.0) {
+                let why = format!("the way out refuses {}", self.0);
+                return Err(pod_core::Failure::new(pod_core::Stage::Connect, pod_core::Class::Policy, why));
+            }
+            SystemUdp::new().open(server, deadline).await
         })
     }
 }

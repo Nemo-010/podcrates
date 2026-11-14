@@ -20,6 +20,7 @@ shares it.
 | `Context::new(provider, settings)` | the TLS of a binary: the provider, the `Settings`, the configuration kept for each trust (16 at most, a CA file that changed by time or length is read again), the roots of the context (read one time), the groups that servers took, the state of ECH |
 | `Context::config_for(&trust)`, `roots_for`, `default_roots`, `client_config(&roots)` | the configuration of a trust, kept so that TLS resumes; the roots of a trust |
 | `Context::tls_over(stream, name, &trust, limit)`, `connect_over(..)` | a verified handshake over an open stream; a `pod_core::Failure` at `Stage::Tls` on failure |
+| `Context::connect_over_alpn(stream, name, &trust, alpn, limit)` | `connect_over` that offers the ALPN protocols `alpn` (TURN's `stun.turn`) on a copy of the configuration of `trust`; the caller's configuration stays with no ALPN |
 | `client_config(&roots, provider, groups)`, `tls_over(stream, name, config, limit, &words)` | the same with no context |
 | `Context::tls_over_blocking(stream, name, &trust)`, `tls_over_blocking(stream, name, config, &words)` | the same over a blocking `Read + Write` stream, with no tokio: rustls's `StreamOwned`; the time limit is the caller's, on its socket |
 | `Trust` (`File`, `Default`, `Caller`), `Trust::caller(config)`, `CallerConfig` | where the anchors come from, for each connection; a caller's own configuration, refused with ALPN, used as it is |
@@ -78,10 +79,11 @@ shares it.
 | The group that each server took, kept across runs in a private file (64 servers, 30 days, written once a day) | [x] `groups`, `groups::Dirs` |
 | The hint of an unknown issuer and of a certificate refused by the clock | [x] `Words`, `handshake_hint` |
 | A verified handshake over an open stream, the kind of a cut kept | [x] `tls_over`, `connect_over` (the io error is the cause of the `Failure`) |
+| The ALPN of a protocol over an open stream (TURN's `stun.turn`, RFC 7443), with no change of the caller's configuration | [x] `connect_over_alpn`; `tests/caller_tls.rs` (`connect_over_alpn_offers_the_protocols_on_a_copy`) |
 | The PEM reader (CRLF, whitespace, padding, an empty block, a private key block) | [x] `bundle` |
 | The TLS server with a P-256 key (SEC1 and PKCS #8), the pair changed while it serves, TLS-ALPN-01 | [x] `server` (the provider is the caller's) |
 | ECH: the modes, the names that it seals, the hellos and their order (sealed, the retry configs once, plain after a refusal but in strict), the cache (FLOOR 30 s, NO_TTL 300 s, CEILING a day, MISS 30 s, COOL 5 min, MOST 256, one read at a time), the outcome of each name (64) | [x] `ech` |
-| The tests: unit (43) and `tests/{bundle,caller_tls,certificate_structure,crypto_vectors,ech_handshake,hostname_verification,live_handshake,no_permissive_verifier,quic_keys,random_source,roots_version,rsa,signatures,system_store,tls12,tls_group,tls_resume}.rs`, with their names | [x] with the podnet tests below: 62 unit, 92 integration, 7 ignored (5 live, 2 steps of the system store); a test of a configuration runs on ring and on the pure provider |
+| The tests: unit (43) and `tests/{bundle,caller_tls,certificate_structure,crypto_vectors,ech_handshake,hostname_verification,live_handshake,no_permissive_verifier,quic_keys,random_source,roots_version,rsa,signatures,system_store,tls12,tls_group,tls_resume}.rs`, with their names | [x] with the podnet tests below: 62 unit, 93 integration, 7 ignored (5 live, 2 steps of the system store); a test of a configuration runs on ring and on the pure provider |
 | The doctor tests of `tests/bundle.rs` (4) | they stay with the doctor of `podssh-ws` (`pod-ws`) |
 | The test of the bundle path next to the binary | it stays with `default_bundle_path` in podssh |
 | `the_websocket_keys_report_a_source_that_gives_no_bytes` | it goes with the WebSocket handshake (`pod-ws`) |

@@ -12,6 +12,7 @@ use pod_core::{BoxFuture, Class, Datagrams, Dial, Failure, Resolve, Stage, Syste
 use tokio::time::Instant;
 
 use super::Error;
+use super::allocation::Allocation;
 
 /// The user and the password of the long-term credentials (RFC 8489, 9.2).
 /// The caller gives each text after its preparation (OpaqueString); the
@@ -56,8 +57,18 @@ pub enum Transport {
     Udp(Arc<dyn UdpSource>),
     /// TURN over TLS on TCP (RFC 8656, 3.1): the caller's dialer gives the
     /// TCP stream, and the caller's TLS context checks the server's
-    /// certificate against `server_name` and the roots of `trust`.
-    Tls { dialer: Arc<dyn Dial>, context: Arc<pod_tls::Context>, trust: pod_tls::Trust, server_name: String },
+    /// certificate against `server_name` and the roots of `trust`. With
+    /// `alpn` the handshake offers the ALPN `stun.turn` (RFC 7443), which a
+    /// server on a port of several protocols can need; [`Settings::tls`]
+    /// offers none, as a server that knows ALPN but not `stun.turn` can
+    /// refuse the handshake.
+    Tls {
+        dialer: Arc<dyn Dial>,
+        context: Arc<pod_tls::Context>,
+        trust: pod_tls::Trust,
+        server_name: String,
+        alpn: bool,
+    },
 }
 
 impl Transport {
@@ -74,11 +85,12 @@ impl fmt::Debug for Transport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Transport::Udp(_) => f.write_str("Udp"),
-            Transport::Tls { dialer, trust, server_name, .. } => f
+            Transport::Tls { dialer, trust, server_name, alpn, .. } => f
                 .debug_struct("Tls")
                 .field("dialer", &dialer.label())
                 .field("trust", trust)
                 .field("server_name", server_name)
+                .field("alpn", alpn)
                 .finish_non_exhaustive(),
         }
     }
@@ -231,6 +243,8 @@ pub struct Settings {
     /// The SOFTWARE attribute of each request (the consumer's name and
     /// version), or none.
     pub software: Option<String>,
+    /// What the Allocate asks for beyond a UDP relay: by default nothing.
+    pub allocation: Allocation,
 }
 
 impl Settings {
@@ -248,7 +262,7 @@ impl Settings {
         context: Arc<pod_tls::Context>,
     ) -> Settings {
         let server_name = server.host();
-        let transport = Transport::Tls { dialer, context, trust: pod_tls::Trust::Default, server_name };
+        let transport = Transport::Tls { dialer, context, trust: pod_tls::Trust::Default, server_name, alpn: false };
         Settings::with(server, transport, credentials)
     }
 
@@ -262,11 +276,13 @@ impl Settings {
             clock: Arc::new(TokioClock),
             entropy: Box::new(OsEntropy),
             software: None,
+            allocation: Allocation::default(),
         }
     }
 
     /// Refuse what cannot work: an empty user, a limit of zero, a refresh
-    /// that comes after its end, a lifetime past what the wire holds.
+    /// that comes after its end, a lifetime past what the wire holds, an
+    /// Allocate that RFC 8656 forbids.
     pub fn check(&self) -> Result<(), Error> {
         let limits = &self.limits;
         let usage = |why: &str| Err(Error::Usage(why.to_string()));
@@ -287,7 +303,7 @@ impl Settings {
         {
             return usage("the TLS name of the TURN server is empty");
         }
-        Ok(())
+        self.allocation.check()
     }
 }
 
@@ -300,6 +316,7 @@ impl fmt::Debug for Settings {
             .field("realm", &self.realm)
             .field("limits", &self.limits)
             .field("software", &self.software)
+            .field("allocation", &self.allocation)
             .finish_non_exhaustive()
     }
 }
