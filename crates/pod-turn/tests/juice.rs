@@ -5,8 +5,8 @@
 //! PASSWORD-ALGORITHMS, PASSWORD-ALGORITHM, USERHASH and
 //! MESSAGE-INTEGRITY-SHA256 (RFC 8489, 9.2). coturn has none of them.
 //! libjuice signs each answer with MESSAGE-INTEGRITY and the MD5 key alone:
-//! the client's check of a MESSAGE-INTEGRITY-SHA256 answer has the mock
-//! alone (`tests/turn_redirect.rs`).
+//! `tests/xturn.rs` has the client's check of a MESSAGE-INTEGRITY-SHA256
+//! answer.
 //!
 //! `scripts/ci/turn-tests.sh` builds libjuice at a pinned commit with the
 //! program `scripts/ci/juice-turn.c`, starts it on 127.0.0.1 with the login
@@ -16,13 +16,11 @@
 
 mod common;
 
-use std::io::{self, IoSliceMut};
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll};
+use std::sync::Arc;
 
 use common::LIMIT;
-use pod_core::{Datagrams, RecvMeta, Transmit};
+use common::recorded::{Recorded, RecordedSource, messages};
 use pod_turn::stun::{
     self, ALLOCATE, Class, IntegrityError, MESSAGE_INTEGRITY, MESSAGE_INTEGRITY_SHA256, NONCE, PASSWORD_ALGORITHM,
     PASSWORD_ALGORITHMS, PasswordAlgorithm, SecurityFeature, USERHASH, USERNAME,
@@ -51,83 +49,12 @@ async fn within<T>(future: impl std::future::Future<Output = T>) -> T {
     tokio::time::timeout(pod_testkit::host::scaled(LIMIT), future).await.expect("the test's bound")
 }
 
-/// A UDP socket on 127.0.0.1 that keeps each datagram that it sends and
-/// receives, so that a test reads the wire of the credentials.
-#[derive(Debug)]
-struct Recorded {
-    socket: pod_core::SystemDatagrams,
-    sent: Mutex<Vec<Vec<u8>>>,
-    received: Mutex<Vec<Vec<u8>>>,
-}
-
-impl Recorded {
-    async fn bind() -> Arc<Recorded> {
-        let socket = pod_core::SystemDatagrams::bind("127.0.0.1:0".parse().unwrap()).await.unwrap();
-        Arc::new(Recorded { socket, sent: Mutex::default(), received: Mutex::default() })
-    }
-}
-
-impl Datagrams for Recorded {
-    fn poll_writable(&self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        self.socket.poll_writable(cx)
-    }
-
-    fn try_send(&self, transmit: &Transmit<'_>) -> io::Result<()> {
-        let sent = self.socket.try_send(transmit);
-        if sent.is_ok() {
-            self.sent.lock().unwrap().push(transmit.contents.to_vec());
-        }
-        sent
-    }
-
-    fn poll_recv(
-        &self,
-        cx: &mut Context<'_>,
-        bufs: &mut [IoSliceMut<'_>],
-        meta: &mut [RecvMeta],
-    ) -> Poll<io::Result<usize>> {
-        let polled = self.socket.poll_recv(cx, bufs, meta);
-        if let Poll::Ready(Ok(n)) = &polled {
-            let mut received = self.received.lock().unwrap();
-            for (buf, meta) in bufs.iter().zip(meta.iter()).take(*n) {
-                received.push(buf[..meta.len].to_vec());
-            }
-        }
-        polled
-    }
-
-    fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.socket.local_addr()
-    }
-}
-
-/// The client's source of the recorded socket.
-struct RecordedSource(Arc<Recorded>);
-
-impl pod_turn::UdpSource for RecordedSource {
-    fn open<'a>(
-        &'a self,
-        server: &'a pod_core::Target,
-        _deadline: tokio::time::Instant,
-    ) -> pod_core::BoxFuture<'a, Result<pod_turn::Opened, pod_core::Failure>> {
-        Box::pin(async move {
-            let pod_core::Target::Addr(addr) = server else { panic!("the tests use addresses") };
-            Ok((self.0.clone() as Arc<dyn Datagrams>, *addr))
-        })
-    }
-}
-
 fn settings(juice: SocketAddr, socket: &Arc<Recorded>, password: &str) -> Settings {
     let source = Arc::new(RecordedSource(socket.clone()));
     let mut settings = Settings::udp(pod_core::Target::Addr(juice), Credentials::new(USER, password), source);
     settings.realm = Some(REALM.into());
     settings.software = Some("pod-turn-juice-test".into());
     settings
-}
-
-/// The STUN messages of `datagrams`; ChannelData is left out.
-fn messages(datagrams: &[Vec<u8>]) -> Vec<stun::Message<'_>> {
-    datagrams.iter().filter(|d| d.first().is_some_and(|b| b >> 6 == 0)).filter_map(|d| stun::decode(d).ok()).collect()
 }
 
 /// Over UDP: the 401 announces both features and offers SHA-256; the

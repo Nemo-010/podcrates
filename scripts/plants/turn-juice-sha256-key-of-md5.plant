@@ -1,7 +1,7 @@
 # The SHA-256 key is the MD5 key: the client signs MESSAGE-INTEGRITY-SHA256
 # with the key of MD5, libjuice answers 401, and the test of the Allocate
-# with SHA-256 against libjuice must fail. It needs docker, openssl, git and
-# a C compiler.
+# with SHA-256 against libjuice must fail. It needs what
+# scripts/ci/turn-tests.sh needs.
 ENTRY=T-403
 GROUP=turn
 EXPECT='test libjuice_takes_sha256_and_userhash_and_its_md5_answer_is_refused \.\.\. FAILED'

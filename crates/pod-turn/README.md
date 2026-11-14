@@ -227,9 +227,17 @@ this crate, and the tests that hold them:
   and MESSAGE-INTEGRITY-SHA256 alone, and refuses a wrong password; the
   plants `turn-juice-sha256-key-of-md5`, `turn-juice-md5-preferred` and
   `turn-juice-skip-fails`. libjuice signs its success with
-  MESSAGE-INTEGRITY and the MD5 key alone, so the client refuses it:
-  the check of an answer's MESSAGE-INTEGRITY-SHA256 has the mock and the
-  vector alone.
+  MESSAGE-INTEGRITY and the MD5 key alone, so the client refuses it.
+- [x] The SHA-256 credentials of an answer against a server of another
+  party (T-631, calls C587, C588): xturn 2.0.0 on 127.0.0.1
+  (`scripts/ci/turn-tests.sh` builds it with mix from its source at a
+  pinned commit and its `mix.lock`; `tests/xturn.rs`). A full allocation
+  with USERHASH and SHA-256 (a permission, a Send, a channel, ChannelData,
+  a Refresh, the close): xturn signs each answer with
+  MESSAGE-INTEGRITY-SHA256 alone, and the client refuses a success of an
+  Allocate or of a Refresh whose MESSAGE-INTEGRITY-SHA256 changed on the
+  way; the plants `turn-xturn-sha256-unchecked` and
+  `turn-xturn-skip-fails`.
 - [x] The fuzz target `stun_message` (`fuzz/`), and the static probe line.
 - [ ] Plain TURN over TCP (RFC 8656, 3.1, with no TLS): not in this crate;
   GitHub #100 puts it out of this change.
@@ -267,11 +275,14 @@ Allocate and the errors (28 unit tests), the mock over UDP
 (`tests/turn_tls.rs`), the nonce cookie, USERHASH, the redirect and the
 ALPN (`tests/turn_redirect.rs`); `tests/live.rs` is `#[ignore]`.
 `tests/coturn.rs` (7 tests) and `tests/coturn_options.rs` (6 tests) skip
-with no coturn, and `tests/juice.rs` (2 tests) with no libjuice;
+with no coturn, `tests/juice.rs` (2 tests) with no libjuice, and
+`tests/xturn.rs` (2 tests) with no xturn;
 `sh scripts/ci/turn-tests.sh` starts coturn 4.18.0 on the loopback, and a
 second one that redirects to it (docker, or `POD_TURN_TEST_COTURN_BIN`, a
 `turnserver` of the host; coturn 4.6.1 of Ubuntu passes too), and the TURN
-server of libjuice 1.7.4 (git and a C compiler), and fails on a skip. The mock (`tests/common/mock.rs`) is its
+server of libjuice 1.7.4 (git and a C compiler), and xturn 2.0.0 (the
+Erlang/OTP 29.0.5 and the Elixir 1.20.3 of its `.tool-versions`), and
+fails on a skip. The mock (`tests/common/mock.rs`) is its
 own reading of RFC 8656: a session for each UDP 5-tuple or TLS
 connection, a relay socket on the loopback for each allocation, the 401,
 the 438 on request of a test, a 441 for a user who is not the owner, the

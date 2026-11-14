@@ -1,0 +1,9 @@
+# The client takes each answer with SHA-256 credentials as signed, with no
+# check of its MESSAGE-INTEGRITY-SHA256: the test of an answer whose
+# MESSAGE-INTEGRITY-SHA256 changed on the way, against xturn, must fail. It
+# needs what scripts/ci/turn-tests.sh needs.
+ENTRY=T-631
+GROUP=turn
+EXPECT='test an_answer_with_a_changed_sha256_integrity_is_refused \.\.\. FAILED'
+RUN='sh scripts/ci/turn-tests.sh'
+LIMIT=1800

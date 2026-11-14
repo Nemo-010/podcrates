@@ -1,0 +1,11 @@
+--- a/deps/xsockets/lib/xsockets/transport/udp.ex
++++ b/deps/xsockets/lib/xsockets/transport/udp.ex
+@@ -258,7 +258,7 @@
+ 
+   defp relay_errqueue_opts do
+     case :os.type() do
+-      {:unix, :linux} -> [recverr: true]
++      {:unix, :linux} -> []
+       _ -> []
+     end
+   end

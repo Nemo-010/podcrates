@@ -1,5 +1,5 @@
 # The client never offers the ALPN stun.turn; the test of the ALPN against
-# coturn must fail. It needs docker and openssl.
+# coturn must fail. It needs what scripts/ci/turn-tests.sh needs.
 ENTRY=T-381
 GROUP=turn
 EXPECT='test the_alpn_stun_turn_is_chosen_over_tls \.\.\. FAILED'
