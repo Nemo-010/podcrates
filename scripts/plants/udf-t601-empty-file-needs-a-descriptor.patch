@@ -1,0 +1,12 @@
+diff --git a/crates/pod-udf/src/icb.rs b/crates/pod-udf/src/icb.rs
+index 4505372..fe6eb49 100644
+--- a/crates/pod-udf/src/icb.rs
++++ b/crates/pod-udf/src/icb.rs
+@@ -99,6 +99,7 @@ impl<R: ReadAt> Udf<R> {
+             what: "the allocation descriptors go past the end of the file entry",
+         })?;
+         let data = match flags & 7 {
++            0 if ad == 0 => return Err(Error::Corrupt { offset, what: "a file entry with no allocation descriptor" }),
+             0 => Data::Ads(self.ads(ads, true, at.partition, offset)?),
+             1 => Data::Ads(self.ads(ads, false, at.partition, offset)?),
+             3 if size <= ad as u64 => Data::Embedded(offset + start as u64),

@@ -86,10 +86,16 @@ component of the path, the file entry and the bytes of the directory.
 
 ## Tests
 
-`cargo test -p pod-udf`: the images come from the writer of the tests
-(`src/tests/writer.rs`, written from ECMA-167 and UDF 2.60; no `mkisofs`,
-`genisoimage` or `xorriso` was on the host to make an image under
-`tests/data`). `src/tests.rs`: a file in a subdirectory and its range in
+`cargo test -p pod-udf`: most images come from the writer of the tests
+(`src/tests/writer.rs`, written from ECMA-167 and UDF 2.60).
+`tests/tools.rs` reads images of real tools, kept with gzip under
+`tests/data` with the command of each (`tests/data/README.md`): a UDF 1.02
+bridge of genisoimage (each file and its bytes at the offsets of its parts,
+an empty file with no allocation descriptor, a missing path, a directory as
+a file), an empty UDF 2.01 volume of mkudffs, and a UDF 2.50 volume of
+mkudffs for BD-R, whose virtual partition map is refused by name. xorriso
+writes no UDF, and no tool on the host writes a metadata partition on an
+overwritable medium. `src/tests.rs`: a file in a subdirectory and its range in
 the image, each revision from 1.02 to 2.60 with `short_ad` and `long_ad`,
 a metadata partition whose file has two extents (40 files put entries in
 both), a missing path, a path through a file and a directory as a file, a
@@ -106,8 +112,10 @@ structures. `write_the_fuzz_seeds` (ignored) writes the seeds of
 
 The plants `udf-crc-unchecked`, `udf-second-extent-dropped`,
 `udf-metadata-first-extent-only`, `udf-reserve-sequence-unused`,
-`udf-allocation-extent-not-followed` and `udf-depth-unbounded`
-(`scripts/plants/`) prove the tests.
+`udf-allocation-extent-not-followed`, `udf-depth-unbounded`,
+`udf-t601-empty-file-needs-a-descriptor` and
+`udf-t601-virtual-map-read-as-metadata` (`scripts/plants/`) prove the
+tests.
 
 ## Adoption map
 
