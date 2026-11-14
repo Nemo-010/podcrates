@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**502 entries: 114 open, 8 partial, 6 blocked, 374 done.**
+**504 entries: 116 open, 8 partial, 6 blocked, 374 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 101 | 115 |
 | P2 | 53 | 2 | 4 | 201 | 260 |
-| P3 | 50 | 3 | 2 | 70 | 125 |
-| **All** | 114 | 8 | 6 | 374 | 502 |
+| P3 | 52 | 3 | 2 | 70 | 127 |
+| **All** | 116 | 8 | 6 | 374 | 504 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -549,3 +549,5 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-616](podvm.md) | P2 | S | M6 | defect | done | `pod-supervise`: the thread of the foreground hold blocks the shutdown signals |
 | [T-617](podvm.md) | P3 | M | M7 | feature | blocked | `pod-guest`: an NTFS and hive writer for an offline setup of a Windows guest |
 | [T-618](podvm.md) | P3 | S | M6 | defect | done | `pod-hostprobe`: the signal calls on mips and mips64 |
+| [T-619](podvm.md) | P3 | S | M6 | defect | open | `pod-hostprobe`: the open flags and the errno numbers of mips and sparc |
+| [T-620](podvm.md) | P3 | S | M7 | chore | open | `pod-udf`: a live test against a Windows ISO by Range requests |

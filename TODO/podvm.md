@@ -7791,3 +7791,57 @@ warned, and the test of `sigblock` read a mask of 128 signals as one
 tests of `pod-supervise` and `pod-enter` passed. Plants, each caught by
 hand: `hostprobe-t618-mask-not-the-kernels-size`,
 `hostprobe-t618-mask-words-out-of-order`.
+
+# T-619: `pod-hostprobe`: the open flags and the errno numbers of mips and sparc
+
+**Source:** T-618 (a finding of its work).
+**Category:** defect
+**Milestone:** M6
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`crates/pod-hostprobe/src/sys.rs` fixes `O_CREAT`, `O_EXCL`, `O_NOCTTY`, `O_TRUNC` and the errno numbers above 34 (`ENAMETOOLONG` 36, `ENOSYS` 38, `ELOOP` 40) at the values of most architectures. mips uses other values (`ENOSYS` 89, `ELOOP` 90), and sparc other open flags. The crate refuses mips at compile time, so nothing fails today; the values are wrong the day that refusal goes.
+
+## Premise
+
+- Read: the report of T-618 and call C511; `crates/pod-hostprobe/src/sys.rs`.
+
+## Approach
+
+Take the open flags and the errno numbers from `linux_raw_sys::general` and `linux_raw_sys::errno`, as T-618 does for the signal values, and add a constant assertion for mips as T-618's Done section shows.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features
+```
+
+# T-620: `pod-udf`: a live test against a Windows ISO by Range requests
+
+**Source:** T-601 (a finding of its work).
+**Category:** chore
+**Milestone:** M7
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+No tool here makes a UDF 2.50 volume with a metadata partition, so `pod-udf` has no proof against one of a real mastering tool. A Windows ISO has one.
+
+## Premise
+
+- Read: the report of T-601 and call C512; `crates/pod-udf`; the service `microsoft-windows-eval` of `pod-services` (T-611); `.github/workflows/live.yml`.
+
+## Approach
+
+An ignored test, run in `live.yml`, that runs `Udf::find("/sources/boot.wim")` on the Windows evaluation ISO of `microsoft-windows-eval` through HTTP Range requests, and checks the size and a digest of the first and the last block.
+
+## Prove
+
+```sh
+cargo test -p pod-udf --all-features -- --ignored
+```
