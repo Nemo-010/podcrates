@@ -7540,7 +7540,7 @@ cargo test -p pod-extract --all-features
 **Milestone:** M6
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7559,6 +7559,30 @@ The hold blocks SIGINT, SIGTERM, SIGHUP and SIGQUIT in the mask of its own threa
 ```sh
 cargo test -p pod-supervise --all-features
 ```
+
+## Done
+
+2026-11-14, commit 8d23780. `foreground` blocks SIGHUP, SIGINT, SIGQUIT and
+SIGTERM in the calling thread around the spawn of the thread of the hold,
+then gives the caller its earlier mask: the thread takes the blocked mask
+at its creation, with no open time (C485). `pod_hostprobe::sys::sigblock`,
+`sigbit`, `SIGHUP` and `SIGQUIT` are new (C486). Other signals stay open
+in the thread (C487).
+
+`cargo test -p pod-supervise --all-features`: 31 unit tests,
+`tests/foreground.rs` 7 steps (new:
+`a_shutdown_signal_skips_the_thread_of_the_hold`: a holder process
+blocks the four signals in its own thread after the start of the hold,
+gets each one from outside, and keeps each one pending in `ShdPnd`; on
+the old code it ends at SIGHUP), `lifecycle` 5 steps, `tree` 7 steps,
+each passed; the foreground binary passed 30 runs.
+`cargo test -p pod-hostprobe --all-features`: 136 unit tests passed,
+with `sigblock_blocks_the_set_in_this_thread_and_sigrestore_gives_it_back`.
+Plant `supervise-t616-hold-thread-takes-shutdown` (the block of an empty
+set), caught by hand: "the holder ended at a shutdown signal";
+`plant-each.sh --apply`: 0 stale. `cargo doc` of both crates with
+`-D warnings`, `check-size.py`, `check-windows.sh` and `check-macos.sh`:
+0 faults.
 
 # T-610: `pod-guest`: `Fat16::put` writes a long name of up to 32 characters with VFAT entries and an 8.3 alias (PodUtils/podvm#360)
 

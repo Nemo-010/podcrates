@@ -18,6 +18,9 @@
 //! The hold does not apply `wall_ms`, does not kill the tree of the payload
 //! and writes no `end`: the caller runs the payload and measures it.
 //!
+//! The thread of the hold blocks SIGHUP, SIGINT, SIGQUIT and SIGTERM, so
+//! that a signal to the process goes to a thread of the caller.
+//!
 //! The thread of the hold makes a fork unsafe (a lock of the allocator can
 //! be held at the fork). While a hold lives in this process,
 //! [`crate::start`] refuses. Start the payload first, then the hold.
@@ -37,6 +40,11 @@ use crate::launcher;
 use crate::lock::Lock;
 use crate::table::{self, State};
 use crate::{Result, Settings, failure};
+
+/// The signals that the thread of a hold blocks: SIGHUP, SIGINT, SIGQUIT
+/// and SIGTERM.
+const HOLD_BLOCKS: u64 =
+    sys::sigbit(sys::SIGHUP) | sys::sigbit(sys::SIGINT) | sys::sigbit(sys::SIGQUIT) | sys::sigbit(sys::SIGTERM);
 
 /// The holds that live in this process.
 static LIVE: AtomicUsize = AtomicUsize::new(0);
@@ -119,10 +127,19 @@ where
         .map_err(|e| failure(Class::Unavailable, format!("pipe2: {} ({})", e.name(), e.0)))?;
     let (stop_r, stop_w) = (Fd(ends[0] as i64), Fd(ends[1] as i64));
     let listener = launcher::listen(s, &c.id).map_err(|e| failure(Class::Unavailable, e))?;
-    let server = match std::thread::Builder::new()
+    // A shutdown signal that lands on the thread of the hold ends the
+    // process by its default action, also when each thread of the caller
+    // blocks it. A new thread takes the mask of its maker, so the block is
+    // around the spawn: there is no time with the signals open.
+    let mut old = 0u64;
+    sys::sigblock(HOLD_BLOCKS, &mut old).map_err(|e| {
+        failure(Class::Unavailable, format!("blocking the shutdown signals for the hold: {} ({})", e.name(), e.0))
+    })?;
+    let spawned = std::thread::Builder::new()
         .name("pod-supervise-hold".to_string())
-        .spawn(move || serve(listener, pidfd, stop_r))
-    {
+        .spawn(move || serve(listener, pidfd, stop_r));
+    let _ = sys::sigrestore(old);
+    let server = match spawned {
         Ok(h) => h,
         Err(e) => {
             let _ = std::fs::remove_file(table::control_path(s, &c.id));

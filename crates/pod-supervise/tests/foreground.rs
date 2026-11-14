@@ -4,13 +4,18 @@
 //!
 //! No libtest (`harness = false`), for the reason of `lifecycle`: a step
 //! calls `start`, which forks. The step of a killed holder runs this binary
-//! again as the holder (`hold ROOT NAME`).
+//! again as the holder (`hold ROOT NAME`), and the step of the shutdown
+//! signals as a holder that blocks them (`mask ROOT NAME`).
 
 #[cfg(target_os = "linux")]
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).map(String::as_str) == Some("hold") {
         steps::be_the_holder(&args[2], &args[3]);
+        return;
+    }
+    if args.get(1).map(String::as_str) == Some("mask") {
+        steps::be_the_masked_holder(&args[2], &args[3]);
         return;
     }
     if let Err(why) = pod_testkit::host::tool("sleep") {
@@ -31,8 +36,9 @@ fn main() {
     steps::a_wait_gets_the_code_of_finish(&s);
     steps::a_drop_with_no_finish_writes_dead(&s);
     steps::a_killed_holder_leaves_a_dead_record(&s);
+    steps::a_shutdown_signal_skips_the_thread_of_the_hold(&s);
     let _ = std::fs::remove_dir_all(&s.root);
-    println!("foreground: 6 steps passed");
+    println!("foreground: 7 steps passed");
 }
 
 #[cfg(not(target_os = "linux"))]
@@ -40,7 +46,7 @@ fn main() {}
 
 #[cfg(target_os = "linux")]
 mod steps {
-    use std::io::{BufRead, BufReader};
+    use std::io::{BufRead, BufReader, Write};
     use std::os::unix::process::ExitStatusExt;
     use std::process::{Child, Command, Stdio};
     use std::time::{Duration, Instant};
@@ -251,5 +257,67 @@ mod steps {
         assert_eq!((c.pid, c.launcher_pid), (None, None), "a dead record names a pid");
         let _ = sys::kill(payload, 9);
         remove::<Any>(s, "orphan", false).expect("remove");
+    }
+
+    /// SIGHUP, SIGINT, SIGQUIT and SIGTERM, as a mask word.
+    const SHUTDOWN: u64 =
+        sys::sigbit(sys::SIGHUP) | sys::sigbit(sys::SIGINT) | sys::sigbit(sys::SIGQUIT) | sys::sigbit(sys::SIGTERM);
+
+    /// The holder of a caller that takes the shutdown signals itself: it
+    /// blocks them in its own thread after the start of the hold, says
+    /// `held PID`, and at a line on stdin says `pending MASK` (`ShdPnd` of
+    /// the process) and ends.
+    pub fn be_the_masked_holder(root: &str, name: &str) {
+        let s = Settings::new(root);
+        let mut child = payload();
+        let hold = foreground::<Any>(&s, name, child.id() as i64).expect("foreground");
+        // After the hold: its thread keeps the mask that it took at its spawn.
+        let mut old = 0u64;
+        sys::sigblock(SHUTDOWN, &mut old).expect("sigblock");
+        println!("held {}", child.id());
+        let mut line = String::new();
+        let _ = std::io::stdin().read_line(&mut line);
+        let status = std::fs::read_to_string("/proc/self/status").unwrap_or_default();
+        let pending = status.lines().find_map(|l| l.strip_prefix("ShdPnd:")).map(str::trim).unwrap_or("none");
+        println!("pending {pending}");
+        let _ = child.kill();
+        let _ = child.wait();
+        let _ = hold.finish(137);
+    }
+
+    /// Each shutdown signal to a process whose caller thread blocks it stays
+    /// pending: the thread of the hold blocks it too, so its default action
+    /// does not end the process.
+    pub fn a_shutdown_signal_skips_the_thread_of_the_hold(s: &Settings) {
+        made(s, "masked");
+        let mut holder = Command::new(std::env::current_exe().expect("this binary"))
+            .arg("mask")
+            .arg(&s.root)
+            .arg("masked")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .expect("the holder");
+        let mut out = BufReader::new(holder.stdout.take().expect("stdout"));
+        let mut line = String::new();
+        out.read_line(&mut line).expect("the word of the holder");
+        let payload: i64 = line.trim().strip_prefix("held ").and_then(|p| p.parse().ok()).expect("held PID");
+        for sig in [sys::SIGHUP, sys::SIGINT, sys::SIGQUIT, sys::SIGTERM] {
+            let _ = sys::kill(holder.id() as i64, sig as i64);
+        }
+        let mut stdin = holder.stdin.take().expect("stdin");
+        let _ = writeln!(stdin, "check");
+        drop(stdin);
+        line.clear();
+        let _ = out.read_line(&mut line);
+        let status = holder.wait().expect("the end of the holder");
+        let _ = sys::kill(payload, 9);
+        let pending = line.trim().strip_prefix("pending ").and_then(|m| u64::from_str_radix(m, 16).ok());
+        assert!(
+            pending.is_some() && status.success(),
+            "the holder ended at a shutdown signal: {status:?}, it said {line:?}"
+        );
+        assert_eq!(pending.unwrap_or(0) & SHUTDOWN, SHUTDOWN, "a shutdown signal was not pending: {line:?}");
+        remove::<Any>(s, "masked", true).expect("remove");
     }
 }

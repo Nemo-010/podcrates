@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**501 entries: 119 open, 8 partial, 6 blocked, 368 done.**
+**501 entries: 118 open, 8 partial, 6 blocked, 369 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 101 | 115 |
-| P2 | 55 | 2 | 4 | 199 | 260 |
+| P2 | 54 | 2 | 4 | 200 | 260 |
 | P3 | 53 | 3 | 2 | 66 | 124 |
-| **All** | 119 | 8 | 6 | 368 | 501 |
+| **All** | 118 | 8 | 6 | 369 | 501 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -546,5 +546,5 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-613](fleet.md) | P2 | S | M8 | feature | done | `pod-actions-store` and `pod-actions-results`: podrunner's changes after `872b43f` (T-139, T-149, T-154 of podrunner) |
 | [T-614](upkeep.md) | P3 | S | M5 | chore | open | CI: a job that runs as root the tests that start a worker of uid 1000 |
 | [T-615](podvm.md) | P3 | S | M6 | defect | open | `pod-extract`: `open_tree` and the removal hold one descriptor for each level of depth |
-| [T-616](podvm.md) | P2 | S | M6 | defect | open | `pod-supervise`: the thread of the foreground hold blocks the shutdown signals |
+| [T-616](podvm.md) | P2 | S | M6 | defect | done | `pod-supervise`: the thread of the foreground hold blocks the shutdown signals |
 | [T-617](podvm.md) | P3 | M | M7 | feature | blocked | `pod-guest`: an NTFS and hive writer for an offline setup of a Windows guest |
