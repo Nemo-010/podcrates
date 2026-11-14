@@ -75,6 +75,16 @@ pub fn mailbox_locked(block: &str) -> Option<bool> {
     mailbox_entry(block).and_then(|e| qmp::json_bool(e, "locked"))
 }
 
+/// The file of the medium in the mailbox device in a `query-block`
+/// response (`inserted.file`): after a swap it is not the file of the
+/// plan. `None` when no entry is the device [`MAILBOX_ID`], the device has
+/// no medium, or the name has an escape.
+pub fn mailbox_file(block: &str) -> Option<String> {
+    let entry = mailbox_entry(block)?;
+    let inserted = &entry[entry.find("\"inserted\"")?..];
+    qmp::json_member(inserted, "file")
+}
+
 /// The entry of the device [`MAILBOX_ID`] in a `query-block` response: its
 /// `qdev` is the id, the one name that the commands of the medium use.
 fn mailbox_entry(block: &str) -> Option<&str> {
@@ -115,19 +125,31 @@ impl Swap {
         Ok(Swap { files: [plan.mailbox.clone(), other_file(plan)], current: 0, token: token.to_string(), volume_id })
     }
 
+    /// The mailbox of `plan` with an idle agent and no command, as a warm
+    /// restore puts it ([`crate::warm::restore`]). The token is empty, and
+    /// the first [`Swap::next`] needs an idle agent ([`crate::warm::idle`])
+    /// on the medium in place of a settled result.
+    pub fn restored(plan: &Plan) -> Result<Swap> {
+        Swap::new(plan, "")
+    }
+
     /// The file of the medium in the guest.
     pub fn current(&self) -> &Path {
         &self.files[self.current]
     }
 
-    /// The token of the command on the medium in the guest.
+    /// The token of the command on the medium in the guest; empty when
+    /// no command was on it ([`Swap::restored`]).
     pub fn token(&self) -> &str {
         &self.token
     }
 
     /// Read the medium in the guest: the outcome of the current command
-    /// once it is settled ([`settled`]).
+    /// once it is settled ([`settled`]). `None` with no command.
     pub fn poll(&self) -> Result<Option<Outcome>> {
+        if self.token.is_empty() {
+            return Ok(None);
+        }
         Ok(settled(&read(self.current())?, &self.token))
     }
 
@@ -135,11 +157,14 @@ impl Swap {
     /// guest through `monitor`. The new medium is a new mailbox
     /// ([`crate::mailbox`] of `s` and `agent_cmd`) with the next volume id.
     ///
-    /// A command before with no settled result is [`Class::Usage`], and no
-    /// medium changes. A refusal of the emulator is [`Class::Protocol`];
-    /// the medium in the guest and the token stay as they were.
+    /// A command before with no settled result, or a restored medium with
+    /// no idle agent, is [`Class::Usage`], and no medium changes. A refusal
+    /// of the emulator is [`Class::Protocol`]; the medium in the guest and
+    /// the token stay as they were.
     pub fn next(&mut self, monitor: &mut qmp::Monitor, s: &Settings, agent_cmd: &str, request: &Request) -> Result<()> {
-        if self.poll()?.is_none() {
+        if self.token.is_empty() {
+            crate::warm::idle(&read(self.current())?)?;
+        } else if self.poll()?.is_none() {
             return Err(failure(
                 Class::Usage,
                 format!(

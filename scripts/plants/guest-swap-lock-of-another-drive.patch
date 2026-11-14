@@ -1,12 +1,13 @@
 diff --git a/crates/pod-guest/src/swap.rs b/crates/pod-guest/src/swap.rs
 --- a/crates/pod-guest/src/swap.rs
 +++ b/crates/pod-guest/src/swap.rs
-@@ -72,7 +72,7 @@ pub fn change_request(file: &Path) -> Result<String> {
+@@ -72,7 +72,8 @@ pub fn change_request(file: &Path) -> Result<String> {
  /// guest prevents the removal of the medium. `None` when no entry of the
  /// response is the device [`MAILBOX_ID`] or the entry has no lock.
  pub fn mailbox_locked(block: &str) -> Option<bool> {
 -    mailbox_entry(block).and_then(|e| qmp::json_bool(e, "locked"))
 +    block.contains(&qmp::json_text(MAILBOX_ID)).then(|| qmp::json_bool(block, "locked")).flatten()
++
  }
  
- /// The entry of the device [`MAILBOX_ID`] in a `query-block` response: its
+ /// The file of the medium in the mailbox device in a `query-block`

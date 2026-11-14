@@ -6,7 +6,10 @@ name: guest-windows
 # and the SHA-256 of crates/pod-services/services/microsoft-windows-eval.toml),
 # installs Server Core with the agent of pod-guest, and runs the test
 # tests/windows_keep_live.rs: a first command, two next commands on new
-# mailbox media through QMP, and two controls that write into a mounted
+# mailbox media through QMP, a warm start (a save of the idle guest, then
+# a restore with a command on a new medium; only where the QEMU of the
+# runner saves the plan: QEMU 8.2 refuses the NVMe root disk, and the test
+# prints the refusal), and two controls that write into a mounted
 # mailbox. Each stage prints its time. A failed run keeps the screens of
 # the install and the logs of the emulator.
 
@@ -74,7 +77,7 @@ jobs:
           df -h "$WORK"
       - name: Build the test
         run: cargo test --locked -p pod-guest --test windows_keep_live --no-run
-      - name: Install Windows, then three commands in keep-alive mode
+      - name: Install Windows, then the commands in keep-alive mode and the warm start
         timeout-minutes: 120
         env:
           POD_GUEST_OVMF_CODE: /usr/share/OVMF/OVMF_CODE_4M.fd
