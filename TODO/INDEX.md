@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**516 entries: 106 open, 8 partial, 6 blocked, 396 done.**
+**516 entries: 105 open, 8 partial, 6 blocked, 397 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 104 | 118 |
-| P2 | 50 | 2 | 4 | 208 | 264 |
+| P2 | 49 | 2 | 4 | 209 | 264 |
 | P3 | 45 | 3 | 2 | 82 | 132 |
-| **All** | 106 | 8 | 6 | 396 | 516 |
+| **All** | 105 | 8 | 6 | 397 | 516 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -558,7 +558,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-625](podvm.md) | P3 | S | M6 | chore | done | `pod-hostprobe`: the test of the report runs the probes in a child that libtest refuses |
 | [T-626](podvm.md) | P3 | M | M7 | chore | open | `pod-udf`: the metadata partition of UDF 2.50 against an image of a real tool |
 | [T-627](relay.md) | P3 | S | M2 | feature | done | `pod-link`: the stand-in of the S3 API behind the feature `s3-standin` (PodUtils/podnet#564) |
-| [T-628](podvm.md) | P2 | S | M7 | defect | open | `pod-guest`: the warm restore gives the next command on a new mailbox medium after the load |
+| [T-628](podvm.md) | P2 | S | M7 | defect | done | `pod-guest`: the warm restore gives the next command on a new mailbox medium after the load |
 | [T-629](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: a plan with a boot medium gives the root disk no `bootindex`, so OVMF deletes the boot entry of the installed system |
 | [T-630](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: the swap of a USB mailbox fails while Windows locks the medium |
 | [T-631](transport.md) | P3 | M | M1 | chore | open | `pod-turn`: the check of a MESSAGE-INTEGRITY-SHA256 answer against a server of another party |

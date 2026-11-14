@@ -8048,7 +8048,7 @@ cargo test -p pod-udf --all-features -- --ignored
 **Milestone:** M7
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8067,6 +8067,16 @@ With a USB mailbox (`MailboxBus::Usb`), restore with the saved mailbox unchanged
 ```sh
 cargo test -p pod-guest --all-features
 ```
+
+## Done
+
+2026-11-14, commit 0c7036d. `warm::restore` loads the state with the saved mailbox as it is and, after `cont`, gives the command on a new medium with the next volume id (`swap::Swap::restored`, then `Swap::next`, by `id`); a refusal of the swap is `Cold::Failed`. `restore(&s, qemu_img, &plan, agent, &request, &warm)` gives `(Child, Swap)`; `start` gives `Started { child, how, swap }` (a cold boot gives `Swap::new(&plan, token)`). The save reads the medium in the mailbox device from `query-block` (`swap::mailbox_file`) after `stop`: after a swap it is `MAILBOX.swap`. `save`, `restore` and `start` refuse a mailbox that is not `MailboxBus::Usb` with `Usage` and send no request: the restored guest reads the saved mailbox from its cache (call C584).
+
+Measured on the QEMU 8.2.2 of this host (call C585): the root disk bus decides. With the root disk on NVMe (the plan line) `query-migrate` blocks the save ("non-migratable device: .../nvme"); with the root disk on AHCI or virtio-blk the line with the USB mailbox (`qemu-xhci`, `usb-bot`, `scsi-hd`) saves, loads, and takes `blockdev-change-medium` by `id` after the load. So the plan saves only from QEMU 11 (PodUtils/podvm@T-1874); the USB mailbox does not block a save.
+
+`cargo test -p pod-guest --all-features`: 164 unit tests passed, 1 ignored. New: `warm::tests::start_tests::a_warm_start_needs_a_usb_mailbox`. Changed: `a_state_that_loads_starts_warm_with_the_next_command` (the saved mailbox as it is, then the swap after `cont`, the next volume id; it fails on the code before the fix), `a_save_writes_each_file_and_lets_the_guest_go_on` (the medium in the guest), `a_failed_save_keeps_the_state_before_and_the_guest_goes_on` (no medium), `warm::live::a_real_emulator_saves_and_loads_a_stream` (the plan line with its root disk on AHCI, the QEMU 8.2.2 of the host: save, load, swap). Plants, each caught by hand: `guest-warm-restore-writes-the-saved-mailbox`, `guest-warm-save-copies-the-mailbox-of-the-plan`, `guest-warm-nvme-mailbox-restores`; `plant-each.sh --apply`: 0 stale.
+
+The live proof (call C586): `tests/windows_keep_live.rs` saves the idle guest after the two swaps and, after the USB control, restores it with a fourth command that must give `Start::Warm` and its outcome on the new medium. The runners of `guest-windows.yml` have QEMU 8.2.2, so the step prints the refusal there and runs where the QEMU of the runner saves the plan. The parent dispatches `guest-windows.yml` after the merge; the same run proves the `usb-bot` mailbox of T-632.
 
 # T-629: `pod-guest`: a plan with a boot medium gives the root disk no `bootindex`, so OVMF deletes the boot entry of the installed system
 
