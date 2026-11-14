@@ -7846,7 +7846,7 @@ caught by hand: `hostprobe-t619-o-excl-of-another-target`,
 **Milestone:** M7
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7865,6 +7865,23 @@ An ignored test, run in `live.yml`, that runs `Udf::find("/sources/boot.wim")` o
 ```sh
 cargo test -p pod-udf --all-features -- --ignored
 ```
+
+## Done
+
+2026-11-14, commit COMMIT620. `tests/windows_live.rs` (ignored): a
+`ReadAt` of the test sends one HTTP Range request for each read, with the
+blocking client of `pod-proxy`; the URL and the size come from the service
+`microsoft-windows-eval`. `Udf::find("/sources/boot.wim")` gives one part
+of 547,572,640 bytes at bytes 20,668,416 of the ISO; the test checks the
+size, the WIM magic, and the SHA-256 of the first and the last block
+(checked against two Range reads of curl). 15 requests and 38 KB of the
+5 GB image; the test passed here in 1.1 s. The step "pod-udf, boot.wim of
+the Windows evaluation ISO by Range requests" of `live.yml`, the row L42
+of `docs/live-calls.md`, call C541. The ISO is UDF 1.02 (revision 0x0102)
+with no metadata partition: the test proves the reader on a Windows ISO of
+a real mastering tool, not the metadata partition. The plant is by hand
+(`plants.yml` reaches no host of another party): a shift of each data
+extent by one block fails the test.
 
 # T-622: `pod-guest`: the provision stops the emulator on each error after the spawn (PodUtils/podvm#370)
 
