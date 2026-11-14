@@ -37,9 +37,11 @@ impl Warp {
     /// opens wins and the other try is dropped (PodUtils/podnet issues 76
     /// and 126). A failure of both names both causes.
     ///
-    /// On each leg, each door of [`door::doors`] in turn. When the front
-    /// door shows a key that is not the pinned key, read the device record
-    /// again and try its door and its key, then once more after a second. A
+    /// On each leg, each door of [`door::doors`] in turn. When a front door
+    /// shows a key that is not the pinned key, read the device record again
+    /// and try each of its doors with its key, the door that showed the key
+    /// first; a door that shows another key again is tried once more after a
+    /// second. A failure of each door names the key that did not match. A
     /// key that the API did not give is never taken.
     pub async fn open_session(&self) -> Result<MasqueSession, Failure> {
         let settings = &self.settings;
@@ -111,13 +113,7 @@ impl Warp {
     async fn open_on(&self, way: &Way, routes: Routes) -> Result<MasqueSession, Failure> {
         let settings = &self.settings;
         let pinned = pin_of(&self.device)?;
-        let candidates = door::doors(
-            &settings.door,
-            self.device.masque_endpoints(),
-            self.won_door(),
-            *self.bad.lock().unwrap_or_else(|e| e.into_inner()),
-            routes,
-        );
+        let candidates = self.doors_of(&self.device, routes);
         if candidates.is_empty() {
             return Err(Failure::new(Stage::Warp, Class::Protocol, "the device has no MASQUE front door"));
         }
@@ -129,7 +125,7 @@ impl Warp {
                     settings.report.decision("warp.door", if i == 0 { "first" } else { "other" });
                     return Ok(session);
                 }
-                Err(err) if is_pin_mismatch(&err) => return self.open_after_mismatch(err, way, door).await,
+                Err(err) if is_pin_mismatch(&err) => return self.open_after_mismatch(err, way, door, routes).await,
                 Err(err) => {
                     if let Some(next) = candidates.get(i + 1) {
                         let text = format!("the front door {door} failed ({}); {next} is tried", err.chain());
@@ -147,6 +143,12 @@ impl Warp {
         }))
     }
 
+    /// The doors of `device` that a session tries, in order.
+    fn doors_of(&self, device: &Device, routes: Routes) -> Vec<Target> {
+        let bad = *self.bad.lock().unwrap_or_else(|e| e.into_inner());
+        door::doors(&self.settings.door, device.masque_endpoints(), self.won_door(), bad, routes)
+    }
+
     fn note_won(&self, door: &Target) {
         if let Target::Addr(addr) = door {
             *self.won.lock().unwrap_or_else(|e| e.into_inner()) = Some(*addr);
@@ -154,10 +156,18 @@ impl Warp {
     }
 
     /// The front door `shown` showed another key than the pinned one (a new
-    /// device, or a new key of the door): read the record again and try its
-    /// door. When that fails too, the line says why a door shows another
-    /// certificate ([`why_shown`]).
-    async fn open_after_mismatch(&self, err: Failure, way: &Way, shown: &Target) -> Result<MasqueSession, Failure> {
+    /// device, or a new key of the door): read the record again and try each
+    /// of its doors, `shown` first when the record still lists it. A door
+    /// that fails for another cause does not end the try: the next door can
+    /// open. A door that shows another key again is
+    /// tried once more after [`PIN_RETRY`].
+    async fn open_after_mismatch(
+        &self,
+        err: Failure,
+        way: &Way,
+        shown: &Target,
+        routes: Routes,
+    ) -> Result<MasqueSession, Failure> {
         let settings = &self.settings;
         let text = format!("the MASQUE key is not the pinned key ({}); the device record is read again", err.chain());
         settings.report.event(Event::warn("warp.pin", text));
@@ -166,37 +176,66 @@ impl Warp {
             Failure::caused(e.stage, e.class, text, e)
         })?;
         let pinned = pin_of(&fresh)?;
-        let door = match &settings.door {
-            door::Door::Pinned(target) => target.clone(),
-            door::Door::Record => fresh.masque_endpoint().map(Target::Addr).ok_or_else(|| {
-                Failure::new(Stage::Warp, Class::Protocol, "the device record has no MASQUE front door")
-            })?,
-        };
-        let mut last = err;
-        for attempt in 0..2 {
-            if attempt > 0 {
-                tokio::time::sleep(PIN_RETRY).await;
-            }
-            match MasqueSession::connect(&door, &self.identity, pinned.clone(), way).await {
-                Ok(session) => {
-                    self.note_won(&door);
-                    settings.report.decision("warp.door", "fresh-record");
-                    return Ok(session);
+        let mut doors = self.doors_of(&fresh, routes);
+        if let Some(i) = doors.iter().position(|d| d == shown) {
+            let door = doors.remove(i);
+            doors.insert(0, door);
+        }
+        if doors.is_empty() {
+            let text = format!("{}; the device record read again has no MASQUE front door", err.text());
+            return Err(Failure::caused(Stage::Warp, Class::Protocol, text, err));
+        }
+        let mut failures: Vec<(Target, Failure)> = Vec::new();
+        for (i, door) in doors.iter().enumerate() {
+            match MasqueSession::connect(door, &self.identity, pinned.clone(), way).await {
+                Ok(session) => return Ok(self.won_fresh(door, session)),
+                Err(e) => {
+                    if let Some(next) = doors.get(i + 1) {
+                        let text = format!("the front door {door} failed ({}); {next} is tried", e.chain());
+                        settings.report.event(Event::warn("warp.door", text));
+                    }
+                    failures.push((door.clone(), e));
                 }
-                Err(e) if attempt == 0 && is_pin_mismatch(&e) => last = e,
-                Err(e) if is_pin_mismatch(&e) => {
-                    let text = format!(
-                        "{}; the key of the device record read again does not match either. {}",
-                        e.text(),
-                        why_shown(way, &door)
-                    );
-                    return Err(Failure::caused(e.stage, e.class, text, e));
-                }
-                Err(e) => return Err(e),
             }
         }
-        Err(last)
+        // A new connection may reach another server.
+        if failures.iter().any(|(_, e)| is_pin_mismatch(e)) {
+            tokio::time::sleep(PIN_RETRY).await;
+        }
+        for (door, last) in failures.iter_mut().filter(|(_, e)| is_pin_mismatch(e)) {
+            match MasqueSession::connect(door, &self.identity, pinned.clone(), way).await {
+                Ok(session) => return Ok(self.won_fresh(door, session)),
+                Err(e) => *last = e,
+            }
+        }
+        Err(after_mismatch(&err, failures, way))
     }
+
+    fn won_fresh(&self, door: &Target, session: MasqueSession) -> MasqueSession {
+        self.note_won(door);
+        self.settings.report.decision("warp.door", "fresh-record");
+        session
+    }
+}
+
+/// One failure of the doors of the record read again after `err` (a key that
+/// is not the pinned one): it names that key, the cause of each door, and,
+/// when a door shows another key still, why ([`why_shown`]). The class is
+/// the one of a door that shows another key, else of the first door.
+fn after_mismatch(err: &Failure, mut failures: Vec<(Target, Failure)>, way: &Way) -> Failure {
+    let causes: Vec<String> = failures.iter().map(|(_, e)| e.chain()).collect();
+    let mut text = format!(
+        "{}; the device record was read again, and each of its doors failed: {}",
+        err.text(),
+        causes.join("; ")
+    );
+    let shown = failures.iter().position(|(_, e)| is_pin_mismatch(e));
+    if let Some(i) = shown {
+        let why = why_shown(way, &failures[i].0);
+        text.push_str(&format!(". The key of the device record read again does not match either. {why}"));
+    }
+    let (_, cause) = failures.swap_remove(shown.unwrap_or(0));
+    Failure::caused(cause.stage, cause.class, text, cause)
 }
 
 /// Why a front door shows a certificate in place of WARP's key, and what

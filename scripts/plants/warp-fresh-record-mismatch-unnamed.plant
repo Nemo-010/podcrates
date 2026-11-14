@@ -1,0 +1,6 @@
+# The record read again after another key: the failure of each door drops the key that did not match; its test must fail.
+ENTRY=T-624
+GROUP=warp
+EXPECT='test after_another_key_each_door_of_the_record_read_again_is_tried \.\.\. FAILED'
+RUN='cargo test -p pod-warp --test net -- after_another_key_each_door_of_the_record_read_again_is_tried --exact'
+LIMIT=1800
