@@ -6403,7 +6403,7 @@ fetch at a file host.
 **Milestone:** M1
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -6447,6 +6447,46 @@ then run its client side with no account.
 ```sh
 cargo test -p pod-devtunnel --all-features
 ```
+
+## Done
+
+2026-11-14, commits 2f3c60c (the client, the stand-in, the live step) and
+the commit of this record (the plants). The API: `Credential::{User,
+Access, Anonymous}` with `form()`, `AccessToken::new`; `Relay::connect`
+takes `impl Into<Credential>`; `Management::connect_info(&locator,
+&credential)`; `ConnectInfo::token()` is an `Option`. A tunnel access
+token goes to the API as `Authorization: tunnel TOKEN`; with no token the
+request has no `Authorization`. An answer with no connect token sends the
+caller's tunnel access token to the relay, and no token for a caller with
+none; a user token stays refused (C553). The sources are in the README of
+the crate, with the facts `access-scheme`, `credential-calls` and
+`anonymous-calls` of `microsoft-devtunnel` and their watches. The
+stand-in: `Plan::{access, anonymous, mints_for_all}`, `Seen::forms`; it
+refuses a missing token at the API and at the relay where the tunnel has
+no anonymous entry, and each refusal names the form, never a token
+(C554). `tests/live.rs` takes the user's token, else
+`POD_DEVTUNNEL_ACCESS_TOKEN`, else no token; `live.yml` runs it by hand
+with the input `measure` set to `devtunnel` and the secrets
+`POD_DEVTUNNEL_TUNNEL`, `POD_DEVTUNNEL_PORT`, `POD_DEVTUNNEL_ACCESS_TOKEN`
+(C555; `docs/live-calls.md`, L44).
+
+`cargo test -p pod-devtunnel --all-features`: 14 unit tests,
+`tests/credential.rs` 5, `tests/management.rs` 5, `tests/reconnect.rs` 5,
+`tests/relay.rs` 8, `tests/secrets.rs` 1 (now with a tunnel access token),
+1 ignored. `cargo test -p pod-services --all-features` and `-p
+pod-services-watch` pass. Plants (group `devtunnel`), each caught by hand
+with its EXPECT: `devtunnel-access-token-not-kept`,
+`devtunnel-standin-takes-no-token`, `devtunnel-refusal-no-form`,
+`devtunnel-access-token-in-debug`; `devtunnel-no-subprotocol` moved to the
+new code and is caught.
+
+What podssh calls (PodUtils/podssh@T-755): with its token file,
+`Relay::connect(way, settings, locator, UserToken::new(scheme, text)?,
+report)` as before; with a token that the owner of the tunnel gives,
+`AccessToken::new(text)?` in its place; with no token,
+`Credential::Anonymous`. Its doctor shows `Credential::form()` and
+`step_of`; a refusal of the step `Management` with no token means that the
+tunnel has no anonymous access.
 
 # T-490: `pod-tls`: the server half of ECH, a ClientHello in the shape of a browser, and the measure of the handshake (GitHub #130, deferred)
 

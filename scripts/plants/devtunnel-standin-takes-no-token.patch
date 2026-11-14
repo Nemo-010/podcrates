@@ -1,0 +1,13 @@
+diff --git a/crates/pod-devtunnel/src/standin.rs b/crates/pod-devtunnel/src/standin.rs
+index b8e3a56..b68e375 100644
+--- a/crates/pod-devtunnel/src/standin.rs
++++ b/crates/pod-devtunnel/src/standin.rs
+@@ -271,7 +271,7 @@ fn management(state: &State, head: &Request) -> Vec<u8> {
+     let allowed = match form {
+         "user" => user_ok,
+         "access" => true,
+-        "none" => plan.anonymous,
++        "none" => true,
+         _ => false,
+     };
+     {

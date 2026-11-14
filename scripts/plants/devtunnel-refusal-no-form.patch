@@ -1,0 +1,17 @@
+diff --git a/crates/pod-devtunnel/src/management.rs b/crates/pod-devtunnel/src/management.rs
+index 7495625..80ac98c 100644
+--- a/crates/pod-devtunnel/src/management.rs
++++ b/crates/pod-devtunnel/src/management.rs
+@@ -154,10 +154,10 @@ impl Management {
+     pub async fn connect_info(&self, locator: &Locator, credential: &Credential) -> Result<ConnectInfo, Failure> {
+         let request = self.request(locator, credential);
+         let shown = format!(
+-            "GET {}{}/{locator} with {}",
++            "GET {}{}/{locator}{}",
+             self.base.url_of(&self.base.host),
+             service::tunnels_path(),
+-            credential.form()
++            credential.form().get(..0).unwrap_or_default()
+         );
+         let answer = self.client.send(request).await.map_err(|e| wrap(Step::Management, &shown, e))?;
+         if !answer.is_success() {
