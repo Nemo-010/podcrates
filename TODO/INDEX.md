@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**510 entries: 112 open, 8 partial, 6 blocked, 384 done.**
+**510 entries: 111 open, 9 partial, 6 blocked, 384 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 102 | 116 |
-| P2 | 51 | 2 | 4 | 206 | 263 |
+| P2 | 50 | 3 | 4 | 206 | 263 |
 | P3 | 50 | 3 | 2 | 74 | 129 |
-| **All** | 112 | 8 | 6 | 384 | 510 |
+| **All** | 111 | 9 | 6 | 384 | 510 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -532,7 +532,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-599](podvm.md) | P2 | S | M6 | defect | done | `pod-extract`: the `./` member of an archive is not counted as an entry that the crate could not make (PodUtils/podvm#352) |
 | [T-600](fleet.md) | P3 | S | M8 | defect | done | `pod-actions-results`: an upload directory of a crashed run stays under `.pending` of the cache |
 | [T-601](podvm.md) | P2 | S | M7 | chore | done | `pod-udf`: a test against images that a real mastering tool made |
-| [T-602](podvm.md) | P2 | S | M7 | research | open | `pod-guest`: the next command of a guest in keep-alive mode reaches the agent through a mounted FAT mailbox |
+| [T-602](podvm.md) | P2 | S | M7 | research | partial | `pod-guest`: the next command of a guest in keep-alive mode reaches the agent through a mounted FAT mailbox |
 | [T-603](podvm.md) | P2 | S | M7 | defect | done | `pod-guest`: the host removes a file of the FAT mailbox, and a poll of the outcome reads an old token as no result yet |
 | [T-604](podvm.md) | P1 | S | M6 | defect | done | `pod-rootfs`: the completion of a tree whose `/etc` is closed (`0555`) fails as a user that is not root, after T-598 |
 | [T-605](podvm.md) | P3 | S | M6 | defect | done | `pod-extract`: the sidecar does not record the mode that the kernel kept on a directory |
