@@ -11,7 +11,10 @@
 //! the code said in a line; (`relay-t616-kind-unchecked`) a version of
 //! another kind taken. Where no mailbox answers, the ends meet at an MQTT
 //! broker (T-277), after an event; a taker that finds no giver at a mailbox
-//! looks at the brokers (call C115).
+//! looks at the brokers (call C115). The Nostr relays come between the
+//! mailboxes and the brokers (T-550, podssh's ruling Q77), after an event
+//! of their own; planted (`relay-code-nostr-after-brokers`): the brokers
+//! first.
 #![cfg(all(feature = "pair", feature = "code"))]
 
 mod cleanup;
@@ -298,6 +301,57 @@ async fn a_taker_that_finds_no_giver_at_a_mailbox_looks_at_the_brokers() {
     let taken = p.taken.unwrap_or_else(|e| panic!("the taker: {e}"));
     assert_eq!(taken.mailbox, broker.url.shown());
     assert!(said.lock().unwrap().iter().any(|l| l.starts_with("no mailbox has the giver")), "{said:?}");
+}
+
+/// The ends at `mailboxes`, then at the Nostr relay `relay`, then at the
+/// broker `broker`.
+#[cfg(feature = "plain-ws")]
+fn ends_with_relay(mailboxes: Vec<WsUrl>, relay: &WsUrl, broker: &WsUrl, said: &Said) -> Ends {
+    let mut ends = ends_with_broker(mailboxes, broker, said);
+    ends.relays = vec![relay.clone()];
+    ends
+}
+
+#[cfg(feature = "plain-ws")]
+#[tokio::test]
+async fn where_no_mailbox_answers_the_ends_meet_at_a_nostr_relay_before_a_broker() {
+    let relay = mailbox_harness::nostr::start().await;
+    let broker = mailbox_harness::broker::start().await;
+    let said = Said::default();
+    let ends = ends_with_relay(vec![nobody_there()], &relay.url, &broker.url, &said);
+    let p = pairing_between(&ends, &ends, same).await;
+    let given = p.given.unwrap_or_else(|e| panic!("the giver: {e}"));
+    let taken = p.taken.unwrap_or_else(|e| panic!("the taker: {e}"));
+    assert_eq!((given.operator, given.done.admitted, taken.offer.node), (OPERATOR, true, NODE));
+    assert_eq!(given.mailbox, relay.url.shown(), "the lines name the relay");
+    assert_eq!(taken.mailbox, relay.url.shown());
+    assert!(broker.published().is_empty(), "no byte at the broker");
+    let said = said.lock().unwrap();
+    let told = said.iter().filter(|line| line.contains(run::NOSTR_WORDS)).count();
+    assert_eq!(told, 2, "one event at each end before its first relay: {said:?}");
+    assert!(said.iter().all(|line| !line.contains(run::BROKER_WORDS)), "{said:?}");
+    assert!(said.iter().all(|line| !line.contains(&p.code)), "no line holds the code");
+}
+
+#[cfg(feature = "plain-ws")]
+#[tokio::test]
+async fn a_taker_that_finds_no_giver_at_a_mailbox_or_a_relay_looks_at_the_brokers() {
+    let relay = mailbox_harness::nostr::start().await;
+    let broker = mailbox_harness::broker::start().await;
+    let (_, mailbox, _server) = mailboxes("relay").await.into_iter().next().expect("the stand-in mailbox");
+    let said = Said::default();
+    // The giver reaches no mailbox and no relay; the taker reaches one of
+    // each, which have no giver of the code.
+    let giver = ends_with_relay(vec![nobody_there()], &nobody_there(), &broker.url, &said);
+    let taker = ends_with_relay(vec![mailbox], &relay.url, &broker.url, &said);
+    let p = pairing_between(&giver, &taker, same).await;
+    p.given.unwrap_or_else(|e| panic!("the giver: {e}"));
+    let taken = p.taken.unwrap_or_else(|e| panic!("the taker: {e}"));
+    assert_eq!(taken.mailbox, broker.url.shown());
+    let said = said.lock().unwrap();
+    for line in ["no mailbox has the giver", "no Nostr relay has the giver", "no Nostr relay answered"] {
+        assert!(said.iter().any(|l| l.starts_with(line)), "{line}: {said:?}");
+    }
 }
 
 #[tokio::test]

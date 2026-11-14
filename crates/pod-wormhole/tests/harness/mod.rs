@@ -14,7 +14,7 @@
 //!
 //! The MQTT brokers of the tests (a stand-in in Rust, and Eclipse
 //! Mosquitto) are in [`broker`]; `POD_WORMHOLE_TEST_MQTT=required` makes a
-//! skip of Mosquitto a failure.
+//! skip of Mosquitto a failure. The stand-in Nostr relay is in [`nostr`].
 
 // Each test binary uses a part of it.
 #![allow(dead_code)]
@@ -30,6 +30,7 @@ use pod_wormhole::Config;
 use pod_ws::url::WsUrl;
 
 pub mod broker;
+pub mod nostr;
 
 /// The stand-in of the feature `standin`, each start a failure of the test
 /// when the loopback gives no port.

@@ -87,3 +87,49 @@ async fn two_ends_meet_at_each_public_broker() {
     }
     assert!(failed.is_empty(), "the brokers that failed: {failed:?}");
 }
+
+/// Two ends of one code pair through the tag of the code at each public
+/// Nostr relay (the services of the kind `nostr-relay`), each with a key of
+/// its own for the pairing: the key agreed, the versions checked and a
+/// message each way. Each relay alone, so that each one is proven.
+#[tokio::test]
+#[ignore = "live: the public Nostr relays"]
+async fn two_ends_meet_at_each_public_nostr_relay() {
+    use pod_wormhole::nostr::{self, Relays};
+
+    let relays: Vec<&pod_services::Service> = pod_services::of_kind("nostr-relay").collect();
+    assert!(relays.len() >= 2, "the catalog lists fewer than two relays");
+    let mut failed = Vec::new();
+    for service in relays {
+        let endpoint = service.endpoint("relay").expect("the endpoint relay");
+        let url = WsUrl::parse(&endpoint.url()).unwrap();
+        let config = Config::new(harness::APPID, "pod-wormhole-live", "0.0.0", harness::live_way());
+        let ends = Relays::new(vec![url.clone()], config);
+        let versions = json!({ "live": 1 });
+        let shown = url.shown();
+        let run = async {
+            let (mut giver, code) = nostr::opened(&ends, versions.clone()).await?;
+            let wait = Duration::from_secs(60);
+            let (taker, heard) = tokio::join!(nostr::joined(&ends, &code, versions.clone(), wait), giver.agree(wait));
+            let (mut taker, heard) = (taker?, heard?);
+            assert!(heard, "{shown}: the giver heard the taker");
+            assert_eq!(giver.confirm(wait).await?, versions, "{shown}");
+            assert_eq!(taker.confirm(wait).await?, versions, "{shown}");
+            giver.send(b"from the giver").await?;
+            assert_eq!(taker.receive(wait).await?, b"from the giver", "{shown}");
+            taker.send(b"from the taker").await?;
+            assert_eq!(giver.receive(wait).await?, b"from the taker", "{shown}");
+            giver.close(Mood::Happy).await;
+            taker.close(Mood::Happy).await;
+            Ok::<_, pod_wormhole::Failed>(())
+        };
+        match run.await {
+            Ok(()) => eprintln!("{shown} ({}): two ends paired through a tag", service.id()),
+            Err(why) => {
+                eprintln!("{shown} ({}): {why}", service.id());
+                failed.push(format!("{}: {why}", service.id()));
+            }
+        }
+    }
+    assert!(failed.is_empty(), "the relays that failed: {failed:?}");
+}

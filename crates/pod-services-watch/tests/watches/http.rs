@@ -15,6 +15,11 @@ fn answer(request: &Request) -> Answer {
         ),
         "/nodes.json" => Answer::new(200, NODES),
         "/relays.json" => Answer::new(200, RELAYS),
+        // A Nostr relay gives its NIP-11 document to its own type alone.
+        "/" if request.header("accept") == Some("application/nostr+json") => {
+            Answer::new(200, r#"{"limitation":{"max_message_length":131072,"max_subscriptions":200}}"#)
+        }
+        "/" => Answer::new(200, "<html>a relay</html>"),
         "/health" => Answer::new(200, "ok"),
         "/trace" => Answer::new(200, "fl=1\nh=one.one.one.one\n"),
         "/meta" => Answer::new(
@@ -172,6 +177,27 @@ async fn http_json_compares_a_fact_and_the_members_of_facts() {
         ));
     let report = one(&file("j3", &body)).await;
     assert_eq!(report.outcome.findings, vec![Finding::moved("\"idle\"", "6", "5")]);
+}
+
+/// The facts of a NIP-11 document, which a relay gives to the type
+/// `application/nostr+json` alone: with `accept` the watch holds, with
+/// none it reads the page for people and fails.
+#[tokio::test]
+async fn http_json_asks_for_the_type_of_accept() {
+    pod_testkit::need_loopback!();
+    let stand = https(answer);
+    let url = format!("https://{NAME}:{}/", stand.port());
+    let read = format!(
+        "kind = \"http-json\"\nurl = \"{url}\"\npointer = \"/limitation\"\n\
+         facts = [\"message-bytes-most\", \"subscriptions-most\"]\n\
+         members = [\"max_message_length\", \"max_subscriptions\"]"
+    );
+    let facts = fact("message-bytes-most", "131072") + &fact("subscriptions-most", "200");
+    let body = facts.clone() + &watch(&format!("{read}\naccept = \"application/nostr+json\""));
+    let report = one(&file("j5", &body)).await;
+    assert!(report.holds(), "{}", text(&report));
+    let report = one(&file("j6", &(facts + &watch(&read)))).await;
+    assert!(text(&report).contains("is not JSON"), "{}", text(&report));
 }
 
 #[tokio::test]

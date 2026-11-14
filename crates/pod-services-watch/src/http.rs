@@ -16,11 +16,12 @@ use crate::{Checked, Finding, Net, Outcome};
 /// `fact`, it equals the fact; with `facts` and `members`, each member of
 /// it equals its fact; with `key`, it is a list with an item for each
 /// endpoint (`items`); with `member`, the members of that name under it
-/// hold the host of each endpoint (of `role`, or each endpoint).
+/// hold the host of each endpoint (of `role`, or each endpoint). With
+/// `accept`, the GET asks for that type in place of `application/json`.
 pub async fn json(service: &Service, watch: &Watch, net: &Net) -> Checked {
     let args = Args::new(service, watch);
     let (url, pointer) = (args.text("url")?, args.text("pointer")?);
-    let document = net.json(url).await?;
+    let document = net.json_as(url, args.opt_text("accept").unwrap_or("application/json")).await?;
     let value = document
         .pointer(pointer)
         .ok_or_else(|| Finding::failed(format!("{} has no value at {pointer}", shown(url))))?;

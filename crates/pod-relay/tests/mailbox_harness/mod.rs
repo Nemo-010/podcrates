@@ -37,6 +37,11 @@ pub mod stand_in {
 #[cfg(feature = "plain-ws")]
 #[path = "../../../pod-wormhole/tests/harness/broker.rs"]
 pub mod broker;
+// The stand-in Nostr relay of pod-wormhole's tests, for the runs that meet
+// at a relay (T-550).
+#[cfg(feature = "plain-ws")]
+#[path = "../../../pod-wormhole/tests/harness/nostr.rs"]
+pub mod nostr;
 
 /// How long a server may take to listen, and a peer to say a line.
 pub const LIMIT: Duration = Duration::from_secs(60);

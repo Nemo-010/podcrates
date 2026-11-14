@@ -36,6 +36,7 @@ pub fn arguments(kind: &str) -> Option<Arguments> {
             &["url", "pointer"],
             &[],
             &[
+                "accept",
                 "fact",
                 "facts",
                 "members",
@@ -175,6 +176,15 @@ pub fn kind_facts(kind: &str) -> Option<KindFacts> {
                 ("answer", "json", &["answer-pointer"]),
                 ("delete", "token-form", &["delete-token-header", "delete-token-field", "delete-fields"]),
             ],
+        },
+        // The public Nostr relays (PodUtils/podssh#235): the meeting points of
+        // `pod_wormhole::nostr`; the facts of each relay's NIP-11 document.
+        "nostr-relay" => KindFacts {
+            endpoints: &["relay"],
+            need: &[("message-bytes-most", "int"), ("subscriptions-most", "int")],
+            optional: &[("software", "text")],
+            words: &[],
+            when: &[],
         },
         // magic-wormhole's transit relays (PodUtils/podnet#535): the scheme
         // of `relay` tells TCP (`tcp`) from WebSocket (`wss`); no fact.

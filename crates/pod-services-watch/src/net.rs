@@ -155,7 +155,13 @@ impl Net {
 
     /// The JSON document at `url`.
     pub async fn json(&self, url: &str) -> Result<serde_json::Value, Finding> {
-        let answer = self.get_ok(url, "application/json").await?;
+        self.json_as(url, "application/json").await
+    }
+
+    /// The JSON document at `url`, asked for as the type `accept` (a Nostr
+    /// relay gives its NIP-11 document to `application/nostr+json` alone).
+    pub async fn json_as(&self, url: &str, accept: &str) -> Result<serde_json::Value, Finding> {
+        let answer = self.get_ok(url, accept).await?;
         serde_json::from_slice(&answer.body).map_err(|e| Finding::failed(format!("{} is not JSON: {e}", shown(url))))
     }
 
