@@ -43,6 +43,7 @@ pub mod fetch;
 pub mod modloop;
 pub mod plan;
 pub mod qmp;
+pub mod ready;
 pub mod squashfs;
 
 mod provision;
@@ -274,6 +275,41 @@ pub fn outcome(m: &Fat16, token: &str) -> Result<Option<Outcome>> {
         stdout: m.get(agent::OUT).unwrap_or_default(),
         stderr: m.get(agent::ERR).unwrap_or_default(),
     }))
+}
+
+/// Read the mailbox of a guest that still runs, as a poll does. `Ok(None)`:
+/// no result for `token` yet: no [`agent::CODE`], a code of another token
+/// (the command before, in [`agent::Mode::KeepAlive`]), or a code that does
+/// not parse (the guest writes it at the time of the read). The deadline of
+/// the caller bounds the poll.
+pub fn poll_outcome(m: &Fat16, token: &str) -> Option<Outcome> {
+    let code = m.get(agent::CODE)?;
+    let parsed = agent::parse_code(&String::from_utf8_lossy(&code))?;
+    (parsed.token == token).then(|| Outcome {
+        code: parsed.code,
+        token: parsed.token,
+        stdout: m.get(agent::OUT).unwrap_or_default(),
+        stderr: m.get(agent::ERR).unwrap_or_default(),
+    })
+}
+
+/// Put the next command of `request` on the mailbox `m` of a guest in
+/// [`agent::Mode::KeepAlive`]: remove the result of the command before,
+/// write the command, then the token, which the agent waits for. A request
+/// of [`agent::Mode::Once`] removes [`agent::KEEP`], so that the guest
+/// shuts down after this command.
+pub fn next_command(m: &mut Fat16, request: &Request) -> Result<()> {
+    for name in [agent::CODE, agent::OUT, agent::ERR, agent::GO] {
+        m.remove(name)?;
+    }
+    m.put(agent::CMD, agent::command_file(&request.command).as_bytes())?;
+    match request.mode {
+        agent::Mode::KeepAlive => m.put(agent::KEEP, b"")?,
+        agent::Mode::Once => {
+            m.remove(agent::KEEP)?;
+        }
+    }
+    m.put(agent::GO, request.token.as_bytes())
 }
 
 /// Stage one run of the UEFI flavour: the mailbox on disk and the overlay

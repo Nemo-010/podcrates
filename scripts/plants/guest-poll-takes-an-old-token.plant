@@ -1,0 +1,7 @@
+# The poll of a guest that runs takes the result of the command before as
+# the result of this one (T-603). The test of the poll must fail.
+ENTRY=T-603
+GROUP=guest
+EXPECT='test tests::a_poll_reads_an_older_token_as_no_result_yet \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- tests::a_poll_reads_an_older_token_as_no_result_yet'
+LIMIT=1800

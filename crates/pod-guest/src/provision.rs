@@ -7,11 +7,19 @@ use std::time::{Duration, Instant};
 
 use pod_core::Class;
 
+use crate::ready::{self, Ready};
 use crate::{Fat16, Plan, Result, Settings, Stop, agent, convert_argv, emulator, failure, io_at, overlay_argv, qmp};
 
 /// Provision a new image: boot it one time and type the installer into its
 /// console, as the agent must exist before a task can start it. Returns the
 /// report of the installer ([`agent::SETUP`]).
+///
+/// The keys go to the console when `ready` holds ([`crate::ready::wait`]:
+/// for an image with no agent yet, a screen that settles,
+/// [`crate::ready::Ready::screen`]). An emulator that exits first, or no
+/// ready guest within the deadline, is a failure with the cause
+/// [`crate::ready::Unready`], and the emulator is stopped. `wait` bounds the
+/// power-off after the keys.
 ///
 /// This is the only step that uses the console, one time for each base
 /// image. Each later run uses the mailbox. The typed line scans the drive
@@ -28,6 +36,7 @@ pub fn provision(
     base: &Path,
     plan: &Plan,
     out: &Path,
+    ready: &Ready,
     wait: Duration,
 ) -> Result<Vec<u8>> {
     let mut m = Fat16::with_oem(&s.oem)?;
@@ -46,7 +55,14 @@ pub fn provision(
     let mut child = emulator::spawn_uefi(plan, Stdio::null())?;
     // The shell must finish its boot first: keys typed into a boot screen
     // go nowhere.
-    std::thread::sleep(wait);
+    if let Err(e) = ready::wait(plan, &mut child, ready) {
+        // An emulator that exited is reaped: a signal could reach another
+        // process with its pid.
+        if !matches!(ready::unready(&e), Some(ready::Unready::Exited { .. })) {
+            emulator::stop_emulator(plan, &mut child);
+        }
+        return Err(e);
+    }
     type_into_console(
         plan,
         "for %d in (D E F G H I J K L M N O P Q R S T U V W X Y Z) do @if exist %d:\\WQMARK.TXT %d:\\WA.CMD",

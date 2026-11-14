@@ -12,10 +12,13 @@
 //! time. The cluster is 4 KiB, so that the count of clusters stays below
 //! 65525, the limit of FAT16.
 //!
-//! Names are 8.3 only. Each file of the protocol (`WQMARK.TXT`, `WQGO.TXT`,
-//! `WQCMD.CMD`, `WQOUT.TXT`, `WQERR.TXT`, `WQCODE.TXT`, `WQAGENT.CMD`,
-//! `WA.CMD`, `SETUP.TXT`) is 8.3. [`Fat16::put`] refuses each other name
-//! and names it: a changed name is a file that the guest does not find.
+//! Each file of the protocol (`WQMARK.TXT`, `WQGO.TXT`, `WQCMD.CMD`,
+//! `WQOUT.TXT`, `WQERR.TXT`, `WQCODE.TXT`, `WQAGENT.CMD`, `WA.CMD`,
+//! `SETUP.TXT`) is 8.3, and [`Fat16::put`] writes such a name as one entry.
+//! A longer name (`autounattend.xml`, which Windows Setup reads from the
+//! root of a USB medium) gets VFAT long-name entries and an 8.3 alias.
+//! [`Fat16::put`] refuses each other name and names it: a changed name is
+//! a file that the guest does not find.
 
 use pod_core::Class;
 
@@ -104,42 +107,82 @@ impl Fat16 {
         self.image
     }
 
-    /// Write `data` as `name`, in place of a file of that name. The name
-    /// becomes upper case and must be 8.3; each other name is a
-    /// [`Class::Usage`] failure that names it. A full volume or root is
+    /// Write `data` as `name`, in place of a file of that name. An 8.3 name
+    /// becomes upper case, with the case byte of Windows. A long name of up
+    /// to [`MAX_LONG_NAME`] characters gets VFAT long-name entries before an
+    /// 8.3 alias (`AUTOUN~1.XML`) that no other file has; a file of that
+    /// long name keeps its alias. Each other name is a [`Class::Usage`]
+    /// failure that names it. A full volume or root is
     /// [`Class::Unavailable`].
     pub fn put(&mut self, name: &str, data: &[u8]) -> Result<()> {
-        let (bare, case) = parse_name(name)?;
-        if let Some(slot) = self.find(&bare) {
-            self.free_chain(slot.1);
-            self.write_entry(slot.0, &bare, case, data)?;
-            return Ok(());
+        let parsed = names::parse(name)?;
+        if let Some(f) = self.find(name, &parsed) {
+            self.free_chain(f.first);
+            let case = if let names::Name::Short(_, case) = parsed { case } else { f.entry[12] };
+            let wrote = self.write_entry(f.slot, &f.short(), case, data);
+            if wrote.is_err() {
+                // The old clusters are free: no entry keeps them.
+                self.drop_entries(f.slot);
+            }
+            return wrote;
         }
-        let slot = self.free_slot()?;
-        self.write_entry(slot, &bare, case, data)
+        match parsed {
+            names::Name::Short(bare, case) => {
+                let slot = self.free_run(1)?;
+                self.write_entry(slot, &bare, case, data)
+            }
+            names::Name::Long(long) => {
+                let files = self.walk();
+                let short = names::alias(&long, |a| files.iter().any(|f| &f.short() == a))?;
+                let longs = names::long_entries(&long, &short);
+                let at = self.free_run(longs.len() + 1)?;
+                // The 8.3 entry first: a volume that is full leaves no long
+                // name with no file.
+                self.write_entry(at + longs.len(), &short, 0, data)?;
+                for (k, e) in longs.iter().enumerate() {
+                    self.put_entry(at + k, e);
+                }
+                Ok(())
+            }
+        }
     }
 
-    /// The bytes of `name`, or `None` where it is not in the root.
+    /// Remove `name`, as [`Fat16::put`] reads it, and free its clusters.
+    /// `Ok(false)`: no such file. The long-name entries before it go too,
+    /// also a chain that does not read as a name, so that no orphan stays.
+    pub fn remove(&mut self, name: &str) -> Result<bool> {
+        let parsed = names::parse(name)?;
+        let Some(f) = self.find(name, &parsed) else { return Ok(false) };
+        self.free_chain(f.first);
+        self.drop_entries(f.slot);
+        Ok(true)
+    }
+
+    /// Mark the entry `slot` and the long-name entries just before it free.
+    fn drop_entries(&mut self, slot: usize) {
+        let mut i = slot;
+        loop {
+            let mut e = self.entry(i);
+            e[0] = 0xE5;
+            self.put_entry(i, &e);
+            match i.checked_sub(1) {
+                Some(j) if self.entry(j)[11] == names::LONG_ATTR && self.entry(j)[0] != 0xE5 => i = j,
+                _ => return,
+            }
+        }
+    }
+
+    /// The bytes of `name` (an 8.3 name or a long name, in any case), or
+    /// `None` where it is not in the root.
     pub fn get(&self, name: &str) -> Option<Vec<u8>> {
-        let (bare, _) = parse_name(name).ok()?;
-        let (_, first, size) = self.find(&bare)?;
-        self.read_chain(first, size)
+        let f = self.find(name, &names::parse(name).ok()?)?;
+        self.read_chain(f.first, f.size)
     }
 
-    /// Each file name in the root, in the order of the directory.
+    /// Each file name in the root, in the order of the directory: the long
+    /// name where the volume has one, else the 8.3 name.
     pub fn list(&self) -> Vec<String> {
-        let mut out = Vec::new();
-        for i in 0..ROOT_ENTRIES {
-            let e = self.entry(i);
-            if e[0] == 0x00 {
-                break;
-            }
-            if e[0] == 0xE5 || e[11] & 0x18 != 0 {
-                continue;
-            }
-            out.push(render_name(&e));
-        }
-        out
+        self.walk().into_iter().map(|f| f.long.unwrap_or_else(|| names::render_short(&f.entry))).collect()
     }
 
     /// True when the volume has the label [`LABEL`]: a reader that is sure
@@ -182,32 +225,50 @@ impl Fat16 {
         self.image[at..at + 32].copy_from_slice(e);
     }
 
-    /// `(slot, first cluster, size)` for an 8.3 name already uppercased.
-    fn find(&self, bare: &[u8; 11]) -> Option<(usize, u16, u32)> {
-        for i in 0..ROOT_ENTRIES {
-            let e = self.entry(i);
-            if e[0] == 0x00 {
-                return None;
+    /// Each file of the root, with the long name of the whole chain of
+    /// long-name entries before it.
+    fn walk(&self) -> Vec<Found> {
+        let mut out = Vec::new();
+        let mut longs: Vec<[u8; 32]> = Vec::new();
+        for slot in 0..ROOT_ENTRIES {
+            let entry = self.entry(slot);
+            if entry[0] == 0x00 {
+                break;
             }
-            if e[0] == 0xE5 || e[11] & 0x18 != 0 {
-                continue;
-            }
-            if &e[0..11] == bare {
-                let first = u16::from_le_bytes([e[26], e[27]]);
-                let size = u32::from_le_bytes([e[28], e[29], e[30], e[31]]);
-                return Some((i, first, size));
+            if entry[0] == 0xE5 {
+                longs.clear();
+            } else if entry[11] == names::LONG_ATTR {
+                longs.push(entry);
+            } else if entry[11] & 0x18 != 0 {
+                longs.clear();
+            } else {
+                let mut short = [0u8; 11];
+                short.copy_from_slice(&entry[0..11]);
+                let long = names::read_long(&longs, &short);
+                longs.clear();
+                let first = u16::from_le_bytes([entry[26], entry[27]]);
+                let size = u32::from_le_bytes([entry[28], entry[29], entry[30], entry[31]]);
+                out.push(Found { slot, entry, long, first, size });
             }
         }
-        None
+        out
     }
 
-    fn free_slot(&self) -> Result<usize> {
-        for i in 0..ROOT_ENTRIES {
-            if self.entry(i)[0] == 0x00 || self.entry(i)[0] == 0xE5 {
-                return Ok(i);
-            }
-        }
-        Err(failure(Class::Unavailable, "the mailbox root is full"))
+    /// The file of `name`: by its 8.3 name, or by its long name in any case.
+    fn find(&self, name: &str, parsed: &names::Name) -> Option<Found> {
+        let upper = name.to_uppercase();
+        self.walk().into_iter().find(|f| {
+            let long = f.long.as_ref().is_some_and(|l| l.to_uppercase() == upper);
+            long || matches!(parsed, names::Name::Short(bare, _) if f.short() == *bare)
+        })
+    }
+
+    /// The first of `n` free slots in a row of the root.
+    fn free_run(&self, n: usize) -> Result<usize> {
+        let free = |i: usize| matches!(self.entry(i)[0], 0x00 | 0xE5);
+        (0..=ROOT_ENTRIES.saturating_sub(n))
+            .find(|at| (*at..at + n).all(free))
+            .ok_or_else(|| failure(Class::Unavailable, "the mailbox root is full"))
     }
 
     /// The first cluster with a free FAT entry, marking it used.
@@ -244,9 +305,20 @@ impl Fat16 {
             return Ok(());
         }
         let first = self.take_cluster()?;
+        if let Err(full) = self.write_chain(first, data) {
+            // The clusters of a file that did not fit go back.
+            self.free_chain(first);
+            return Err(full);
+        }
         e[26] = (first & 0xFF) as u8;
         e[27] = (first >> 8) as u8;
         e[28..32].copy_from_slice(&size.to_le_bytes());
+        self.put_entry(slot, &e);
+        Ok(())
+    }
+
+    /// Write `data` into a chain from the cluster `first`, which is taken.
+    fn write_chain(&mut self, first: u16, data: &[u8]) -> Result<()> {
         let mut n = first;
         let mut off = 0usize;
         loop {
@@ -256,14 +328,12 @@ impl Fat16 {
             off += take;
             if off >= data.len() {
                 self.set_fat(n, 0xFFFF);
-                break;
+                return Ok(());
             }
             let next = self.take_cluster()?;
             self.set_fat(n, next);
             n = next;
         }
-        self.put_entry(slot, &e);
-        Ok(())
     }
 
     /// The bytes of a chain. The guest wrote the volume, so the chain is
@@ -301,6 +371,23 @@ impl Fat16 {
             self.set_fat(n, 0);
             n = next;
         }
+    }
+}
+
+/// One file of the root: its slot, its 8.3 entry, and its long name.
+struct Found {
+    slot: usize,
+    entry: [u8; 32],
+    long: Option<String>,
+    first: u16,
+    size: u32,
+}
+
+impl Found {
+    fn short(&self) -> [u8; 11] {
+        let mut out = [0u8; 11];
+        out.copy_from_slice(&self.entry[0..11]);
+        out
     }
 }
 
@@ -388,79 +475,9 @@ fn label_bytes() -> [u8; 11] {
     out
 }
 
-/// `(the name in 11 upper-case bytes, the case byte)` of an 8.3 name.
-fn parse_name(name: &str) -> Result<([u8; 11], u8)> {
-    let bad = |why: &str| Err(failure(Class::Usage, format!("{name:?} is not an 8.3 name: {why}")));
-    let (base, ext) = match name.split_once('.') {
-        Some((b, e)) => (b, e),
-        None => (name, ""),
-    };
-    if ext.contains('.') {
-        return bad("more than one dot");
-    }
-    if base.is_empty() || base.len() > 8 || ext.len() > 3 {
-        return bad("8 characters then 3, at most");
-    }
-    let ok = |s: &str| {
-        s.bytes().all(|c| {
-            c.is_ascii_alphanumeric()
-                || matches!(
-                    c,
-                    b'$' | b'%'
-                        | b'\''
-                        | b'-'
-                        | b'_'
-                        | b'@'
-                        | b'~'
-                        | b'!'
-                        | b'#'
-                        | b'&'
-                        | b'('
-                        | b')'
-                        | b'{'
-                        | b'}'
-                        | b'^'
-                )
-        })
-    };
-    if !ok(base) || !ok(ext) {
-        return bad("a character outside the 8.3 set");
-    }
-    let mut out = [b' '; 11];
-    for (i, c) in base.bytes().enumerate() {
-        out[i] = c.to_ascii_uppercase();
-    }
-    for (i, c) in ext.bytes().enumerate() {
-        out[8 + i] = c.to_ascii_uppercase();
-    }
-    // The "NT case" byte: Windows shows the base in lower case when bit 3 is
-    // set, and the extension when bit 4 is set. With it, a name comes back
-    // from the volume as the caller wrote it.
-    let has_alpha_base = base.bytes().any(|c| c.is_ascii_lowercase());
-    let has_alpha_ext = ext.bytes().any(|c| c.is_ascii_lowercase());
-    let mut case = 0u8;
-    if has_alpha_base && !base.bytes().any(|c| c.is_ascii_uppercase()) {
-        case |= 0x08;
-    }
-    if has_alpha_ext && !ext.bytes().any(|c| c.is_ascii_uppercase()) {
-        case |= 0x10;
-    }
-    Ok((out, case))
-}
+mod names;
 
-fn render_name(e: &[u8; 32]) -> String {
-    let base = String::from_utf8_lossy(&e[0..8]).trim_end().to_string();
-    let ext = String::from_utf8_lossy(&e[8..11]).trim_end().to_string();
-    let mut base = base;
-    let mut ext = ext;
-    if e[12] & 0x08 != 0 {
-        base = base.to_ascii_lowercase();
-    }
-    if e[12] & 0x10 != 0 {
-        ext = ext.to_ascii_lowercase();
-    }
-    if ext.is_empty() { base } else { format!("{base}.{ext}") }
-}
+pub use names::{MAX_LONG_NAME, checksum};
 
 #[cfg(test)]
 mod tests;

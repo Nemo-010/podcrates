@@ -1,0 +1,13 @@
+diff --git a/crates/pod-guest/src/fat16/names.rs b/crates/pod-guest/src/fat16/names.rs
+index 4d0b6d5..dc8d00f 100644
+--- a/crates/pod-guest/src/fat16/names.rs
++++ b/crates/pod-guest/src/fat16/names.rs
+@@ -61,7 +61,7 @@ fn check_long(name: &str) -> std::result::Result<(), String> {
+ /// The checksum of an 8.3 name in each long-name entry before it: a rotate
+ /// right and an add, byte by byte.
+ pub fn checksum(short: &[u8; 11]) -> u8 {
+-    short.iter().fold(0u8, |sum, b| ((sum & 1) << 7).wrapping_add(sum >> 1).wrapping_add(*b))
++    short.iter().fold(0u8, |sum, b| ((sum & 0x80) >> 7).wrapping_add(sum << 1).wrapping_add(*b))
+ }
+ 
+ /// The 8.3 alias `BASIS~N.EXT` of a long name, with the first `N` from 1

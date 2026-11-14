@@ -1,0 +1,8 @@
+# A screen that never changed after the first dump reads as a ready guest:
+# the provision types into the screen of the firmware (T-595,
+# PodUtils/podvm#350). The test of the screen must fail.
+ENTRY=T-595
+GROUP=guest
+EXPECT='test ready::tests::a_screen_that_changed_and_settled_is_ready_and_a_still_one_is_not \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- ready::tests::a_screen_that_changed_and_settled_is_ready_and_a_still_one_is_not'
+LIMIT=1800

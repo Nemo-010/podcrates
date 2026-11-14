@@ -55,17 +55,18 @@ skip where no `qemu-system-x86_64` is on `PATH` (the KVM one also where
 | `Plan`, `Accel`, `accel_for(Option<Profile>)` | the description of one run (emulator, accelerator, firmware, overlay, mailbox, serial log, QMP socket, memory, CPUs, more arguments); `Accel::{word, cpu}` (`kvm`/`host`, `tcg`/`max`) |
 | `Options` (`plan::options`): `nic` (`Nic::None` by default, `Nic::User(UserNet { model, forwards, restrict })`), `virtio`, `media` (`Medium { kind, path, readonly, boot }`), `vnc`, `usb_tablet`, `serial_socket`, `channels` (`Channel { name, socket }`), `hyperv`; `check()`; `Forward::{local, spec}`, `Proto`, `NicModel`, `Virtio`, `MediumKind`, `escape`, `QGA_CHANNEL`, `HYPERV_FLAGS`, `MAX_SOCKET_PATH`, `MAX_CDROMS` | the options of a full guest of the UEFI flavour ("The options of a plan") |
 | `argv(&plan)`, `overlay_argv`, `convert_argv`, `plan::base_format` | the UEFI machine line with no program; `qemu-img create -f qcow2 -F FMT -b BASE`; `qemu-img convert -f qcow2 -O qcow2 OVERLAY OUT` (a new image with no backing file; `qemu-img commit` has no output file, PodUtils/podvm#277) |
-| `Request`, `Mode`, `Outcome`, `mailbox(&s, agent, &request)`, `outcome(&fat16, token)` | the command, the token, the limit and the mode (`Once` by default; `KeepAlive` puts `WQKEEP.TXT` on the mailbox); the code, the token and the streams; the mailbox of a run; the result of a mailbox (`None`: the guest wrote no result) |
+| `Request`, `Mode`, `Outcome`, `mailbox(&s, agent, &request)`, `outcome(&fat16, token)`, `poll_outcome(&fat16, token)`, `next_command(&mut fat16, &request)` | the command, the token, the limit and the mode (`Once` by default; `KeepAlive` puts `WQKEEP.TXT` on the mailbox); the code, the token and the streams; the mailbox of a run; the result of a mailbox after the power-off (`None`: the guest wrote no result; another token is `Protocol`); the result of a mailbox of a guest that runs (`None` also for another token or a code that does not parse: the guest writes it at the time); the next command of a keep-alive guest (the result before goes, then the command and the token; `Once` removes `WQKEEP.TXT`) |
 | `stage(&s, qemu_img, base, &plan, agent, &request)`, `run(&s, &plan, &request)`, `stop(&plan)` | the mailbox file and the overlay; the boot to the power-off and the result, with the error stream of the emulator in the per-run directory (a `KeepAlive` request is `Usage`: its guest does not power off); QMP `quit` |
-| `provision(&s, qemu_img, base, &plan, out, wait)` | one boot that types the installer into the console, then the convert into `out`; returns `SETUP.TXT` |
+| `provision(&s, qemu_img, base, &plan, out, &ready, wait)` | one boot that waits for a ready guest (`ready::Ready::screen(deadline)`: a screen that settles), types the installer into the console, waits up to `wait` for the power-off, then the convert into `out`; returns `SETUP.TXT`. No ready guest is a failure with the cause `ready::Unready`, and the emulator is stopped |
+| `ready` | `wait(&plan, &mut child, &Ready { signs, deadline, every })` (the index of the first sign that holds), `Sign::{Marker, Serial(text), Screen { settle }}`, `Ready::screen`, `Unready::{Deadline { after, signs }, Exited { status }}` (`Timeout`, `Unavailable`), `unready(&failure)`, `Scan` (a text in a file that grows), `SETTLE`, `EVERY` ("The readiness") |
 | `scratch_dir(&s, tag)`, `scratch_of(&plan)`, `cleanup(&s, &plan)`, `RunGuard::arm(&s, &plan)` | the per-run directory `PREFIX` + pid + `-TAG`, mode 0700; the directory of the mailbox; its removal (only a directory with the prefix, not with `keep`); the removal on drop |
 | `Stop`, `Timeout { after, stop }`, `timeout_of(&failure)` | the end of a stopped emulator; the cause of a run at its limit |
 | `emulator` | `run_steps(argv)` (a tool to its end; a failure names the program and its stderr), `spawn_emulator(&plan, args, stderr)` (a process group of its own), `stop_emulator`, `stop_with` (QMP `quit`, `SIGKILL` to the group, a bounded reap), `QUIT_WAIT`, `STOP_WAIT` |
 | `agent` | the file names of the protocol (`MARKER`, `GO`, `CMD`, `OUT`, `ERR`, `CODE`, `SETUP`, `READY`, `KEEP`, `AGENT_NAME`, `SETUP_NAME`, `AGENT`), `READY_TEXT`, `Mode`, `ready(&fat16)` (the agent wrote `WQREADY.TXT`), `AGENT_CMD`, `SETUP_CMD`, `command_file`, `command_from_argv`, `quote`, `Code`, `parse_code`, `nonce()`, `nonce_from(&mut Entropy)` |
 | `dos` | `argv`, `stage(&s, ...)`, `run(&plan, batch, token, timeout)`, `batch_from_argv`, `DEFAULT_MEM_MIB`, `CPUS`, `DEFAULT_TIMEOUT_SECS`, the boot waits `TO_MENU_MS`, `TO_PROCEED_MS`, `TO_PROMPT_MS`, `MBOX_DRIVE`, `BAT` |
-| `fat16` | `Fat16` (`new`, `with_oem`, `from_image`, `put`, `get`, `list`, `is_mailbox`, `image`), `format`, `format_with`, `oem_bytes`, the geometry (16 MiB behind an MBR at LBA 2048, 4 KiB clusters), `LABEL`, `OEM` |
+| `fat16` | `Fat16` (`new`, `with_oem`, `from_image`, `put` (an 8.3 name, or a long name of up to `MAX_LONG_NAME` = 32 characters with VFAT entries and an alias `BASIS~N.EXT`), `get` (by the 8.3 name, the alias or the long name, in any case), `remove` (the file, its clusters and the long-name entries before it; `Ok(false)`: no such file), `list` (the long name where there is one), `is_mailbox`, `image`), `checksum` (of an 8.3 alias, for its long-name entries), `format`, `format_with`, `oem_bytes`, the geometry (16 MiB behind an MBR at LBA 2048, 4 KiB clusters), `LABEL`, `OEM` |
 | `fetch` | `Ceiling { max_bytes, fsize }` (the ceiling of one entry), `check_declared`, `Origin` (`get(from) -> Reply`: the caller's HTTP client; `from > 0` sends `Range: bytes=FROM-`), `Reply { status, length, range, body }`, `Stream::new(reader, declared)` (an origin of one stream that does not resume), `store(&mut origin, dest, want, ceiling, tries)` (the sha256 in hex; see "The store"), `partial` (`NAME.part`), `Span`, `parse_content_range`, `Refusal` (`DeclaredTooLarge`, `OverCeiling`, `Digest`, `Size`, `Range`, `Status`, `Broken`, `Busy`; `keeps_part`), `refusal(&failure)` |
-| `qmp` | `Monitor` (`connect`, `call`, `keys`, `quit`), `send_key`, `is_event`, `response_ok`, `key(char)` (the `send-key` name and shift for a US layout), `HOLD_MS` |
+| `qmp` | `Monitor` (`connect`, `call`, `keys`, `screendump(file)`, `quit`), `send_key`, `json_text`, `is_event`, `response_ok`, `key(char)` (the `send-key` name and shift for a US layout), `HOLD_MS` |
 | `modloop` | `modules(reader, kernel_release, names) -> ModuleSet` (`release`, `modules`: each `Module { path, name, bytes }` in load order, `builtin`, `dep`, `size()`), `Fault`, `fault(&failure)`, `MAX_SET`, `RELEASE_DIRS` |
 | `squashfs` | `Image::open(reader)` (`superblock`, `root`, `inode(reference)`, `entries(&dir)`, `lookup(path)`, `file_at(path)`, `read(&file)`, `ids`, `export(number)`), `Superblock::parse`, `Compressor`, `Inode`, `Kind`, `Dir`, `File`, `Entry`, `listing(bytes)`, `Fault`, `fault(&failure)`, the ceilings `MAX_FILE`, `MAX_LISTING`, `MAX_LINK` |
 
@@ -84,9 +85,42 @@ with no key, an empty argv), `Unavailable` (a tool that failed, a full
 volume, no random bytes, a closed QMP connection), and the class of the I/O
 kind.
 
+A long name (Windows Setup reads `autounattend.xml` from the root of a
+USB medium) goes in VFAT long-name entries before an 8.3 alias: the last
+part first with the bit `0x40`, 13 UCS-2 units in each entry, a NUL and
+then `0xFFFF` after the name, and the checksum of the alias in each entry.
+The alias is the upper-case name with no space and no dot but the last,
+cut to 6 characters, `~N` with the first `N` that no file has, and 3
+characters of the extension (`AUTOUN~1.XML`, then `AUTOUN~2.XML`). mtools
+writes the same aliases and checksums, and reads the long names back. The
+reader takes a long name only for a whole chain in order with the checksum
+of the 8.3 entry after it; else it shows the 8.3 name. A name of more than
+32 characters, a control character, one of `"*/:<>?\|`, a character out of
+UCS-2, or a space or a dot at the end is `Usage`.
+
 The FAT16 reader does not trust the volume that the guest wrote: a cluster
 outside the volume, a loop in a chain, or a size that the chain does not
 hold reads as no file.
+
+## The readiness
+
+`ready::wait` replaces a fixed sleep. It polls the signs each `every` until
+one holds, the emulator exits (`Unready::Exited`, `Unavailable`), or the
+deadline comes (`Unready::Deadline`, `Timeout`, with each sign in its
+text). It does not stop the emulator.
+
+| Sign | Holds when |
+| --- | --- |
+| `Marker` | the mailbox file of the plan holds `WQREADY.TXT` with `WQREADY` (the agent of a provisioned image) |
+| `Serial(text)` | the serial log of the plan holds `text`; each poll reads at most 1 MiB of new bytes and keeps the end of the last ones, so that a text that two polls cut is found |
+| `Screen { settle }` | the sha256 of a QMP `screendump` changed after the first dump and then stayed the same for `settle`; the dump is `screen.ppm` beside the QMP socket, removed after each read |
+
+A sign that cannot be read (no QMP socket, no log at the time of a poll)
+does not hold. The provision boot installs the agent, so it waits for the
+screen. The tests
+run against stand-ins: a mailbox file, a log that grows, a QMP server on a
+Unix socket that gives a script of frames, `sleep` and `sh -c 'exit 3'` as
+the emulator, and a provision whose emulator exits at once.
 
 ## The options of a plan
 

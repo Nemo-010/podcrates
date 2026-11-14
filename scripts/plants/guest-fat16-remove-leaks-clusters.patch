@@ -1,0 +1,12 @@
+diff --git a/crates/pod-guest/src/fat16.rs b/crates/pod-guest/src/fat16.rs
+index b3b67ae..b449e2a 100644
+--- a/crates/pod-guest/src/fat16.rs
++++ b/crates/pod-guest/src/fat16.rs
+@@ -153,7 +153,6 @@ impl Fat16 {
+     pub fn remove(&mut self, name: &str) -> Result<bool> {
+         let parsed = names::parse(name)?;
+         let Some(f) = self.find(name, &parsed) else { return Ok(false) };
+-        self.free_chain(f.first);
+         self.drop_entries(f.slot);
+         Ok(true)
+     }

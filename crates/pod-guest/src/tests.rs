@@ -220,6 +220,55 @@ fn the_keep_alive_mode_is_a_file_on_the_mailbox_and_a_run_refuses_it() {
     assert!(e.to_string().contains("keep-alive"), "{e}");
 }
 
+/// A poll of a guest that runs reads no result as no result yet: the code
+/// of the command before, and a code that the guest writes at the time.
+#[test]
+fn a_poll_reads_an_older_token_as_no_result_yet() {
+    let mut m = mailbox(&settings(), agent::AGENT_CMD, &request()).unwrap();
+    assert_eq!(poll_outcome(&m, "tok-1"), None);
+    m.put(agent::CODE, b"0 tok-0").unwrap();
+    assert_eq!(poll_outcome(&m, "tok-1"), None, "the result of the command before");
+    assert!(outcome(&m, "tok-1").is_err(), "a run after the power-off still refuses it");
+    m.put(agent::CODE, b"0 tok").unwrap();
+    assert_eq!(poll_outcome(&m, "tok-1"), None, "a token that the guest writes at the time");
+    m.put(agent::CODE, b"").unwrap();
+    assert_eq!(poll_outcome(&m, "tok-1"), None);
+    m.put(agent::OUT, b"hi\r\n").unwrap();
+    m.put(agent::CODE, b"4 tok-1\r\n").unwrap();
+    let o = poll_outcome(&m, "tok-1").expect("the result");
+    assert_eq!((o.code, o.stdout.as_slice()), (4, &b"hi\r\n"[..]));
+}
+
+/// The next command of a keep-alive guest: the result before goes, the
+/// command and the token come, and a last command of `Once` drops the file
+/// of the mode.
+#[test]
+fn the_next_command_clears_the_result_before_and_sets_the_mode() {
+    let mut keep = request();
+    keep.mode = agent::Mode::KeepAlive;
+    let mut m = mailbox(&settings(), agent::AGENT_CMD, &keep).unwrap();
+    for (name, data) in [(agent::CODE, &b"0 tok-1"[..]), (agent::OUT, b"out"), (agent::ERR, b"err")] {
+        m.put(name, data).unwrap();
+    }
+    m.remove(agent::GO).unwrap();
+    let mut next = keep.clone();
+    next.command = "dir".into();
+    next.token = "tok-2".into();
+    next_command(&mut m, &next).unwrap();
+    for name in [agent::CODE, agent::OUT, agent::ERR] {
+        assert_eq!(m.get(name), None, "{name}");
+    }
+    assert_eq!(m.get(agent::GO).as_deref(), Some(&b"tok-2"[..]));
+    assert_eq!(m.get(agent::CMD), Some(agent::command_file("dir").into_bytes()));
+    assert_eq!(m.get(agent::KEEP), Some(Vec::new()));
+    let mut last = next.clone();
+    last.mode = agent::Mode::Once;
+    last.token = "tok-3".into();
+    next_command(&mut m, &last).unwrap();
+    assert_eq!(m.get(agent::KEEP), None, "the guest shuts down after the last command");
+    assert_eq!(m.get(agent::GO).as_deref(), Some(&b"tok-3"[..]));
+}
+
 #[test]
 fn a_result_is_read_back_with_its_streams_and_its_code() {
     let mut m = mailbox(&settings(), agent::AGENT_CMD, &request()).unwrap();
