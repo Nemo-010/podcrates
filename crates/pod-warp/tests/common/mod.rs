@@ -35,15 +35,31 @@ pub fn api(base: &str) -> Api {
 
 /// A dial that sends each address of `map` to its loopback address, and
 /// each other target to the loopback address of the same port; it counts
-/// each dial.
+/// each dial. The first dial of an address of `first` goes to its loopback
+/// address in `first`, and each later dial to the one in `map`.
 pub struct Moved {
     pub map: Vec<(SocketAddr, SocketAddr)>,
+    pub first: Mutex<Vec<(SocketAddr, SocketAddr)>>,
     pub dials: AtomicUsize,
 }
 
 impl Moved {
     pub fn new(map: Vec<(SocketAddr, SocketAddr)>) -> Arc<Moved> {
-        Arc::new(Moved { map, dials: AtomicUsize::new(0) })
+        Moved::with_first(map, Vec::new())
+    }
+
+    /// [`Moved::new`] with the first dial of each address of `first`
+    /// moved to another place.
+    pub fn with_first(map: Vec<(SocketAddr, SocketAddr)>, first: Vec<(SocketAddr, SocketAddr)>) -> Arc<Moved> {
+        Arc::new(Moved { map, first: Mutex::new(first), dials: AtomicUsize::new(0) })
+    }
+
+    fn to(&self, addr: SocketAddr) -> Option<SocketAddr> {
+        let mut first = self.first.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(i) = first.iter().position(|(from, _)| *from == addr) {
+            return Some(first.remove(i).1);
+        }
+        self.map.iter().find(|(from, _)| *from == addr).map(|(_, to)| *to)
     }
 }
 
@@ -60,7 +76,7 @@ impl Dial for Moved {
         Box::pin(async move {
             self.dials.fetch_add(1, Ordering::SeqCst);
             let to = match target {
-                Target::Addr(addr) => self.map.iter().find(|(from, _)| from == addr).map(|(_, to)| *to),
+                Target::Addr(addr) => self.to(*addr),
                 Target::Name { .. } => None,
             };
             let to = to.unwrap_or_else(|| SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), target.port()));

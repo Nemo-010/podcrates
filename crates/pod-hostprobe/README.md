@@ -169,7 +169,11 @@ namespace starts with `pod_testkit::need_userns!()`, and a test that runs
 `/bin/sh` with `pod_testkit::need_tool!("/bin/sh")`: on a host that lacks
 it, the test skips with a line `skipping, REASON`. `tests/children.rs`
 has no libtest: it reads the child flag first and runs the whole set in a
-private mount namespace where it can get one.
+private mount namespace where it can get one. No test under libtest runs
+the probes: a child of a libtest binary refuses the child flag. With the
+feature `report`, `tests/children.rs` also writes the report of this host,
+reads it back, and compares the rows, the rung and the text; the plant
+`hostprobe-t625-rung-not-read-back` proves it.
 
 `exec::tests::the_flag_of_the_mount_decides_the_remedy` checks the
 sentence of each value of the `noexec` flag, and the plant

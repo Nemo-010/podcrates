@@ -1,0 +1,10 @@
+--- a/crates/pod-warp/src/open.rs
++++ b/crates/pod-warp/src/open.rs
+@@ -189,6 +189,7 @@
+         for (i, door) in doors.iter().enumerate() {
+             match MasqueSession::connect(door, &self.identity, pinned.clone(), way).await {
+                 Ok(session) => return Ok(self.won_fresh(door, session)),
++                Err(e) if !is_pin_mismatch(&e) => return Err(e),
+                 Err(e) => {
+                     if let Some(next) = doors.get(i + 1) {
+                         let text = format!("the front door {door} failed ({}); {next} is tried", e.chain());

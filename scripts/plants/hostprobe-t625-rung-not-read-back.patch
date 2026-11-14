@@ -1,0 +1,12 @@
+--- a/crates/pod-hostprobe/src/report.rs
++++ b/crates/pod-hostprobe/src/report.rs
+@@ -385,7 +385,8 @@
+             Ok(Rejection { rung, requirement: rung.requirement(), evidence })
+         })
+         .collect::<Result<Vec<_>, ReadError>>()?;
+-    Ok(Selection { rung: rung_of(&rung)?, rejected, controls_answered, control_notes })
++    let rung = if rung_of(&rung)? == Rung::Unsupported { Rung::Namespace } else { Rung::Unsupported };
++    Ok(Selection { rung, rejected, controls_answered, control_notes })
+ }
+ 
+ fn outcome_of(verdict: &str, errno: Option<i32>, reason: String, at: &str) -> Result<Outcome, ReadError> {

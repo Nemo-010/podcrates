@@ -1,8 +1,9 @@
 //! A WARP session as a network, against the stand-in API and the stand-in
 //! edge on the loopback: TCP to an address and to a name through the
 //! `Dial`, UDP through the `Datagrams`, the order of the doors and the
-//! pinned door, a key of the front door that the record does not pin, a
-//! key that the edge did not enroll, the end of the open streams and UDP
+//! pinned door, a key of the front door that the record does not pin and
+//! each door of the record read again after it, a key that the edge did
+//! not enroll, the end of the open streams and UDP
 //! sockets when the session closes, and the refusal of a UDP datagram to a
 //! family that the device lacks.
 
@@ -162,6 +163,37 @@ async fn a_new_key_of_the_front_door_reads_the_record_again() {
     api.serve_key(&edge.pem());
     warp.open_session().await.unwrap();
     assert!(kept.kinds().contains(&"warp.pin"), "{:?}", kept.kinds());
+}
+
+/// The first dial of the IPv4 door reaches an edge of another key; each
+/// later one is refused (T-624). The client reads the record again and
+/// tries each of its doors: the IPv6 door opens. With the IPv6 door refused
+/// too, the failure names the key that did not match and both doors.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn after_another_key_each_door_of_the_record_read_again_is_tried() {
+    pod_testkit::need_loopback!();
+    let (api, served, edge, _) = world(dead()).await;
+    let other = Edge::start(api.clone(), vec![]).await;
+    let (v4, v6) = (edge::door_v4(), edge::door_v6());
+    let moved = common::Moved::with_first(vec![(v4, dead()), (v6, edge.addr)], vec![(v4, other.addr)]);
+    let base = format!("http://{}", served.addr());
+    let (settings, kept) = common::settings(&base, moved.clone());
+    let warp = Warp::register(settings).await.unwrap();
+    warp.open_session().await.unwrap();
+    assert_eq!(moved.dials.load(Ordering::SeqCst), 3, "IPv4 at another key, IPv4 again, then IPv6");
+    assert_eq!(warp.won_door(), Some(v6));
+    assert!(kept.decisions.lock().unwrap().contains(&("warp.door".into(), "fresh-record".into())));
+
+    let moved = common::Moved::with_first(vec![(v4, dead()), (v6, dead())], vec![(v4, other.addr)]);
+    let (settings, _) = common::settings(&base, moved.clone());
+    let warp = Warp::from_parts(settings, warp.device().clone(), warp.identity().clone());
+    let err = warp.open_session().await.err().unwrap();
+    let line = err.chain();
+    assert!(pod_warp::tls::is_pin_mismatch(&err) && line.contains("the device record was read again"), "{line}");
+    assert!(line.contains(&v4.to_string()) && line.contains(&v6.to_string()), "{line}");
+    assert!(!line.contains("does not match either"), "{line}");
+    assert_eq!(err.stage, Stage::Connect, "{line}");
+    assert_eq!(moved.dials.load(Ordering::SeqCst), 3, "no try again after a refused door");
 }
 
 /// A device whose key the edge did not enroll is refused at the TLS
