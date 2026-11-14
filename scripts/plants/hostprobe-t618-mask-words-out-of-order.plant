@@ -1,0 +1,6 @@
+# pod-hostprobe: the signals go into the wrong word of the kernel's mask (T-618).
+ENTRY=T-618
+GROUP=hostprobe
+EXPECT='did not go through the mask'
+RUN='cargo test -p pod-hostprobe --lib -- sys::tests::the_kernel_mask_has_the_kernels_size_and_keeps_signals_1_to_64 --exact'
+LIMIT=1800

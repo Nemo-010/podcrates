@@ -1,0 +1,13 @@
+diff --git a/crates/pod-hostprobe/src/sys/sigmask.rs b/crates/pod-hostprobe/src/sys/sigmask.rs
+index 838b3ec..9e190db 100644
+--- a/crates/pod-hostprobe/src/sys/sigmask.rs
++++ b/crates/pod-hostprobe/src/sys/sigmask.rs
+@@ -40,7 +40,7 @@ pub const fn sigbit(sig: u64) -> u64 {
+ pub fn to_kernel(set: u64) -> kernel_sigset_t {
+     let mut k = kernel_sigset_t { sig: Default::default() };
+     for (i, w) in k.sig.iter_mut().enumerate() {
+-        let shift = i as u32 * c_ulong::BITS;
++        let shift = (i as u32 + 1) * c_ulong::BITS;
+         *w = set.checked_shr(shift).unwrap_or(0) as c_ulong;
+     }
+     k

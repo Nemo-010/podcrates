@@ -38,30 +38,17 @@ pub fn pidfd_open(pid: i64) -> Sysres {
 }
 
 /// Block the two shutdown signals and report the previous mask, so the
-/// caller reads them from a signalfd and does not stop on them.
-///
-/// The mask is one `u64` and not a libc `sigset_t`: the raw call sizes the
-/// set in bytes, 8 covers signals 1..64, and SIGINT (2) and SIGTERM (15) are
-/// both inside it. A 128-byte libc set handed with size 8 would leave the
-/// kernel reading the caller's first 8 bytes, which happen to be the same two
-/// bits, but "happens to be" is not an argument.
+/// caller reads them from a signalfd and does not stop on them. The mask
+/// goes to the kernel in its own size ([`super::sigblock`]).
 pub fn sigblock_shutdown(old: &mut u64) -> Sysres {
-    let set: u64 = SHUTDOWN_SIGNALS;
-    unsafe { sys(SYS_RT_SIGPROCMASK, [SIG_BLOCK, &set as *const u64 as u64, old as *mut u64 as u64, 8, 0, 0]) }
-}
-
-/// Restore a mask [`sigblock_shutdown`] reported.
-pub fn sigrestore(old: u64) -> Sysres {
-    unsafe { sys(SYS_RT_SIGPROCMASK, [SIG_SETMASK, &old as *const u64 as u64, 0, 8, 0, 0]) }
+    super::sigblock(SHUTDOWN_SIGNALS, old)
 }
 
 /// A descriptor that reads as the blocked shutdown signals, `CLOEXEC` so an
 /// `execve` never inherits it. The set is [`SHUTDOWN_SIGNALS`], the same word
-/// [`sigblock_shutdown`] blocks: passed by address, because `signalfd4` takes
-/// a pointer and the value itself is an address the kernel must not read.
+/// [`sigblock_shutdown`] blocks.
 pub fn signalfd_shutdown() -> Sysres {
-    let mask: u64 = SHUTDOWN_SIGNALS;
-    unsafe { sys(SYS_SIGNALFD4, [-1i64 as u64, &mask as *const u64 as u64, 8, SFD_CLOEXEC, 0, 0]) }
+    super::signalfd(SHUTDOWN_SIGNALS)
 }
 
 /// `waitid(P_PIDFD, ...)`: a child's status, addressed by descriptor.

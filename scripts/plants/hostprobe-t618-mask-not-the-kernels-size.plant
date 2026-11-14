@@ -1,0 +1,7 @@
+# pod-hostprobe: the signal calls pass a mask of another size than the
+# kernel's, which the kernel refuses with EINVAL (T-618).
+ENTRY=T-618
+GROUP=hostprobe
+EXPECT='the mask is not the size of the kernel'
+RUN='cargo test -p pod-hostprobe --lib -- sys::tests::the_kernel_mask_has_the_kernels_size_and_keeps_signals_1_to_64 --exact'
+LIMIT=1800

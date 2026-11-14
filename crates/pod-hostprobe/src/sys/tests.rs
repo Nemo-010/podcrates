@@ -391,7 +391,8 @@ fn sigblock_blocks_the_set_in_this_thread_and_sigrestore_gives_it_back() {
     fn blocked() -> u64 {
         let status = std::fs::read_to_string("/proc/thread-self/status").expect("/proc/thread-self/status");
         let word = status.lines().find_map(|l| l.strip_prefix("SigBlk:")).expect("SigBlk").trim().to_string();
-        u64::from_str_radix(&word, 16).expect("a hex mask")
+        // Signals 1 to 64: the last 16 digits of a mask of 128 signals (mips).
+        u64::from_str_radix(&word[word.len().saturating_sub(16)..], 16).expect("a hex mask")
     }
     let set = sigbit(SIGHUP) | sigbit(SIGQUIT);
     let seen = std::thread::spawn(move || {
@@ -410,4 +411,22 @@ fn sigblock_blocks_the_set_in_this_thread_and_sigrestore_gives_it_back() {
     assert_eq!(during & !set, before & !set, "sigblock changed other signals");
     assert_eq!(after, before, "sigrestore did not give back the mask");
     assert_eq!(blocked() & set, 0, "the block reached another thread");
+}
+
+/// The mask goes to the kernel in the kernel's size (16 bytes on mips), and
+/// signals 1 to 64 go through it in order: `rt_sigprocmask` and `signalfd4`
+/// refuse each other size with `EINVAL`.
+#[test]
+fn the_kernel_mask_has_the_kernels_size_and_keeps_signals_1_to_64() {
+    assert_eq!(SIGSET_BYTES * 8, linux_raw_sys::general::_NSIG as usize, "the mask is not the size of the kernel's");
+    for set in [0, 1, SHUTDOWN_SIGNALS, sigbit(32), sigbit(33), sigbit(64), u64::MAX] {
+        assert_eq!(from_kernel(&to_kernel(set)), set, "the signals of {set:x} did not go through the mask");
+    }
+    assert_eq!(to_kernel(sigbit(SIGHUP)).sig[0], 1, "signal 1 is not bit 0 of the first word");
+    let fd = signalfd(sigbit(SIGHUP)).expect("signalfd with the mask of the kernel");
+    let _ = close(fd);
+    assert_eq!(
+        (SIG_BLOCK, SIG_SETMASK),
+        (linux_raw_sys::general::SIG_BLOCK as u64, linux_raw_sys::general::SIG_SETMASK as u64)
+    );
 }

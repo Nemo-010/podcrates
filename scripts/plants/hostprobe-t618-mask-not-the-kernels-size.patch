@@ -1,0 +1,13 @@
+diff --git a/crates/pod-hostprobe/src/sys/sigmask.rs b/crates/pod-hostprobe/src/sys/sigmask.rs
+index 838b3ec..6b2fbac 100644
+--- a/crates/pod-hostprobe/src/sys/sigmask.rs
++++ b/crates/pod-hostprobe/src/sys/sigmask.rs
+@@ -25,7 +25,7 @@ pub const SIG_BLOCK: u64 = g::SIG_BLOCK as u64;
+ pub const SIG_SETMASK: u64 = g::SIG_SETMASK as u64;
+ 
+ /// The size of the kernel's signal mask in bytes: 8, and 16 on mips.
+-pub const SIGSET_BYTES: usize = core::mem::size_of::<kernel_sigset_t>();
++pub const SIGSET_BYTES: usize = core::mem::size_of::<kernel_sigset_t>() + 8;
+ 
+ /// The bit of signal number `sig` in a mask word: bit `sig - 1`.
+ pub const fn sigbit(sig: u64) -> u64 {
