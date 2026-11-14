@@ -11,8 +11,7 @@ is done. Git and the record keep finished work.
 
 1. Start the watcher (`sh scripts/agent/watch-org.sh 90` under the Monitor
    tool) and read the open COORD issues `(to podcrates)`.
-2. Read the answer of podnet on #139 (the profile of `kcp`, T-526) and the
-   takes of `v0.43.0` on its hand-off issue.
+2. Read the answer of podnet on #139 (the profile of `kcp`, T-526).
 3. Read the takes of `v0.45.0` on #157, and the answers on #151 (the
    values of sand-net, T-586), #152 (the measure of `AutoRun`, T-617)
    and #156 (podnet's fix of the capnp reader, T-029). Then the work order of
