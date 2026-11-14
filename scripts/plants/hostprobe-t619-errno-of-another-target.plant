@@ -1,0 +1,7 @@
+# pod-hostprobe: ENAMETOOLONG has the number of mips, not the number of the
+# target of the build, so the probes name the refusal wrongly (T-619).
+ENTRY=T-619
+GROUP=hostprobe
+EXPECT='a name of 300 bytes is'
+RUN='cargo test -p pod-hostprobe --lib -- sys::tests::the_creation_flags_and_the_errno_numbers_are_the_kernels --exact'
+LIMIT=1800

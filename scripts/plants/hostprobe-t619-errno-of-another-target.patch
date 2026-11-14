@@ -1,0 +1,13 @@
+diff --git a/crates/pod-hostprobe/src/sys/numbers.rs b/crates/pod-hostprobe/src/sys/numbers.rs
+index 6262900..ae15f91 100644
+--- a/crates/pod-hostprobe/src/sys/numbers.rs
++++ b/crates/pod-hostprobe/src/sys/numbers.rs
+@@ -83,7 +83,7 @@ pub const ENOTDIR: Errno = errno(e::ENOTDIR);
+ pub const EISDIR: Errno = errno(e::EISDIR);
+ pub const EINVAL: Errno = errno(e::EINVAL);
+ pub const ENOSYS: Errno = errno(e::ENOSYS);
+-pub const ENAMETOOLONG: Errno = errno(e::ENAMETOOLONG);
++pub const ENAMETOOLONG: Errno = Errno(78);
+ /// `ELOOP`: the refusal of `O_NOFOLLOW` and of `RESOLVE_NO_SYMLINKS`.
+ pub const ELOOP: Errno = errno(e::ELOOP);
+ /// On Linux `EAGAIN` and `EWOULDBLOCK` are the same number, and `flock` with
