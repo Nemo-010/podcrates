@@ -1,0 +1,13 @@
+diff --git a/crates/pod-guest/src/fat16/names.rs b/crates/pod-guest/src/fat16/names.rs
+index 4d0b6d5..c897a95 100644
+--- a/crates/pod-guest/src/fat16/names.rs
++++ b/crates/pod-guest/src/fat16/names.rs
+@@ -90,7 +90,7 @@ pub(super) fn alias(long: &str, taken: impl Fn(&[u8; 11]) -> bool) -> Result<[u8
+         for (i, b) in ext.iter().take(3).enumerate() {
+             out[8 + i] = *b;
+         }
+-        if !taken(&out) {
++        if n > 0 || !taken(&out) {
+             return Ok(out);
+         }
+     }

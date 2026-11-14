@@ -1,0 +1,8 @@
+# The checksum of an 8.3 alias rotates left, not right: Windows and mtools
+# take the long-name entries as orphans and show the alias alone (T-610,
+# PodUtils/podvm#360). The test against the values of mtools must fail.
+ENTRY=T-610
+GROUP=guest
+EXPECT='test fat16::tests::the_checksum_of_an_alias_is_the_vfat_one \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- fat16::tests::the_checksum_of_an_alias_is_the_vfat_one'
+LIMIT=1800

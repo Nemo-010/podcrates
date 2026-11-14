@@ -7361,3 +7361,30 @@ Before an extraction into a tree that is not empty, walk the tree once and add t
 ```sh
 cargo test -p pod-extract --all-features
 ```
+
+# T-610: `pod-guest`: `Fat16::put` writes a long name of up to 32 characters with VFAT entries and an 8.3 alias (PodUtils/podvm#360)
+
+**Source:** PodUtils/podvm#360 (COORD-109 of podvm; PodUtils/podvm@T-1866).
+**Category:** feature
+**Milestone:** M7
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+Windows Setup reads `autounattend.xml` from the root of a USB medium. `Fat16::put` of `pod-guest` takes 8.3 names only, so podvm cannot put the answer file on a FAT medium that the crate builds.
+
+## Premise
+
+- Read: PodUtils/podvm#360; `crates/pod-guest/src/fat16.rs`; the VFAT long-name format (Microsoft FAT specification, "FAT Long Directory Entries").
+
+## Approach
+
+`Fat16::put` takes a long name of up to 32 characters in the root: the long-name entries (the last part first with the bit `0x40`, the sequence number, the checksum of the 8.3 alias, 13 UCS-2 units in each entry) before an 8.3 alias such as `AUTOUN~1.XML` with a number that no other file has. `get` and `list` read the long name back; an 8.3 name is written as before. Tests: the checksum against a known value, a read back, two long names with one alias stem, a name of 32 characters; a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features
+```

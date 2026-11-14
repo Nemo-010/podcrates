@@ -63,7 +63,7 @@ skip where no `qemu-system-x86_64` is on `PATH` (the KVM one also where
 | `emulator` | `run_steps(argv)` (a tool to its end; a failure names the program and its stderr), `spawn_emulator(&plan, args, stderr)` (a process group of its own), `stop_emulator`, `stop_with` (QMP `quit`, `SIGKILL` to the group, a bounded reap), `QUIT_WAIT`, `STOP_WAIT` |
 | `agent` | the file names of the protocol (`MARKER`, `GO`, `CMD`, `OUT`, `ERR`, `CODE`, `SETUP`, `READY`, `KEEP`, `AGENT_NAME`, `SETUP_NAME`, `AGENT`), `READY_TEXT`, `Mode`, `ready(&fat16)` (the agent wrote `WQREADY.TXT`), `AGENT_CMD`, `SETUP_CMD`, `command_file`, `command_from_argv`, `quote`, `Code`, `parse_code`, `nonce()`, `nonce_from(&mut Entropy)` |
 | `dos` | `argv`, `stage(&s, ...)`, `run(&plan, batch, token, timeout)`, `batch_from_argv`, `DEFAULT_MEM_MIB`, `CPUS`, `DEFAULT_TIMEOUT_SECS`, the boot waits `TO_MENU_MS`, `TO_PROCEED_MS`, `TO_PROMPT_MS`, `MBOX_DRIVE`, `BAT` |
-| `fat16` | `Fat16` (`new`, `with_oem`, `from_image`, `put`, `get`, `remove` (the file, its clusters and the long-name entries before it; `Ok(false)`: no such file), `list`, `is_mailbox`, `image`), `format`, `format_with`, `oem_bytes`, the geometry (16 MiB behind an MBR at LBA 2048, 4 KiB clusters), `LABEL`, `OEM` |
+| `fat16` | `Fat16` (`new`, `with_oem`, `from_image`, `put` (an 8.3 name, or a long name of up to `MAX_LONG_NAME` = 32 characters with VFAT entries and an alias `BASIS~N.EXT`), `get` (by the 8.3 name, the alias or the long name, in any case), `remove` (the file, its clusters and the long-name entries before it; `Ok(false)`: no such file), `list` (the long name where there is one), `is_mailbox`, `image`), `checksum` (of an 8.3 alias, for its long-name entries), `format`, `format_with`, `oem_bytes`, the geometry (16 MiB behind an MBR at LBA 2048, 4 KiB clusters), `LABEL`, `OEM` |
 | `fetch` | `Ceiling { max_bytes, fsize }` (the ceiling of one entry), `check_declared`, `Origin` (`get(from) -> Reply`: the caller's HTTP client; `from > 0` sends `Range: bytes=FROM-`), `Reply { status, length, range, body }`, `Stream::new(reader, declared)` (an origin of one stream that does not resume), `store(&mut origin, dest, want, ceiling, tries)` (the sha256 in hex; see "The store"), `partial` (`NAME.part`), `Span`, `parse_content_range`, `Refusal` (`DeclaredTooLarge`, `OverCeiling`, `Digest`, `Size`, `Range`, `Status`, `Broken`, `Busy`; `keeps_part`), `refusal(&failure)` |
 | `qmp` | `Monitor` (`connect`, `call`, `keys`, `quit`), `send_key`, `is_event`, `response_ok`, `key(char)` (the `send-key` name and shift for a US layout), `HOLD_MS` |
 | `modloop` | `modules(reader, kernel_release, names) -> ModuleSet` (`release`, `modules`: each `Module { path, name, bytes }` in load order, `builtin`, `dep`, `size()`), `Fault`, `fault(&failure)`, `MAX_SET`, `RELEASE_DIRS` |
@@ -83,6 +83,19 @@ another token, a guest that powered off with no result, a QMP refusal),
 with no key, an empty argv), `Unavailable` (a tool that failed, a full
 volume, no random bytes, a closed QMP connection), and the class of the I/O
 kind.
+
+A long name (Windows Setup reads `autounattend.xml` from the root of a
+USB medium) goes in VFAT long-name entries before an 8.3 alias: the last
+part first with the bit `0x40`, 13 UCS-2 units in each entry, a NUL and
+then `0xFFFF` after the name, and the checksum of the alias in each entry.
+The alias is the upper-case name with no space and no dot but the last,
+cut to 6 characters, `~N` with the first `N` that no file has, and 3
+characters of the extension (`AUTOUN~1.XML`, then `AUTOUN~2.XML`). mtools
+writes the same aliases and checksums, and reads the long names back. The
+reader takes a long name only for a whole chain in order with the checksum
+of the 8.3 entry after it; else it shows the 8.3 name. A name of more than
+32 characters, a control character, one of `"*/:<>?\|`, a character out of
+UCS-2, or a space or a dot at the end is `Usage`.
 
 The FAT16 reader does not trust the volume that the guest wrote: a cluster
 outside the volume, a loop in a chain, or a size that the chain does not

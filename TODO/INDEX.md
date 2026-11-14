@@ -537,3 +537,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-604](podvm.md) | P1 | S | M6 | defect | open | `pod-rootfs`: the completion of a tree whose `/etc` is closed (`0555`) fails as a user that is not root, after T-598 |
 | [T-605](podvm.md) | P3 | S | M6 | defect | open | `pod-extract`: the sidecar does not record the mode that the kernel kept on a directory |
 | [T-606](podvm.md) | P3 | S | M6 | defect | open | `pod-extract`: a second extraction over a closed tree fails on a directory with no owner read or under a closed parent that the layer does not name |
+| [T-610](podvm.md) | P1 | S | M7 | feature | open | `pod-guest`: `Fat16::put` writes a long name of up to 32 characters with VFAT entries and an 8.3 alias (PodUtils/podvm#360) |

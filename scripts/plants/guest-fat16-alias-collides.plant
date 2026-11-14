@@ -1,0 +1,8 @@
+# Each long name gets the alias ~1, also when a file has it: two long names
+# of one stem share one 8.3 name (T-610). The test of two long names of one
+# stem must fail.
+ENTRY=T-610
+GROUP=guest
+EXPECT='test fat16::tests::two_long_names_of_one_stem_get_two_aliases \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- fat16::tests::two_long_names_of_one_stem_get_two_aliases'
+LIMIT=1800
