@@ -7868,7 +7868,7 @@ cargo test -p pod-udf --all-features -- --ignored
 
 ## Done
 
-2026-11-14, commit COMMIT620. `tests/windows_live.rs` (ignored): a
+2026-11-14, commit `f437f85`. `tests/windows_live.rs` (ignored): a
 `ReadAt` of the test sends one HTTP Range request for each read, with the
 blocking client of `pod-proxy`; the URL and the size come from the service
 `microsoft-windows-eval`. `Udf::find("/sources/boot.wim")` gives one part

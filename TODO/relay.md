@@ -7306,7 +7306,7 @@ sh scripts/ci/s3-tests.sh
 
 ## Done
 
-2026-11-14, commit COMMIT623. The server is SeaweedFS 4.53 (Apache-2.0),
+2026-11-14, commit `afdd022`. The server is SeaweedFS 4.53 (Apache-2.0),
 pinned by the SHA-256 of `linux_amd64.tar.gz` (call C540); MinIO is
 archived and dl.min.io answers 410. `scripts/ci/s3-tests.sh` starts
 `weed mini` on 127.0.0.1 with the bucket `links` and the made-up key, waits
