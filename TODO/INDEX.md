@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**511 entries: 113 open, 8 partial, 6 blocked, 384 done.**
+**511 entries: 112 open, 8 partial, 6 blocked, 385 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 102 | 116 |
 | P2 | 51 | 2 | 4 | 206 | 263 |
-| P3 | 51 | 3 | 2 | 74 | 130 |
-| **All** | 113 | 8 | 6 | 384 | 511 |
+| P3 | 50 | 3 | 2 | 75 | 130 |
+| **All** | 112 | 8 | 6 | 385 | 511 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -557,4 +557,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-624](relay.md) | P2 | S | M2 | defect | done | `pod-warp`: after a key that is not the pinned one, the client tries each door of the new record and names the mismatch |
 | [T-625](podvm.md) | P3 | S | M6 | chore | done | `pod-hostprobe`: the test of the report runs the probes in a child that libtest refuses |
 | [T-626](podvm.md) | P3 | M | M7 | chore | open | `pod-udf`: the metadata partition of UDF 2.50 against an image of a real tool |
-| [T-627](relay.md) | P3 | S | M2 | feature | open | `pod-link`: the stand-in of the S3 API behind the feature `s3-standin` (PodUtils/podnet#564) |
+| [T-627](relay.md) | P3 | S | M2 | feature | done | `pod-link`: the stand-in of the S3 API behind the feature `s3-standin` (PodUtils/podnet#564) |
