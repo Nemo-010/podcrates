@@ -1,0 +1,7 @@
+# A refusal of the management API does not name the form of the
+# credential. The test of a wrong token must see it.
+ENTRY=T-489
+GROUP=devtunnel
+EXPECT='a_wrong_token_is_refused_by_its_form_and_not_shown'
+RUN='cargo test -p pod-devtunnel --all-features --test credential'
+LIMIT=1800

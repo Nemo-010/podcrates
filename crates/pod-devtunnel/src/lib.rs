@@ -1,11 +1,12 @@
 //! The client side of Microsoft Dev Tunnels, as the vendor's open-source
 //! client speaks it (microsoft/dev-tunnels, `rs/`): the connect
-//! information of a tunnel from the management API with the user's token
-//! ([`Management`]), the relay WebSocket with its subprotocol through the
-//! caller's TLS, proxy and dial ([`Way`]), SSH over it to the host of the
-//! tunnel with no user authentication, and a `direct-tcpip` channel to a
-//! port of the host as a byte stream ([`Relay::open`], [`Stream`]), with a
-//! bounded reconnect that takes a fresh connect token.
+//! information of a tunnel from the management API with the user's token,
+//! a tunnel access token or no token ([`Credential`], [`Management`]), the
+//! relay WebSocket with its subprotocol through the caller's TLS, proxy
+//! and dial ([`Way`]), SSH over it to the host of the tunnel with no user
+//! authentication, and a `direct-tcpip` channel to a port of the host as a
+//! byte stream ([`Relay::open`], [`Stream`]), with a bounded reconnect that
+//! takes a fresh connect token.
 //!
 //! Each value of the protocol is a fact of the service
 //! `microsoft-devtunnel` of `pod-services`, with its source ([`service`]).
@@ -38,4 +39,4 @@ pub use management::{Locator, Management};
 pub use relay::Relay;
 pub use settings::{Base, Settings, Way};
 pub use stream::Stream;
-pub use token::{ConnectToken, Scheme, UserToken};
+pub use token::{AccessToken, ConnectToken, Credential, Scheme, UserToken};

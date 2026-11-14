@@ -2,10 +2,11 @@
 //! and of a consumer (feature `standin`): one listener that answers the
 //! management API's get of a tunnel and the relay's WebSocket upgrade, and
 //! behind the upgrade an SSH server (russh) as the host of the tunnel. It
-//! checks what the vendor's service checks (the user's token, the scope,
-//! the version, the subprotocol, the latest connect token, the user with
-//! no authentication) and keeps what it saw ([`Seen`]). Its tokens are
-//! made-up values.
+//! checks what the vendor's service checks (the caller's credential, the
+//! scope, the version, the subprotocol, the latest connect token, the user
+//! with no authentication) and keeps what it saw ([`Seen`]). Its tokens are
+//! made-up values. A refusal names the form of the credential that the
+//! caller gave, never a token.
 
 mod host;
 
@@ -50,8 +51,20 @@ pub struct Plan {
     pub name: String,
     pub id: String,
     pub cluster: String,
-    /// The value of `Authorization` that the management API takes.
+    /// The value of `Authorization` of the user's token that the
+    /// management API takes.
     pub authorization: String,
+    /// The tunnel access token that the management API and the relay take
+    /// with the scheme `tunnel`, as `devtunnel token` gives one.
+    pub access: Option<String>,
+    /// The tunnel has an access control entry that allows anonymous
+    /// access: the management API and the relay take a caller with no
+    /// token.
+    pub anonymous: bool,
+    /// The answer to a tunnel access token or to no token holds a fresh
+    /// connect token too. Else only the answer to the user's token holds
+    /// one.
+    pub mints_for_all: bool,
     pub ports: Vec<(u16, Port)>,
     pub keys: Keys,
     /// The answer holds no relay endpoint (no host is connected).
@@ -67,6 +80,9 @@ impl Plan {
             id: "bcd123".into(),
             cluster: "usw2".into(),
             authorization: format!("{scheme} {user}"),
+            access: None,
+            anonymous: false,
+            mints_for_all: false,
             ports: vec![(22, Port::Echo)],
             keys: Keys::Host,
             no_host: false,
@@ -82,10 +98,15 @@ pub struct Seen {
     pub gets: Vec<String>,
     /// For each get: the user's token was the plan's.
     pub user_ok: Vec<bool>,
+    /// For each get: the form of its credential, `user` (the plan's user
+    /// token), `access` (the plan's tunnel access token), `none` or
+    /// `wrong`.
+    pub forms: Vec<&'static str>,
     /// For each upgrade: the subprotocols that it offered.
     pub subprotocols: Vec<String>,
     /// For each upgrade: `fresh` (the last connect token), `stale` (an
-    /// earlier one), `wrong` or `none`.
+    /// earlier one), `access` (the plan's tunnel access token), `wrong` or
+    /// `none`.
     pub relay_tokens: Vec<&'static str>,
     /// The user of each authentication.
     pub users: Vec<String>,
@@ -213,15 +234,51 @@ fn problem(status: u16, title: &str) -> Vec<u8> {
     request::answer(status, "application/problem+json", body.as_bytes(), false)
 }
 
+/// The value of `Authorization` of the plan's tunnel access token.
+fn access_header(plan: &Plan) -> Option<String> {
+    plan.access.as_ref().map(|token| format!("{} {token}", service::access_scheme()))
+}
+
+/// The words of a refused credential: its form and its scheme when the
+/// scheme is one of the service's, never a byte of the token.
+fn refused_words(form: &str, given: Option<&str>) -> String {
+    let scheme = given.and_then(|value| value.split_once(' ')).map(|(word, _)| word.to_ascii_lowercase());
+    let known = |word: &str| {
+        service::service().texts("user-schemes").unwrap_or_default().iter().any(|s| s.as_ref() == word)
+            || word == service::access_scheme()
+    };
+    match (form, scheme) {
+        ("none", _) => "Unauthorized: no token, and the tunnel has no anonymous access".into(),
+        ("user", _) => "Unauthorized: the user token is refused".into(),
+        (_, Some(word)) if known(&word) => {
+            format!("Unauthorized: a token of the scheme {word} that the tunnel does not take")
+        }
+        _ => "Unauthorized: a value of Authorization that is no token of the service".into(),
+    }
+}
+
 /// The answer of the management API to `head`.
 fn management(state: &State, head: &Request) -> Vec<u8> {
     let plan = &state.plan;
-    let user_ok =
-        head.header("authorization") == Some(plan.authorization.as_str()) && !state.refuse_user.load(Ordering::SeqCst);
+    let given = head.header("authorization");
+    let form = match given {
+        None => "none",
+        Some(value) if value == plan.authorization => "user",
+        Some(value) if Some(value) == access_header(plan).as_deref() => "access",
+        Some(_) => "wrong",
+    };
+    let user_ok = form == "user" && !state.refuse_user.load(Ordering::SeqCst);
+    let allowed = match form {
+        "user" => user_ok,
+        "access" => true,
+        "none" => plan.anonymous,
+        _ => false,
+    };
     {
         let mut seen = state.seen();
         seen.gets.push(head.target.clone());
         seen.user_ok.push(user_ok);
+        seen.forms.push(form);
     }
     let (path, query) = head.target.split_once('?').unwrap_or((&head.target, ""));
     let Some(ident) = path.strip_prefix(service::tunnels_path()).and_then(|p| p.strip_prefix('/')) else {
@@ -230,8 +287,8 @@ fn management(state: &State, head: &Request) -> Vec<u8> {
     if head.method != "GET" {
         return problem(405, "Method Not Allowed");
     }
-    if !user_ok {
-        return problem(401, "Unauthorized");
+    if !allowed {
+        return problem(401, &refused_words(form, given));
     }
     let pairs: Vec<&str> = query.split('&').collect();
     let scope = format!("tokenScopes={}", service::token_scope());
@@ -242,7 +299,6 @@ fn management(state: &State, head: &Request) -> Vec<u8> {
     if ident != plan.name && ident != plan.id {
         return problem(404, "Not Found");
     }
-    let minted = state.minted.fetch_add(1, Ordering::SeqCst) + 1;
     let keys = match plan.keys {
         Keys::Host => vec![crate::ssh::key_text(state.key.public_key()).unwrap_or_default()],
         Keys::Other => vec![crate::ssh::key_text(state.other.public_key()).unwrap_or_default()],
@@ -260,13 +316,16 @@ fn management(state: &State, head: &Request) -> Vec<u8> {
             "hostRelayUri": format!("ws://127.0.0.1:{}/api/v1/Host/Connect/{}", state.port, plan.id),
         }])
     };
-    let body = serde_json::json!({
+    let mut body = serde_json::json!({
         "clusterId": plan.cluster,
         "tunnelId": plan.id,
         "name": plan.name,
-        "accessTokens": { service::token_scope(): format!("{TOKEN_PREFIX}{minted}") },
         "endpoints": endpoints,
     });
+    if form == "user" || plan.mints_for_all {
+        let minted = state.minted.fetch_add(1, Ordering::SeqCst) + 1;
+        body["accessTokens"] = serde_json::json!({ service::token_scope(): format!("{TOKEN_PREFIX}{minted}") });
+    }
     request::answer(200, "application/json", body.to_string().as_bytes(), false)
 }
 
@@ -277,9 +336,11 @@ async fn relay(state: Arc<State>, mut tcp: TcpStream, head: Request, rest: Vec<u
     let mut epoch = state.epoch.subscribe();
     let offered = head.header("sec-websocket-protocol").unwrap_or("").to_string();
     let latest = format!("{} {TOKEN_PREFIX}{}", service::relay_scheme(), state.minted.load(Ordering::SeqCst));
+    let access = state.plan.access.as_ref().map(|token| format!("{} {token}", service::relay_scheme()));
     let token = match head.header("authorization") {
         None => "none",
         Some(value) if value == latest => "fresh",
+        Some(value) if Some(value) == access.as_deref() => "access",
         Some(value) if value.starts_with(&format!("{} {TOKEN_PREFIX}", service::relay_scheme())) => "stale",
         Some(_) => "wrong",
     };
@@ -301,7 +362,9 @@ async fn relay(state: Arc<State>, mut tcp: TcpStream, head: Request, rest: Vec<u
         Some((503, "the relay is busy"))
     } else if !offered.split(',').any(|p| p.trim() == protocol) {
         Some((400, "no subprotocol of a client"))
-    } else if token != "fresh" {
+    } else if token == "none" && !state.plan.anonymous {
+        Some((401, "no token, and the tunnel has no anonymous access"))
+    } else if !matches!(token, "fresh" | "access" | "none") {
         Some((401, "the connect token is not the tunnel's"))
     } else {
         None

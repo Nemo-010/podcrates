@@ -65,6 +65,14 @@ name = "user-schemes"
 value = ["github", "aad", "bearer"]
 source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/authorization.rs", read = 2026-11-12, note = "Authorization::as_header" }
 
+# A caller with no user token: a tunnel access token goes to the
+# management API with the scheme tunnel; with no token (a tunnel with
+# anonymous access) the request has no Authorization.
+[[fact]]
+name = "access-scheme"
+value = "tunnel"
+source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/authorization.rs", read = 2026-11-14, note = "Authorization::Tunnel and Authorization::Anonymous of Authorization::as_header; the TypeScript client sends tunnel TOKEN for TunnelRequestOptions.accessToken (getAxiosRequestConfig of ts/src/management/tunnelManagementHttpClient.ts)" }
+
 [[fact]]
 name = "relay-scheme"
 value = "tunnel"
@@ -128,22 +136,32 @@ value = [
 ]
 source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/http_client.rs", read = 2026-11-12 }
 
+[[fact]]
+name = "anonymous-calls"
+value = ["headers.remove(AUTHORIZATION);"]
+source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/http_client.rs", read = 2026-11-14, note = "make_tunnel_request_with_authorization: an authorization with no header (Anonymous) sends no Authorization" }
+
 [[watch]]
 kind = "github-file"
 repo = "microsoft/dev-tunnels"
 path = "rs/src/management/http_client.rs"
-facts = ["api-version", "management-calls"]
+facts = ["api-version", "management-calls", "anonymous-calls"]
 
 [[fact]]
 name = "user-scheme-calls"
 value = ["format!(\"aad {}\", token)", "format!(\"github {}\", token)", "format!(\"bearer {}\", token)"]
 source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/authorization.rs", read = 2026-11-12 }
 
+[[fact]]
+name = "credential-calls"
+value = ["format!(\"tunnel {}\", token)", "Authorization::Anonymous => None"]
+source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/authorization.rs", read = 2026-11-14 }
+
 [[watch]]
 kind = "github-file"
 repo = "microsoft/dev-tunnels"
 path = "rs/src/management/authorization.rs"
-facts = ["user-scheme-calls"]
+facts = ["user-scheme-calls", "credential-calls"]
 
 # The members of the connect information that the client reads, in the
 # JSON of the API (the fields of the contracts in camelCase).

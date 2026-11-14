@@ -11,13 +11,15 @@ use std::time::Duration;
 
 use pod_core::{Event, Events, Observer, Report};
 use pod_devtunnel::standin::{Plan, Standin};
-use pod_devtunnel::{Base, Relay, Scheme, Settings, UserToken, Way};
+use pod_devtunnel::{AccessToken, Base, Credential, Relay, Scheme, Settings, UserToken, Way};
 use pod_proxy::resolve::System;
 use pod_proxy::{Client, Dialer, ProxyChoice};
 use pod_tls::{Context, Trust, Words};
 
 /// The user's token of the tests: a made-up value.
 pub const USER_TOKEN: &str = "made-up-user-token-of-the-tests";
+/// The tunnel access token of the tests: a made-up value.
+pub const ACCESS_TOKEN: &str = "made-up-access-token-of-the-tests";
 
 /// The way out of a caller: a direct dial, the TLS of ring.
 pub fn way() -> Way {
@@ -45,6 +47,11 @@ pub fn settings(base: &str) -> Settings {
 /// The user's token of the tests.
 pub fn user() -> UserToken {
     UserToken::new(Scheme::Github, USER_TOKEN).expect("a token")
+}
+
+/// The tunnel access token of the tests.
+pub fn access() -> AccessToken {
+    AccessToken::new(ACCESS_TOKEN).expect("a token")
 }
 
 /// The plan of a stand-in that takes [`user`].
@@ -89,10 +96,16 @@ pub fn report() -> (Report, Arc<Kept>) {
 
 /// A stand-in of `plan`, and a client connected to its tunnel by name.
 pub async fn connected(plan: Plan) -> (Standin, Relay, Arc<Kept>) {
+    connected_with(plan, user().into()).await
+}
+
+/// A stand-in of `plan`, and a client with `credential` connected to its
+/// tunnel by name.
+pub async fn connected_with(plan: Plan, credential: Credential) -> (Standin, Relay, Arc<Kept>) {
     let standin = Standin::start(plan.clone()).await.expect("the stand-in");
     let (report, kept) = report();
     let locator = pod_devtunnel::Locator::parse(&plan.name).unwrap();
-    let relay = Relay::connect(way(), settings(&standin.base()), locator, user(), report)
+    let relay = Relay::connect(way(), settings(&standin.base()), locator, credential, report)
         .await
         .unwrap_or_else(|e| panic!("connect: {}", e.chain()));
     (standin, relay, kept)

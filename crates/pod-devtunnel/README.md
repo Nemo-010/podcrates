@@ -3,7 +3,8 @@
 The client side of Microsoft Dev Tunnels. A host that permits only TCP
 443 reaches the relay of the service: this crate gets the connect
 information of a tunnel from the management API with the user's own
-token, opens the relay WebSocket through the caller's TLS, proxy and dial,
+token, with a tunnel access token that the owner of the tunnel gives, or
+with no token for a tunnel with anonymous access, opens the relay WebSocket through the caller's TLS, proxy and dial,
 runs SSH over it to the host of the tunnel with no user authentication,
 and opens a `direct-tcpip` channel to a port of the host as a byte stream.
 A bounded reconnect takes a fresh connect token.
@@ -25,27 +26,28 @@ token store (T-378, partial).
 
 | Item | What |
 | --- | --- |
-| `Relay::connect(way, settings, locator, user, report)` | the connect information, then one relay session; one try, its failure named by its step |
+| `Relay::connect(way, settings, locator, credential, report)` | the connect information, then one relay session; one try, its failure named by its step. `credential` is a `Credential`, or a `UserToken` or an `AccessToken` (`Into<Credential>`) |
 | `Relay::open(port)` | a `Stream` to `127.0.0.1:PORT` of the host (`direct-tcpip`); a session that is gone connects again first |
-| `Relay::reconnect()`, `Relay::close()` | a new session with a fresh connect token; the end of the session. Each open stream ends |
+| `Relay::reconnect()`, `Relay::close()` | a new session with fresh connect information; the end of the session. Each open stream ends |
 | `Relay::tunnel()`, `Relay::sessions()` | the ids of the tunnel; the sessions opened so far |
 | `Stream` | `AsyncRead + AsyncWrite + Send + Unpin`: the far end's EOF or close is `Ok(0)`; the end of the session under it is the error `ConnectionAborted` (`stream::SESSION_ENDED`); `shutdown` sends EOF; the drop closes the channel |
-| `Management::new(client, &settings)`, `connect_info(&locator, &user)`, `url(&locator)` | the read of the management API |
-| `ConnectInfo::parse(body, scope)`, `ConnectInfo { tunnel, endpoints }`, `token()` | the answer of the API: `Tunnel` (cluster, id, name), each relay `Endpoint` (host id, client relay URI, host keys), the `ConnectToken` |
+| `Management::new(client, &settings)`, `connect_info(&locator, &credential)`, `url(&locator)` | the read of the management API; a failure names the form of the credential |
+| `ConnectInfo::parse(body, scope)`, `ConnectInfo { tunnel, endpoints }`, `token()` | the answer of the API: `Tunnel` (cluster, id, name), each relay `Endpoint` (host id, client relay URI, host keys), the `ConnectToken` that the relay takes (`None` for an answer with no connect token to a caller with no token) |
 | `Locator::parse` | `NAME`, or `ID.CLUSTER` as the vendor's tools show a tunnel |
-| `UserToken::new(scheme, secret)`, `Scheme::{Github, Aad, Bearer}`, `ConnectToken` | the tokens; no `Debug` shows one |
+| `Credential::{User(UserToken), Access(AccessToken), Anonymous}`, `Credential::form()` | the credential of the caller for the management API; `form()` names it for a refusal, with no byte of a token |
+| `UserToken::new(scheme, secret)`, `Scheme::{Github, Aad, Bearer}`, `AccessToken::new(secret)`, `ConnectToken` | the tokens; no `Debug` shows one |
 | `Step`, `step_of`, `steps_of`, `Failed` | the named step of a failure: `Management`, `WebSocket`, `Ssh`, `Channel`, `Reconnect` |
 | `Settings`, `Base`, `Way` | the settings; the base of the management API; the caller's way out (`pod_proxy::Client`, `pod_ws::Way`, `pod_tls::Trust`) |
 | `service` | the facts of `microsoft-devtunnel` |
 | `ssh::key_text` | the text of a host key as `hostPublicKeys` holds it |
-| `standin` (feature) | `Standin::start(Plan)`: the management API, the relay and the host (russh) on the loopback; `Port::{Echo, EchoOnce, Forward}`, `Keys`, `Seen`, `drop_relays`, `refuse_upgrades`, `refuse_user` |
+| `standin` (feature) | `Standin::start(Plan)`: the management API, the relay and the host (russh) on the loopback; `Plan { authorization, access, anonymous, mints_for_all, .. }`: the user's token, a tunnel access token, anonymous access, a connect token in each answer; `Port::{Echo, EchoOnce, Forward}`, `Keys`, `Seen` (with `forms`, the form of each get), `drop_relays`, `refuse_upgrades`, `refuse_user`. A refusal names the form of the credential, never a token |
 
 Each failure is a `pod_core::Failure`. Its stage and class:
 
 | Step | Stage | Class |
 | --- | --- | --- |
-| `Management` | the stage of the HTTP failure, else `relay` | 401, 403: `refused` (ask the user for a new token; not tried again); 404: `not-found`; 429: `temp-fail`; other 4xx: `protocol`; 5xx: `unavailable`; no connect token in the answer: `refused`; no relay endpoint (no host connected): `unavailable`; a body that is not a tunnel: `protocol` |
-| `WebSocket` | the stage of `pod_ws::ConnectError` (`proxy`, `connect`, `tls`, `websocket`) | its class (401, 403: `refused`; 429, 503: `temp-fail`) |
+| `Management` | the stage of the HTTP failure, else `relay` | 401, 403: `refused` (ask the user for a new token, or for one where none was given; not tried again); 404: `not-found`; 429: `temp-fail`; other 4xx: `protocol`; 5xx: `unavailable`; no connect token in the answer to a user token: `refused`; no relay endpoint (no host connected): `unavailable`; a body that is not a tunnel: `protocol` |
+| `WebSocket` | the stage of `pod_ws::ConnectError` (`proxy`, `connect`, `tls`, `websocket`) | its class (401, 403: `refused`; 429, 503: `temp-fail`); the text names the token of the upgrade: the connect token of the answer, the caller's tunnel access token, or none |
 | `Ssh` | `relay` | a host key that is not the tunnel's, a refused user: `refused`; a timeout: `timeout` |
 | `Channel` | `origin` | the reason of the host (RFC 4254): `refused`, `unavailable`, `unsupported`, `temp-fail`; no answer: `timeout` |
 | `Reconnect` | the stage and class of the last try | the chain holds the failure of the last try |
@@ -63,13 +65,16 @@ of `microsoft-devtunnel` is in the last column.
 | `GET /tunnels/NAME` on the global host; `GET /tunnels/ID` on `CLUSTER.rel.tunnels.api.visualstudio.com` (`global.` goes out) | `rs/src/management/http_client.rs` (`TUNNELS_API_PATH`, `build_tunnel_uri`, `build_uri`) | `tunnels-path`, `cluster-host-rule` |
 | `tokenScopes=connect`, and `accessTokens.connect` in the answer | `rs/src/management/http_client.rs` (`add_query`), `rs/src/contracts/tunnel_access_scopes.rs`, `rs/src/contracts/tunnel.rs` | `token-scope` |
 | `Authorization: github TOKEN`, `aad TOKEN` or `bearer TOKEN` to the API | `rs/src/management/authorization.rs` | `user-schemes` |
+| `Authorization: tunnel TOKEN` to the API for a tunnel access token; no `Authorization` for a caller with no token | `rs/src/management/authorization.rs` (`Authorization::Tunnel`, `Authorization::Anonymous`, `as_header`), `rs/src/management/http_client.rs` (`make_tunnel_request_with_authorization`); `ts/src/management/tunnelManagementHttpClient.ts` (`getAxiosRequestConfig`: `TunnelRequestOptions.accessToken`) | `access-scheme`, `credential-calls`, `anonymous-calls` |
+| An answer with no `accessTokens.connect`: the caller's tunnel access token goes to the relay; with no token, the upgrade has no `Authorization` | `ts/src/management/tunnelManagementHttpClient.ts` (`preserveAccessTokens` in `getTunnel`), `ts/src/connections/tunnelConnectionSession.ts` (`tunnelChanged`), `ts/src/connections/defaultTunnelRelayStreamFactory.ts` (`Authorization` only with a token); the Rust client always takes a token (`RelayTunnelClient::connect`) | none: the TypeScript client alone |
 | The JSON members `clusterId`, `tunnelId`, `name`, `accessTokens`, `endpoints`, and of each endpoint `connectionMode` (`TunnelRelay`), `hostId`, `hostPublicKeys`, `clientRelayUri` | `rs/src/contracts/tunnel.rs`, `tunnel_endpoint.rs`, `tunnel_relay_tunnel_endpoint.rs`, `tunnel_connection_mode.rs` (camelCase) | `tunnel-fields`, `endpoint-fields`, `relay-endpoint-fields` |
 | The upgrade to `clientRelayUri` with `Sec-WebSocket-Protocol: tunnel-relay-client` and `Authorization: tunnel TOKEN`; binary messages carry the SSH bytes | `rs/src/connections/relay_tunnel_client.rs` (`connect`), `rs/src/connections/ws.rs` | `subprotocol`, `relay-scheme` |
 | SSH: the host key is one of `hostPublicKeys` (the base64 of its wire form); the user `tunnel` with `none`; no compression | `rs/src/connections/relay_tunnel_client.rs` (`make_ssh_session`, `is_server_key_allowed`, `authenticate_none("tunnel")`) | `ssh-user`, `ssh-auth` |
 | A `direct-tcpip` channel to `127.0.0.1:PORT`, from `127.0.0.1:0` | `rs/src/connections/relay_tunnel_client.rs` (`connect_to_port`) | `channel-type`, `connect-host` |
 
-The facts `relay-calls`, `management-calls` and `user-scheme-calls` hold
-the words of the vendor's code that carry these values, for the watches:
+The facts `relay-calls`, `management-calls`, `anonymous-calls`,
+`user-scheme-calls` and `credential-calls` hold the words of the vendor's
+code that carry these values, for the watches:
 a bare `none` or `tunnel` is in the file for another reason. The
 TypeScript client offers `tunnel-relay-client-v2-dev` first, and then
 `tunnel-relay-client` (`ts/src/connections/tunnelRelayTunnelClient.ts`);
@@ -96,7 +101,7 @@ state.
 | `limits` (the relay WebSocket) | `pod_ws::Limits::RELAY` |
 | `ssh_id` | `SSH-2.0-pod-devtunnel`; a consumer gives its own name |
 | The proxy, the resolver, the roots, the user agent | the caller's `Way` |
-| The user's token | the caller's `UserToken`, from its own store |
+| The credential | the caller's `Credential`: a `UserToken` from its own store, an `AccessToken` from the owner of the tunnel, or `Anonymous` |
 
 ## Parity
 
@@ -129,7 +134,7 @@ Against GitHub #94:
 | [x] Two data files `devtunnel-management` and `devtunnel-relay` | one file, `microsoft-devtunnel` (kind `devtunnel`), with each value of both (call C166) |
 | [x] Mock tests: the paths, `Authorization`, the scope, a get, a refusal | `tests/management.rs` (a create and a list: the second part) |
 | [x] A stand-in relay: the subprotocol, `none`, `direct-tcpip`, an echo, a reconnect | `tests/relay.rs`, `tests/reconnect.rs` |
-| [x] A live test with the user's own token, skipped with none | `tests/live.rs` (ignored; T-386) |
+| [x] A live test with the user's own token, skipped with no tunnel; with a tunnel access token or none, it needs no account on the client side | `tests/live.rs` (ignored; T-386, T-489) |
 | [x] The static probe links the crate | `examples/static-probe/src/devtunnel.rs` |
 | [ ] The name on crates.io | GitHub #1 lists it; crates.io answers 404 (2026-11-13); the owner reserves it (T-387) |
 
@@ -141,6 +146,9 @@ podssh's road (PodUtils/podssh@T-755) takes a tag with this crate:
 | --- | --- |
 | `devtunnel://TUNNEL` | `Locator::parse(TUNNEL)` |
 | the token from its private file | `UserToken::new(scheme, text)`; podssh keeps the file and its doctor |
+| a tunnel access token that the owner of the tunnel gives | `AccessToken::new(text)`; `Relay::connect(.., access, ..)` |
+| a tunnel with anonymous access (no token, no account) | `Relay::connect(.., Credential::Anonymous, ..)` |
+| the words of a refusal | `Credential::form()`; the text of a failure names the form, never the token |
 | its proxy, roots, ECH and user agent | `Way { http: pod_proxy::Client, ws: pod_ws::Way, trust }` |
 | the forward of a stream | `Relay::connect` once, then `Relay::open(port)` for each stream |
 | its lines | the events `devtunnel.connected`, `devtunnel.reconnect`; the decisions `devtunnel.reconnect` (`connected`, `failed`) |
@@ -151,11 +159,15 @@ podssh's road (PodUtils/podssh@T-755) takes a tag with this crate:
 
 `cargo test -p pod-devtunnel --all-features`: the unit tests; the
 stand-in tests `tests/management.rs`, `tests/relay.rs`,
-`tests/reconnect.rs` and `tests/secrets.rs` on the loopback
-(`need_loopback!`); `tests/live.rs` is ignored (`POD_DEVTUNNEL_TOKEN`,
-`POD_DEVTUNNEL_SCHEME`, `POD_DEVTUNNEL_TUNNEL`, `POD_DEVTUNNEL_PORT`; the
-user's own account, never a shared one). The fuzz target
-`devtunnel_connect_info` reads the connect information. The plants
-`devtunnel-*` of `scripts/plants/` prove the checks of the session end,
-the host key, the subprotocol, the refused user token and the hidden
-token.
+`tests/reconnect.rs`, `tests/credential.rs` (anonymous access, a tunnel
+access token, a missing or a wrong token, a refused upgrade, each named by
+its form) and `tests/secrets.rs` on the loopback (`need_loopback!`);
+`tests/live.rs` is ignored (`POD_DEVTUNNEL_TUNNEL`, `POD_DEVTUNNEL_PORT`,
+and `POD_DEVTUNNEL_TOKEN` with `POD_DEVTUNNEL_SCHEME`, else
+`POD_DEVTUNNEL_ACCESS_TOKEN`, else no token; the user's own account, never
+a shared one; the step of `live.yml` with the input `measure` set to
+`devtunnel`). The fuzz target `devtunnel_connect_info` reads the connect
+information. The plants `devtunnel-*` of `scripts/plants/` prove the
+checks of the session end, the host key, the subprotocol, the refused user
+token, the hidden tokens, the caller's tunnel access token at the relay,
+the refusal of a missing token and the form in a refusal.

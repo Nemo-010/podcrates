@@ -45,6 +45,12 @@ pub fn cluster_host_rule() -> &'static str {
     text("cluster-host-rule")
 }
 
+/// The scheme of a tunnel access token in `Authorization` to the
+/// management API.
+pub fn access_scheme() -> &'static str {
+    text("access-scheme")
+}
+
 /// The scheme of `Authorization` in the relay's upgrade.
 pub fn relay_scheme() -> &'static str {
     text("relay-scheme")
@@ -75,6 +81,7 @@ mod tests {
         assert_eq!(api_version(), "2023-09-27-preview");
         assert_eq!((tunnels_path(), token_scope(), cluster_host_rule()), ("/tunnels", "connect", "global."));
         assert_eq!((relay_scheme(), subprotocol()), ("tunnel", "tunnel-relay-client"));
+        assert_eq!(access_scheme(), "tunnel");
         assert_eq!((ssh_user(), text("ssh-auth"), text("channel-type")), ("tunnel", "none", "direct-tcpip"));
         assert_eq!(connect_host(), "127.0.0.1");
         assert_eq!(service().kind(), "devtunnel");

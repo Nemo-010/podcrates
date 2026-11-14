@@ -1,8 +1,10 @@
 //! The read of the management API: a tunnel by its name or by its id and
 //! cluster, with the scope `connect`, through the HTTP client of the
-//! caller. The user's token goes in `Authorization` and nowhere else; a
-//! failure names the method, the URL with no query and the status, and of
-//! a refusal only the title and the detail of its problem document.
+//! caller. The caller's token goes in `Authorization` and nowhere else; a
+//! caller with no token sends no `Authorization`. A failure names the
+//! method, the URL with no query, the form of the credential and the
+//! status, and of a refusal only the title and the detail of its problem
+//! document.
 
 use std::fmt;
 
@@ -14,7 +16,7 @@ use crate::failure::{Step, fail, wrap};
 use crate::info::{ANSWER_MOST, ConnectInfo};
 use crate::service;
 use crate::settings::{Base, Settings};
-use crate::token::UserToken;
+use crate::token::{ConnectToken, Credential};
 
 /// The most characters of a refusal's words in a failure.
 const WORDS_MOST: usize = 200;
@@ -133,23 +135,30 @@ impl Management {
         )
     }
 
-    /// The request of the connect information of `locator` with the token
-    /// of `user`.
-    fn request(&self, locator: &Locator, user: &UserToken) -> Request {
-        Request::new("GET", self.url(locator))
-            .header("Authorization", user.header().as_str())
-            .header("Accept", "application/json")
-            .timeout(self.timeout)
-            .max_body(ANSWER_MOST)
+    /// The request of the connect information of `locator` with
+    /// `credential`.
+    fn request(&self, locator: &Locator, credential: &Credential) -> Request {
+        let request = Request::new("GET", self.url(locator));
+        let request = match credential.header() {
+            Some(value) => request.header("Authorization", value.as_str()),
+            None => request,
+        };
+        request.header("Accept", "application/json").timeout(self.timeout).max_body(ANSWER_MOST)
     }
 
     /// The connect information of the tunnel `locator`, with a fresh
-    /// connect token. A failure is of the step [`Step::Management`]; a
-    /// refused user token (401, 403) is [`Class::Refused`] and is not tried
-    /// again: the caller asks its user for a new one.
-    pub async fn connect_info(&self, locator: &Locator, user: &UserToken) -> Result<ConnectInfo, Failure> {
-        let request = self.request(locator, user);
-        let shown = format!("GET {}{}/{locator}", self.base.url_of(&self.base.host), service::tunnels_path());
+    /// connect token when the answer holds one. A failure is of the step
+    /// [`Step::Management`] and names the form of `credential`; a refusal
+    /// (401, 403) is [`Class::Refused`] and is not tried again: the caller
+    /// asks its user for a new token, or for one where it gave none.
+    pub async fn connect_info(&self, locator: &Locator, credential: &Credential) -> Result<ConnectInfo, Failure> {
+        let request = self.request(locator, credential);
+        let shown = format!(
+            "GET {}{}/{locator} with {}",
+            self.base.url_of(&self.base.host),
+            service::tunnels_path(),
+            credential.form()
+        );
         let answer = self.client.send(request).await.map_err(|e| wrap(Step::Management, &shown, e))?;
         if !answer.is_success() {
             let words = problem(&answer.body);
@@ -160,8 +169,37 @@ impl Management {
             };
             return Err(fail(Step::Management, class_of(answer.status), what));
         }
-        ConnectInfo::parse(&answer.body, service::token_scope())
+        relay_token(ConnectInfo::parse(&answer.body, service::token_scope())?, credential)
     }
+}
+
+/// The token of the relay for an answer with no connect token, by the form
+/// of the credential: a user token is refused (the user has no connect
+/// access); a tunnel access token goes to the relay itself, as the vendor's
+/// TypeScript client keeps the caller's token (`preserveAccessTokens`); with
+/// no token the upgrade carries none, as that client sends no
+/// `Authorization` with no token.
+fn relay_token(mut info: ConnectInfo, credential: &Credential) -> Result<ConnectInfo, Failure> {
+    if info.token().is_some() {
+        return Ok(info);
+    }
+    match credential {
+        Credential::User(_) => {
+            return Err(fail(
+                Step::Management,
+                Class::Refused,
+                format!(
+                    "the answer for {} to {} holds no token of the scope {:?}",
+                    info.tunnel.shown(),
+                    credential.form(),
+                    service::token_scope()
+                ),
+            ));
+        }
+        Credential::Access(access) => info.take_caller(ConnectToken::of_access(access)),
+        Credential::Anonymous => {}
+    }
+    Ok(info)
 }
 
 #[cfg(test)]
@@ -188,5 +226,24 @@ mod tests {
         assert_eq!(class_of(401), Class::Refused);
         assert_eq!(class_of(404), Class::NotFound);
         assert_eq!(class_of(502), Class::Unavailable);
+    }
+
+    #[test]
+    fn an_answer_with_no_connect_token_is_settled_by_the_form_of_the_credential() {
+        use crate::token::{AccessToken, Scheme, UserToken};
+        let body = br#"{"name":"a","endpoints":[
+            {"connectionMode":"TunnelRelay","hostId":"h1","clientRelayUri":"wss://relay.example/c"}]}"#;
+        let info = || ConnectInfo::parse(body, "connect").unwrap();
+        let user = Credential::User(UserToken::new(Scheme::Github, "made-up-user-token").unwrap());
+        let failure = relay_token(info(), &user).unwrap_err();
+        assert_eq!(failure.class, Class::Refused);
+        assert!(failure.chain().contains("to a GitHub user token holds no token"), "{}", failure.chain());
+        let access = Credential::Access(AccessToken::new("made-up-access-token").unwrap());
+        let given = relay_token(info(), &access).unwrap();
+        assert_eq!(given.token().unwrap().header().as_str(), "tunnel made-up-access-token");
+        assert_eq!(given.relay_form(), "the caller's tunnel access token");
+        let none = relay_token(info(), &Credential::Anonymous).unwrap();
+        assert!(none.token().is_none());
+        assert_eq!(none.relay_form(), "no token");
     }
 }

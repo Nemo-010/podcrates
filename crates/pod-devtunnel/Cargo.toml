@@ -55,3 +55,7 @@ required-features = ["standin"]
 [[test]]
 name = "secrets"
 required-features = ["standin"]
+
+[[test]]
+name = "credential"
+required-features = ["standin"]

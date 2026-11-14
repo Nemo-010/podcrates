@@ -5,10 +5,10 @@
 //! The reconnect: when the session is gone at the open of a stream (or the
 //! caller asks), the client ends the old session, which ends each stream
 //! of it with `ConnectionAborted`, and tries up to
-//! [`Settings::reconnect_tries`] times, each try with a fresh connect token
-//! from the management API, the waits of [`Settings::backoff`] between
-//! them. A refused user token or a tunnel that is gone ends the tries at
-//! once. A stream that the far end closed is not opened again: the crate
+//! [`Settings::reconnect_tries`] times, each try with fresh connect
+//! information from the management API, the waits of [`Settings::backoff`]
+//! between them. A refused credential or a tunnel that is gone ends the
+//! tries at once. A stream that the far end closed is not opened again: the crate
 //! opens a stream only when the caller asks.
 
 use std::fmt;
@@ -25,7 +25,7 @@ use crate::management::{Locator, Management};
 use crate::service;
 use crate::settings::{Settings, Way};
 use crate::stream::Stream;
-use crate::token::UserToken;
+use crate::token::Credential;
 
 /// The client of one tunnel through the relay.
 #[derive(Clone)]
@@ -38,7 +38,7 @@ struct Inner {
     way: Way,
     settings: Settings,
     locator: Locator,
-    user: UserToken,
+    credential: Credential,
     report: Report,
     live: Mutex<Option<Live>>,
     sessions: AtomicU64,
@@ -49,22 +49,23 @@ impl fmt::Debug for Relay {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Relay")
             .field("locator", &self.inner.locator)
-            .field("user", &self.inner.user)
+            .field("credential", &self.inner.credential)
             .field("sessions", &self.sessions())
             .finish_non_exhaustive()
     }
 }
 
 impl Relay {
-    /// Get the connect information of `locator` with the token of `user`,
-    /// and open the relay session: one try, whose failure names its step
-    /// (management, WebSocket, SSH). The lines go to the events of
-    /// `report`, with no token.
+    /// Get the connect information of `locator` with `credential` (a
+    /// [`crate::UserToken`], a [`crate::AccessToken`] or
+    /// [`Credential::Anonymous`]), and open the relay session: one try,
+    /// whose failure names its step (management, WebSocket, SSH). The lines
+    /// go to the events of `report`, with no token.
     pub async fn connect(
         way: Way,
         settings: Settings,
         locator: Locator,
-        user: UserToken,
+        credential: impl Into<Credential>,
         report: Report,
     ) -> Result<Relay, Failure> {
         let management = Management::new(way.http.clone(), &settings);
@@ -73,7 +74,7 @@ impl Relay {
             way,
             settings,
             locator,
-            user,
+            credential: credential.into(),
             report,
             live: Mutex::new(None),
             sessions: AtomicU64::new(0),
@@ -99,7 +100,7 @@ impl Relay {
     /// One try: fresh connect information, then a relay session.
     async fn try_once(&self) -> Result<Live, Failure> {
         let inner = &self.inner;
-        let info = inner.management.connect_info(&inner.locator, &inner.user).await?;
+        let info = inner.management.connect_info(&inner.locator, &inner.credential).await?;
         *inner.tunnel.lock().unwrap_or_else(|e| e.into_inner()) = info.tunnel.clone();
         let number = inner.sessions.load(Ordering::SeqCst) + 1;
         let live = live::open(&inner.way, &inner.settings, &info, number).await?;

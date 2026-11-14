@@ -1,7 +1,7 @@
 //! The connect information of a tunnel: the answer of the management API
 //! to a get of the tunnel with the scope `connect`. It gives the ids of the
 //! tunnel, the relay endpoint of each host (its client relay URI and its
-//! host keys) and the connect token. The bytes come from the network:
+//! host keys) and the connect token, if any. The bytes come from the network:
 //! [`ConnectInfo::parse`] bounds each part, and its failure quotes no byte
 //! of the answer, which holds a token.
 
@@ -68,13 +68,25 @@ impl fmt::Debug for Endpoint {
     }
 }
 
+/// The token that the relay takes, and where it comes from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Source {
+    /// The connect token of the answer.
+    Answer,
+    /// The caller's tunnel access token: the answer held none.
+    Caller,
+    /// No token: the answer held none, for a caller with no token.
+    None,
+}
+
 /// The connect information of a tunnel.
 #[derive(Clone)]
 pub struct ConnectInfo {
     pub tunnel: Tunnel,
     /// The relay endpoints, in the order of the answer.
     pub endpoints: Vec<Endpoint>,
-    token: ConnectToken,
+    token: Option<ConnectToken>,
+    source: Source,
 }
 
 impl fmt::Debug for ConnectInfo {
@@ -123,13 +135,14 @@ fn key(value: &str) -> bool {
 
 impl ConnectInfo {
     /// The connect information of `body`, an answer of the management API
-    /// to a get with the token scope `scope`. Each relay endpoint with a
+    /// to a get with the token scope `scope`, with its connect token if the
+    /// answer holds one. Each relay endpoint with a
     /// client relay URI that parses is kept; a `ws://` URI to a host that
     /// is not the loopback is not. A failure is of the step
     /// [`Step::Management`]: a body that is not the JSON of a tunnel is a
-    /// protocol failure, no connect token is a refusal (the user has no
-    /// connect access), no relay endpoint is an unavailable tunnel (no host
-    /// is connected).
+    /// protocol failure, no relay endpoint is an unavailable tunnel (no host
+    /// is connected). [`crate::Management::connect_info`] decides for each
+    /// form of credential what an answer with no connect token means.
     pub fn parse(body: &[u8], scope: &str) -> Result<ConnectInfo, Failure> {
         let protocol = |what: String| fail(Step::Management, Class::Protocol, what);
         if body.len() > ANSWER_MOST {
@@ -147,14 +160,8 @@ impl ConnectInfo {
         })?;
         let tunnel = Tunnel { cluster_id: id(raw.cluster_id), tunnel_id: id(raw.tunnel_id), name: id(raw.name) };
         let mut tokens = raw.access_tokens.unwrap_or_default();
-        let Some(token) = tokens.remove(scope) else {
-            return Err(fail(
-                Step::Management,
-                Class::Refused,
-                format!("the answer for {} holds no token of the scope {scope:?}", tunnel.shown()),
-            ));
-        };
-        let token = ConnectToken::new(token)?;
+        let token = tokens.remove(scope).map(ConnectToken::new).transpose()?;
+        let source = if token.is_some() { Source::Answer } else { Source::None };
         let mut endpoints = Vec::new();
         for raw in raw.endpoints.into_iter().take(ENDPOINTS_MOST) {
             if raw.connection_mode.as_deref() != Some(RELAY_MODE) {
@@ -178,12 +185,30 @@ impl ConnectInfo {
                 format!("{} has no relay endpoint: no host of the tunnel is connected", tunnel.shown()),
             ));
         }
-        Ok(ConnectInfo { tunnel, endpoints, token })
+        Ok(ConnectInfo { tunnel, endpoints, token, source })
     }
 
-    /// The connect token.
-    pub fn token(&self) -> &ConnectToken {
-        &self.token
+    /// The token that the relay takes: the connect token of the answer, or
+    /// the caller's tunnel access token when the answer held none. None for
+    /// an answer with no connect token to a caller with no token.
+    pub fn token(&self) -> Option<&ConnectToken> {
+        self.token.as_ref()
+    }
+
+    /// The caller's tunnel access token goes to the relay: the answer held
+    /// no connect token.
+    pub(crate) fn take_caller(&mut self, token: ConnectToken) {
+        self.token = Some(token);
+        self.source = Source::Caller;
+    }
+
+    /// The words of the token that the relay takes, for a failure.
+    pub(crate) fn relay_form(&self) -> &'static str {
+        match self.source {
+            Source::Answer => "the connect token of the answer",
+            Source::Caller => "the caller's tunnel access token",
+            Source::None => "no token",
+        }
     }
 }
 
@@ -216,8 +241,11 @@ mod tests {
 
     #[test]
     fn an_answer_with_no_token_or_no_relay_is_named() {
-        let no_token = r#"{"name":"a","endpoints":[]}"#;
-        assert_eq!(ConnectInfo::parse(no_token.as_bytes(), "connect").unwrap_err().class, Class::Refused);
+        let no_token = r#"{"name":"a","accessTokens":{"manage":"t"},"endpoints":[
+            {"connectionMode":"TunnelRelay","hostId":"h1","clientRelayUri":"wss://relay.example/c"}]}"#;
+        let info = ConnectInfo::parse(no_token.as_bytes(), "connect").unwrap();
+        assert!(info.token().is_none());
+        assert_eq!(info.relay_form(), "no token");
         let no_relay = r#"{"name":"a","accessTokens":{"connect":"t"},"endpoints":[]}"#;
         let failure = ConnectInfo::parse(no_relay.as_bytes(), "connect").unwrap_err();
         assert_eq!(failure.class, Class::Unavailable);
