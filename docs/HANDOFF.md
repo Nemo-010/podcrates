@@ -19,12 +19,12 @@ is done. Git and the record keep finished work.
 
 ## In flight
 
-- The last release: `v0.45.0` at `ad50c7f` (ci 43606425054, adoption
-  43606425009, release 43608003241; the hand-off #157, COORD-097): the new
-  crates `pod-udf` and `pod-qga`, `pod-guest` for podvm's Windows guest,
-  the fix of a credential leak of `pod-proxy` (T-612), the rest of podvm's
-  QA defects. Each consumer took it (#157, closed): podrunner `5096a3b`,
-  podvm `4a02d45e`, podnet `e84ebdf`, podssh `16d53cb`.
+- The last release: `v0.46.0` at `d60f811` (ci 43625648359, adoption
+  43625648382, release 43627335599; the hand-off #159, COORD-099): the
+  warm start and the emulator guard of `pod-guest`, the S3 carrier and
+  the split session of `pod-link`. podnet answers a question on E7-1
+  there (call C493). `v0.45.0` at `ad50c7f`: each consumer took it (#157,
+  closed).
 - Each branch of an agent is merged; no agent runs. The owner reserves
   the names `pod-actions-store`, `pod-actions-results`, `pod-udf` and
   `pod-qga` on crates.io ("Owner actions" of `TODO/PROGRESS.md`).
