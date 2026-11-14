@@ -35,79 +35,8 @@
 //! `*at` forms, get that list wrong in either direction and the build fails
 //! rather than measuring something nobody named.
 
-/// A kernel error number. Never a boolean: `EINVAL` from `setuid` or `chown` means an unmapped id and points at a
-/// mapping, while `EPERM` points at a policy, and they are different remedies.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Errno(pub i32);
-
-impl Errno {
-    /// The symbolic name, or `E<n>` where this table does not carry one.
-    ///
-    /// `E<n>` is a statement that the number was measured and the name is
-    /// not known here, not a guess at which errno it was.
-    pub fn name(self) -> String {
-        let n = match self.0 {
-            1 => "EPERM",
-            2 => "ENOENT",
-            3 => "ESRCH",
-            4 => "EINTR",
-            5 => "EIO",
-            7 => "E2BIG",
-            9 => "EBADF",
-            11 => "EAGAIN",
-            12 => "ENOMEM",
-            13 => "EACCES",
-            14 => "EFAULT",
-            16 => "EBUSY",
-            17 => "EEXIST",
-            18 => "EXDEV",
-            19 => "ENODEV",
-            20 => "ENOTDIR",
-            21 => "EISDIR",
-            22 => "EINVAL",
-            24 => "EMFILE",
-            26 => "ETXTBSY",
-            28 => "ENOSPC",
-            30 => "EROFS",
-            36 => "ENAMETOOLONG",
-            38 => "ENOSYS",
-            39 => "ENOTEMPTY",
-            40 => "ELOOP",
-            95 => "EOPNOTSUPP",
-            _ => return format!("E{}", self.0),
-        };
-        n.to_string()
-    }
-}
-
-pub const EPERM: Errno = Errno(1);
-pub const ENOENT: Errno = Errno(2);
-pub const ESRCH: Errno = Errno(3);
-/// `ECHILD`: `wait4` has no child to wait for, alive or ended.
-pub const ECHILD: Errno = Errno(10);
-pub const EINTR: Errno = Errno(4);
-pub const EIO: Errno = Errno(5);
-/// `E2BIG`: `openat2(2)` gives it for a `struct open_how` that the kernel
-/// does not know.
-pub const E2BIG: Errno = Errno(7);
-pub const EBADF: Errno = Errno(9);
-pub const EACCES: Errno = Errno(13);
-pub const EEXIST: Errno = Errno(17);
-/// `EXDEV`, cross-device link: the number the (d,i) guard reports under,
-/// because a chroot that landed off its descriptor is on the wrong device
-/// or the wrong file.
-pub const EXDEV: Errno = Errno(18);
-pub const ENOTDIR: Errno = Errno(20);
-pub const EISDIR: Errno = Errno(21);
-pub const EINVAL: Errno = Errno(22);
-pub const ENOSYS: Errno = Errno(38);
-pub const ENAMETOOLONG: Errno = Errno(36);
-/// `ELOOP`: the refusal of `O_NOFOLLOW` and of `RESOLVE_NO_SYMLINKS`.
-pub const ELOOP: Errno = Errno(40);
-/// On Linux `EAGAIN` and `EWOULDBLOCK` are the same number, and `flock` with
-/// `LOCK_NB` returns it for "somebody else holds this". It is named here for
-/// the reader, because "try again later" and "in use" are different sentences.
-pub const EWOULDBLOCK: Errno = Errno(11);
+mod numbers;
+pub use numbers::*;
 
 pub type Sysres = Result<i64, Errno>;
 
@@ -407,44 +336,6 @@ pub const S_IFIFO: u64 = 0o0010000;
 /// `makedev(0, 0)`, which is `WHITEOUT_DEV` and is exempt from the capability
 /// check. The census probes that pair.
 pub const DEV_1_3: u64 = 0x103;
-
-pub const O_RDONLY: u64 = 0;
-pub const O_WRONLY: u64 = 1;
-pub const O_RDWR: u64 = 2;
-pub const O_CREAT: u64 = 0o100;
-/// Every scratch file a probe makes is created with this. A probe that
-/// overwrites whatever is in its way has destroyed data to measure a
-/// permission, and the errno it then reports is about its own file.
-pub const O_EXCL: u64 = 0o200;
-/// Every probe that opens a terminal-shaped device passes this. Without it
-/// an `open` of a tty can make it the prober's controlling terminal, which is
-/// a mutation of the process doing the measuring.
-pub const O_NOCTTY: u64 = 0o400;
-/// The kernel's value differs by architecture: arm, aarch64 and powerpc
-/// use 0o40000, the others 0o200000.
-#[cfg(any(target_arch = "arm", target_arch = "aarch64", target_arch = "powerpc64", target_arch = "powerpc"))]
-pub const O_DIRECTORY: u64 = 0o40000;
-#[cfg(not(any(target_arch = "arm", target_arch = "aarch64", target_arch = "powerpc64", target_arch = "powerpc")))]
-pub const O_DIRECTORY: u64 = 0o200000;
-pub const O_CLOEXEC: u64 = 0o2000000;
-pub const O_TRUNC: u64 = 0o1000;
-/// The one flag that makes an `open` of a path component a statement about
-/// that component rather than about wherever a symlink pointed. Every directory
-/// descent of an extraction carries it.
-#[cfg(any(target_arch = "arm", target_arch = "aarch64", target_arch = "powerpc64", target_arch = "powerpc"))]
-pub const O_NOFOLLOW: u64 = 0o100000;
-/// See [`O_DIRECTORY`]: the value follows the architecture.
-#[cfg(not(any(target_arch = "arm", target_arch = "aarch64", target_arch = "powerpc64", target_arch = "powerpc")))]
-pub const O_NOFOLLOW: u64 = 0o400000;
-pub const O_PATH: u64 = 0o10000000;
-/// An open that does not wait: a fifo with no writer, or a device that
-/// waits for a carrier, gives the descriptor at once. The value is
-/// 0o200 on mips and 0o4000 on the other targets.
-#[cfg(any(target_arch = "mips", target_arch = "mips64"))]
-pub const O_NONBLOCK: u64 = 0o200;
-/// See [`O_NONBLOCK`]: the value follows the architecture.
-#[cfg(not(any(target_arch = "mips", target_arch = "mips64")))]
-pub const O_NONBLOCK: u64 = 0o4000;
 
 /// `openat2(2)`'s `struct open_how`. Three `u64`s, in this order, and the
 /// kernel is told the size so it can reject a struct it does not know.

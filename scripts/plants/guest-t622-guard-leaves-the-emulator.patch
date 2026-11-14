@@ -1,0 +1,15 @@
+diff --git a/crates/pod-guest/src/emulator.rs b/crates/pod-guest/src/emulator.rs
+index a81a00d..16f12b4 100644
+--- a/crates/pod-guest/src/emulator.rs
++++ b/crates/pod-guest/src/emulator.rs
+@@ -89,9 +89,7 @@ impl<'a> Running<'a> {
+ 
+ impl Drop for Running<'_> {
+     fn drop(&mut self) {
+-        if let Some(mut child) = self.child.take() {
+-            let _ = stop_reaped(self.plan, &mut child);
+-        }
++        let _ = self.child.take();
+     }
+ }
+ 

@@ -243,15 +243,13 @@ fn load_from(s: &Settings, qemu_img: &Path, plan: &Plan, request: &Request, warm
     std::fs::write(&plan.mailbox, m.image()).map_err(|e| io_at(&plan.mailbox, e))?;
     copy(&dir.join(VARS), &plan.firmware_vars)?;
     let log = emulator::emulator_log(s, plan);
-    let mut child = emulator::spawn_emulator(plan, &args, log_stream(s, plan)?)?;
-    match load(plan, &mut child, warm.wait) {
-        Ok(()) => Ok(child),
+    let mut running = emulator::Running::new(plan, emulator::spawn_emulator(plan, &args, log_stream(s, plan)?)?);
+    match load(plan, running.child(), warm.wait) {
+        Ok(()) => Ok(running.into_child()),
         Err(e) => {
-            // An emulator that exited is reaped: a signal could reach
-            // another process with its pid.
-            if !matches!(child.try_wait(), Ok(Some(_))) {
-                emulator::stop_emulator(plan, &mut child);
-            }
+            // The stop comes before the log is read. An emulator that
+            // exited is reaped and gets no signal.
+            drop(running);
             let tail = log.as_deref().map(emulator::log_tail).unwrap_or_default();
             Err(failure(e.class, format!("{e}{tail}")))
         }

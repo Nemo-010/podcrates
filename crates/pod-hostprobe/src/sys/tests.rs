@@ -310,8 +310,37 @@ fn the_open_flags_mean_what_the_kernel_means_on_each_target() {
 
     let fd = open(&path("d"), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0).expect("a directory opens");
     let _ = close(fd as i64);
-    assert_eq!(open(&path("f"), O_RDONLY | O_DIRECTORY, 0).unwrap_err(), Errno(20), "O_DIRECTORY refuses a file");
-    assert_eq!(open(&path("l"), O_RDONLY | O_NOFOLLOW, 0).unwrap_err(), Errno(40), "O_NOFOLLOW refuses a link");
+    assert_eq!(open(&path("f"), O_RDONLY | O_DIRECTORY, 0).unwrap_err(), ENOTDIR, "O_DIRECTORY refuses a file");
+    assert_eq!(open(&path("l"), O_RDONLY | O_NOFOLLOW, 0).unwrap_err(), ELOOP, "O_NOFOLLOW refuses a link");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The creation flags and the errno numbers are numbers of the kernel that
+/// differ by architecture (mips, sparc). The kernel says what each flag does
+/// and which number each refusal has; the constants must agree.
+#[test]
+fn the_creation_flags_and_the_errno_numbers_are_the_kernels() {
+    let dir = std::env::temp_dir().join(format!("pod-hostprobe-create-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("f"), b"data").unwrap();
+    let path = |n: &str| CBuf::new(dir.join(n).to_str().unwrap()).unwrap();
+    let make = O_WRONLY | O_CREAT | O_EXCL | O_NOCTTY | O_CLOEXEC;
+
+    assert_eq!(open(&path("f"), make, 0o600).err(), Some(EEXIST), "O_CREAT | O_EXCL refuses a file that is there");
+    let fd = open(&path("new"), make, 0o600).expect("O_CREAT | O_EXCL makes a new file");
+    let _ = close(fd);
+    assert!(dir.join("new").is_file(), "O_CREAT made no file");
+    let fd = open(&path("f"), O_WRONLY | O_TRUNC | O_CLOEXEC, 0).expect("a file opens to write");
+    let _ = close(fd);
+    assert_eq!(std::fs::metadata(dir.join("f")).unwrap().len(), 0, "O_TRUNC did not empty the file");
+    assert_eq!(open(&path("missing"), O_RDONLY, 0).unwrap_err(), ENOENT);
+    let long = open(&path(&"n".repeat(300)), O_RDONLY, 0).unwrap_err();
+    assert_eq!(long, ENAMETOOLONG, "a name of 300 bytes is {}", long.name());
+    assert_eq!(
+        (ENAMETOOLONG.name(), ELOOP.name(), ENOSYS.name()),
+        ("ENAMETOOLONG".into(), "ELOOP".into(), "ENOSYS".into())
+    );
     let _ = std::fs::remove_dir_all(&dir);
 }
 

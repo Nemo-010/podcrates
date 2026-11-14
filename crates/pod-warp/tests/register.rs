@@ -21,10 +21,7 @@ fn answering(status: u16) -> String {
 
 /// A base where nothing listens.
 fn dead_base() -> String {
-    let dead = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let base = format!("http://{}", dead.local_addr().unwrap());
-    drop(dead);
-    base
+    format!("http://{}", common::dead())
 }
 
 /// The stand-in API and its base.

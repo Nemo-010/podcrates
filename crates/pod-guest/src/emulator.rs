@@ -56,6 +56,55 @@ pub(crate) fn spawn_uefi(plan: &Plan, stderr: Stdio) -> Result<Child> {
     spawn_emulator(plan, &crate::argv(plan), stderr)
 }
 
+/// An emulator that this crate started, stopped when the value is dropped
+/// ([`stop_emulator`]): each early return after the spawn stops it, so
+/// that no emulator stays after a failed run. A caller that keeps the
+/// emulator takes it out ([`Running::into_child`]).
+pub(crate) struct Running<'a> {
+    plan: &'a Plan,
+    child: Option<Child>,
+}
+
+impl<'a> Running<'a> {
+    pub(crate) fn new(plan: &'a Plan, child: Child) -> Running<'a> {
+        Running { plan, child: Some(child) }
+    }
+
+    /// The child, for a wait or a poll.
+    pub(crate) fn child(&mut self) -> &mut Child {
+        self.child.as_mut().expect("the child stays until the value ends")
+    }
+
+    /// The child, which the caller now stops.
+    pub(crate) fn into_child(mut self) -> Child {
+        self.child.take().expect("the child stays until the value ends")
+    }
+
+    /// Stop the emulator now, and report what was seen.
+    pub(crate) fn stop(mut self) -> Stop {
+        let mut child = self.child.take().expect("the child stays until the value ends");
+        stop_reaped(self.plan, &mut child)
+    }
+}
+
+impl Drop for Running<'_> {
+    fn drop(&mut self) {
+        if let Some(mut child) = self.child.take() {
+            let _ = stop_reaped(self.plan, &mut child);
+        }
+    }
+}
+
+/// [`stop_emulator`] for an emulator that did not exit. An emulator that
+/// exited and was reaped gets no signal: the kernel can give its pid to
+/// another process.
+fn stop_reaped(plan: &Plan, child: &mut Child) -> Stop {
+    match child.try_wait() {
+        Ok(Some(_)) => Stop::Confirmed { pid: child.id() },
+        _ => stop_emulator(plan, child),
+    }
+}
+
 /// The bound of the wait for a killed emulator. The kernel reaps a killed
 /// process when it has torn it down, so the wait usually ends at once.
 pub const STOP_WAIT: Duration = Duration::from_secs(5);

@@ -1,6 +1,6 @@
 //! The helpers of the loopback tests: the HTTP client of a caller, a dial
-//! that moves the doors of a record to the loopback, the settings, and a
-//! scratch directory.
+//! that moves the doors of a record to the loopback, the settings, a
+//! scratch directory, a port that refuses, and an accept that does not end.
 
 #![allow(dead_code)]
 
@@ -8,7 +8,7 @@ pub mod edge;
 
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use pod_core::{BoxFuture, Class, Connected, Dial, Event, Events, Failure, Observer, Report, Stage, Target};
 use pod_proxy::resolve::System;
@@ -118,4 +118,30 @@ pub fn scratch(tag: &str) -> std::path::PathBuf {
 /// The class of a failure, for an assertion.
 pub fn class(f: &Failure) -> Class {
     f.class
+}
+
+/// A port of the loopback where nothing listens. A socket bound with no
+/// listen holds the port until the test binary ends: a connection to it is
+/// refused, and no listener of another test takes the port. A port freed
+/// at once can go to the edge of another test, whose other key sends the
+/// session into the read of the record again.
+pub fn dead() -> SocketAddr {
+    static HELD: Mutex<Vec<tokio::net::TcpSocket>> = Mutex::new(Vec::new());
+    let socket = tokio::net::TcpSocket::new_v4().unwrap();
+    socket.bind(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0)).unwrap();
+    let addr = socket.local_addr().unwrap();
+    HELD.lock().unwrap_or_else(PoisonError::into_inner).push(socket);
+    addr
+}
+
+/// The next connection of `listener`. A failed accept (a connection reset
+/// before the accept, no free descriptor for a moment) does not end the
+/// listener: a later dial to it would be refused.
+pub async fn accept(listener: &tokio::net::TcpListener) -> tokio::net::TcpStream {
+    loop {
+        match listener.accept().await {
+            Ok((tcp, _)) => return tcp,
+            Err(_) => tokio::time::sleep(std::time::Duration::from_millis(10)).await,
+        }
+    }
 }

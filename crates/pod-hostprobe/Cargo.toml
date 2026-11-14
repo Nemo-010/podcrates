@@ -10,9 +10,10 @@ repository.workspace = true
 # Linux only: on another target the crate is empty.
 [target.'cfg(target_os = "linux")'.dependencies]
 pod-core = { workspace = true }
-# The layouts of the structs of the kernel and, on the architectures that
-# syscalls does not build for, the numbers of the calls.
-linux-raw-sys = { workspace = true }
+# The layouts of the structs of the kernel, the errno numbers, the open
+# flags and, on the architectures that syscalls does not build for, the
+# numbers of the calls.
+linux-raw-sys = { workspace = true, features = ["errno"] }
 # The JSON object of the module `report`, behind the feature `report`.
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }

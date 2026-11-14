@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**507 entries: 116 open, 8 partial, 6 blocked, 377 done.**
+**507 entries: 113 open, 8 partial, 6 blocked, 380 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 12 | 3 | 0 | 101 | 116 |
-| P2 | 53 | 2 | 4 | 203 | 262 |
-| P3 | 51 | 3 | 2 | 71 | 127 |
-| **All** | 116 | 8 | 6 | 377 | 507 |
+| P1 | 11 | 3 | 0 | 102 | 116 |
+| P2 | 52 | 2 | 4 | 204 | 262 |
+| P3 | 50 | 3 | 2 | 72 | 127 |
+| **All** | 113 | 8 | 6 | 380 | 507 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -549,8 +549,8 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-616](podvm.md) | P2 | S | M6 | defect | done | `pod-supervise`: the thread of the foreground hold blocks the shutdown signals |
 | [T-617](podvm.md) | P3 | M | M7 | feature | blocked | `pod-guest`: an NTFS and hive writer for an offline setup of a Windows guest |
 | [T-618](podvm.md) | P3 | S | M6 | defect | done | `pod-hostprobe`: the signal calls on mips and mips64 |
-| [T-619](podvm.md) | P3 | S | M6 | defect | open | `pod-hostprobe`: the open flags and the errno numbers of mips and sparc |
+| [T-619](podvm.md) | P3 | S | M6 | defect | done | `pod-hostprobe`: the open flags and the errno numbers of mips and sparc |
 | [T-620](podvm.md) | P3 | S | M7 | chore | open | `pod-udf`: a live test against a Windows ISO by Range requests |
-| [T-621](upkeep.md) | P2 | S | M5 | defect | open | `pod-warp`: the test `a_close_by_the_caller_fails_the_flows_of_the_session` fails at times with a refused connection to the edge stand-in |
-| [T-622](podvm.md) | P1 | S | M7 | defect | open | `pod-guest`: the provision stops the emulator on each error after the spawn (PodUtils/podvm#370) |
+| [T-621](upkeep.md) | P2 | S | M5 | defect | done | `pod-warp`: the test `a_close_by_the_caller_fails_the_flows_of_the_session` fails at times with a refused connection to the edge stand-in |
+| [T-622](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: the provision stops the emulator on each error after the spawn (PodUtils/podvm#370) |
 | [T-623](relay.md) | P2 | S | M2 | chore | open | `pod-link`: the S3 carrier against a real S3-compatible server |

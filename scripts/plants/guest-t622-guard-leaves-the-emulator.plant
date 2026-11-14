@@ -1,0 +1,8 @@
+# The guard of a running emulator drops the child with no stop, so a
+# provision whose keys fail leaves the emulator running (T-622,
+# PodUtils/podvm#370). The test of the provision must fail.
+ENTRY=T-622
+GROUP=guest
+EXPECT='an emulator stays after a provision whose keys failed'
+RUN='cargo test -p pod-guest --all-features --lib -- provision::tests::a_provision_whose_keys_fail_leaves_no_emulator --exact'
+LIMIT=1800

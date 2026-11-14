@@ -240,7 +240,8 @@ impl Edge {
         let sessions = Arc::new(Mutex::new(Vec::new()));
         let served = sessions.clone();
         let task = tokio::spawn(async move {
-            while let Ok((tcp, _)) = listener.accept().await {
+            loop {
+                let tcp = super::accept(&listener).await;
                 let (acceptor, routes, seen) = (acceptor.clone(), routes.clone(), counted.clone());
                 let watch = watched.clone();
                 let Ok(tcp) = tcp.into_std() else { continue };
@@ -472,7 +473,8 @@ pub async fn echo_server() -> SocketAddr {
     let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
-        while let Ok((mut tcp, _)) = listener.accept().await {
+        loop {
+            let mut tcp = super::accept(&listener).await;
             tokio::spawn(async move {
                 let (mut read, mut write) = tcp.split();
                 let _ = tokio::io::copy(&mut read, &mut write).await;

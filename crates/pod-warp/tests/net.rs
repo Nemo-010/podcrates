@@ -13,6 +13,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
+use common::dead;
 use common::edge::{self, Edge, Route};
 use pod_core::{Class, Dial, Stage, Target};
 use pod_testkit::stand;
@@ -39,12 +40,6 @@ async fn world(v4_to: SocketAddr) -> (stand::warp::Api, stand::Stand, Edge, Arc<
     let served = stand::http(api.handler()).unwrap();
     let moved = common::Moved::new(vec![(edge::door_v4(), v4_to), (edge::door_v6(), edge.addr)]);
     (api, served, edge, moved)
-}
-
-/// A port of the loopback where nothing listens.
-fn dead() -> SocketAddr {
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    listener.local_addr().unwrap()
 }
 
 async fn echo_through(net: &pod_warp::WarpNet, target: &Target) -> SocketAddr {

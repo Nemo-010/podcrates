@@ -73,7 +73,8 @@ async fn dot_server() -> (SocketAddr, Arc<rustls::ClientConfig>) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     tokio::spawn(async move {
-        while let Ok((tcp, _)) = listener.accept().await {
+        loop {
+            let tcp = common::accept(&listener).await;
             let acceptor = acceptor.clone();
             tokio::spawn(async move {
                 let Ok(mut tls) = acceptor.accept(tcp).await else { return };

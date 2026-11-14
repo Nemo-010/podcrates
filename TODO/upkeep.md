@@ -1718,7 +1718,7 @@ runner.
 **Milestone:** M5
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1737,3 +1737,24 @@ Find why the stand-in refused: a listener that is bound after `world()` returns,
 ```sh
 cargo test -p pod-warp --all-features --test net
 ```
+
+## Done
+
+2026-11-14, commit d463022. The cause was not a late bind: `dead()` freed
+the port of the IPv4 door at once. Another test's edge took that port, so
+the first dial reached an edge whose key is not the pinned key; the client
+read the record again and dialed the IPv4 door again, and that edge had
+ended by then: `Connection refused`, with no word of the IPv6 door. A
+test of the binary with that dial gave the same `Failure` word for word
+(not kept). `common::dead()` now binds a socket with no listen and holds
+it until the test binary ends (`net.rs`, `leg.rs`, `register.rs`). Each
+accept loop of the stand-ins goes on after a failed accept
+(`common::accept`: the edge, its echo server, and the TLS stand-ins of
+`proxy.rs` and `live_session.rs`), so that a listener stays for the life
+of the test. Call C520.
+
+The binary of `--test net` passed 50 runs of 50 beside `cargo clippy` of
+`pod-guest` and `pod-hostprobe`, and 50 of 50 again with each run beside
+`cargo clippy -p pod-warp`. `cargo test -p pod-warp --all-features`
+passed. No plant: the change is a fix of the tests and not of a
+behaviour.

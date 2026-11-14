@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 507 entries: 116 open, 8 partial, 6 blocked, 377 done.
+`TODO/INDEX.md` holds 507 entries: 113 open, 8 partial, 6 blocked, 380 done.
 
 ## State
 
@@ -72,7 +72,7 @@ online"): the work for podrunner and podnet comes first, then podssh and
 podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
-First: T-622 (PodUtils/podvm#370, #158) and the next tag (`v0.46.0`).
+First: the next tag (`v0.46.0`), with T-622 (PodUtils/podvm#370, #158).
 The Windows guest of podvm (#152): T-602. Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
 

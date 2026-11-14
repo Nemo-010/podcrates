@@ -7799,7 +7799,7 @@ hand: `hostprobe-t618-mask-not-the-kernels-size`,
 **Milestone:** M6
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7818,6 +7818,26 @@ Take the open flags and the errno numbers from `linux_raw_sys::general` and `lin
 ```sh
 cargo test -p pod-hostprobe --all-features
 ```
+
+## Done
+
+2026-11-14, commit 8634ee5. The errno numbers, `Errno::name` and the open
+flags (`O_RDONLY` to `O_NONBLOCK`) come from `linux_raw_sys::errno` and
+`linux_raw_sys::general` in the new module `sys/numbers.rs`; the `cfg`
+tables of `O_DIRECTORY`, `O_NOFOLLOW` and `O_NONBLOCK` go. Found and fixed
+in place: `Errno::name` had no `ECHILD`. A `const` assertion checks the
+values of mips and sparc. The module alone passed `cargo clippy
+-Zbuild-std -- -D warnings` (with `RUSTC_BOOTSTRAP=1` and `rust-src`) for
+`mips64-unknown-linux-gnuabi64`, `mips-unknown-linux-gnu`,
+`sparc64-unknown-linux-gnu` and `x86_64-unknown-linux-gnu`; a wrong
+assertion failed for mips64 and sparc64. Call C521.
+
+`cargo test -p pod-hostprobe --all-features`: 138 unit tests passed (new:
+`the_creation_flags_and_the_errno_numbers_are_the_kernels`; the test of
+the open flags now compares with `ENOTDIR` and `ELOOP`); the crates that
+use `pod-hostprobe` passed `cargo check --all-targets`. Plants, each
+caught by hand: `hostprobe-t619-o-excl-of-another-target`,
+`hostprobe-t619-errno-of-another-target`.
 
 # T-620: `pod-udf`: a live test against a Windows ISO by Range requests
 
@@ -7853,7 +7873,7 @@ cargo test -p pod-udf --all-features -- --ignored
 **Milestone:** M7
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7872,3 +7892,17 @@ A guard that owns the child after the spawn and stops the emulator on drop (`sto
 ```sh
 cargo test -p pod-guest --all-features
 ```
+
+## Done
+
+2026-11-14, commit 3a4e26c. `emulator::Running` holds a spawned emulator
+and stops it on drop (`stop_emulator`), unless it exited and was reaped.
+`provision`, `run` and the warm restore use it; the warm restore takes the
+child out on success. Found and fixed in place: a failed `try_wait` in
+the wait loops of `provision` and `run` also left the emulator running.
+`dos::run` stopped the emulator on each failure already. Call C522.
+
+`cargo test -p pod-guest --all-features`: 148 unit tests passed (new:
+`provision::tests::a_provision_whose_keys_fail_leaves_no_emulator`, a
+stand-in emulator and a QMP stand-in that refuses each `send-key`). Plant,
+caught by hand: `guest-t622-guard-leaves-the-emulator`.

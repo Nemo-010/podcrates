@@ -1,0 +1,13 @@
+diff --git a/crates/pod-hostprobe/src/sys/numbers.rs b/crates/pod-hostprobe/src/sys/numbers.rs
+index 6262900..026ff1f 100644
+--- a/crates/pod-hostprobe/src/sys/numbers.rs
++++ b/crates/pod-hostprobe/src/sys/numbers.rs
+@@ -98,7 +98,7 @@ pub const O_CREAT: u64 = g::O_CREAT as u64;
+ /// Every scratch file a probe makes is created with this. A probe that
+ /// overwrites whatever is in its way has destroyed data to measure a
+ /// permission, and the errno it then reports is about its own file.
+-pub const O_EXCL: u64 = g::O_EXCL as u64;
++pub const O_EXCL: u64 = 0x400;
+ /// Every probe that opens a terminal-shaped device passes this. Without it
+ /// an `open` of a tty can make it the prober's controlling terminal, which is
+ /// a mutation of the process doing the measuring.

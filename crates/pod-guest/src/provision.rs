@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use pod_core::Class;
 
 use crate::ready::{self, Ready};
-use crate::{Fat16, Plan, Result, Settings, Stop, agent, convert_argv, emulator, failure, io_at, overlay_argv, qmp};
+use crate::{Fat16, Plan, Result, Settings, agent, convert_argv, emulator, failure, io_at, overlay_argv, qmp};
 
 /// Provision a new image: boot it one time and type the installer into its
 /// console, as the agent must exist before a task can start it. Returns the
@@ -18,8 +18,9 @@ use crate::{Fat16, Plan, Result, Settings, Stop, agent, convert_argv, emulator, 
 /// for an image with no agent yet, a screen that settles,
 /// [`crate::ready::Ready::screen`]). An emulator that exits first, or no
 /// ready guest within the deadline, is a failure with the cause
-/// [`crate::ready::Unready`], and the emulator is stopped. `wait` bounds the
-/// power-off after the keys.
+/// [`crate::ready::Unready`]. Each failure after the spawn stops the
+/// emulator, also a failure of the keys. `wait` bounds the power-off after
+/// the keys.
 ///
 /// This is the only step that uses the console, one time for each base
 /// image. Each later run uses the mailbox. The typed line scans the drive
@@ -52,17 +53,12 @@ pub fn provision(
         let _ = std::fs::remove_file(out);
     }
     emulator::run_steps(&overlay_argv(qemu_img, base, &plan.root))?;
-    let mut child = emulator::spawn_uefi(plan, Stdio::null())?;
+    // From here each failure stops the emulator: the guard does it when it
+    // is dropped (PodUtils/podvm#370).
+    let mut running = emulator::Running::new(plan, emulator::spawn_uefi(plan, Stdio::null())?);
     // The shell must finish its boot first: keys typed into a boot screen
     // go nowhere.
-    if let Err(e) = ready::wait(plan, &mut child, ready) {
-        // An emulator that exited is reaped: a signal could reach another
-        // process with its pid.
-        if !matches!(ready::unready(&e), Some(ready::Unready::Exited { .. })) {
-            emulator::stop_emulator(plan, &mut child);
-        }
-        return Err(e);
-    }
+    ready::wait(plan, running.child(), ready)?;
     type_into_console(
         plan,
         "for %d in (D E F G H I J K L M N O P Q R S T U V W X Y Z) do @if exist %d:\\WQMARK.TXT %d:\\WA.CMD",
@@ -71,10 +67,8 @@ pub fn provision(
     // writes before it powers off. The read below is safe only after the
     // emulator exits.
     let start = Instant::now();
-    let mut exited = false;
     while start.elapsed() < wait {
-        if child.try_wait().map_err(|e| io_at(&plan.emulator, e))?.is_some() {
-            exited = true;
+        if running.child().try_wait().map_err(|e| io_at(&plan.emulator, e))?.is_some() {
             break;
         }
         std::thread::sleep(Duration::from_millis(500));
@@ -82,7 +76,7 @@ pub fn provision(
     // The signal is only for an emulator that lived past its wait. The
     // `try_wait` above reaped a child that exited, and the kernel can give
     // its pid to another process.
-    let _stop = if exited { Stop::Confirmed { pid: child.id() } } else { emulator::stop_emulator(plan, &mut child) };
+    let _stop = running.stop();
     // The convert comes after the emulator is gone and before the report. A
     // convert that fails is a failure that names the program and its
     // stderr, so that no half-written `out` reads as a provisioned image.
@@ -112,3 +106,6 @@ fn type_into_console(plan: &Plan, text: &str) -> Result<()> {
     std::thread::sleep(Duration::from_millis(500));
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;
