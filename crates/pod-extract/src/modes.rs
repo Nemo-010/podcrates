@@ -15,6 +15,7 @@ use crate::error::{self, Result};
 use crate::remove::Op;
 use crate::safety::{self, Dir};
 use crate::sidecar::Sidecar;
+use crate::tree::Walk;
 
 /// The mode of the image of each directory entry of the extraction, by its
 /// path. The last layer that names a directory wins: a later layer can name
@@ -121,30 +122,35 @@ impl DirModes {
 /// after the last layer sets the mode of the image.
 ///
 /// Each directory opens with `O_NOFOLLOW`, as the removal opens one:
-/// a symlink of the old tree is not followed out of it.
+/// a symlink of the old tree is not followed out of it. The walk holds one
+/// directory open at a time ([`crate::tree`]), and a tree deeper than
+/// [`crate::tree::MAX_DEPTH`] is refused with the cause
+/// [`crate::tree::TooDeep`].
 pub fn open_tree(root: &Dir) -> Result<u64> {
-    let mut changed = 0;
-    open_below(root.fd(), &mut changed);
-    Ok(changed)
+    open_tree_to(root, crate::tree::MAX_DEPTH)
 }
 
-fn open_below(fd: i64, changed: &mut u64) {
-    for e in sys::getdents64(fd).unwrap_or_default() {
+/// [`open_tree`] with the depth limit as a parameter, for the tests.
+pub(crate) fn open_tree_to(root: &Dir, limit: usize) -> Result<u64> {
+    let mut changed = 0;
+    let mut w = Walk::of(root.fd(), limit)?;
+    loop {
+        let Some(e) = w.next() else {
+            if w.at_start() {
+                return Ok(changed);
+            }
+            w.ascend()?;
+            continue;
+        };
         if e.d_type != sys::DT_DIR && e.d_type != sys::DT_UNKNOWN {
             continue;
         }
-        let Some(n) = sys::CBuf::new(&String::from_utf8_lossy(&e.name)) else {
-            continue;
-        };
-        let before = sys::fstatat(fd, &n, sys::AT_SYMLINK_NOFOLLOW).map(|st| st.st_mode & 0o7777);
-        let Some(child) = crate::remove::open_closed(fd, &n) else {
-            continue;
-        };
-        if before.is_ok_and(|m| m & 0o700 != 0o700) {
-            *changed += 1;
+        let before = sys::CBuf::from_bytes(&e.name)
+            .and_then(|n| sys::fstatat(w.fd(), &n, sys::AT_SYMLINK_NOFOLLOW).ok())
+            .map(|st| st.st_mode & 0o7777);
+        if w.descend(&e.name, crate::remove::open_closed)? && before.is_some_and(|m| m & 0o700 != 0o700) {
+            changed += 1;
         }
-        open_below(child, changed);
-        let _ = sys::close(child);
     }
 }
 

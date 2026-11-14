@@ -37,6 +37,8 @@ pub enum Refusal {
     NulByte,
     /// The kernel refused the resolution. This is the traversal case.
     Escapes(String),
+    /// More components than [`crate::tree::MAX_DEPTH`].
+    TooDeep(usize),
 }
 
 impl Refusal {
@@ -54,6 +56,10 @@ impl Refusal {
                                  silently truncate, so the path written would \
                                  not be the path the layer named"
                 .into(),
+            Refusal::TooDeep(n) => format!(
+                "it has more than {n} components, and the crate does not make a tree that its own walk and \
+                 removal refuse"
+            ),
             Refusal::Escapes(e) => format!(
                 "resolving it against what the layers have written so far leaves \
                  the destination ({e}). A symlink an earlier entry created is \
@@ -111,6 +117,9 @@ pub fn components(path: &str) -> std::result::Result<Vec<&str>, Refusal> {
     }
     if out.is_empty() {
         return Err(Refusal::Empty);
+    }
+    if out.len() > crate::tree::MAX_DEPTH {
+        return Err(Refusal::TooDeep(crate::tree::MAX_DEPTH));
     }
     Ok(out)
 }

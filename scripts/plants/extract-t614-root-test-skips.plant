@@ -1,0 +1,8 @@
+# The proof of the set-id bits skips as root too, so the step of CI that runs
+# the workers of uid 1000 as root passes with no proof (T-614). The test runs
+# as root (sudo -n on a runner).
+ENTRY=T-614
+GROUP=extract
+EXPECT='set_id_bits_survive_the_write skipped as root'
+RUN='sh scripts/ci/root-uid1000-tests.sh'
+LIMIT=1800

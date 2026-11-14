@@ -7257,7 +7257,7 @@ new code and is caught again. `plant-each.sh --apply`: 0 stale.
 **Milestone:** M7
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7276,6 +7276,27 @@ Keep a small image made by a real tool under `tests/data`, with its command besi
 ```sh
 cargo test -p pod-udf --all-features
 ```
+
+## Done
+
+2026-11-14, commit 1efa073. `tests/tools.rs` reads three images of real
+tools, kept with gzip (1.6 to 4.5 KB) under `crates/pod-udf/tests/data`
+with the command of each: a UDF 1.02 bridge of genisoimage 1.1.11
+(`-udf`; each file of a tree like a Windows ISO, its bytes at the offset
+of each part, an empty file, a missing path, a directory as a file), an
+empty UDF 2.01 volume of mkudffs 2.3, and a BD-R UDF 2.50 volume of
+mkudffs 2.3 whose virtual partition map is refused by name (C512). The
+tools came from `apt-get install`. xorriso writes no UDF; no tool here
+writes a metadata partition (mkudffs 2.3 writes UDF 2.50 only with a
+virtual partition, and the kernel has no UDF to fill a volume): the live
+test against a Windows ISO stays the proof of that form. genisoimage
+writes an empty file with no allocation descriptor, which the writer of
+the tests does not.
+
+`cargo test -p pod-udf --all-features`: 17 unit tests and 3 tests of
+`tests/tools.rs` passed. Plants, each caught by hand:
+`udf-t601-empty-file-needs-a-descriptor` (the tests of the writer pass
+it), `udf-t601-virtual-map-read-as-metadata`.
 
 # T-602: `pod-guest`: the next command of a guest in keep-alive mode reaches the agent through a mounted FAT mailbox
 
@@ -7543,7 +7564,7 @@ EXPECT: `broker-502-names-no-upstream` and
 **Milestone:** M6
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7562,6 +7583,29 @@ Walk the tree with no ancestor held open (an explicit stack of paths reopened fr
 ```sh
 cargo test -p pod-extract --all-features
 ```
+
+## Done
+
+2026-11-14, commit e85ddea. `open_tree` and `remove_at` walk with one
+directory open at a time (the new module `tree`): the walk keeps the
+listing and the device and inode of each level, and goes up through `..`
+only when its device and inode are those of the level above (`TempFail`
+when a directory moved). A directory deeper than `MAX_DEPTH` (4096) below
+the start is refused with the typed cause `TooDeep` (`Unsupported`,
+`too_deep(&failure)`); an entry with more than `MAX_DEPTH` components is
+refused (`Refusal::TooDeep`), so a layer cannot make a tree that the
+removal refuses (C510). A finding fixed in place: the removal read a name
+of a listing as lossy text, so a name that is not UTF-8 stayed and its
+parent failed; it unlinks by the bytes now (`CBuf::from_bytes` of
+`pod-hostprobe`).
+
+`cargo test -p pod-extract --all-features`: 79 unit tests passed (new: a
+tree of 200 levels under a soft `RLIMIT_NOFILE` of 64 in a child process,
+the depth limit of both walks, a name that is not UTF-8, a directory that
+moved, the depth of a path). Plants, each caught by hand:
+`extract-t615-walk-holds-each-level` (the walk of the old code),
+`extract-t615-no-depth-limit`, `extract-t615-path-depth-not-refused`,
+`extract-t615-name-read-as-text`, `extract-t615-moved-parent-followed`.
 
 # T-616: `pod-supervise`: the thread of the foreground hold blocks the shutdown signals
 
@@ -7697,7 +7741,7 @@ podvm measures whether `AutoRun` fires on the x64 image (PodUtils/podvm#350, ite
 **Milestone:** M6
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7716,3 +7760,34 @@ Give the values for each architecture (or take them from `linux_raw_sys`), and p
 ```sh
 cargo test -p pod-hostprobe --all-features
 ```
+
+## Done
+
+2026-11-14, commit 4f94f04. The signal calls keep signals 1 to 64 in a
+`u64` and give the kernel a `kernel_sigset_t` of `linux_raw_sys`, word by
+word (`to_kernel`, `from_kernel`), with its size (`SIGSET_BYTES`: 16 on
+mips); `sigblock`, `sigrestore`, `sigblock_shutdown`, `signalfd_shutdown`
+and the new `signalfd` use it. `SIG_BLOCK`, `SIG_SETMASK`, `SIGCHLD`
+(18 on mips, 20 on sparc), `SIGINT`, `SIGTERM`, `SIGHUP`, `SIGQUIT` and
+`SFD_CLOEXEC` come from `linux_raw_sys` (C511). A 32-bit big-endian
+target also gets signal 1 in the first word now.
+
+No compile check of mips goes into `scripts/agent/`: `pod-hostprobe`
+refuses mips with `compile_error!` (no syscall trap, no ELF machine, no
+`AUDIT_ARCH`), so mips is a target with no system calls. The module
+`sys/sigmask.rs` alone passed `cargo clippy -Zbuild-std=core -- -D
+warnings` (with `RUSTC_BOOTSTRAP=1` and `rust-src`) for
+`mips64-unknown-linux-gnuabi64` and `mips-unknown-linux-gnu`, with a const
+assertion of 1, 3 and 16 bytes; a wrong assertion failed there.
+`pod-hostprobe` passed clippy `-D warnings` for `i686-unknown-linux-musl`,
+`powerpc64-unknown-linux-gnu` and `s390x-unknown-linux-gnu`. Findings
+fixed in place: the traps of powerpc64 and s390x had no Safety section
+(clippy failed there), the doc comment on the `compile_error!` of mips
+warned, and the test of `sigblock` read a mask of 128 signals as one
+`u64`.
+
+`cargo test -p pod-hostprobe --all-features`: 137 unit tests passed (new:
+`the_kernel_mask_has_the_kernels_size_and_keeps_signals_1_to_64`); the
+tests of `pod-supervise` and `pod-enter` passed. Plants, each caught by
+hand: `hostprobe-t618-mask-not-the-kernels-size`,
+`hostprobe-t618-mask-words-out-of-order`.

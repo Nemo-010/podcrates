@@ -1,0 +1,7 @@
+# The reader takes each partition map of type 2 as a metadata partition, so
+# the virtual partition of a BD-R volume of mkudffs is misread (T-601).
+ENTRY=T-601
+GROUP=udf
+EXPECT='a virtual partition was not refused by name'
+RUN='cargo test -p pod-udf --test tools'
+LIMIT=900

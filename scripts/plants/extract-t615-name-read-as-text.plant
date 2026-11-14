@@ -1,0 +1,7 @@
+# The removal reads a name of a listing as lossy text, so a name that is
+# not UTF-8 names no file and its parent stays (T-615).
+ENTRY=T-615
+GROUP=extract
+EXPECT='the removal of a tree with names that are not UTF-8'
+RUN='cargo test -p pod-extract --all-features --lib drive::deep'
+LIMIT=1800

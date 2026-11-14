@@ -1,0 +1,7 @@
+# The reader refuses a file entry with no allocation descriptor. genisoimage
+# writes an empty file so, and the writer of the tests does not (T-601).
+ENTRY=T-601
+GROUP=udf
+EXPECT='/sources/empty.txt: udf'
+RUN='cargo test -p pod-udf --test tools'
+LIMIT=900

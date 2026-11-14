@@ -120,6 +120,10 @@ pub unsafe fn syscall6(nr: i64, a0: u64, a1: u64, a2: u64, a3: u64, a4: u64, a5:
 ///
 /// r0 carries the number, r3 through r8 the six arguments, `sc` is the trap,
 /// and r9 through r12, cr0, ctr and xer are clobbered.
+///
+/// # Safety
+/// The caller states that this syscall with these arguments is sound, as for
+/// the trap of the other architectures.
 #[cfg(target_arch = "powerpc64")]
 pub unsafe fn syscall6(nr: i64, a0: u64, a1: u64, a2: u64, a3: u64, a4: u64, a5: u64) -> i64 {
     let ret: u64;
@@ -154,6 +158,10 @@ pub unsafe fn syscall6(nr: i64, a0: u64, a1: u64, a2: u64, a3: u64, a4: u64, a5:
 /// r1 carries the number and r2 through r7 the six arguments; `svc 0` is the
 /// trap and the result comes back in r2 as `-errno`, which is the convention
 /// `split` already reads.
+///
+/// # Safety
+/// The caller states that this syscall with these arguments is sound, as for
+/// the trap of the other architectures.
 #[cfg(target_arch = "s390x")]
 pub unsafe fn syscall6(nr: i64, a0: u64, a1: u64, a2: u64, a3: u64, a4: u64, a5: u64) -> i64 {
     let ret: u64;
@@ -173,14 +181,14 @@ pub unsafe fn syscall6(nr: i64, a0: u64, a1: u64, a2: u64, a3: u64, a4: u64, a5:
     ret as i64
 }
 
-/// **mips and mips64 are still gated, and this says so at compile time
-/// rather than shipping a convention nobody has run.**
-///
-/// Two of three families are here, and they ran under an emulator. mips is
-/// not: o32 passes arguments five and six **on the caller's stack**, which
-/// `options(nostack)` forbids and which a wrong frame layout gets wrong
-/// silently. To add it, build for a mips target and RUN the binary under the
-/// emulator, as for these two.
+// **mips and mips64 are still gated, and this says so at compile time
+// rather than shipping a convention nobody has run.**
+//
+// Two of three families are here, and they ran under an emulator. mips is
+// not: o32 passes arguments five and six **on the caller's stack**, which
+// `options(nostack)` forbids and which a wrong frame layout gets wrong
+// silently. To add it, build for a mips target and RUN the binary under the
+// emulator, as for these two.
 #[cfg(any(target_arch = "mips", target_arch = "mips64", target_arch = "powerpc"))]
 compile_error!(
     "pod-hostprobe has no measured syscall trap for this architecture: powerpc64 and \
@@ -310,11 +318,17 @@ impl CBuf {
     /// Returns `None` when `s` contains an interior NUL, because a path the
     /// kernel would silently truncate is not the path the caller named.
     pub fn new(s: &str) -> Option<CBuf> {
-        if s.as_bytes().contains(&0) {
+        CBuf::from_bytes(s.as_bytes())
+    }
+
+    /// [`CBuf::new`] of bytes: a name of a listing need not be UTF-8, and a
+    /// lossy text of it names another file.
+    pub fn from_bytes(b: &[u8]) -> Option<CBuf> {
+        if b.contains(&0) {
             return None;
         }
-        let mut v = Vec::with_capacity(s.len() + 1);
-        v.extend_from_slice(s.as_bytes());
+        let mut v = Vec::with_capacity(b.len() + 1);
+        v.extend_from_slice(b);
         v.push(0);
         Some(CBuf(v))
     }

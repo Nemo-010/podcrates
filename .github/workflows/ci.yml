@@ -170,6 +170,12 @@ jobs:
           sh scripts/retry.sh sudo apt-get update
           sh scripts/retry.sh sudo apt-get install -y --no-install-recommends busybox-static
           sh scripts/ci/root-enter-confine-tests.sh
+      # The proofs of a mode that a user keeps (the set-id bits, the
+      # S_ISGID that the kernel drops, a closed tree, a closed etc: T-614)
+      # start a worker of uid 1000 only as root, and skip the proof as the
+      # user of the runner: they run as root. A skip line fails the step.
+      - name: The tests of pod-extract and pod-rootfs with a worker of uid 1000
+        run: sh scripts/ci/root-uid1000-tests.sh
       # The netns tests of pod-hold skip for a user here (no user
       # namespace): they run as root. A line SKIP: fails the step.
       - name: Netns tests as root

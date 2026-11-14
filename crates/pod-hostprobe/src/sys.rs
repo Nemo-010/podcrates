@@ -362,11 +362,12 @@ pub const CLONE_NEWNS: u64 = 0x0002_0000;
 pub const CLONE_NEWUTS: u64 = 0x0400_0000;
 pub const CLONE_NEWUSER: u64 = 0x1000_0000;
 pub const CLONE_NEWPID: u64 = 0x2000_0000;
-pub const SIGCHLD: u64 = 17;
+/// The exit signal of a child: 17, and 18 on mips, 20 on sparc.
+pub const SIGCHLD: u64 = linux_raw_sys::general::SIGCHLD as u64;
 /// The two shutdown signals that a waiter forwards, as numbers:
 /// 2 is SIGINT (Ctrl-C on a terminal) and 15 is SIGTERM.
-pub const SIGINT: u64 = 2;
-pub const SIGTERM: u64 = 15;
+pub const SIGINT: u64 = linux_raw_sys::general::SIGINT as u64;
+pub const SIGTERM: u64 = linux_raw_sys::general::SIGTERM as u64;
 /// The signalfd/`sigprocmask` word: exactly those two signal numbers' bit
 /// indices, named once so the mask blocked and the descriptor read can never
 /// disagree about the set. Signal NUMBER n is bit index (n-1): bit 1 is
@@ -376,10 +377,9 @@ pub const SIGTERM: u64 = 15;
 /// (SIGQUIT and SIGSTKFLT), which would block nothing that arrives and
 /// leave the waiter dying on the real signals.
 pub const SHUTDOWN_SIGNALS: u64 = (1 << (SIGINT - 1)) | (1 << (SIGTERM - 1));
-/// `rt_sigprocmask` "block these", "set to this", and `signalfd4` "close on exec".
-pub const SIG_BLOCK: u64 = 0;
-pub const SIG_SETMASK: u64 = 2;
-pub const SFD_CLOEXEC: u64 = 0x080000;
+/// `signalfd4` "close on exec": the `O_CLOEXEC` of the architecture
+/// (0x400000 on sparc). `SIG_BLOCK` and `SIG_SETMASK` are in `sigmask`.
+pub const SFD_CLOEXEC: u64 = linux_raw_sys::general::O_CLOEXEC as u64;
 
 /// `MS_NOSUID`, `MS_NODEV` and `MS_NOEXEC`, from the headers of the kernel.
 pub const MS_NOSUID: u64 = 0x2;

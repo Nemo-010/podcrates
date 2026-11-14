@@ -2521,6 +2521,9 @@ dependencies = [
 [[package]]
 name = "pod-udf"
 version = "0.45.0"
+dependencies = [
+ "flate2",
+]
 
 [[package]]
 name = "pod-warp"

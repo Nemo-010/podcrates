@@ -16,6 +16,7 @@ use pod_hostprobe::sys;
 
 use crate::error::{self, Result, cbuf, refuse};
 use crate::safety::{self, Dir, Refusal};
+use crate::tree::Walk;
 use crate::whiteout::{self, Kind};
 
 /// One thing a layer says to delete before it writes.
@@ -120,8 +121,7 @@ pub fn apply(root: &Dir, ops: &[Op]) -> Result<u64> {
                 // next entries write into.
                 open_for_write(d.0);
                 for e in sys::getdents64(d.0).unwrap_or_default() {
-                    let name = String::from_utf8_lossy(&e.name).into_owned();
-                    if remove_at(d.0, &name)? {
+                    if remove_bytes(d.0, &e.name)? {
                         removed += 1;
                     }
                 }
@@ -153,30 +153,69 @@ fn reopen(root: &Dir) -> Result<DirFd> {
 /// tree that it points to stays: the removal of a link to `/etc` is not the
 /// removal of `/etc`.
 ///
+/// The walk holds one directory open at a time ([`crate::tree`]). A tree
+/// deeper than [`crate::tree::MAX_DEPTH`] below `name` is refused with the
+/// cause [`crate::tree::TooDeep`], after the removal of the entries that the
+/// walk reached first.
+///
 /// It returns true when it removed something, so that the caller can tell
 /// "not there" from "removed".
 pub fn remove_at(parent: i64, name: &str) -> Result<bool> {
-    let n = cbuf(name)?;
-    match sys::unlinkat(parent, &n, 0) {
-        Ok(_) => return Ok(true),
-        Err(e) if e == sys::ENOENT => return Ok(false),
-        // EISDIR on Linux, EPERM as POSIX allows: it is a directory.
-        Err(e) if e == sys::EISDIR || e == sys::EPERM => {}
-        Err(e) => return Err(error::sys(format!("cannot remove {name:?}"), e)),
+    remove_at_to(parent, name.as_bytes(), crate::tree::MAX_DEPTH)
+}
+
+/// [`remove_at`] of a name of a listing, which need not be UTF-8.
+fn remove_bytes(parent: i64, name: &[u8]) -> Result<bool> {
+    remove_at_to(parent, name, crate::tree::MAX_DEPTH)
+}
+
+/// [`remove_at`] with the depth limit as a parameter, for the tests.
+pub(crate) fn remove_at_to(parent: i64, name: &[u8], limit: usize) -> Result<bool> {
+    if let Some(removed) = unlink(parent, name)? {
+        return Ok(removed);
     }
-    // A directory. Empty it, then remove it.
-    let Some(fd) = open_closed(parent, &n).map(DirFd) else {
+    // A directory. Empty each level, then remove it from the level above.
+    let mut w = Walk::at(parent, limit)?;
+    if !w.descend(name, open_closed)? {
         return Ok(false);
-    };
-    for e in sys::getdents64(fd.0).unwrap_or_default() {
-        let child = String::from_utf8_lossy(&e.name).into_owned();
-        remove_at(fd.0, &child)?;
     }
-    drop(fd);
-    match sys::unlinkat(parent, &n, sys::AT_REMOVEDIR) {
-        Ok(_) => Ok(true),
-        Err(e) if e == sys::ENOENT => Ok(false),
-        Err(e) => Err(error::sys(format!("cannot remove the directory {name:?}"), e)),
+    loop {
+        if let Some(e) = w.next() {
+            if unlink(w.fd(), &e.name)?.is_none() {
+                // A directory that does not open stays, and the removal of
+                // its parent gives the error.
+                w.descend(&e.name, open_closed)?;
+            }
+            continue;
+        }
+        let done = w.ascend()?;
+        let n = sys::CBuf::from_bytes(&done).ok_or_else(|| error::usage("a name with a NUL"))?;
+        let gone = match sys::unlinkat(w.fd(), &n, sys::AT_REMOVEDIR) {
+            Ok(_) => true,
+            Err(e) if e == sys::ENOENT => false,
+            Err(e) => {
+                let text = format!("cannot remove the directory {:?}", String::from_utf8_lossy(&done));
+                return Err(error::sys(text, e));
+            }
+        };
+        if w.at_start() {
+            return Ok(gone);
+        }
+    }
+}
+
+/// Unlink one name that is not a directory. `Some(true)`: removed;
+/// `Some(false)`: not there; `None`: a directory.
+fn unlink(parent: i64, name: &[u8]) -> Result<Option<bool>> {
+    let n = sys::CBuf::from_bytes(name).ok_or_else(|| {
+        error::usage(format!("{:?} contains a NUL and cannot reach the kernel", String::from_utf8_lossy(name)))
+    })?;
+    match sys::unlinkat(parent, &n, 0) {
+        Ok(_) => Ok(Some(true)),
+        Err(e) if e == sys::ENOENT => Ok(Some(false)),
+        // EISDIR on Linux, EPERM as POSIX allows: it is a directory.
+        Err(e) if e == sys::EISDIR || e == sys::EPERM => Ok(None),
+        Err(e) => Err(error::sys(format!("cannot remove {:?}", String::from_utf8_lossy(name)), e)),
     }
 }
 

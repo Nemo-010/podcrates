@@ -52,6 +52,7 @@ mod place;
 pub mod remove;
 pub mod safety;
 pub mod sidecar;
+pub mod tree;
 pub mod whiteout;
 
 use std::path::{Path, PathBuf};
@@ -61,6 +62,7 @@ use pod_hostprobe::space;
 
 pub use error::{Mismatch, Refused, Result, mismatch, refused};
 pub use place::{DONE_MARKER, Place, ROOTFS_NAME, SIDECAR_NAME, remove_tree};
+pub use tree::{MAX_DEPTH, TooDeep, too_deep};
 
 /// The space that an extraction asks for beyond the measured payload, so
 /// that the extraction does not fill the destination to its last block and

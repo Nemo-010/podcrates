@@ -441,6 +441,7 @@ fn a_read_only_directory_in_one_layer_can_be_written_into_by_the_next() {
     assert_eq!(std::fs::read(s.path().join("ro/added")).unwrap(), b"ok");
 }
 
+mod deep;
 mod dirmodes;
 mod records;
 mod setid;

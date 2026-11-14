@@ -1,0 +1,7 @@
+# An entry deeper than the walk of the removal takes is not refused, so a
+# layer can make a tree that the crate cannot remove (T-615).
+ENTRY=T-615
+GROUP=extract
+EXPECT='a path past MAX_DEPTH was not refused'
+RUN='cargo test -p pod-extract --all-features --lib safety::tests'
+LIMIT=1800

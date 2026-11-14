@@ -56,15 +56,16 @@ not change while the process runs).
 | `Place`, `Place::under(base)` | the three paths of an extraction: `rootfs`, `sidecar`, `marker`; `under` gives `base/rootfs`, `base/.meta.jsonl`, `base/.extracted` (`ROOTFS_NAME`, `SIDECAR_NAME`, `DONE_MARKER`) |
 | `extract(&settings, image, &layers, &place) -> Result<Extracted>` | the space check (blocks and inodes, before the loop), then for each layer: the whiteouts, then the entries, each pass with the digest check; the marker last; on a failure the partial tree is removed |
 | `Extracted` | `rootfs`, `sidecar`, `layers`, `entries`, `removed`, `uncompressed_bytes`, `uncompressed_estimated`, `skipped`, `skipped_kinds`, `sidecar_rows`, `ownership_dropped`, `dir_modes` (the directories that the pass after the last layer set), `dirs_opened` (the closed directories of a tree that was there before, opened first), `first_dropped` |
-| `Place::{is_extracted, remove}`, `remove_tree(path)` | the marker decides, not the directory; the removal takes the marker first, never follows a symlink out of the tree, and adds the owner bits to a directory that the image closed (0555) before it empties it |
+| `Place::{is_extracted, remove}`, `remove_tree(path)` | the marker decides, not the directory; the removal takes the marker first, never follows a symlink out of the tree, adds the owner bits to a directory that the image closed (0555) before it empties it, removes a name that is not UTF-8 by its bytes, and holds one directory open at a time (a tree deeper than `MAX_DEPTH` below the name is refused with the cause `TooDeep`) |
 | `LAYER_EVENT` | `extract.layer`: `<12 hex digits>: Extracted (N entries, M whiteouts)` |
 | `Refused`, `refused(&failure)` | the cause of a refused entry: `layer`, `entry`, `refusal` |
 | `Mismatch`, `mismatch(&failure)` | the cause of a blob that does not agree with its digest: `what`, `want`, `got` |
 | `apply` | `apply_layer(root, digest, stream, ids, sidecar)`, `LayerStats` (`entries`: the members read; `skipped`, `skipped_kinds`: the entries of a type that the crate does not make, not the root member; `dir_modes`: each directory entry of the layer and its mode), `Ids::current()` |
-| `modes` | `DirModes` (`new`, `record(&stats.dir_modes)`, `forget(&ops)`, `set(root, sidecar)`, `len`, `is_empty`): the mode of the image of each directory, the last layer wins, set after the last layer and read back, a mode that the kernel did not keep is one more row of the directory with `applied.mode`; `open_tree(root)`: the owner bits on each directory of a tree that was there before, with `O_NOFOLLOW`, also of a directory with no owner read |
+| `modes` | `DirModes` (`new`, `record(&stats.dir_modes)`, `forget(&ops)`, `set(root, sidecar)`, `len`, `is_empty`): the mode of the image of each directory, the last layer wins, set after the last layer and read back, a mode that the kernel did not keep is one more row of the directory with `applied.mode`; `open_tree(root)`: the owner bits on each directory of a tree that was there before, with `O_NOFOLLOW`, also of a directory with no owner read, one directory open at a time, a tree deeper than `MAX_DEPTH` refused with the cause `TooDeep` |
 | `layer` | `Compression::of(media_type)` (tar, `+gzip`, `.tar.gzip`, `+zstd`), `open_hashed(path, c)`, `HashedStream::digest`, `uncompressed_size(path, c, compressed)` (exact for gzip under 4 GiB, an estimate with its flag for the others) |
 | `remove` | `collect(layer, stream)`, `apply(root, ops)`, `Op`, `remove_at(parent_fd, name)` |
-| `safety` | `components`, `is_archive_root`, `rebase_symlink_target`, `Refusal`, `Dir`, `Resolve::{Auto, Walk, InRoot}`, `open_parent`, `open_parent_with` (with `InRoot` and `make_dirs`, a closed parent opens for the one make), `have_openat2`, `OwnerBits` (`add(fd)`, `was`: the owner bits of a closed directory for one step, its mode back on drop) |
+| `tree` (also at the root) | `MAX_DEPTH` (4096: the deepest directory below the start of a walk, and the most components of the path of an entry), `TooDeep` (`path`, `limit`), `too_deep(&failure)`. The walk of `open_tree` and of the removal keeps the listing and the device and inode of each level, holds one directory open, and goes up through `..` only when its device and inode are those of the level above (`TempFail` when a directory moved) |
+| `safety` | `components` (more than `MAX_DEPTH` components: `Refusal::TooDeep`), `is_archive_root`, `rebase_symlink_target`, `Refusal`, `Dir`, `Resolve::{Auto, Walk, InRoot}`, `open_parent`, `open_parent_with` (with `InRoot` and `make_dirs`, a closed parent opens for the one make), `have_openat2`, `OwnerBits` (`add(fd)`, `was`: the owner bits of a closed directory for one step, its mode back on drop) |
 | `sidecar` | `Meta` (`to_json`), `Sidecar` (`create`, `push`, `push_dir`, `kept_dir`, `finish`, `dropped`, `first_dropped`), `FirstDropped`, `json_string`; the last row of a path holds |
 | `whiteout` | `classify`, `Kind`, `basename`, `dirname_parts`, `WH`, `OPQ` |
 
@@ -77,7 +78,9 @@ Each failure is a `pod_core::Failure` at `Stage::Host`. The classes:
 `Policy` (a refused entry or whiteout, with the cause `Refused`), `Protocol`
 (a blob whose digest does not agree, with the cause `Mismatch`),
 `Unsupported` (a compression that the crate cannot read, a digest that is
-not sha256), `Usage` (a name with a NUL), `Unavailable` (no space or no
+not sha256; a tree deeper than `MAX_DEPTH`, with the cause `TooDeep`),
+`TempFail` (a directory that moved during a walk of the tree), `Usage` (a
+name with a NUL), `Unavailable` (no space or no
 inodes, from `pod_hostprobe::space`), and the class of the errno of a
 refused system call, with its `io::Error` as the cause and its name in the
 text.
@@ -125,6 +128,11 @@ header past the check of `tar::Builder`), run the real extraction and look
 at the tree. No test needs root, a namespace or the network. The walk and
 `openat2` refuse the same traversal on one kernel; the test that asserts
 `openat2` skips under an emulator that does not translate it.
+
+The tests with a worker of uid 1000 below run that worker only as root.
+CI runs them as root (`scripts/ci/root-uid1000-tests.sh`, a step of
+`ci.yml`), and a skip line fails the step (T-614; the plant
+`extract-t614-root-test-skips`).
 
 `drive::setid::set_id_bits_survive_the_write` extracts files of mode 4755,
 2755 and 6755 as the user of the test. As root it also runs the test
@@ -175,6 +183,21 @@ the tree (`an_extraction_over_a_tree_that_its_owner_cannot_read_passes`;
 as root it runs `worker_extracts_over_a_tree_it_cannot_read` as uid
 1000). The plants: `extract-t606-tree-not-opened`,
 `extract-t606-no-open-without-read`.
+
+`drive::deep` (T-615): `open_tree` and `remove_tree` walk a tree of 200
+levels under a soft `RLIMIT_NOFILE` of 64
+(`a_tree_deeper_than_the_descriptor_limit_is_walked_and_removed` runs the
+test binary again, `worker_walks_under_a_low_descriptor_limit`, as the
+limit belongs to the whole process); a tree past the depth limit is
+refused with `TooDeep` by both, and the refused removal keeps the tree
+(`a_tree_past_the_depth_limit_is_refused`); a name that is not UTF-8 is
+removed (`a_name_that_is_not_utf8_is_removed`); a directory that moved
+stops the way up (`a_directory_that_moved_stops_the_walk`). An entry
+with more than `MAX_DEPTH` components is refused
+(`safety::tests::a_path_deeper_than_the_walk_is_refused`). The plants:
+`extract-t615-walk-holds-each-level`, `extract-t615-no-depth-limit`,
+`extract-t615-path-depth-not-refused`, `extract-t615-name-read-as-text`,
+`extract-t615-moved-parent-followed`.
 
 `drive::the_root_member_is_not_a_skipped_entry` (PodUtils/podvm#352): a
 layer with `./` and a file has 2 entries and 0 skipped; a layer with `./`

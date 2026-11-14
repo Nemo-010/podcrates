@@ -10,3 +10,7 @@ repository.workspace = true
 # No dependency: the reader is std only, so that a synchronous consumer and
 # the lean static probe take it with no runtime.
 [dependencies]
+
+[dev-dependencies]
+# The images of real tools in tests/data are kept with gzip.
+flate2 = { workspace = true }
