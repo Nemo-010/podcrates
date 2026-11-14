@@ -1,0 +1,8 @@
+# The topic of a code at an ntfy server comes from the whole code: its
+# words are in the hash that each client of a public server reads, and a
+# trial of the words finds them; the test of the topic of the nameplate
+# alone must fail.
+ENTRY=T-554
+GROUP=wormhole
+EXPECT='test two_ends_pair_by_polls_that_take_turns_with_the_posts_on_http1 \.\.\. FAILED'
+RUN='cargo test -p pod-wormhole --features standin --test ntfy -- two_ends_pair_by_polls_that_take_turns_with_the_posts_on_http1 --exact'

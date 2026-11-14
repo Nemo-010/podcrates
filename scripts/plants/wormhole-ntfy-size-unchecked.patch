@@ -1,0 +1,12 @@
+diff --git a/crates/pod-wormhole/src/ntfy/wire.rs b/crates/pod-wormhole/src/ntfy/wire.rs
+--- a/crates/pod-wormhole/src/ntfy/wire.rs
++++ b/crates/pod-wormhole/src/ntfy/wire.rs
+@@ -66,7 +66,7 @@
+ /// an attachment or refuses.
+ pub fn content(side: &str, phase: &str, body: &[u8]) -> Result<String, usize> {
+     let text = json!({ "side": side, "phase": phase, "body": hex(body) }).to_string();
+-    if text.len() > MESSAGE_MOST { Err(text.len()) } else { Ok(text) }
++    if text.len() > 8 * MESSAGE_MOST { Err(text.len()) } else { Ok(text) }
+ }
+ 
+ /// The words of a refusal of status `status`: ntfy's `error`, and its

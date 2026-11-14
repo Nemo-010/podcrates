@@ -1,0 +1,7 @@
+# The runs of a code try the mailboxes first where the upgrade is refused:
+# each place of a WebSocket fails there before the ntfy servers; the test
+# of the ntfy server before a mailbox must fail.
+ENTRY=T-554
+GROUP=relay
+EXPECT='test where_the_upgrade_is_refused_the_ends_meet_at_an_ntfy_server_before_a_mailbox \.\.\. FAILED'
+RUN='cargo test -p pod-relay --all-features --test pair_code -- where_the_upgrade_is_refused_the_ends_meet_at_an_ntfy_server_before_a_mailbox --exact'

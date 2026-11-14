@@ -42,6 +42,11 @@ pub mod broker;
 #[cfg(feature = "plain-ws")]
 #[path = "../../../pod-wormhole/tests/harness/nostr.rs"]
 pub mod nostr;
+// The stand-in ntfy server of pod-wormhole's tests, for the runs that meet
+// at an ntfy server (T-554).
+#[cfg(feature = "plain-ws")]
+#[path = "../../../pod-wormhole/tests/harness/ntfy.rs"]
+pub mod ntfy;
 // The stand-in WebTorrent tracker of pod-wormhole's tests, for the runs
 // that meet at a tracker (T-551).
 #[cfg(feature = "plain-ws")]

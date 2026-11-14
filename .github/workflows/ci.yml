@@ -136,6 +136,11 @@ jobs:
       # fails the step.
       - name: pod-wormhole against webtorrent/bittorrent-tracker
         run: sh scripts/ci/tracker-tests.sh
+      # The meeting point of pod-wormhole at an ntfy server against ntfy's
+      # own server on 127.0.0.1 (T-554): the release of ntfy 2.37.2, a
+      # static binary, checked by its SHA-256. A skip fails the step.
+      - name: pod-wormhole against ntfy
+        run: sh scripts/ci/ntfy-tests.sh
       # The pairing by a code against magic-wormhole's own mailbox server and
       # library on 127.0.0.1 (T-354): the packages of
       # scripts/ci/wormhole-servers.txt, each with its SHA-256, from PyPI. A

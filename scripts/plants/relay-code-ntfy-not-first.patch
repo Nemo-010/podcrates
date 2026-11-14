@@ -1,0 +1,12 @@
+diff --git a/crates/pod-relay/src/code/run.rs b/crates/pod-relay/src/code/run.rs
+--- a/crates/pod-relay/src/code/run.rs
++++ b/crates/pod-relay/src/code/run.rs
+@@ -106,7 +106,7 @@
+ 
+     /// Whether the ntfy servers come before the mailboxes.
+     fn ntfy_first(&self) -> bool {
+-        self.upgrade_refused && !self.ntfy.is_empty()
++        self.upgrade_refused && self.ntfy.is_empty()
+     }
+ 
+     /// The places after the mailboxes, in order, each with its event:

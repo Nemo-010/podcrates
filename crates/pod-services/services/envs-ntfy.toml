@@ -1,0 +1,74 @@
+# A community ntfy server (ntfy.envs.net): a meeting point of the pairing by code
+# for a way out that refuses the WebSocket upgrade (pod-wormhole's ntfy;
+# PodUtils/podssh#237, PodUtils/podssh@T-496), after ntfy.sh. The ends
+# write a topic by a POST and read it by a GET of plain HTTPS, with no
+# account. Each client of the server can read each topic, so the ends send
+# ciphertext alone. The facts are the limits of a visitor with no account.
+id = "envs-ntfy"
+kind = "ntfy-server"
+party = "envs.net (its public services; envs.net)"
+about = "The public ntfy server at ntfy.envs.net: a topic written by a POST and read by a GET of HTTPS on port 443"
+
+[rank]
+value = 2
+source = { measured = "two ends paired through a topic of the server with no account, on HTTP/2 and on HTTP/1.1, through the HTTPS proxy of a cloud session (docs/decisions.md, C569)", read = 2026-11-14 }
+
+[[endpoint]]
+name = "server"
+scheme = "https"
+host = "ntfy.envs.net"
+port = 443
+path = "/"
+source = { url = "https://docs.ntfy.sh/integrations/", read = 2026-11-14, note = "the list of public ntfy servers names ntfy.envs.net, of the ntfy community" }
+
+[[endpoint]]
+name = "limits"
+role = "document"
+scheme = "https"
+host = "ntfy.envs.net"
+port = 443
+path = "/docs/publish/"
+source = { url = "https://ntfy.envs.net/docs/publish/", read = 2026-11-14, note = "the documents of ntfy that the server gives" }
+
+[[fact]]
+name = "message-bytes-most"
+value = 4095
+unit = "bytes"
+source = { measured = "a body of 4,096 bytes became an attachment, as util.Peek of ntfy marks a body of the whole message-size-limit (4,096) as reached; the documents say 4,096 (C570)", read = 2026-11-14 }
+
+[[fact]]
+name = "requests-burst"
+value = 60
+source = { measured = "the answer to a POST: Ratelimit-Policy \"requests\";q=60;w=300", read = 2026-11-14 }
+
+[[fact]]
+name = "request-refill-seconds"
+value = 5
+unit = "seconds"
+source = { measured = "the answer to a POST: Ratelimit-Policy \"requests\";q=60;w=300, one request each 300 / 60 s", read = 2026-11-14 }
+
+[[fact]]
+name = "messages-per-day"
+value = 17280
+source = { measured = "the answer to a POST: Ratelimit-Policy \"messages\";q=17280;w=86400 (one each 5 s for a day)", read = 2026-11-14 }
+
+[[fact]]
+name = "account-required"
+value = false
+source = { url = "https://ntfy.envs.net/config.js", read = 2026-11-14, note = "require_login false" }
+
+[[watch]]
+kind = "http-status"
+endpoint = "server"
+path = "/v1/health"
+status = 200
+
+[[watch]]
+kind = "http-text"
+endpoint = "limits"
+contains = "Each message can be up to 4,096 bytes long"
+
+[[watch]]
+kind = "http-text"
+url = "https://ntfy.envs.net/config.js"
+contains = '"require_login": false'

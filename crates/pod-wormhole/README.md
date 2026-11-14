@@ -7,7 +7,9 @@ the mailbox sees. The ends run SPAKE2 keyed by the whole code over the
 mailbox, then seal each later message in NaCl's SecretBox under a key of the
 shared key, as magic-wormhole's own client does, so that a peer of its
 Python library and this crate meet. When no mailbox answers, the ends can
-meet at the tag of the code at a public Nostr relay (`nostr`), in the
+meet at the topic of the code at a public ntfy server (`ntfy`, plain
+HTTPS, for a way out that refuses the WebSocket upgrade), at the tag of
+the code at a public Nostr relay (`nostr`), in the
 swarm of the code at a public WebTorrent tracker (`tracker`), or at the
 topic of the code at a public MQTT broker (`mqtt`), on port 443, with the
 same messages.
@@ -24,7 +26,7 @@ caller's protocol over a `Wormhole`; the exchange of podssh goes to
 | --- | --- |
 | `config` | `Config { appid, client_name, client_version, way, trust, connect_timeout, answer_limit, limits, words, events }`, `Config::new(appid, client_name, client_version, way)`, `CONNECT_TIMEOUT`, `ANSWER_LIMIT`, `LIMITS` |
 | `mailbox` | `Mailbox`: `connect(&url, &config, side)`, `list`, `allocate`, `claim`, `open`, `add`, `release`, `close`, `end`, `message(wait)`, `appid`, `shown`, `motd`; `Mood` (`Happy`, `Lonely`, `Scary`, `Errory`); `Message`; `crowded(&Failed)`; `ANSWER_LIMIT`, `KEPT_MOST` |
-| `wormhole` | `Wormhole`: `open(place, side, nameplate, id, &code, versions)` (a `Mailbox`, a `nostr::Relay`, a `tracker::Tracker` or a `mqtt::Broker`), `agree(wait)`, `confirm(wait)`, `send`, `receive(wait)`, `close(mood)`, `fail(mood, failed)`, `shown`, `derive_key(purpose, len)` (magic-wormhole's `derive_key` of the agreed key: the transit key is `derive_key("APPID/transit-key", 32)`); `derive_key(&key, purpose, len)`, `phase_key`, `seal`, `open_sealed`, `NONCE`, `TAG`, `HELD_MOST`, `DERIVED_MOST` |
+| `wormhole` | `Wormhole`: `open(place, side, nameplate, id, &code, versions)` (a `Mailbox`, an `ntfy::Topic`, a `nostr::Relay`, a `tracker::Tracker` or a `mqtt::Broker`), `agree(wait)`, `confirm(wait)`, `send`, `receive(wait)`, `close(mood)`, `fail(mood, failed)`, `shown`, `derive_key(purpose, len)` (magic-wormhole's `derive_key` of the agreed key: the transit key is `derive_key("APPID/transit-key", 32)`); `derive_key(&key, purpose, len)`, `phase_key`, `seal`, `open_sealed`, `NONCE`, `TAG`, `HELD_MOST`, `DERIVED_MOST` |
 | `meet` | `Ends { mailboxes, config }`, `opened(&ends, versions)` (a new code at the first mailbox that answers), `joined(&ends, &code, versions, giver_wait)` (the giver's wormhole, the key made), `or_close` |
 | `mqtt` | `Brokers { points, config, resend }`, `Brokers::new(points, config)`, `Point { url, login }`, `Login { user, password }` (no `Debug` shows the password), `opened(&brokers, versions)` (a new code at the first broker that answers, the giver subscribed), `joined(&brokers, &code, versions, giver_wait)` (the taker's wormhole, the key made), `topic(appid, nameplate)`, `nameplate(&mut dyn Entropy)`, `Role` (`Giver`, `Taker`; `topics`), `PROTOCOL`, `KEEP_ALIVE`, `RESEND`, `NAMEPLATE_DIGITS`, `PAYLOAD_MOST`, `TO_GIVER`, `TO_TAKER` |
 | `mqtt::board` | `Board { point, config }` (also `mqtt::Board`): `new(point, config)`, `put(topic, payload)`, `take(topic, wait)` (`Ok(None)`: no note within the wait), `clear(topic)`, `shown`; `check_topic`, `check_payload`, `TOPIC_MOST` |
@@ -36,7 +38,11 @@ caller's protocol over a `Wormhole`; the exchange of podssh goes to
 | `tracker` | `Trackers { points, config, resend }`, `Trackers::new(points, config)`, `opened(&trackers, versions)` (a new code at the first tracker that answers, the giver announced), `joined(&trackers, &code, versions, giver_wait)` (the taker's wormhole, the key made), `info_hash(tag)`, `RESEND`, `SDP_MOST`, `LINGER`, `ANNOUNCE_LEAST`, `ANNOUNCE_MOST` |
 | `tracker::link` | `Tracker` (also `tracker::Tracker`): `connect(&url, &config, side, tag, role, resend)`, `add`, `message(wait)`, `close(mood)`, `end`, `appid`, `info_hash`, `peer_id`, `shown`; `KEPT_MOST` |
 | `tracker::wire` | the pure messages of a WebTorrent tracker: `said(text)`, `Said` (`Announced`, `Offer`, `Answer`, `Failure`, `Warning`, `Other`), `Note { tag, side, from, got, messages }` (`to_sdp`, `indexed`), `note_of(sdp)`, `ID_CHARS` |
-| `place` | `Place` (`Mailbox`, `Relay`, `Tracker`, `Broker`; `From` each): `shown`, `noun`, `appid`, and the steps of a wormhole at either |
+| `ntfy` | `Servers { points, config, pace, h2 }`, `Servers::new(points, config)`, `Pace { poll, waiting, retry }` (`Default`: `POLL`, `WAITING`, `RETRY`), `Point { tls, host, port, base }` (`parse("https://HOST[:PORT][/PATH]")`, `shown`, `host_header`, `target`), `opened(&servers, versions)` (a new code at the first server that answers, the giver reading), `joined(&servers, &code, versions, giver_wait)` (the taker's wormhole, the key made), `MESSAGE_MOST` (4,095), `POLL` (1 s), `WAITING` (5 s), `RETRY` (5 s), `SINCE_SLACK` (60 s) |
+| `ntfy::link` | `Topic` (also `ntfy::Topic`): `connect(&point, &servers, side, tag, role)`, `add`, `message(wait)`, `close`, `end`, `appid`, `inbox`, `is_h2`, `shown`; `KEPT_MOST`, `SEEN_MOST` |
+| `ntfy::conn` | one HTTP connection to a server: `dial(&point, &config, h2)`, `Conn` (`Http1`, `Http2`; `is_h2`, `request`, `stream`, `end`), `Answer { status, body }` (`is_success`, `refusal`), `Body` (`part`), `BODY_MOST` |
+| `ntfy::wire` | the pure lines of an ntfy server: `said(line)`, `Said` (`Open`, `Keepalive`, `Message { id, time, topic, text }`, `Other`), `is_id`, `content(side, phase, body)` (`Err(len)` over `MESSAGE_MOST`), `refusal(status, body)`, `Lines` (`feed`, `rest`), `ID_CHARS`, `LINE_MOST` |
+| `place` | `Place` (`Mailbox`, `Ntfy`, `Relay`, `Tracker`, `Broker`; `From` each): `shown`, `noun`, `appid`, and the steps of a wormhole at either |
 | `phrase` | `Code`: `make(nameplate, words, &mut dyn Entropy)` (`Failed::Mine` for a count out of `check_words`), `parse(typed)`, `nameplate`, `password`, `for_terminal`, `words`; `check_words` (2 to 8), `nameplate_ok`, `WORDS` (3, the default), `WORDS_LEAST`, `WORDS_MOST`, `NAMEPLATE_MOST`, `TYPED_MOST` |
 | `words` | the PGP word list (`EVEN`, `ODD`, `list`, `word`, `find`) |
 | `message` | the pure reading of a mailbox's messages: `object`, `message_of`, `pake_of`, `words`, `hex`, `unhex`, `Message`, `WORDS_MOST` |
@@ -118,6 +124,45 @@ before the brokers, as `pod-relay`'s runs do.
   it as a duplicate.
 * A content is at most 64,000 bytes (`CONTENT_MOST`): the event stays
   under the 65,536 bytes that strfry takes.
+
+## The ntfy meeting point
+
+`ntfy::opened` and `ntfy::joined` are the same two steps at a list of
+ntfy servers (PodUtils/podssh#237, PodUtils/podssh@T-496;
+`docs/decisions.md`, C568 to C573), for a way out that refuses the
+WebSocket upgrade: each request is of plain HTTPS. `pod-relay`'s runs put
+the servers after the mailboxes, or first where the caller's probe found
+the upgrade refused.
+
+* The topic of the code is the topic of `mqtt` of the AppID and the
+  nameplate with the letter of each direction, never the words: 43
+  letters and digits, which ntfy takes (`[-_A-Za-z0-9]{1,64}`).
+* Each message of the mailbox is one POST to the other end's topic whose
+  body is its JSON (`{"side", "phase", "body"}`, the body in hex), with
+  `X-Firebase: no`. A body is at most 4,095 bytes (`MESSAGE_MOST`): ntfy
+  keeps a body of its whole limit (4,096) as an attachment, as a cloud
+  session measured at ntfy.sh, ntfy.envs.net and ntfy.adminforge.de; a
+  longer message fails before the send.
+* A server keeps each message (12 h on ntfy.sh), so nothing is sent
+  again. The giver holds its messages until the taker is heard; each end
+  reads from its start less `SINCE_SLACK` (60 s), then from the id of the
+  last message read (`since=`), and drops a message that comes twice by
+  its id.
+* TLS offers `h2` then `http/1.1`. On HTTP/2 one connection holds the
+  stream of `TOPIC/json?since=` and the POSTs. On HTTP/1.1 the polls
+  (`TOPIC/json?poll=1&since=`) and the POSTs take turns on one connection,
+  which is dialed again once where the server closed it between two
+  requests. An end polls each `Pace::poll` (1 s); the giver polls each
+  `Pace::waiting` (5 s) until the taker is heard: a visitor of ntfy gets
+  60 requests at once and one more each 5 s.
+* Before a code is shown or typed, the connection proves the server: the
+  stream gives its `open` line, or a poll gives `200`. A server that is
+  not there or refuses is passed over with its words (ntfy's `error` and
+  `code`), as the event `wormhole.ntfy`. An answer `429` is the event
+  `wormhole.ntfy` (info), and the request goes again after `Pace::retry`
+  (5 s), within `Config::answer_limit`.
+* ntfy.sh takes 250 messages a day from one address; a pairing posts
+  seven.
 
 ## The WebTorrent meeting point
 
@@ -214,10 +259,12 @@ prints nothing.
 | The bound of the answer to a command (30 s) | `Config::answer_limit` |
 | The words of a new code (3; 2 to 8), as magic-wormhole's `--code-length` | `Config::words`; `opened` refuses another count before a dial |
 | The largest frame (256 KiB) and message (1 MiB) of a mailbox | `Config::limits` |
-| The lines for the user | `Config::events` (`pod_core::Events`): `wormhole.mailbox` (warn; a mailbox that failed, why), `wormhole.nostr` (warn; a Nostr relay that failed, why; info: its `NOTICE`), `wormhole.tracker` (warn; a tracker that failed, why; info: its words after the other end was heard), `wormhole.broker` (warn; a broker that failed, why) and `wormhole.motd` (info; the mailbox's words). No event holds the code or a password |
+| The lines for the user | `Config::events` (`pod_core::Events`): `wormhole.mailbox` (warn; a mailbox that failed, why), `wormhole.ntfy` (warn; an ntfy server that failed, why; info: an answer `429`), `wormhole.nostr` (warn; a Nostr relay that failed, why; info: its `NOTICE`), `wormhole.tracker` (warn; a tracker that failed, why; info: its words after the other end was heard), `wormhole.broker` (warn; a broker that failed, why) and `wormhole.motd` (info; the mailbox's words). No event holds the code or a password |
 | The mailbox URLs, their order, `--pair-mailbox`, `PODSSH_PAIR_MAILBOX`, the public ones | the caller: `Ends::mailboxes` (`pod-services` has the public ones) |
 | The MQTT brokers, their logins, their order, whether to take them (`PODSSH_MQTT`) | the caller: `Brokers::points` (`pod-services` has the public ones: the kind `mqtt-broker`, the endpoint `broker`, the facts `user` and `password`) |
 | How often the taker sends again at a broker (2 s) | `Brokers::resend` |
+| The ntfy servers, their order, whether to take them (`PODSSH_PAIR_NTFY`) | the caller: `Servers::points` (`pod-services` has the public ones: the kind `ntfy-server`, the endpoint `server`; the facts `message-bytes-most`, `requests-burst`, `request-refill-seconds`, `messages-per-day`, `account-required`) |
+| How often an end polls an ntfy server on HTTP/1.1 (1 s; the waiting giver 5 s), the wait after `429` (5 s), HTTP/2 or not | `Servers::pace`, `Servers::h2` |
 | The Nostr relays, their order, whether to take them | the caller: `Relays::points` (`pod-services` has the public ones: the kind `nostr-relay`, the endpoint `relay`) |
 | How often the taker sends again at a Nostr relay (2 s) | `Relays::resend` |
 | The WebTorrent trackers, their order, whether to take them | the caller: `Trackers::points` (`pod-services` has the public ones: the kind `webtorrent-tracker`, the endpoint `tracker`; the facts `filter-list`, `filter-list-part` and `filter-category` name the filter list that refuses each one) |
@@ -289,6 +336,7 @@ Differences from the source, each with a test:
 | podssh | none (PodUtils/podssh@T-738, new) | `pod_wormhole::mqtt::Board` (`put`, `take`, `clear`) at the brokers of the kind `mqtt-broker`, for the URL of each piece of the resumable layer as a sealed note; the host of each piece is a service of the kind `file-host` of `pod-services` |
 | podssh | none (PodUtils/podssh@T-545, new) | `pod_wormhole::nostr::{opened, joined}` after the mailboxes, with `Relays` of the services of the kind `nostr-relay` (`endpoint("relay")`), or `pod_relay::code::run::Ends::relays`; the switch and the line that names the third party are podssh's |
 | podssh | none (PodUtils/podssh@T-695, new) | `pod_wormhole::tracker::{opened, joined}` after the Nostr relays, with `Trackers` of the services of the kind `webtorrent-tracker` (`endpoint("tracker")`), or `pod_relay::code::run::Ends::trackers`; the switch, the line that names the third party and the filter list of each tracker (its facts) are podssh's |
+| podssh | none (PodUtils/podssh@T-496, new) | `pod_wormhole::ntfy::{opened, joined}` after the mailboxes, or first where its probe found the upgrade refused, with `Servers` of the services of the kind `ntfy-server` (`Point::parse(&endpoint("server")?.url())`), or `pod_relay::code::run::Ends::{ntfy, upgrade_refused}`; `PODSSH_PAIR_NTFY` and the line that names the third party are podssh's |
 | podnet | none: podnet has no wormhole code | its transfer (T-102) takes `pod-wormhole` with its own `Config` (`appid`, `"podnet"`, its `Way`) |
 | podnet | `tests/transfer_harness/mod.rs`, its own stand-in mailbox | `pod_wormhole::standin` (`[dev-dependencies]`, feature `standin`) |
 | podnet | a random transit key in its sealed `transit` message | `Wormhole::derive_key("APPID/transit-key", 32)`, as magic-wormhole's transfer |
@@ -347,8 +395,23 @@ interval; a stranger in the swarm after the taker, with the taker's
 side, is not heard; a
 tracker that refuses or says nothing is passed over with its words; each
 public tracker carries the largest `sdp`.
+`tests/ntfy.rs` runs the ntfy meeting point over a stand-in server in Rust
+(`tests/harness/ntfy.rs`, HTTP/1.1; `tests/harness/ntfy_tls.rs`, behind TLS
+with HTTP/2 or HTTP/1.1 alone), which keeps each message as ntfy's cache
+does, and over ntfy's own server where `POD_WORMHOLE_TEST_NTFY` names it
+(`http://127.0.0.1:PORT/`, as `scripts/ci/ntfy-tests.sh` runs the pinned
+release 2.37.2; `POD_WORMHOLE_TEST_NTFY_SERVER=required` makes a skip a
+failure): two ends pair by polls that take turns with the POSTs on one
+connection of each end (HTTP/1.1), and on one connection of each end with
+a stream (HTTP/2), and a server behind TLS with HTTP/1.1 alone is polled,
+with no word of the code in a request; a message of 4,096 bytes or more
+fails before the send; a read takes what came since its start, then
+since the last id; a POST answered `429` goes again; a server that
+refuses is passed over with its words; each public server carries the
+largest message.
 `tests/live.rs` is `#[ignore]`: two ends meet at
-each public mailbox and pair at each public Nostr relay, each public
+each public mailbox and pair at each public ntfy server (on HTTP/2 and
+on HTTP/1.1), each public Nostr relay, each public
 WebTorrent tracker and each public broker of `pod-services` (`live.yml`). `tests/board_live.rs` is `#[ignore]`: a board puts, takes
 and clears a note at each public broker (`live.yml`, each Thursday).
 
@@ -365,12 +428,16 @@ The plants `wormhole-version-unchecked`, `wormhole-held-unbounded`,
 `wormhole-nostr-no-resend`, `wormhole-nostr-refusal-ignored`,
 `wormhole-nostr-signature-unchecked`, `wormhole-tracker-empty-answer`,
 `wormhole-tracker-no-resend`, `wormhole-tracker-info-hash-constant`,
-`wormhole-tracker-refusal-ignored` and `wormhole-tracker-stranger-heard`
-(`scripts/plants/`) prove seventeen of the tests. The fuzz target
+`wormhole-tracker-refusal-ignored`, `wormhole-tracker-stranger-heard`,
+`wormhole-ntfy-topic-of-code`, `wormhole-ntfy-size-unchecked`,
+`wormhole-ntfy-since-start`, `wormhole-ntfy-limit-fails`,
+`wormhole-ntfy-polls-on-h2` and `wormhole-ntfy-connection-each-request`
+(`scripts/plants/`) prove twenty-two of the tests. The fuzz target
 `mailbox_message` runs the pure reading of a mailbox's messages and the
 parser of a typed code; `mqtt_packet` runs the codec of MQTT and the topic; `nostr_message` runs
 the reading of a Nostr relay's messages and the check of an event;
-`tracker_message` runs the reading of a tracker's messages and of a note.
+`tracker_message` runs the reading of a tracker's messages and of a note;
+`ntfy_message` runs the reading of the lines of an ntfy server.
 
 ## Sources
 

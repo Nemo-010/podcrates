@@ -202,6 +202,22 @@ pub fn kind_facts(kind: &str) -> Option<KindFacts> {
             words: &[],
             when: &[],
         },
+        // The public ntfy servers (PodUtils/podssh#237): the meeting points
+        // of `pod_wormhole::ntfy` where the way out refuses the WebSocket
+        // upgrade; the limits of a visitor with no account.
+        "ntfy-server" => KindFacts {
+            endpoints: &["server"],
+            need: &[
+                ("message-bytes-most", "int"),
+                ("requests-burst", "int"),
+                ("request-refill-seconds", "int"),
+                ("messages-per-day", "int"),
+                ("account-required", "bool"),
+            ],
+            optional: &[("software", "text")],
+            words: &[],
+            when: &[],
+        },
         // magic-wormhole's transit relays (PodUtils/podnet#535): the scheme
         // of `relay` tells TCP (`tcp`) from WebSocket (`wss`); no fact.
         "transit" => KindFacts { endpoints: &["relay"], need: &[], optional: &[], words: &[], when: &[] },

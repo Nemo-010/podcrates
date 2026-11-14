@@ -1,10 +1,11 @@
-//! The fuzz targets of the MQTT, the Nostr and the WebTorrent meeting
-//! points of `pod-wormhole`: the bytes come from a public broker, relay or
-//! tracker, which any client of it can fill.
+//! The fuzz targets of the MQTT, the Nostr, the WebTorrent and the ntfy
+//! meeting points of `pod-wormhole`: the bytes come from a public broker,
+//! relay, tracker or server, which any client of it can fill.
 
 use pod_wormhole::mqtt::packet::{decode, encode};
 use pod_wormhole::mqtt::topic;
 use pod_wormhole::nostr::event::{Said, checked, said};
+use pod_wormhole::ntfy::wire as ntfy_wire;
 use pod_wormhole::tracker::wire::{self, note_of};
 
 use crate::{is_one_line, text};
@@ -71,4 +72,31 @@ pub fn tracker_message(data: &[u8]) {
             assert_eq!(message.side, note.side);
         }
     }
+}
+
+/// The lines of an ntfy server (`pod_wormhole::ntfy::wire::{said, Lines,
+/// refusal}`; new in `pod-wormhole`, T-554): a body reads with no panic in
+/// parts of any size, and gives the same lines as in one part; each line is
+/// whole, with no end of line; a message keeps an id of 12 letters and
+/// digits; the words of a refusal are one line.
+pub fn ntfy_message(data: &[u8]) {
+    let mut whole = ntfy_wire::Lines::default();
+    let Ok(mut lines) = whole.feed(data) else { return };
+    lines.extend(whole.rest());
+    let mut parts = ntfy_wire::Lines::default();
+    let cut = data.first().map_or(1, |b| usize::from(*b % 16) + 1);
+    let mut again = Vec::new();
+    for part in data.chunks(cut) {
+        again.extend(parts.feed(part).expect("a part of a body that reads whole"));
+    }
+    again.extend(parts.rest());
+    assert_eq!(lines, again, "the lines of the parts are the lines of the whole");
+    for line in &lines {
+        assert!(!line.contains(&b'\n') && !line.is_empty(), "{line:?}");
+        if let Some(ntfy_wire::Said::Message { id, .. }) = ntfy_wire::said(line) {
+            assert!(ntfy_wire::is_id(&id), "{id}");
+        }
+    }
+    let status = u16::from(data.first().copied().unwrap_or(0)) + 400;
+    assert!(is_one_line(&ntfy_wire::refusal(status, data)));
 }

@@ -72,7 +72,7 @@ another kind.
 | `Net` (`context`, `dial`, `trust`, `client`, `dns`, `services`, `bases`, `github_token`, `today`, `limit`), `Bases` (`public`, `at`) | the way out of each check: the runner fills it, a test gives its stand-ins |
 | `args::Args` | the arguments of a watch and the values that they name |
 | `schema::arguments(kind)`, `schema::faults(service, watch, is_service)` | the arguments of each watch kind, and the faults of one watch |
-| `schema::kind_facts(kind)` (`KindFacts`: `endpoints`, `need`, `optional`, `words`, `when`), `schema::service_faults(service)` | the endpoints and the facts of a service kind with a table (`file-host`, T-416; `transit`, T-548; `nostr-relay`, T-550; `webtorrent-tracker`, T-551), and the faults of one service: a missing endpoint or fact, a type, a word, a fact that the kind does not name, a fact that a word needs |
+| `schema::kind_facts(kind)` (`KindFacts`: `endpoints`, `need`, `optional`, `words`, `when`), `schema::service_faults(service)` | the endpoints and the facts of a service kind with a table (`file-host`, T-416; `transit`, T-548; `nostr-relay`, T-550; `webtorrent-tracker`, T-551; `ntfy-server`, T-554), and the faults of one service: a missing endpoint or fact, a type, a word, a fact that the kind does not name, a fact that a word needs |
 | `file_host::trip(service, net, bytes, boundary)` (`Trip`: `url`, `fetched`, `deleted`, `lines`), `file_host::multipart`, `answer_url`, `fetch_url`, `page_link`, `served` | the round trip of one file host by the facts of its kind (T-528): the upload form, the URL of the answer, the download (by a segment, or by the link of the page at the URL), the compare, the delete by token. A refusal names its status and the start of its text |
 
 The library reads no variable and no file, and prints nothing.
@@ -113,13 +113,16 @@ fact or a service that the data does not have (`schema::faults`). A run
 checks the same before the network.
 
 A service kind can have a table of its facts (`schema::kind_facts`; the
-kinds `file-host`, `transit`, `nostr-relay` and `webtorrent-tracker`
-have one: a `transit` service has the endpoint `relay`, whose scheme
+kinds `file-host`, `transit`, `nostr-relay`, `webtorrent-tracker` and
+`ntfy-server` have one: a `transit` service has the endpoint `relay`, whose scheme
 tells TCP from WebSocket, and no fact; a `nostr-relay` has the endpoint
 `relay` and the facts `message-bytes-most` and `subscriptions-most`, and
 can have `software`; a `webtorrent-tracker` has the endpoint `tracker`
 and the facts `sdp-bytes-most`, `filter-list`, `filter-list-part` and
-`filter-category`, and can have `software`). `data::each_service_has_the_facts_of_its_kind`
+`filter-category`, and can have `software`; an `ntfy-server` has the
+endpoint `server` and the facts `message-bytes-most`, `requests-burst`,
+`request-refill-seconds`, `messages-per-day` and `account-required`, and
+can have `software`). `data::each_service_has_the_facts_of_its_kind`
 fails when a built-in service of such a kind misses an endpoint or a fact
 of the table, has a fact of another type or a word that the table does
 not name, or has a fact that the table does not name. A run checks the

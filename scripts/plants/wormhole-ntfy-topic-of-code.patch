@@ -1,0 +1,21 @@
+diff --git a/crates/pod-wormhole/src/ntfy.rs b/crates/pod-wormhole/src/ntfy.rs
+--- a/crates/pod-wormhole/src/ntfy.rs
++++ b/crates/pod-wormhole/src/ntfy.rs
+@@ -166,7 +166,7 @@
+     let plate = nameplate(&mut OsEntropy).map_err(|_| Failed::NoRandom)?;
+     // A count of words out of its bounds fails here, before a server.
+     let code = Code::make(&plate, servers.config.words, &mut OsEntropy)?;
+-    let tag = topic(&servers.config.appid, &plate);
++    let tag = topic(&servers.config.appid, code.for_terminal());
+     let mut missed = Vec::new();
+     for point in &servers.points {
+         let topic = match Topic::connect(point, servers, &side, &tag, Role::Giver).await {
+@@ -188,7 +188,7 @@
+ /// sent and the giver's answer read within `giver`.
+ pub async fn joined(servers: &Servers, code: &Code, versions: Value, giver: Duration) -> Result<Wormhole, Failed> {
+     let side = new_side()?;
+-    let tag = topic(&servers.config.appid, code.nameplate());
++    let tag = topic(&servers.config.appid, code.for_terminal());
+     let (mut missed, mut reached) = (Vec::new(), false);
+     for point in &servers.points {
+         let topic = match Topic::connect(point, servers, &side, &tag, Role::Taker).await {

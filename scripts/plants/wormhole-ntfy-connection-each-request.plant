@@ -1,0 +1,7 @@
+# The polls and the POSTs of HTTP/1.1 do not take turns on one connection:
+# each request dials a new one; the test of one connection for each end
+# must fail.
+ENTRY=T-554
+GROUP=wormhole
+EXPECT='test two_ends_pair_by_polls_that_take_turns_with_the_posts_on_http1 \.\.\. FAILED'
+RUN='cargo test -p pod-wormhole --features standin --test ntfy -- two_ends_pair_by_polls_that_take_turns_with_the_posts_on_http1 --exact'

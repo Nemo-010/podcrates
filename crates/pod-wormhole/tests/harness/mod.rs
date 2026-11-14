@@ -16,7 +16,8 @@
 //! Mosquitto) are in [`broker`]; `POD_WORMHOLE_TEST_MQTT=required` makes a
 //! skip of Mosquitto a failure. The stand-in Nostr relay is in [`nostr`];
 //! the WebTorrent trackers (a stand-in, and bittorrent-tracker) are in
-//! [`tracker`].
+//! [`tracker`]; the stand-in ntfy server is in [`ntfy`], and behind TLS
+//! with HTTP/2 in [`ntfy_tls`].
 
 // Each test binary uses a part of it.
 #![allow(dead_code)]
@@ -33,6 +34,8 @@ use pod_ws::url::WsUrl;
 
 pub mod broker;
 pub mod nostr;
+pub mod ntfy;
+pub mod ntfy_tls;
 pub mod tracker;
 
 /// The stand-in of the feature `standin`, each start a failure of the test

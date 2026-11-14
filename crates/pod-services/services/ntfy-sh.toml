@@ -1,0 +1,80 @@
+# The official public ntfy server (ntfy.sh): a meeting point of the pairing
+# by code for a way out that refuses the WebSocket upgrade (pod-wormhole's
+# ntfy; PodUtils/podssh#237, PodUtils/podssh@T-496). The ends write a topic
+# by a POST and read it by a GET of plain HTTPS, with no account. Each
+# client of the server can read each topic, so the ends send ciphertext
+# alone. The endpoint server is the one to dial; the facts are the limits
+# of a visitor with no account.
+id = "ntfy-sh"
+kind = "ntfy-server"
+party = "ntfy (the project's own server, ntfy.sh)"
+about = "The public ntfy server at ntfy.sh: a topic written by a POST and read by a GET of HTTPS on port 443"
+
+[rank]
+value = 1
+source = { measured = "two ends paired through a topic of the server with no account, on HTTP/2 and on HTTP/1.1, through the HTTPS proxy of a cloud session (docs/decisions.md, C569)", read = 2026-11-14 }
+
+[[endpoint]]
+name = "server"
+scheme = "https"
+host = "ntfy.sh"
+port = 443
+path = "/"
+source = { url = "https://docs.ntfy.sh/integrations/", read = 2026-11-14, note = "the list of public ntfy servers names ntfy.sh as the official one" }
+
+[[endpoint]]
+name = "limits"
+role = "document"
+scheme = "https"
+host = "docs.ntfy.sh"
+port = 443
+path = "/publish/"
+source = { url = "https://docs.ntfy.sh/publish/#limitations", read = 2026-11-14 }
+
+[[fact]]
+name = "message-bytes-most"
+value = 4095
+unit = "bytes"
+source = { measured = "a body of 4,095 bytes came back as the message; one of 4,096 became an attachment, as util.Peek of ntfy v2.37.2 marks a body of the whole message-size-limit (4,096) as reached; the documents say 4,096 (C570)", read = 2026-11-14 }
+
+[[fact]]
+name = "requests-burst"
+value = 60
+source = { measured = "the answer to a POST: Ratelimit-Policy \"requests\";q=60;w=300", read = 2026-11-14, note = "the documents: 60 requests per visitor at once, then one each 5 s" }
+
+[[fact]]
+name = "request-refill-seconds"
+value = 5
+unit = "seconds"
+source = { url = "https://docs.ntfy.sh/publish/#limitations", read = 2026-11-14, note = "refills the allowed requests bucket at a rate of one request per 5 seconds" }
+
+[[fact]]
+name = "messages-per-day"
+value = 250
+source = { measured = "the answer to a POST: Ratelimit-Policy \"messages\";q=250;w=86400", read = 2026-11-14, note = "the documents: on ntfy.sh, the daily message limit is 250; a pairing posts seven messages" }
+
+[[fact]]
+name = "account-required"
+value = false
+source = { url = "https://ntfy.sh/config.js", read = 2026-11-14, note = "require_login false" }
+
+[[watch]]
+kind = "http-status"
+endpoint = "server"
+path = "/v1/health"
+status = 200
+
+[[watch]]
+kind = "http-text"
+endpoint = "limits"
+contains = "On ntfy.sh, the daily message limit is 250"
+
+[[watch]]
+kind = "http-text"
+endpoint = "limits"
+contains = "allow 60 requests per visitor at once, and then refills the your allowed requests bucket at a rate of one request per 5 seconds"
+
+[[watch]]
+kind = "http-text"
+url = "https://ntfy.sh/config.js"
+contains = '"require_login": false'

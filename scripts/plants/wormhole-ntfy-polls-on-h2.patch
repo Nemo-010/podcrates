@@ -1,0 +1,12 @@
+diff --git a/crates/pod-wormhole/src/ntfy/link.rs b/crates/pod-wormhole/src/ntfy/link.rs
+--- a/crates/pod-wormhole/src/ntfy/link.rs
++++ b/crates/pod-wormhole/src/ntfy/link.rs
+@@ -154,7 +154,7 @@
+             if let Some(kept) = self.kept.pop_front() {
+                 return Ok(Some(kept));
+             }
+-            if self.conn.is_h2() {
++            if self.conn.is_h2() && self.kept.len() > KEPT_MOST {
+                 if !self.read_stream(deadline).await? {
+                     return Ok(None);
+                 }

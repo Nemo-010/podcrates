@@ -1,0 +1,12 @@
+diff --git a/crates/pod-wormhole/src/ntfy/link.rs b/crates/pod-wormhole/src/ntfy/link.rs
+--- a/crates/pod-wormhole/src/ntfy/link.rs
++++ b/crates/pod-wormhole/src/ntfy/link.rs
+@@ -326,7 +326,7 @@
+     /// caller waits out, with an event; a refusal fails with its words.
+     async fn request(&mut self, method: &str, target: &str, body: &[u8]) -> Result<Option<Answer>, Failed> {
+         let answer = self.conn.request(&self.point, &self.config, method, target, body).await?;
+-        if answer.status == 429 {
++        if answer.status == 429 && answer.status != 429 {
+             let line = format!("the ntfy server {} limits this end: {}", self.shown, answer.refusal());
+             self.events.event(Event::info("wormhole.ntfy", line));
+             return Ok(None);

@@ -8,12 +8,16 @@
 //! leaves after one exchange, whatever its end, so that a wrong code, a
 //! guess or a success spends the code.
 //!
-//! Where no mailbox answers, the ends meet at the next places of [`Ends`]
-//! in the order of podssh's ruling Q77: the Nostr relays (T-550), the
-//! WebTorrent trackers (T-551), then the MQTT brokers (podssh T-737). The
-//! giver goes on after each place of a kind failed to answer; the taker
-//! goes on after it found no giver there too (call C115). Each kind starts
-//! with an event that a third party carries the messages ([`NOSTR_WORDS`],
+//! Where no mailbox answers, the ends meet at the next places of [`Ends`]:
+//! the ntfy servers (T-554, PodUtils/podssh#237), then in the order of
+//! podssh's ruling Q77 the Nostr relays (T-550), the WebTorrent trackers
+//! (T-551), then the MQTT brokers (podssh T-737). Where the caller's probe
+//! found that the way out refuses the WebSocket upgrade
+//! ([`Ends::upgrade_refused`]), the ntfy servers come first, as their
+//! requests are of plain HTTPS. The giver goes on after each place of a
+//! kind failed to answer; the taker goes on after it found no giver there
+//! too (call C115). Each kind but the mailboxes starts with an event that a
+//! third party carries the messages ([`NTFY_WORDS`], [`NOSTR_WORDS`],
 //! [`TRACKER_WORDS`], [`BROKER_WORDS`]).
 //!
 //! The runs are one for each [`Kind`] of exchange: [`give_with`] and
@@ -29,6 +33,7 @@ use pod_identity::PublicKey;
 use pod_wormhole::meet::or_close;
 use pod_wormhole::mqtt::{self, Brokers, Point};
 use pod_wormhole::nostr::{self, Relays};
+use pod_wormhole::ntfy::{self, Servers};
 use pod_wormhole::tracker::{self, Trackers};
 use pod_ws::url::WsUrl;
 use serde_json::Value;
@@ -42,7 +47,12 @@ use super::{Code, Failed, LIFETIME};
 pub struct Ends {
     /// The mailboxes, in order.
     pub mailboxes: Vec<WsUrl>,
-    /// The Nostr relays, in order, after the mailboxes; none: no Nostr.
+    /// The ntfy servers, in order, after the mailboxes; none: no ntfy.
+    pub ntfy: Vec<ntfy::Point>,
+    /// The caller's probe found that the way out refuses the WebSocket
+    /// upgrade: the ntfy servers come before the mailboxes.
+    pub upgrade_refused: bool,
+    /// The Nostr relays, in order, after the ntfy servers; none: no Nostr.
     pub relays: Vec<WsUrl>,
     /// The WebTorrent trackers, in order, after the relays; none: no
     /// tracker.
@@ -53,21 +63,30 @@ pub struct Ends {
     /// messages again ([`mqtt::RESEND`], [`nostr::RESEND`],
     /// [`tracker::RESEND`]).
     pub resend: Duration,
+    /// How often an end at an ntfy server polls on HTTP/1.1.
+    pub pace: ntfy::Pace,
     /// The caller's AppID, name, way out, trust and events.
     pub config: pod_wormhole::Config,
 }
 
 impl Ends {
-    /// The ends at `mailboxes` alone, with no relay, no tracker and no
-    /// broker.
+    /// The ends at `mailboxes` alone, with no ntfy server, no relay, no
+    /// tracker and no broker.
     pub fn new(mailboxes: Vec<WsUrl>, config: pod_wormhole::Config) -> Ends {
-        let (relays, trackers, brokers) = (Vec::new(), Vec::new(), Vec::new());
-        Ends { mailboxes, relays, trackers, brokers, resend: mqtt::RESEND, config }
+        let (ntfy, relays, trackers, brokers) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        let upgrade_refused = false;
+        let (resend, pace) = (mqtt::RESEND, ntfy::Pace::default());
+        Ends { mailboxes, ntfy, upgrade_refused, relays, trackers, brokers, resend, pace, config }
     }
 
     /// The ends as `pod-wormhole` takes them.
     pub fn wormhole(&self) -> pod_wormhole::Ends {
         pod_wormhole::Ends { mailboxes: self.mailboxes.clone(), config: self.config.clone() }
+    }
+
+    /// The ntfy servers as `pod_wormhole::ntfy` takes them.
+    pub fn ntfy(&self) -> Servers {
+        Servers { pace: self.pace, ..Servers::new(self.ntfy.clone(), self.config.clone()) }
     }
 
     /// The relays as `pod_wormhole::nostr` takes them.
@@ -85,11 +104,18 @@ impl Ends {
         Brokers { points: self.brokers.clone(), config: self.config.clone(), resend: self.resend }
     }
 
+    /// Whether the ntfy servers come before the mailboxes.
+    fn ntfy_first(&self) -> bool {
+        self.upgrade_refused && !self.ntfy.is_empty()
+    }
+
     /// The places after the mailboxes, in order, each with its event:
-    /// the relays, the trackers, then the brokers (podssh's ruling Q77),
-    /// those that the caller gave.
+    /// the ntfy servers where they do not come first, then the relays, the
+    /// trackers and the brokers (podssh's ruling Q77), those that the
+    /// caller gave.
     fn next_places(&self) -> Vec<Next> {
         let all = [
+            (Next::Ntfy, !self.ntfy.is_empty() && !self.ntfy_first()),
             (Next::Relays, !self.relays.is_empty()),
             (Next::Trackers, !self.trackers.is_empty()),
             (Next::Brokers, !self.brokers.is_empty()),
@@ -100,6 +126,7 @@ impl Ends {
     /// The event before the first place of `next`.
     fn say_next(&self, next: Next, why: &str) {
         let (kind, words) = match next {
+            Next::Ntfy => ("relay.code.ntfy", NTFY_WORDS),
             Next::Relays => ("relay.code.nostr", NOSTR_WORDS),
             Next::Trackers => ("relay.code.tracker", TRACKER_WORDS),
             Next::Brokers => ("relay.code.broker", BROKER_WORDS),
@@ -111,6 +138,7 @@ impl Ends {
 /// A kind of place after the mailboxes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Next {
+    Ntfy,
     Relays,
     Trackers,
     Brokers,
@@ -120,12 +148,20 @@ impl Next {
     /// The noun of a place of the kind, for the words of an event.
     fn noun(self) -> &'static str {
         match self {
+            Next::Ntfy => "ntfy server",
             Next::Relays => "Nostr relay",
             Next::Trackers => "WebTorrent tracker",
             Next::Brokers => "broker",
         }
     }
 }
+
+/// What the event before the first ntfy server says.
+pub const NTFY_WORDS: &str = "the next meeting point is a public ntfy server: a third party that nobody vouches \
+     for carries the messages of the pairing, and its proof keeps the secret";
+
+/// Why the ntfy servers come first, before [`NTFY_WORDS`].
+pub const UPGRADE_REFUSED: &str = "the way out refuses the WebSocket upgrade";
 
 /// What the event before the first Nostr relay says.
 pub const NOSTR_WORDS: &str = "the next meeting point is a public Nostr relay: a third party that nobody vouches \
@@ -332,17 +368,27 @@ pub async fn take_with<T>(
 
 /// A new code at the first mailbox of `ends` that answers, and its
 /// wormhole, this end's `pake` added: what a giver shows. `versions` goes in
-/// its version phase. Where no mailbox answers, the first relay that
-/// answers, then the first tracker, then the first broker.
+/// its version phase. Where no mailbox answers, the first ntfy server
+/// that answers, then the first relay, the first tracker, then the first
+/// broker; the ntfy servers first where the upgrade is refused.
 pub async fn opened(ends: &Ends, versions: Value) -> Result<(Wormhole, Code), Failed> {
-    let mut missed = match pod_wormhole::opened(&ends.wormhole(), versions.clone()).await {
-        Err(Failed::Unreachable(why)) => vec![why],
+    let mut missed = Vec::new();
+    if ends.ntfy_first() {
+        ends.say_next(Next::Ntfy, UPGRADE_REFUSED);
+        match ntfy::opened(&ends.ntfy(), versions.clone()).await {
+            Err(Failed::Unreachable(why)) => missed.push(why),
+            other => return other,
+        }
+    }
+    match pod_wormhole::opened(&ends.wormhole(), versions.clone()).await {
+        Err(Failed::Unreachable(why)) => missed.push(why),
         other => return other,
     };
     let mut noun = "mailbox";
     for next in ends.next_places() {
         ends.say_next(next, &format!("no {noun} answered"));
         let opened = match next {
+            Next::Ntfy => ntfy::opened(&ends.ntfy(), versions.clone()).await,
             Next::Relays => nostr::opened(&ends.relays(), versions.clone()).await,
             Next::Trackers => tracker::opened(&ends.trackers(), versions.clone()).await,
             Next::Brokers => mqtt::opened(&ends.brokers(), versions.clone()).await,
@@ -359,22 +405,37 @@ pub async fn opened(ends: &Ends, versions: Value) -> Result<(Wormhole, Code), Fa
 /// The wormhole of `code` at the mailbox where its giver waits, the key
 /// made: each mailbox of `ends` in order, by its list of nameplates, and
 /// where it lists none, by the giver's `pake` within `waits.giver`.
-/// Where no mailbox has the giver, each relay in order, then each tracker,
-/// then each broker, by the giver's answer within `waits.giver`.
+/// Where no mailbox has the giver, each ntfy server in order, then each
+/// relay, each tracker, then each broker, by the giver's answer within
+/// `waits.giver`; the ntfy servers first where the upgrade is refused.
 pub async fn joined(ends: &Ends, code: &Code, versions: Value, waits: &Waits) -> Result<Wormhole, Failed> {
+    let (mut missed, mut reached) = (Vec::new(), false);
+    if ends.ntfy_first() {
+        ends.say_next(Next::Ntfy, UPGRADE_REFUSED);
+        match ntfy::joined(&ends.ntfy(), code, versions.clone(), waits.giver).await {
+            Err(Failed::Unreachable(why)) => missed.push(why),
+            Err(Failed::Nobody) => reached = true,
+            other => return other,
+        }
+    }
     let at_mailboxes = pod_wormhole::joined(&ends.wormhole(), code, versions.clone(), waits.giver).await;
     // A giver that reached no mailbox waits at a later place, which this end
     // may not reach from a mailbox (call C115).
-    let (mut missed, mut reached) = match at_mailboxes {
-        Err(Failed::Unreachable(why)) => (vec![why], false),
-        Err(Failed::Nobody) => (Vec::new(), true),
+    let at_mailbox = match at_mailboxes {
+        Err(Failed::Unreachable(why)) => {
+            missed.push(why);
+            false
+        }
+        Err(Failed::Nobody) => true,
         other => return other,
     };
-    let (mut noun, mut answered) = ("mailbox", reached);
+    reached |= at_mailbox;
+    let (mut noun, mut answered) = ("mailbox", at_mailbox);
     for next in ends.next_places() {
         let why = if answered { format!("no {noun} has the giver") } else { format!("no {noun} answered") };
         ends.say_next(next, &why);
         let joined = match next {
+            Next::Ntfy => ntfy::joined(&ends.ntfy(), code, versions.clone(), waits.giver).await,
             Next::Relays => nostr::joined(&ends.relays(), code, versions.clone(), waits.giver).await,
             Next::Trackers => tracker::joined(&ends.trackers(), code, versions.clone(), waits.giver).await,
             Next::Brokers => mqtt::joined(&ends.brokers(), code, versions.clone(), waits.giver).await,

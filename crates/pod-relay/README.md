@@ -53,7 +53,7 @@ and prints nothing.
 | `pair` (feature `pair`) | `PairContext`, `create`, `status`, `stop`, `revoke`, `halt`, `rotate`, the stores of a pair and of an operator's part, `newest` (the stored pair with the most time left, or the next one), `Pair::for_node` (a node's part of the name and the node token that its user gives, call C130) |
 | `reverse` (feature `pair`) | `run` (the node), `NodeConfig`, `NodeState`, `Handler`, `TcpHandler`, `UdpHandler`, `local::{Target, LocalHandler}`, `channel` and `ChannelHandler` (each session to a service of the process, T-150), `Layered`, `E2e`, `routes::Routes`, `operator` (`OperatorLimits::eof_idle`, `EOF_IDLE`), `serve`, `Settings` (`half_close`, `drain`), `HALF_CLOSE_IDLE`, `DRAIN`, `wire::{Wire, Door, Carrier}`, the codecs |
 | `grant` (feature `grant`) | `Cert`, `Door`, `Mint`, `Spent`, `parse_public` |
-| `code` (feature `code`) | `exchange` (what the ends say), `run` (`give`, `take`, `give_with`, `take_with`, `Ends`, `Waits`; where no mailbox answers, the Nostr relays of `Ends::relays` after the event `relay.code.nostr` (`NOSTR_WORDS`, T-550), the WebTorrent trackers of `Ends::trackers` after the event `relay.code.tracker` (`TRACKER_WORDS`, T-551), then the MQTT brokers of `Ends::brokers` after the event `relay.code.broker` (`BROKER_WORDS`, T-277), in the order of podssh's ruling Q77), `LIFETIME` |
+| `code` (feature `code`) | `exchange` (what the ends say), `run` (`give`, `take`, `give_with`, `take_with`, `Ends`, `Waits`; where no mailbox answers, the ntfy servers of `Ends::ntfy` (at `Ends::pace`) after the event `relay.code.ntfy` (`NTFY_WORDS`, T-554; first, before the mailboxes, where `Ends::upgrade_refused` says that the caller's probe found the WebSocket upgrade refused, after the words `UPGRADE_REFUSED`), the Nostr relays of `Ends::relays` after the event `relay.code.nostr` (`NOSTR_WORDS`, T-550), the WebTorrent trackers of `Ends::trackers` after the event `relay.code.tracker` (`TRACKER_WORDS`, T-551), then the MQTT brokers of `Ends::brokers` after the event `relay.code.broker` (`BROKER_WORDS`, T-277), the last three in the order of podssh's ruling Q77), `LIFETIME` |
 | `blocking` (feature `blocking`) | `Client`, `Config`, `NodeOptions` (`say`: the node's lines, call C131), `Say`, `Operator`, `Forward`, `Local`, `BlockingHandler`, `NodeChannel`, `OperatorChannel`, `Stopper` |
 | `failure` | the stage and the class of each error |
 | `fuzzing` (feature `fuzzing`) | the readers of the wire for `fuzz/` |
@@ -418,7 +418,10 @@ stand-in relay, the reverse road (its node, its operator, its framing, its
 fair queue, its layer, its spares, its window, its dialect, podnet's plain
 mode), the
 end-to-end channel over the layered road, a node's routes and shares, the
-grants, the pairing by code at a stand-in mailbox, at a stand-in Nostr
+grants, the pairing by code at a stand-in mailbox, at a stand-in ntfy
+server before a stand-in Nostr relay (the plant
+`relay-code-ntfy-after-relays`) and before a mailbox where the upgrade is
+refused (the plant `relay-code-ntfy-not-first`), at a stand-in Nostr
 relay before a stand-in broker (the plant `relay-code-nostr-after-brokers`),
 at a stand-in WebTorrent tracker before a stand-in broker (the plant
 `relay-code-trackers-after-brokers`), and at the broker after a mailbox, a
