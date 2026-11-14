@@ -7002,7 +7002,7 @@ the schema `qga/qapi-schema.json` of QEMU (calls C414 to C421):
 **Milestone:** M7
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7021,6 +7021,26 @@ A readiness of the provision: the `WQREADY` marker of T-592, a text on the seria
 ```sh
 cargo test -p pod-guest --all-features
 ```
+
+## Done
+
+2026-11-14, commits 3ef196a and b938308 (a stale socket in the stand-in of a
+test). `pod_guest::ready::wait(&plan, &mut child,
+&Ready { signs, deadline, every })` with `Sign::{Marker, Serial(text),
+Screen { settle }}` gives the index of the first sign that holds;
+`Unready::{Deadline, Exited}` (`Timeout`, `Unavailable`) is the cause of
+each other end. `provision(.., out, &ready, wait)` types only into a
+ready guest (`Ready::screen(deadline)`) and stops the emulator after a
+deadline. `qmp::Monitor::screendump` and `qmp::json_text` are new. The
+NTFS and hive writer waits for the measure of podvm, as the Approach
+says. Calls C451 to C454.
+
+`cargo test -p pod-guest --all-features`: 130 unit tests passed at the
+commit (7 new against stand-ins: a mailbox file, a log that grows, a QMP
+server with a script of frames, `sleep` and `sh -c 'exit 3'` as the
+emulator, a provision whose emulator exits at once); 20 runs of the tests
+of `ready` in a loop. Plants: `guest-ready-a-still-screen-is-ready`,
+`guest-ready-serial-drops-the-carry`, each caught by hand.
 
 # T-596: `pod-guest`: a warm start from a saved state, with a fingerprint and a fallback to a cold boot (PodUtils/podvm#350, item 7)
 
@@ -7261,7 +7281,7 @@ cargo test -p pod-guest --all-features
 **Milestone:** M7
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7280,6 +7300,23 @@ Add `Fat16::remove(name)` and a poll form of `outcome` that gives `None` for an 
 ```sh
 cargo test -p pod-guest --all-features
 ```
+
+## Done
+
+2026-11-14, commit 5c942a2 (its plant again after T-610 in b938308).
+`Fat16::remove(name) -> Result<bool>` (the
+entry, its clusters and the long-name entries before it; `Ok(false)` for
+no such file), `poll_outcome(&fat16, token) -> Option<Outcome>` (`None`
+for no code, a code of another token, a code that does not parse yet),
+and `next_command(&mut fat16, &request)` (the result before goes, then
+the command, the mode file and the token). `outcome` after the power-off
+still refuses another token. Call C402.
+
+`cargo test -p pod-guest --all-features`: 119 unit tests passed at the
+commit (4 new: the removal frees the clusters for a file of most of the
+volume, the long-name entries go, the poll, the next command). Plants:
+`guest-fat16-remove-leaks-clusters`, `guest-poll-takes-an-old-token`,
+each caught by hand.
 
 # T-604: `pod-rootfs`: the completion of a tree whose `/etc` is closed (`0555`) fails as a user that is not root, after T-598
 
@@ -7369,7 +7406,7 @@ cargo test -p pod-extract --all-features
 **Milestone:** M7
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7388,3 +7425,21 @@ Windows Setup reads `autounattend.xml` from the root of a USB medium. `Fat16::pu
 ```sh
 cargo test -p pod-guest --all-features
 ```
+
+## Done
+
+2026-11-14, commit 69c596b. `Fat16::put` takes a long name of up to 32
+characters (`MAX_LONG_NAME`): VFAT long-name entries before an 8.3 alias
+`BASIS~N.EXT` with the first free `N`; `get`, `remove` and `list` read the
+long name, the alias and the 8.3 name; `fat16::checksum` is public. The
+aliases and the checksums are the ones of mtools 4.0.43, and mtools
+(`mdir`, `mtype`) and `fsck.fat` read an image of the crate with its long
+names. A finding fixed in place: a file that did not fit kept its
+clusters. Calls C464 to C467.
+
+`cargo test -p pod-guest --all-features`: 123 unit tests passed at the
+commit (4 new: the checksum against mtools, a read back, two long names
+of one stem with an 8.3 name in the way, a name of 32 characters and a
+chain with another checksum). Plants:
+`guest-fat16-long-name-checksum-rotates-left`,
+`guest-fat16-alias-collides`, each caught by hand.

@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**490 entries: 125 open, 8 partial, 5 blocked, 352 done.**
+**491 entries: 123 open, 8 partial, 5 blocked, 355 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 12 | 3 | 0 | 96 | 111 |
-| P2 | 57 | 2 | 4 | 193 | 256 |
+| P1 | 12 | 3 | 0 | 97 | 112 |
+| P2 | 55 | 2 | 4 | 195 | 256 |
 | P3 | 56 | 3 | 1 | 61 | 121 |
-| **All** | 125 | 8 | 5 | 352 | 490 |
+| **All** | 123 | 8 | 5 | 355 | 491 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -525,7 +525,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-592](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: the agent runs the command in a child `cmd /c`, writes a `WQREADY` marker, and has a keep-alive mode (PodUtils/podvm#350, item 3) |
 | [T-593](podvm.md) | P1 | M | M7 | feature | done | `pod-guest`: the options of a plan: a NIC with `hostfwd`, virtio devices, CD-ROM and USB media, VNC, a serial channel, the Hyper-V flags (PodUtils/podvm#350, item 4) |
 | [T-594](podvm.md) | P2 | M | M7 | feature | done | `pod-qga`: a new crate, a client of the QEMU Guest Agent over a Unix socket (PodUtils/podvm#350, item 5) |
-| [T-595](podvm.md) | P2 | M | M7 | feature | open | `pod-guest`: the provision waits for a ready guest in place of a fixed sleep (PodUtils/podvm#350, item 6) |
+| [T-595](podvm.md) | P2 | M | M7 | feature | done | `pod-guest`: the provision waits for a ready guest in place of a fixed sleep (PodUtils/podvm#350, item 6) |
 | [T-596](podvm.md) | P3 | M | M7 | feature | open | `pod-guest`: a warm start from a saved state, with a fingerprint and a fallback to a cold boot (PodUtils/podvm#350, item 7) |
 | [T-597](podvm.md) | P2 | S | M6 | defect | done | `pod-extract`: the umask of the process changes the modes of the tree, and the sidecar does not record it |
 | [T-598](podvm.md) | P1 | S | M6 | defect | done | `pod-extract`: each directory has the mode of the image after the last layer, and a directory entry replaces a non-directory of an earlier layer (PodUtils/podvm#354) |
@@ -533,8 +533,8 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-600](fleet.md) | P3 | S | M8 | defect | done | `pod-actions-results`: an upload directory of a crashed run stays under `.pending` of the cache |
 | [T-601](podvm.md) | P2 | S | M7 | chore | open | `pod-udf`: a test against images that a real mastering tool made |
 | [T-602](podvm.md) | P2 | S | M7 | research | open | `pod-guest`: the next command of a guest in keep-alive mode reaches the agent through a mounted FAT mailbox |
-| [T-603](podvm.md) | P2 | S | M7 | defect | open | `pod-guest`: the host removes a file of the FAT mailbox, and a poll of the outcome reads an old token as no result yet |
+| [T-603](podvm.md) | P2 | S | M7 | defect | done | `pod-guest`: the host removes a file of the FAT mailbox, and a poll of the outcome reads an old token as no result yet |
 | [T-604](podvm.md) | P1 | S | M6 | defect | open | `pod-rootfs`: the completion of a tree whose `/etc` is closed (`0555`) fails as a user that is not root, after T-598 |
 | [T-605](podvm.md) | P3 | S | M6 | defect | open | `pod-extract`: the sidecar does not record the mode that the kernel kept on a directory |
 | [T-606](podvm.md) | P3 | S | M6 | defect | open | `pod-extract`: a second extraction over a closed tree fails on a directory with no owner read or under a closed parent that the layer does not name |
-| [T-610](podvm.md) | P1 | S | M7 | feature | open | `pod-guest`: `Fat16::put` writes a long name of up to 32 characters with VFAT entries and an 8.3 alias (PodUtils/podvm#360) |
+| [T-610](podvm.md) | P1 | S | M7 | feature | done | `pod-guest`: `Fat16::put` writes a long name of up to 32 characters with VFAT entries and an 8.3 alias (PodUtils/podvm#360) |
