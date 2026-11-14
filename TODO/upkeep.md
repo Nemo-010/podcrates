@@ -1722,11 +1722,11 @@ runner.
 
 ## Problem
 
-`cargo test -p pod-warp --test net` failed once at `crates/pod-warp/tests/net.rs:251`: `connect()` gave `TCP to the MASQUE front door 192.0.2.1:443 through the moved dial of the test: Connection refused (os error 111)`. The test passed 8 runs of 8 alone after it. The moved dial carries the door to the stand-in edge of `world()`, so the edge was not yet listening, or another test on the host took its port, when the dial came.
+`cargo test -p pod-warp --test net` failed once at `crates/pod-warp/tests/net.rs:283`: `connect()` gave `TCP to the MASQUE front door 192.0.2.1:443 through the moved dial of the test: Connection refused (os error 111)`. The test passed 8 runs of 8 alone after it. The moved dial carries the door to the stand-in edge of `world()`, so the edge was not yet listening, or another test on the host took its port, when the dial came.
 
 ## Premise
 
-- Read: `crates/pod-warp/tests/net.rs` (`world`, `dead`, and the moved dial: `crates/pod-warp/tests/net.rs:380`), `crates/pod-warp/tests/common/edge.rs` (the listener of the stand-in edge, its port, and its loop of accepts).
+- Read: `crates/pod-warp/tests/net.rs` (`world`, `dead`, and the moved dial: `crates/pod-warp/tests/net.rs:412`), `crates/pod-warp/tests/common/edge.rs` (the listener of the stand-in edge, its port, and its loop of accepts).
 
 ## Approach
 

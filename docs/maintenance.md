@@ -315,6 +315,9 @@ fourth argument of the script names the list when it is elsewhere.
   and the rows), `TODO/PROGRESS.md` and `docs/decisions.md`: keep both
   sides of the rows in id order, then take the counts that `cargo todo
   check` reports.
+  After the merge commit, run `cargo todo check --base HEAD~1`: CI
+  checks the citations against the first parent, and a citation into a
+  file that the branch changed moves only in that check.
 * A test that uses a Unix item (a Unix socket, a mode of a file, the
   unix carrier) needs `#[cfg(unix)]`, or the Windows jobs of the nightly
   do not build. `sh scripts/agent/check-windows.sh` checks the tests of
