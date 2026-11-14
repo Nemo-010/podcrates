@@ -197,10 +197,10 @@ let io = Icmp::new(provider, identity).dial("SHA256:...@198.51.100.7").await?;
 | `icmp::EchoFrames` | frames each datagram of the ARQ as an ICMP echo message over an inner carrier of whole ICMP messages (the raw socket, or a memory pair in a test): `new(inner, kind, session, id)`; a `datagram::Datagrams` |
 | `icmp::IcmpSettings`, `icmp::wire` | `payload` (1400); the echo codec (`REQUEST`, `REPLY`, `HEADER`, `SESSION`, `Echo`, `checksum`, `encode`, `decode`) |
 | `icmp::{NAME, ALPN, PAYLOAD, CONNECT_TIMEOUT, HANDSHAKE_TIMEOUT, MAX_HANDSHAKES}` | the constants of the icmp carrier |
-| `poll::Poll` (feature `poll`) | the poll carriers: `new(provider, identity, way)` (the long poll), `with_form(form)`, `with_clients(keys)`, `clients`; the fields `form`, `connect_timeout` (20 s), `handshake_timeout` (10 s: the TLS of each connection, and the open), `answer_timeout` (30 s), `hold` (25 s, 1 s to 60 s), `idle` (60 s: a session with no request ends on the listener, a lane that fails ends on the dialer), `max_handshakes` (64), `max_sessions` (256), `max_bytes` (64 MiB: the bytes down that the sessions keep for their dialers; a session waits for room, an open with no room for one batch gets 429; each session holds two pipes of 256 KiB and a buffer of 64 KiB besides), `push` (a listener answers a push; else 406 and the dialer takes the long poll); `check`; `address(text)` (the key and the `PostUrl` of `KEY@https://HOST[:PORT]/PATH`, no query); `connect(&url, &key)`; `bind(addr)`; as a `Carrier`: `dial`, `listen("IP:PORT")`; the name and the cost of its form |
+| `poll::Poll` (feature `poll`) | the poll carriers: `new(provider, identity, way)` (the long poll), `with_form(form)`, `with_clients(keys)`, `clients`; the fields `form`, `connect_timeout` (20 s), `handshake_timeout` (10 s: the TLS of each connection, and the open), `answer_timeout` (30 s), `hold` (25 s, 1 s to 60 s), `idle` (60 s: a session with no request ends on the listener, a lane that fails ends on the dialer), `max_handshakes` (64), `max_sessions` (256), `max_connections` (1024: the connections at once; one past them closes at its accept), `max_bytes` (64 MiB: the bytes down that the sessions keep for their dialers; a session waits for room, an open with no room for one batch gets 429; each session holds two pipes of 64 KiB and a buffer of 16 KiB besides, and a connection reads a body up by parts of at most 64 KiB into the link), `push` (a listener answers a push; else 406 and the dialer takes the long poll); `check`; `address(text)` (the key and the `PostUrl` of `KEY@https://HOST[:PORT]/PATH`, no query); `connect(&url, &key)`; `bind(addr)`; as a `Carrier`: `dial`, `listen("IP:PORT")`; the name and the cost of its form |
 | `poll::Form` | `LongPoll` (`poll`), `Sse` (`sse`), `Chunked` (`chunked`), `Simplex` (`httppoll`); `name`, `batch` (256 KiB; 64 KiB for `Simplex`) |
-| `poll::PollListener`, `poll::Stats` | `local_addr`, `accept_key`, `stats` (sessions, 429s, requests, bytes up that came twice, bytes down sent again, long polls, simplex polls, pushes, pushes refused, the bytes down kept now); a `Listener`; a drop ends its connections and each session that it holds |
-| `poll::{ALPN, CONNECT_TIMEOUT, HANDSHAKE_TIMEOUT, ANSWER_TIMEOUT, HOLD, MIN_HOLD, MAX_HOLD, IDLE, MAX_HANDSHAKES, MAX_SESSIONS, MAX_BYTES, MIN_BYTES, BATCH, SIMPLEX_BATCH, WINDOW, ACK_EVERY, PING_EVERY, BACKOFF_FIRST, BACKOFF_MAX, BUSY_LIMIT}` | the constants of the poll carriers |
+| `poll::PollListener`, `poll::Stats` | `local_addr`, `accept_key`, `stats` (sessions, 429s, requests, bytes up that came twice, bytes down sent again, long polls, simplex polls, pushes, pushes refused, the bytes down kept now, the connections closed past `max_connections`); a `Listener`; a drop ends its connections and each session that it holds |
+| `poll::{ALPN, CONNECT_TIMEOUT, HANDSHAKE_TIMEOUT, ANSWER_TIMEOUT, HOLD, MIN_HOLD, MAX_HOLD, IDLE, MAX_HANDSHAKES, MAX_SESSIONS, MAX_CONNECTIONS, MAX_BYTES, MIN_BYTES, BATCH, SIMPLEX_BATCH, WINDOW, ACK_EVERY, PING_EVERY, BACKOFF_FIRST, BACKOFF_MAX, BUSY_LIMIT}` | the constants of the poll carriers |
 | `Cost` | the overhead class of a carrier in `Facts::cost`: `Low` (unix, memory, tcp, ws, h2), `Medium` (the long poll, a chunked stream), `High` (SSE, icmp), `Highest` (the simplex poll, dns) |
 | `tcp::{Keys, Refusal, refusal}`, `tcp::{NAME, ALPN, CONNECT_TIMEOUT, HANDSHAKE_TIMEOUT, MAX_HANDSHAKES}` | the shared set of client keys, the refusal of a key with the key seen, its finder in an error (from `pod_tls::peer`); the constants |
 | `frame` | `Frame`, `Decoder` (`new`, `with_preface`, `push`, `next`, `buffered`), `FrameError`, `PREFACE`, `HEADER`, `MAX_RECORD`, `kind` |
@@ -665,6 +665,12 @@ simplex poll (PodUtils/podnet@T-280), and the tests that hold them
   `Poll::max_bytes`; an open with no room for one batch gets 429, and an
   acknowledgement gives the bytes back (T-517):
   `the_sessions_keep_no_more_bytes_than_the_cap_and_an_open_with_no_room_gets_429`.
+- [x] A listener holds at most `Poll::max_connections` connections, and
+  one past them closes at its accept; a body up goes into the link by
+  parts, so no connection keeps a whole body, and a cut in a body keeps
+  the part that went in (T-525):
+  `a_connection_past_the_cap_closes_and_the_others_stay`,
+  `a_body_up_goes_into_the_link_by_parts_and_a_cut_keeps_its_part`.
 - [x] The name and the cost class of each form (`httppoll` is
   `Cost::Highest`):
   `each_form_has_its_name_and_its_cost_and_a_failure_of_the_way_out_keeps_its_class`.
@@ -675,7 +681,8 @@ simplex poll (PodUtils/podnet@T-280), and the tests that hold them
   `link-poll-first-busy-fatal`, `link-poll-hold-unheld`,
   `link-poll-handshake-inline`, `link-poll-push-refusal-fatal`,
   `link-poll-bytes-uncapped`, `link-poll-open-room-unchecked`,
-  `link-poll-long-head-taken` (`scripts/plants/`).
+  `link-poll-long-head-taken`, `link-poll-connections-uncapped`,
+  `link-poll-body-kept-whole` (`scripts/plants/`).
 - [x] The reader of HTTP/1.1 refuses a head of more than 4 KiB also when
   one read brings it whole (T-518): `a_long_head_and_a_large_chunk_are_refused`;
   the fuzz target `link_poll_wire` reads the bytes of connections.

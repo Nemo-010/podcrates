@@ -59,6 +59,9 @@ pub struct Stats {
     /// The bytes down that the sessions keep now for their dialers, within
     /// `Poll::max_bytes`.
     pub held: u64,
+    /// Connections closed at their accept: the listener held
+    /// `Poll::max_connections`.
+    pub turned_away: u64,
 }
 
 #[derive(Default)]
@@ -72,6 +75,7 @@ pub(super) struct Counters {
     pub shorts: AtomicU64,
     pub pushes: AtomicU64,
     pub no_push: AtomicU64,
+    pub turned_away: AtomicU64,
 }
 
 impl Counters {
@@ -92,6 +96,7 @@ impl Counters {
             pushes: get(&self.pushes),
             no_push: get(&self.no_push),
             held: held as u64,
+            turned_away: get(&self.turned_away),
         }
     }
 }
@@ -140,8 +145,12 @@ pub(super) async fn bind(p: &Poll, addr: SocketAddr) -> Result<PollListener, Car
         answer_timeout: p.answer_timeout,
         push: p.push,
     });
-    let limit = Arc::new(Semaphore::new(p.max_handshakes));
-    let task = tokio::spawn(serve(listener, TlsAcceptor::from(config), limit, p.handshake_timeout, serving.clone()));
+    let limits = Limits {
+        handshakes: Arc::new(Semaphore::new(p.max_handshakes)),
+        connections: Arc::new(Semaphore::new(p.max_connections)),
+        within: p.handshake_timeout,
+    };
+    let task = tokio::spawn(serve(listener, TlsAcceptor::from(config), limits, serving.clone()));
     Ok(PollListener { local, name, results, serving, task })
 }
 
@@ -191,16 +200,19 @@ impl Drop for PollListener {
     }
 }
 
-/// Accept the TCP connections and serve each, with at most `limit`
-/// handshakes at once; end the sessions with no request. The drop of this
-/// task drops each connection and the table of the sessions.
-async fn serve(
-    listener: tokio::net::TcpListener,
-    acceptor: TlsAcceptor,
-    limit: Arc<Semaphore>,
+/// The caps of the accept loop: the handshakes at once, the connections
+/// at once, and the time limit of a handshake.
+struct Limits {
+    handshakes: Arc<Semaphore>,
+    connections: Arc<Semaphore>,
     within: Duration,
-    s: Arc<Serving>,
-) {
+}
+
+/// Accept the TCP connections and serve each, with at most
+/// `max_handshakes` handshakes and `max_connections` connections at once;
+/// end the sessions with no request. The drop of this task drops each
+/// connection and the table of the sessions.
+async fn serve(listener: tokio::net::TcpListener, acceptor: TlsAcceptor, limits: Limits, s: Arc<Serving>) {
     let mut tasks = JoinSet::new();
     let reaper = s.clone();
     tasks.spawn(async move {
@@ -211,11 +223,18 @@ async fn serve(
         }
     });
     loop {
-        let Ok(permit) = limit.clone().acquire_owned().await else { return };
+        let Ok(permit) = limits.handshakes.clone().acquire_owned().await else { return };
         while tasks.try_join_next().is_some() {}
         match listener.accept().await {
             Ok((tcp, from)) => {
-                tasks.spawn(connection(acceptor.clone(), tcp, from, within, permit, s.clone()));
+                // A connection past the cap closes at once: it holds no
+                // buffer and no task.
+                let Ok(held) = limits.connections.clone().try_acquire_owned() else {
+                    Counters::add(&s.stats.turned_away, 1);
+                    continue;
+                };
+                let within = limits.within;
+                tasks.spawn(connection(acceptor.clone(), tcp, from, within, (permit, held), s.clone()));
             }
             Err(e) => {
                 drop(permit);
@@ -227,13 +246,14 @@ async fn serve(
 }
 
 /// The handshake of one connection within `within`, then its requests
-/// until a silence of [`KEEP_ALIVE`] or a close.
+/// until a silence of [`KEEP_ALIVE`] or a close. The permit of the
+/// handshake goes after it, the one of the connection at its end.
 async fn connection(
     acceptor: TlsAcceptor,
     tcp: TcpStream,
     from: SocketAddr,
     within: Duration,
-    permit: OwnedSemaphorePermit,
+    (permit, _held): (OwnedSemaphorePermit, OwnedSemaphorePermit),
     s: Arc<Serving>,
 ) {
     // The frames of a link are small; Nagle would hold a PING behind them.

@@ -1,0 +1,13 @@
+diff --git a/crates/pod-link/src/poll/answer.rs b/crates/pod-link/src/poll/answer.rs
+index 22ceb62..fbca2a3 100644
+--- a/crates/pod-link/src/poll/answer.rs
++++ b/crates/pod-link/src/poll/answer.rs
+@@ -156,7 +156,7 @@ async fn up<S: AsyncRead + AsyncWrite + Unpin>(
+         // The next offset only grows, so each part starts at or below it.
+         let mut at = seq;
+         while at < end {
+-            let part = conn.part(((end - at) as usize).min(PART)).await?;
++            let part = conn.body((end - at) as usize).await?;
+             let to = at + part.len() as u64;
+             let mut up = session.up.lock().await;
+             let skip = up.next.saturating_sub(at).min(part.len() as u64);

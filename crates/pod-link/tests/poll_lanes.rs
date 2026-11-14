@@ -4,7 +4,9 @@
 //! backs off while the link is quiet, and the long poll holds; a listener
 //! with no push gives the long poll; a push moves more than the window of
 //! the listener with no bytes up; the third 429 in a row ends a dial; the
-//! sessions of a listener keep no more bytes down than its cap (T-517).
+//! sessions of a listener keep no more bytes down than its cap (T-517); a
+//! connection past the cap of a listener closes, and a body up goes into
+//! the link by parts (T-525).
 
 #![cfg(feature = "poll")]
 
@@ -14,7 +16,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use common::limit;
-use common::poll::{Relay, at, bound, carrier, identity, key, post, raw};
+use common::poll::{Relay, ask_on, at, bound, carrier, connect, identity, key, post, raw};
 use common::tcp::Direct;
 use pod_link::poll::{self, Form, PollListener};
 use pod_link::{Carrier, CarrierErrorKind};
@@ -228,4 +230,78 @@ async fn the_sessions_keep_no_more_bytes_than_the_cap_and_an_open_with_no_room_g
     for link in links {
         let _far = timeout(limit(), link).await.expect("each window went in").unwrap();
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_connection_past_the_cap_closes_and_the_others_stay() {
+    pod_testkit::need_loopback!();
+    let mut listening = carrier(1, Arc::new(Direct::default()), &[key(2)], Form::LongPoll);
+    listening.max_connections = 2;
+    let door = bound(&listening).await;
+    let local = door.local_addr();
+    let join = || async move { timeout(limit(), connect(&key(1), identity(2), local)).await.expect("in time") };
+    let mut first = join().await.expect("the first connection");
+    let mut second = join().await.expect("the second connection");
+    assert!(join().await.is_err(), "the third connection closes: {:?}", door.stats());
+    assert_eq!(door.stats().turned_away, 1);
+    // A request with no session keeps its connection open.
+    let none = "GET /l/out HTTP/1.1\r\nHost: test\r\n\r\n";
+    for (n, conn) in [(1, &mut first), (2, &mut second)] {
+        let status = timeout(limit(), ask_on(conn, none)).await.expect("the answer in time");
+        assert_eq!(status.unwrap_or_else(|e| panic!("connection {n} stays: {e}")), 404);
+    }
+    // The end of a connection gives its place back.
+    drop(first);
+    let again = async {
+        loop {
+            if let Ok(conn) = connect(&key(1), identity(2), local).await {
+                return conn;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    };
+    let mut third = timeout(limit(), again).await.expect("a connection after the end of one");
+    assert_eq!(timeout(limit(), ask_on(&mut third, none)).await.expect("in time").unwrap(), 404);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_body_up_goes_into_the_link_by_parts_and_a_cut_keeps_its_part() {
+    pod_testkit::need_loopback!();
+    let listening = carrier(1, Arc::new(Direct::default()), &[key(2)], Form::LongPoll);
+    let mut door = bound(&listening).await;
+    let local = door.local_addr();
+    let id = "0123456789abcdef0123456789abcdef";
+    let (status, accepted) = tokio::join!(ask(local, post(&format!("/l/open?s={id}"))), async {
+        timeout(limit(), door.accept_key()).await.expect("the accept in time")
+    });
+    assert_eq!(status, 201);
+    let (mut far, _) = accepted.expect("the session");
+    let data = common::pattern(9, 128 << 10);
+    let half = data.len() / 2;
+    let head =
+        format!("POST /l/up?s={id}&seq=0&ack=0 HTTP/1.1\r\nHost: test\r\nContent-Length: {}\r\n\r\n", data.len());
+    let mut conn = connect(&key(1), identity(2), local).await.unwrap();
+    conn.write_all(head.as_bytes()).await.unwrap();
+    conn.write_all(&data[..half]).await.unwrap();
+    conn.flush().await.unwrap();
+    let mut got = vec![0u8; half];
+    timeout(limit(), far.read_exact(&mut got)).await.expect("the first part of the body in the link in time").unwrap();
+    assert!(got == data[..half], "the first part came whole");
+    // A cut in the body: the POST again gives the rest alone.
+    drop(conn);
+    let mut whole = head.into_bytes();
+    whole.extend_from_slice(&data);
+    let mut conn = connect(&key(1), identity(2), local).await.unwrap();
+    conn.write_all(&whole).await.unwrap();
+    let mut answer = Vec::new();
+    let mut byte = [0u8];
+    while !answer.ends_with(b"\r\n\r\n") {
+        timeout(limit(), conn.read_exact(&mut byte)).await.expect("the answer in time").unwrap();
+        answer.push(byte[0]);
+    }
+    let answer = String::from_utf8_lossy(&answer).to_ascii_lowercase();
+    assert!(answer.starts_with("http/1.1 202") && answer.contains("pod-ack: 131072"), "{answer}");
+    timeout(limit(), far.read_exact(&mut got)).await.expect("the rest in time").unwrap();
+    assert!(got == data[half..], "the rest came whole");
+    assert_eq!(door.stats().duplicate, half as u64, "the part before the cut went in one time");
 }

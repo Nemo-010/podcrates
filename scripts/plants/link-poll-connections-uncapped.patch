@@ -1,0 +1,13 @@
+diff --git a/crates/pod-link/src/poll/listen.rs b/crates/pod-link/src/poll/listen.rs
+index 62110aa..c048653 100644
+--- a/crates/pod-link/src/poll/listen.rs
++++ b/crates/pod-link/src/poll/listen.rs
+@@ -147,7 +147,7 @@ pub(super) async fn bind(p: &Poll, addr: SocketAddr) -> Result<PollListener, Car
+     });
+     let limits = Limits {
+         handshakes: Arc::new(Semaphore::new(p.max_handshakes)),
+-        connections: Arc::new(Semaphore::new(p.max_connections)),
++        connections: Arc::new(Semaphore::new(Semaphore::MAX_PERMITS)),
+         within: p.handshake_timeout,
+     };
+     let task = tokio::spawn(serve(listener, TlsAcceptor::from(config), limits, serving.clone()));

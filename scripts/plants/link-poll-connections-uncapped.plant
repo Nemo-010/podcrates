@@ -1,0 +1,7 @@
+# A poll listener takes each connection: no cap of the connections at once
+# (T-525).
+ENTRY=T-525
+GROUP=link
+EXPECT='the third connection closes'
+RUN='cargo test -p pod-link --all-features --test poll_lanes a_connection_past_the_cap'
+LIMIT=1800

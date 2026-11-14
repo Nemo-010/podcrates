@@ -146,6 +146,23 @@ impl<S: AsyncRead + AsyncWrite + Unpin> Conn<S> {
         Ok(self.buf.drain(..len).collect())
     }
 
+    /// The next part of a body: at most `max` bytes (at least one), the
+    /// bytes that wait or one read straight into the part. A listener
+    /// streams a body so: it keeps no whole body.
+    pub async fn part(&mut self, max: usize) -> io::Result<Vec<u8>> {
+        if !self.buf.is_empty() {
+            let n = self.buf.len().min(max);
+            return Ok(self.buf.drain(..n).collect());
+        }
+        let mut part = vec![0u8; max];
+        let n = self.io.read(&mut part).await?;
+        if n == 0 && max > 0 {
+            return Err(io::ErrorKind::UnexpectedEof.into());
+        }
+        part.truncate(n);
+        Ok(part)
+    }
+
     async fn line(&mut self) -> io::Result<String> {
         loop {
             if let Some(at) = self.buf.windows(2).position(|w| w == b"\r\n") {
