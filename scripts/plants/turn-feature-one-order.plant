@@ -1,0 +1,7 @@
+# A feature of the nonce cookie reads in the order of erratum 6290 alone;
+# the test of both orders must fail.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test (.*::)?a_feature_reads_in_both_orders_of_the_bits \.\.\. FAILED'
+RUN='cargo test -p pod-turn --all-features --lib -- a_feature_reads_in_both_orders_of_the_bits'
+LIMIT=1800

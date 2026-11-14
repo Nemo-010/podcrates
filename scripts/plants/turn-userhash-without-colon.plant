@@ -1,0 +1,7 @@
+# USERHASH hashes the user and the realm with no colon; the vector of
+# RFC 8489, B.1 must fail.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test (.*::)?the_request_of_rfc_8489_b1_checks_with_its_userhash_and_key \.\.\. FAILED'
+RUN='cargo test -p pod-turn --all-features --lib -- the_request_of_rfc_8489_b1_checks_with_its_userhash_and_key'
+LIMIT=1800

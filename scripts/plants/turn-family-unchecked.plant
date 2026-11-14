@@ -1,0 +1,7 @@
+# The client takes relayed addresses of a family that it did not ask for;
+# the unit test of the families must fail.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test (.*::)?a_success_of_another_family_or_an_odd_port_is_refused \.\.\. FAILED'
+RUN='cargo test -p pod-turn --all-features --lib -- a_success_of_another_family_or_an_odd_port_is_refused'
+LIMIT=1800

@@ -1,0 +1,7 @@
+# A Send indication has no DONT-FRAGMENT; the test of DONT-FRAGMENT must
+# fail.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test (.*::)?dont_fragment_goes_in_the_allocate_and_each_send \.\.\. FAILED'
+RUN='cargo test -p pod-turn --all-features --test turn_allocation -- dont_fragment_goes_in_the_allocate_and_each_send --exact'
+LIMIT=1800

@@ -1,0 +1,13 @@
+diff --git a/crates/pod-turn/src/client/exchange.rs b/crates/pod-turn/src/client/exchange.rs
+index 2c79efd..abea25a 100644
+--- a/crates/pod-turn/src/client/exchange.rs
++++ b/crates/pod-turn/src/client/exchange.rs
+@@ -214,7 +214,7 @@ impl Client {
+             Ok(to) => to,
+             Err(why) => return Error::Protocol { kind, why: format!("ALTERNATE-SERVER: {why}") },
+         };
+-        let domain = read.attribute(ALTERNATE_DOMAIN).filter(|_| signed);
++        let domain = read.attribute(ALTERNATE_DOMAIN).filter(|_| signed || !signed);
+         Error::Alternate { method, to, domain: domain.map(|v| String::from_utf8_lossy(v).into_owned()) }
+     }
+ 

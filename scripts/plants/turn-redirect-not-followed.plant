@@ -1,0 +1,7 @@
+# The client does not follow the 300 of the Allocate; the test of the
+# redirect against the mock must fail.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test (.*::)?a_300_of_the_first_allocate_is_followed_to_the_alternate \.\.\. FAILED'
+RUN='cargo test -p pod-turn --all-features --test turn_redirect -- a_300_of_the_first_allocate_is_followed_to_the_alternate --exact'
+LIMIT=1800

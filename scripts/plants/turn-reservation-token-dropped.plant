@@ -1,0 +1,7 @@
+# The Allocate sends no RESERVATION-TOKEN; the test of the next port
+# against the mock must fail.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test (.*::)?an_even_port_keeps_the_next_port_for_its_token \.\.\. FAILED'
+RUN='cargo test -p pod-turn --all-features --test turn_allocation -- an_even_port_keeps_the_next_port_for_its_token --exact'
+LIMIT=1800

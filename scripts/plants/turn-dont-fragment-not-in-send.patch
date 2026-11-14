@@ -1,0 +1,14 @@
+diff --git a/crates/pod-turn/src/client.rs b/crates/pod-turn/src/client.rs
+index 80c91d6..a705c2a 100644
+--- a/crates/pod-turn/src/client.rs
++++ b/crates/pod-turn/src/client.rs
+@@ -255,9 +255,6 @@ impl Client {
+         let id = self.new_id()?;
+         let address = stun::write_address(peer, Some(&id));
+         let mut attributes = vec![(XOR_PEER_ADDRESS, address.as_slice()), (DATA, data)];
+-        if self.dont_fragment {
+-            attributes.push((DONT_FRAGMENT, &[]));
+-        }
+         let bytes = stun::message(stun::message_type(SEND, Class::Indication), &id, &attributes);
+         self.conn.send(&bytes).await
+     }

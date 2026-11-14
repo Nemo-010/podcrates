@@ -1,0 +1,7 @@
+# The client takes a challenge whose nonce announces PASSWORD-ALGORITHMS
+# and holds none; the test of the downgrade must fail.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test (.*::)?a_challenge_with_no_password_algorithms_fails_as_a_downgrade \.\.\. FAILED'
+RUN='cargo test -p pod-turn --all-features --test turn_redirect -- a_challenge_with_no_password_algorithms_fails_as_a_downgrade --exact'
+LIMIT=1800

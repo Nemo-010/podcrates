@@ -1,0 +1,7 @@
+# The client keeps the 0.0.0.0:0 that coturn writes for the family of its
+# ADDRESS-ERROR-CODE; the unit test must fail.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test (.*::)?a_success_gives_its_addresses_its_token_and_the_family_it_did_not_give \.\.\. FAILED'
+RUN='cargo test -p pod-turn --all-features --lib -- a_success_gives_its_addresses_its_token_and_the_family_it_did_not_give'
+LIMIT=1800

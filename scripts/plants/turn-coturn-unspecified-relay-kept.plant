@@ -1,0 +1,8 @@
+# The client keeps the 0.0.0.0:0 that coturn 4.18 writes for the family of
+# its ADDRESS-ERROR-CODE; the test of the families against coturn must
+# fail. It needs docker and openssl.
+ENTRY=T-381
+GROUP=turn
+EXPECT='test each_address_family_on_a_server_of_ipv4 \.\.\. FAILED'
+RUN='sh scripts/ci/turn-tests.sh'
+LIMIT=1800

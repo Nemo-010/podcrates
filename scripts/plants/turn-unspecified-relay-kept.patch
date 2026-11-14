@@ -1,0 +1,12 @@
+diff --git a/crates/pod-turn/src/client/allocation.rs b/crates/pod-turn/src/client/allocation.rs
+index 04b12fd..8a94031 100644
+--- a/crates/pod-turn/src/client/allocation.rs
++++ b/crates/pod-turn/src/client/allocation.rs
+@@ -155,7 +155,6 @@ pub(super) fn granted(read: &stun::Message<'_>, asked: &Allocation) -> Result<Gr
+         .map(|(_, v)| {
+             stun::read_address(v, Some(&read.id)).map_err(|why| protocol(format!("XOR-RELAYED-ADDRESS: {why}")))
+         })
+-        .filter(|got| got.as_ref().map_or(true, |addr| !addr.ip().is_unspecified()))
+         .collect::<Result<Vec<_>, _>>()?;
+     let address_error = read.attribute(ADDRESS_ERROR_CODE).map(address_error).transpose().map_err(protocol)?;
+     let families: Vec<Family> = relayed.iter().map(Family::of).collect();
