@@ -155,9 +155,10 @@ numbers. `TODO/RULES.md` gives the rules.
 | #150 | COORD-090: the answer to PodUtils/podvm#341, #342 and #343: three defects of the QA report (to podvm) | closed (podvm took `v0.44.0` at `14e972d2`, PodUtils/podvm#362) | T-580, T-581, T-582 |
 | #151 | COORD-091: the answer to PodUtils/podvm#344 to #347: four more defects of the QA report (to podvm) | open (until a tag carries the entries) | T-583, T-584, T-585, T-586 |
 | #152 | COORD-092: the answer to PodUtils/podvm#350: the Windows guest (to podvm) | open (until a tag carries items 1 to 4) | T-590, T-591, T-592, T-593, T-594, T-595, T-596 |
-| #153 | COORD-093: the answer to PodUtils/podvm#352 and #354: pod-extract (to podvm) | open (until a tag carries the entries) | T-597, T-598, T-599 |
+| #153 | COORD-093: the answer to PodUtils/podvm#352 and #354: pod-extract (to podvm) | open (until podvm takes `v0.45.0`; it also answers PodUtils/podvm#367 with T-598 and T-606) | T-597, T-598, T-599 |
 | #154 | COORD-094: v0.44.0: a fix of security in pod-extract; podvm's QA defects; the foreground hold; pod-actions-workflow; the socket rules of pod-hold (to all) | closed (podrunner took it at `8ef1730`, PodUtils/podrunner#101; podvm at `14e972d2`, PodUtils/podvm#362; podssh at `eb4981f`, PodUtils/podssh#244; podnet at `6e9e9ee`, PodUtils/podnet#558) | T-573, T-580, T-581, T-582, T-597, T-574, T-558, T-575, T-572, T-577, T-576 |
 | #155 | COORD-095: the answer to PodUtils/podvm#359, #360 and #361: pod-broker texts, a long name in fat16, a host of pod-services (to podvm) | open (until a tag carries the entries) | T-609, T-610, T-611 |
 | #156 | COORD-096: the answer to PodUtils/podnet#555: the label of a unix proxy and the capnp reader of pod-cloudflare (to podnet) | open (until a tag carries T-612) | T-612, T-029 |
+| #157 | COORD-097: v0.45.0: pod-udf and pod-qga, pod-guest for the Windows guest; a credential leak in pod-proxy; podvm's QA defects; pod-session and pod-relay; pod-netstack; podrunner's changes (to all) | open (until each consumer takes it) | T-583, T-584, T-585, T-586, T-590, T-591, T-592, T-593, T-594, T-595, T-598, T-599, T-603, T-604, T-605, T-606, T-609, T-610, T-611, T-612, T-616, T-589, T-557, T-579, T-560, T-587, T-588, T-600, T-566, T-613, T-578 |
 
 #79 to #81 are pull requests.

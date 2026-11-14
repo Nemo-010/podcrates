@@ -13,26 +13,22 @@ is done. Git and the record keep finished work.
    tool) and read the open COORD issues `(to podcrates)`.
 2. Read the answer of podnet on #139 (the profile of `kcp`, T-526) and the
    takes of `v0.43.0` on its hand-off issue.
-3. Merge the agents' work for PodUtils/podrunner#97 and #98 and for
-   PodUtils/podvm#339 when it is done, and cut `v0.44.0` with it. Then the work order of
+3. Read the takes of `v0.45.0` on #157, and the answers on #151 (the
+   values of sand-net, T-586), #152 (the measure of `AutoRun`, T-617)
+   and #156 (podnet's fix of the capnp reader, T-029). Then the work order of
    `TODO/PROGRESS.md`.
 
 ## In flight
 
-- The last release: `v0.44.0` at `f6479c7` (ci 43577839745, adoption
-  43573763912 at `45a79ee`, release 43593582526; the hand-off #154,
-  COORD-094): the fix of security of T-597 in `pod-extract`. `v0.43.0` at
-  `ccbea49`: each consumer took it (#149, closed).
-- On `main` for `v0.45.0`: T-583 to T-586 (#151), T-557, T-587, T-588,
-  T-600, T-566 (PodUtils/podrunner#99), T-589 (PodUtils/podnet#552),
-  T-591 `pod-udf` and T-594 `pod-qga` (#152). The owner reserves the names
-  of `pod-actions-store`, `pod-actions-results`, `pod-udf` and `pod-qga`
-  on crates.io ("Owner actions" of `TODO/PROGRESS.md`).
-- Branches of agents in `.claude/worktrees/` (they merge into `main` when
-  done): `sess579` (T-579, T-560 done; T-578, T-540), `guest590` (T-590,
-  T-592, T-593 done), `extract598` (T-598, T-599 done; T-604 next: a
-  closed `/etc` breaks the completion of `pod-rootfs` as a user that is
-  not root, and must be fixed before `v0.45.0`).
+- The last release: `v0.45.0` at `ad50c7f` (ci 43606425054, adoption
+  43606425009, release 43608003241; the hand-off #157, COORD-097): the new
+  crates `pod-udf` and `pod-qga`, `pod-guest` for podvm's Windows guest,
+  the fix of a credential leak of `pod-proxy` (T-612), the rest of podvm's
+  QA defects. `v0.44.0` at `f6479c7`: each consumer took it (#154,
+  closed).
+- Each branch of an agent is merged; no agent runs. The owner reserves
+  the names `pod-actions-store`, `pod-actions-results`, `pod-udf` and
+  `pod-qga` on crates.io ("Owner actions" of `TODO/PROGRESS.md`).
 - The open threads of this session:
   - T-539 is in `v0.41.0`; T-540 (open) tests it against a kernel pty.
   - T-557 (open): a finding of T-542.
