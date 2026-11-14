@@ -186,6 +186,8 @@ for podnet (item 3c): T-526. Then the items below, in order.
   podcrates (the ruling "crates.io names"). A release by a git tag does
   not wait for them.
 - The owner reserved `pod-devtunnel` and `podswarm` on crates.io (T-387).
+- Send `docs/upstream/kcp-0.6.0-wrapping.patch` to the crate `kcp`
+  upstream as a pull request (T-526).
 
 The hand-off of each release is a COORD issue `(to all)`
 (`docs/maintenance.md`, "A release").

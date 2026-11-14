@@ -1,0 +1,39 @@
+--- a/src/kcp.rs
++++ b/src/kcp.rs
+@@ -73,7 +73,7 @@
+ 
+ #[inline]
+ fn timediff(later: u32, earlier: u32) -> i32 {
+-    later as i32 - earlier as i32
++    later.wrapping_sub(earlier) as i32
+ }
+ 
+ #[derive(Default, Clone, Debug)]
+@@ -453,7 +453,7 @@
+                     return Ok(segment.data.len());
+                 }
+ 
+-                if self.rcv_queue.len() < (segment.frg + 1) as usize {
++                if self.rcv_queue.len() < usize::from(segment.frg) + 1 {
+                     return Err(Error::ExpectingFragment);
+                 }
+ 
+@@ -551,13 +551,15 @@
+             } else {
+                 self.rx_srtt - rtt
+             };
+-            self.rx_rttval = (3 * self.rx_rttval + delta) / 4;
+-            self.rx_srtt = (7 * self.rx_srtt + rtt) / 8;
++            self.rx_rttval = ((3 * u64::from(self.rx_rttval) + u64::from(delta)) / 4) as u32;
++            self.rx_srtt = ((7 * u64::from(self.rx_srtt) + u64::from(rtt)) / 8) as u32;
+             if self.rx_srtt < 1 {
+                 self.rx_srtt = 1;
+             }
+         }
+-        let rto = self.rx_srtt + cmp::max(self.interval, 4 * self.rx_rttval);
++        let rto = self
++            .rx_srtt
++            .saturating_add(cmp::max(self.interval, self.rx_rttval.saturating_mul(4)));
+         self.rx_rto = bound(self.rx_minrto, rto, KCP_RTO_MAX);
+     }
+ 

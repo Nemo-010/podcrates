@@ -5928,6 +5928,7 @@ cargo test --manifest-path fuzz/Cargo.toml --lib
 ## Done
 
 - Part, 2026-11-13: `Cargo.toml` sets `[profile.dev.package.kcp] overflow-checks = false`. The test `a_panic_of_the_task_ends_the_stream_with_an_error` uses a carrier that panics in `recv`; the plant `link-udp-panic-hangs-the-stream` moved to it and fails it. `fuzz/Cargo.toml` keeps the checks. Open: the fix upstream in `kcp`. #139 (COORD-079) asks podnet to set the same profile; podnet sets it with its take of the udp carrier (PodUtils/podnet#527).
+- Part, 2026-11-14: `docs/upstream/kcp-0.6.0-wrapping.patch` holds the fix for `kcp` 0.6.0 (`timediff` with `wrapping_sub`; `update_ack` in 64 bits with saturation; `peeksize` with `usize::from(frg) + 1`); it applies to the source of the crate with `patch -p1`. Open: the owner sends it upstream ("Owner actions" of `TODO/PROGRESS.md`); a session cannot write outside PodUtils.
 
 # T-531: `pod-netstack`: tests of a far end that closed first and of the packets held while the queue out is full (PodUtils/podssh#231)
 
