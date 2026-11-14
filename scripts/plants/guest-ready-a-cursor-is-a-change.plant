@@ -1,0 +1,9 @@
+# Two dumps count as the same screen only when each pixel is the same: a
+# cursor that blinks (the console of Validation OS under KVM) is a change
+# at each poll, and the screen never settles (T-633, PodUtils/podvm#372).
+# The test of the cursor must fail.
+ENTRY=T-633
+GROUP=guest
+EXPECT='test ready::tests::a_screen_with_a_cursor_that_blinks_settles \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- ready::tests::a_screen_with_a_cursor_that_blinks_settles'
+LIMIT=1800

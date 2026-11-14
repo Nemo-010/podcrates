@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**516 entries: 107 open, 8 partial, 6 blocked, 395 done.**
+**517 entries: 107 open, 8 partial, 6 blocked, 396 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 3 | 0 | 104 | 118 |
+| P1 | 11 | 3 | 0 | 105 | 119 |
 | P2 | 50 | 2 | 4 | 208 | 264 |
 | P3 | 46 | 3 | 2 | 81 | 132 |
-| **All** | 107 | 8 | 6 | 395 | 516 |
+| **All** | 107 | 8 | 6 | 396 | 517 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -563,3 +563,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-630](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: the swap of a USB mailbox fails while Windows locks the medium |
 | [T-631](transport.md) | P3 | M | M1 | chore | open | `pod-turn`: the check of a MESSAGE-INTEGRITY-SHA256 answer against a server of another party |
 | [T-632](podvm.md) | P3 | S | M7 | chore | open | `pod-guest`: the QMP commands of the mailbox name the drive by `id`, not by the deprecated `device` |
+| [T-633](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: the screen sign of the readiness fails on Validation OS, so the provision never types into a Windows guest |

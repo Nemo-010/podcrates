@@ -1,0 +1,13 @@
+diff --git a/crates/pod-guest/src/ready/screen.rs b/crates/pod-guest/src/ready/screen.rs
+index 9a7978b..a0acf29 100644
+--- a/crates/pod-guest/src/ready/screen.rs
++++ b/crates/pod-guest/src/ready/screen.rs
+@@ -48,7 +48,7 @@ impl Frame {
+     /// The same screen: the pixels that differ fit in a box of [`CURSOR`]. A
+     /// frame of another size is another screen.
+     pub(crate) fn same(&self, other: &Frame) -> bool {
+-        (self.width, self.height) == (other.width, other.height) && self.within(|i| self.pixel(i) != other.pixel(i))
++        self == other
+     }
+ 
+     /// A screen of one colour but for a box of [`CURSOR`] (a pointer, a

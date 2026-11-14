@@ -1,0 +1,8 @@
+# A black screen with only a pointer counts as a ready guest: under TCG the
+# provision types into the boot of Validation OS (T-633,
+# PodUtils/podvm#372). The test of the boot screens must fail.
+ENTRY=T-633
+GROUP=guest
+EXPECT='test ready::tests::a_black_screen_or_the_first_screen_again_is_not_ready \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- ready::tests::a_black_screen_or_the_first_screen_again_is_not_ready'
+LIMIT=1800

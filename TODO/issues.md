@@ -163,5 +163,6 @@ numbers. `TODO/RULES.md` gives the rules.
 | #158 | COORD-098: the answer to PodUtils/podvm#370: the provision stops the emulator on each error (to podvm) | open (until a tag carries the entry) | T-622 |
 | #159 | COORD-099: v0.46.0: the warm start and the emulator guard of pod-guest; the S3 carrier and the split session of pod-link (to all) | open (podrunner took it at `0e12826`, PodUtils/podrunner#105; podssh at `5ac90a3`, PodUtils/podssh#246; podnet at `27cdf19`, PodUtils/podnet#564; waits for podvm) | T-596, T-622, T-615, T-618, T-619, T-494, T-500, T-525 |
 | #160 | COORD-100: v0.47.0: Nostr, trackers and ntfy as meeting points; pod-devtunnel with no user token; the swap of a Windows mailbox (to all) | open (podrunner took it at `eea3401`, PodUtils/podrunner#106; waits for podvm, podnet, podssh) | T-550, T-551, T-554, T-489, T-478, T-381, T-403, T-627, T-623, T-602, T-629, T-630 |
+| #161 | COORD-101: the answer to PodUtils/podvm#372: Sign::After and a screen sign that ignores a cursor (to podvm) | open (closes when a tag carries T-633 and podvm takes it) | T-633 |
 
 #79 to #81 are pull requests.

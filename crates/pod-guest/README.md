@@ -63,8 +63,8 @@ restored at each later run in place of a boot ("The warm start", below).
 | `argv(&plan)`, `overlay_argv`, `convert_argv`, `plan::base_format` | the UEFI machine line with no program; `qemu-img create -f qcow2 -F FMT -b BASE`; `qemu-img convert -f qcow2 -O qcow2 OVERLAY OUT` (a new image with no backing file; `qemu-img commit` has no output file, PodUtils/podvm#277) |
 | `Request`, `Mode`, `Outcome`, `mailbox(&s, agent, &request)`, `outcome(&fat16, token)`, `poll_outcome(&fat16, token)`, `next_command(&mut fat16, &request)` | the command, the token, the limit and the mode (`Once` by default; `KeepAlive` puts `WQKEEP.TXT` on the mailbox); the code, the token and the streams; the mailbox of a run; the result of a mailbox after the power-off (`None`: the guest wrote no result; another token is `Protocol`); the result of a mailbox of a guest that runs (`None` also for another token or a code that does not parse: the guest writes it at the time); the next command on a mailbox that no running guest has mounted (the result before goes, then the command and the token; `Once` removes `WQKEEP.TXT`) |
 | `stage(&s, qemu_img, base, &plan, agent, &request)`, `run(&s, &plan, &request)`, `stop(&plan)` | the mailbox file and the overlay; the boot to the power-off and the result, with the error stream of the emulator in the per-run directory (a `KeepAlive` request is `Usage`: its guest does not power off); QMP `quit` |
-| `provision(&s, qemu_img, base, &plan, out, &ready, wait)` | one boot that waits for a ready guest (`ready::Ready::screen(deadline)`: a screen that settles), types the installer into the console, waits up to `wait` for the power-off, then the convert into `out`; returns `SETUP.TXT`. No ready guest is a failure with the cause `ready::Unready`. Each failure after the spawn stops the emulator, also a refusal of the keys by QMP |
-| `ready` | `wait(&plan, &mut child, &Ready { signs, deadline, every })` (the index of the first sign that holds), `Sign::{Marker, Serial(text), Screen { settle }}`, `Ready::screen`, `Unready::{Deadline { after, signs }, Exited { status }}` (`Timeout`, `Unavailable`), `unready(&failure)`, `Scan` (a text in a file that grows), `SETTLE`, `EVERY` ("The readiness") |
+| `provision(&s, qemu_img, base, &plan, out, &ready, wait)` | one boot that waits for a ready guest (`ready::Ready::screen(deadline)`: a screen that settles; or `Sign::After(time)`: a fixed time after the spawn), types the installer into the console, waits up to `wait` for the power-off, then the convert into `out`; returns `SETUP.TXT`. No ready guest is a failure with the cause `ready::Unready`. Each failure after the spawn stops the emulator, also a refusal of the keys by QMP |
+| `ready` | `wait(&plan, &mut child, &Ready { signs, deadline, every })` (the index of the first sign that holds), `Sign::{Marker, Serial(text), Screen { settle }, After(time)}`, `Ready::screen`, `Unready::{Deadline { after, signs }, Exited { status }}` (`Timeout`, `Unavailable`), `unready(&failure)`, `Scan` (a text in a file that grows), `SETTLE`, `EVERY`, `CURSOR` (the box of a change that is no change, 32x32 pixels) ("The readiness") |
 | `scratch_dir(&s, tag)`, `scratch_of(&plan)`, `cleanup(&s, &plan)`, `RunGuard::arm(&s, &plan)` | the per-run directory `PREFIX` + pid + `-TAG`, mode 0700; the directory of the mailbox; its removal (only a directory with the prefix, not with `keep`); the removal on drop |
 | `Stop`, `Timeout { after, stop }`, `timeout_of(&failure)` | the end of a stopped emulator; the cause of a run at its limit |
 | `emulator` | `run_steps(argv)` (a tool to its end; a failure names the program and its stderr), `spawn_emulator(&plan, args, stderr)` (a process group of its own), `stop_emulator`, `stop_with` (QMP `quit`, `SIGKILL` to the group, a bounded reap), `QUIT_WAIT`, `STOP_WAIT`. Inside the crate, `Running` holds a spawned emulator and stops it when it is dropped, so that `provision`, `run` and the warm restore leave no emulator after an early failure |
@@ -121,14 +121,22 @@ text). It does not stop the emulator.
 | --- | --- |
 | `Marker` | the mailbox file of the plan holds `WQREADY.TXT` with `WQREADY` (the agent of a provisioned image) |
 | `Serial(text)` | the serial log of the plan holds `text`; each poll reads at most 1 MiB of new bytes and keeps the end of the last ones, so that a text that two polls cut is found |
-| `Screen { settle }` | the sha256 of a QMP `screendump` changed after the first dump and then stayed the same for `settle`; the dump is `screen.ppm` beside the QMP socket, removed after each read |
+| `Screen { settle }` | a QMP `screendump` (a P6 PPM) changed after the first dump and then stayed the same for `settle`; the settled screen differs from the first dump and is not blank. A change whose pixels fit in a box of `CURSOR` (32x32: a text cursor of 8x16 to 16x32, a pointer) is no change; a screen of one colour but for such a box is blank. Each dump is compared to the dump of the last change, not to the dump before. The dump is `screen.ppm` beside the QMP socket, removed after each read; a file that is no P6 PPM does not hold |
+| `After(time)` | `time` passed since the start of `wait`: the fixed wait of a guest that gives no other sign. The provision starts the wait right after the spawn |
 
 A sign that cannot be read (no QMP socket, no log at the time of a poll)
 does not hold. The provision boot installs the agent, so it waits for the
-screen. The tests
+screen or for a fixed time. The tests
 run against stand-ins: a mailbox file, a log that grows, a QMP server on a
 Unix socket that gives a script of frames, `sleep` and `sh -c 'exit 3'` as
-the emulator, and a provision whose emulator exits at once.
+the emulator, and a provision whose emulator exits at once. The frames are
+PPM images of 640x480: a prompt with a cursor of 16x32 that blinks
+settles; a black screen, a black screen with only a pointer that moved,
+and the first screen again do not; boxes of 32x32 and 33x32 pixels, and
+files that are no P6 PPM. `After` holds at its time and not before. The
+plants `guest-ready-a-cursor-is-a-change`, `guest-ready-a-blank-screen-is-ready`,
+`guest-ready-the-first-screen-again-is-ready` and
+`guest-ready-after-holds-at-once` prove them.
 
 ## The warm start
 

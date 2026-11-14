@@ -1,0 +1,8 @@
+# A screen that settles back on the first dump counts as a ready guest: the
+# provision types into a screen of the boot (T-633). The test of the boot
+# screens must fail.
+ENTRY=T-633
+GROUP=guest
+EXPECT='test ready::tests::a_black_screen_or_the_first_screen_again_is_not_ready \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- ready::tests::a_black_screen_or_the_first_screen_again_is_not_ready'
+LIMIT=1800
