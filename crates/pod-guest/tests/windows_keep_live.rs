@@ -135,7 +135,12 @@ fn install(env: &Env) -> (PathBuf, PathBuf) {
     a.push("-drive".into());
     a.push(format!("if=none,id=root,file={},format=qcow2", s(&disk)));
     a.push("-device".into());
-    a.push("nvme,drive=root,serial=wqroot".into());
+    // The CD boots first and the disk next, as `pod_guest::argv` gives them
+    // (`Medium::boot`): OVMF deletes each boot entry outside the boot order
+    // of QEMU, also the entry of Windows Boot Manager that setup writes.
+    // After a reboot of setup, the prompt of the CD times out and the
+    // firmware boots the disk.
+    a.push("nvme,drive=root,serial=wqroot,bootindex=1".into());
     for (i, file) in [&env.iso, &iso].into_iter().enumerate() {
         a.push("-drive".into());
         a.push(format!("if=none,id=cd{i},media=cdrom,readonly=on,format=raw,file={}", s(file)));

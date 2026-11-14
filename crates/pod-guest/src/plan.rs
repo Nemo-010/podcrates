@@ -115,6 +115,9 @@ pub struct Plan {
 /// `-nic none`: the guest gets no network, unless [`Plan::options`] asks
 /// for user-mode networking ([`Nic::User`]).
 ///
+/// The root disk has no boot index, unless a medium boots first
+/// ([`Medium::boot`]): then the root disk boots next (`bootindex=1`).
+///
 /// The argv does not check the options: [`Options::check`] does, and the
 /// start of the emulator calls it.
 pub fn argv(p: &Plan) -> Vec<String> {
@@ -139,7 +142,7 @@ pub fn argv(p: &Plan) -> Vec<String> {
     push("-drive");
     push(&format!("if=none,id=root,file={},format=qcow2", options::escape(&p.root)));
     push("-device");
-    push("nvme,drive=root,serial=wqroot");
+    push(&format!("nvme,drive=root,serial=wqroot{}", p.options.root_boot()));
     push("-drive");
     push(&format!("if=none,id={MAILBOX_DRIVE},file={},format=raw,cache=writethrough", options::escape(&p.mailbox)));
     if p.options.mailbox == MailboxBus::Nvme {

@@ -8042,3 +8042,37 @@ With a USB mailbox (`MailboxBus::Usb`), restore with the saved mailbox unchanged
 ```sh
 cargo test -p pod-guest --all-features
 ```
+
+# T-629: `pod-guest`: a plan with a boot medium gives the root disk no `bootindex`, so OVMF deletes the boot entry of the installed system
+
+**Source:** the first run of `guest-windows.yml` (GitHub run 43634720450, job 132568898323), a finding of T-602.
+**Category:** defect
+**Milestone:** M7
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The first run of `.github/workflows/guest-windows.yml` failed. Windows Setup ran (the first screenshot shows "Getting files ready for installation (26%)"). After the first reboot of Setup, the firmware showed the UEFI Interactive Shell (EDK II, Ubuntu's OVMF 4M) until the limit of 4800 s; each screenshot from the third on is the shell. The map of the shell shows the installed NVMe disk with its GPT and its ESP (`FS2: NVMe(0x1,...)/HD(1,GPT,...)`), so the install wrote the disk.
+
+The test `crates/pod-guest/tests/windows_keep_live.rs` (`install`) gives the first CD-ROM `bootindex=0` and the NVMe root disk no boot index. The crate does the same: `Medium::boot` gives `bootindex=0` (`crates/pod-guest/src/plan/options.rs`), and `argv` gives the root disk `nvme,drive=root,serial=wqroot` with no boot index (`crates/pod-guest/src/plan.rs`).
+
+The cause to verify: with a `bootorder` from the fw_cfg of QEMU, OVMF (`SetBootOrderFromQemu` of `QemuBootOrderLib`) keeps the boot options that the list matches and removes the others. The entry of Windows Boot Manager on the NVMe disk matches no device of the list, so the firmware removes it; the "Press any key" prompt of the CD times out, and the shell runs.
+
+## Premise
+
+- Read: `crates/pod-guest/src/plan.rs`, `src/plan/options.rs` and its tests, `tests/windows_keep_live.rs`, the README of the crate (the uses of `Medium::boot`: none in the crate outside its tests; podvm sets it).
+- Read: the source of OVMF on github.com/tianocore/edk2 (`OvmfPkg/Library/QemuBootOrderLib/QemuBootOrderLib.c`, `OvmfPkg/Library/PlatformBootManagerLib/BdsPlatform.c`) and of QEMU 8.2.2 (`hw/nvme/ctrl.c`, `hw/nvme/ns.c`).
+- Not measured: a Windows install. This host has no KVM, and a Windows install under TCG is too slow for a session. The live proof stays with T-602.
+
+## Approach
+
+Verify the cause in the source of OVMF and on this host (call C574). When a plan has a medium that boots first, give the root disk `bootindex=1` (call C575: the medium first, the root disk next). A unit test of the argv, and a plant. The live test gives its root disk the same boot index.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features --lib -- plan::
+sh scripts/plant-each.sh guest-boot-medium-drops-the-root-disk
+```

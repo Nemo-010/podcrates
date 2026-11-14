@@ -194,7 +194,8 @@ pub struct Medium {
     pub path: PathBuf,
     /// Read-only. A CD-ROM is always read-only.
     pub readonly: bool,
-    /// The firmware boots from this medium first (`bootindex=0`).
+    /// The firmware boots from this medium first (`bootindex=0`), and from
+    /// the root disk next (`bootindex=1`).
     pub boot: bool,
 }
 
@@ -265,6 +266,19 @@ impl Options {
             Accel::Kvm if self.hyperv => format!("{},{}", accel.cpu(), HYPERV_FLAGS.join(",")),
             _ => accel.cpu().to_string(),
         }
+    }
+
+    /// The boot index of the root disk: `,bootindex=1` when a medium boots
+    /// first, else nothing.
+    ///
+    /// A `bootindex` makes QEMU give OVMF a boot order, and OVMF deletes
+    /// each boot entry that the order does not name (`SetBootOrderFromQemu`
+    /// of `QemuBootOrderLib`). With the medium alone in it, OVMF deletes
+    /// the entry that an installer writes for the root disk. A medium that
+    /// returns, as a Windows CD after its "Press any key" prompt, then
+    /// falls through to the root disk.
+    pub(crate) fn root_boot(&self) -> &'static str {
+        if self.media.iter().any(|m| m.boot) { ",bootindex=1" } else { "" }
     }
 
     /// The value of `-nic`.

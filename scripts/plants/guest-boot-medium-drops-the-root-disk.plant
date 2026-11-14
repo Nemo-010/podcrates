@@ -1,0 +1,8 @@
+# A plan with a medium that boots first gives the root disk no boot index,
+# so OVMF deletes the boot entry of the installed system (T-629). The test
+# of the boot order must fail.
+ENTRY=T-629
+GROUP=guest
+EXPECT='test plan::options::tests::a_medium_that_boots_first_keeps_the_root_disk_in_the_boot_order \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- plan::options::tests::a_medium_that_boots_first_keeps_the_root_disk_in_the_boot_order'
+LIMIT=1800
