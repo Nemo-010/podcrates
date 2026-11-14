@@ -7361,6 +7361,14 @@ ran the UEFI shell until the limit of 4800 s. The cause was T-629 (OVMF
 deleted the boot entry of the root disk, which had no `bootindex`). The
 next run follows the merge of T-629.
 
+The second run (GitHub run 43647025370, job 132606998403, 2026-11-14, at
+ae04e9e) installed Windows in 190 s, booted it with a USB mailbox, and
+passed the first command (code 3, stdout `pod-guest-one`). The first
+swap failed: Windows locks the medium that it has mounted, and QEMU
+refuses `blockdev-change-medium` with no `force` ("Device 'mbox' is
+locked and force was not specified"). The cause was T-630. The next run
+follows the merge of T-630.
+
 # T-603: `pod-guest`: the host removes a file of the FAT mailbox, and a poll of the outcome reads an old token as no result yet
 
 **Source:** T-592 (a finding of its work).
@@ -8090,3 +8098,75 @@ sh scripts/plant-each.sh guest-boot-medium-drops-the-root-disk
 Run on this host (QEMU 8.2.2, TCG, `OVMF_CODE_4M.fd` of Ubuntu's `ovmf` 2024.02-2ubuntu0.10): a GPT disk whose ESP holds the UEFI shell at `\EFI\pod\app.efi`, which only a `Boot####` entry names (`bcfg boot add` in a first boot, as setup writes its entry), and a CD with `bootindex=0` whose loader returns `EFI_TIMEOUT`, as the prompt of a Windows CD. With no boot index on the disk, the firmware starts the EFI Internal Shell after the CD; a later boot with the fixed line finds the entry deleted. With `bootindex=1` on the disk, the firmware starts the entry after the CD.
 
 `cargo test -p pod-guest --all-features`: 158 unit tests passed, 1 ignored (new: `plan::options::tests::a_medium_that_boots_first_keeps_the_root_disk_in_the_boot_order`, which fails on the code before the fix). Plant, caught by hand: `guest-boot-medium-drops-the-root-disk`. The live proof stays with T-602: the parent dispatches `guest-windows.yml` again after the merge.
+
+# T-630: `pod-guest`: the swap of a USB mailbox fails while Windows locks the medium
+
+**Source:** the second run of `guest-windows.yml` (GitHub run 43647025370, job 132606998403, at ae04e9e), a finding of T-602.
+**Category:** defect
+**Milestone:** M7
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+The second run of `.github/workflows/guest-windows.yml` installed Windows in 190 s and booted it with a USB mailbox. The first command passed (`swap: first command: code 3, stdout "pod-guest-one\r\n"`). Then `Swap::next` failed at `crates/pod-guest/tests/windows_keep_live.rs:276`:
+
+```text
+qmp refused {"execute":"blockdev-change-medium","arguments":{"device":"mbox","filename":".../swap/mailbox.img.swap","format":"raw"}}: {"error": {"class": "GenericError", "desc": "Device 'mbox' is locked and force was not specified, wait for tray to open and try again"}}
+```
+
+Windows sends PREVENT ALLOW MEDIUM REMOVAL to the mounted removable disk, so the tray of the `usb-storage,removable=on` device is locked. The QEMU test of T-602 (`a_real_emulator_changes_the_medium_of_a_usb_mailbox`) passed because no guest locked the medium.
+
+## Premise
+
+- Read: `crates/pod-guest/src/swap.rs` and its tests, `src/qmp.rs`, `tests/windows_keep_live.rs`, calls C542 to C544.
+- Read: the source of QEMU 8.2.0 (`block/qapi-sysemu.c`: `do_open_tray`, `qmp_blockdev_open_tray`, `qmp_blockdev_close_tray`, `qmp_blockdev_change_medium`; `qapi/block.json`; `hw/scsi/scsi-disk.c`: `scsi_cd_eject_request_cb`, `scsi_cd_change_media_cb`, `scsi_disk_unit_attention_reported`, `ALLOW_MEDIUM_REMOVAL`; `hw/ide/atapi.c` and `hw/ide/core.c` for the ATAPI drive of the test).
+- Measured on the QEMU 8.2.2 of this host: a guest that locks the medium of an ATAPI drive. The binary of Ubuntu has no `qtest` accelerator (`-accel qtest`: "invalid accelerator"), so the host cannot play the guest.
+- Not measured: Windows. This host has no KVM; the live proof is the next run of `guest-windows.yml`.
+
+## Approach
+
+Swap a locked medium with `blockdev-change-medium` and `force: true` (call C581). Test it against a QMP stand-in that refuses a change with no `force` while the guest locks the tray, and against the QEMU of the host with a small guest that locks the tray (call C582). The live test prints the lock before each swap. Plants for the request and for the read of the lock.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features --lib -- swap:: qmp::
+sh scripts/plant-each.sh guest-swap-no-force guest-swap-lock-of-another-drive
+```
+
+## Done
+
+2026-11-14, commit 159827f. `swap::change_request` sends `blockdev-change-medium` with `force: true` (call C581): QEMU 8.2 opens a locked tray only with `force`, clears the lock of the guest (`scsi_cd_eject_request_cb`), and reports the medium change as for an unlocked medium, so the path of C543 holds. New: `swap::mailbox_locked(query_block)`, `qmp::json_bool`, `qmp::list_entries` (QEMU writes the members of an entry in no fixed order). The live test prints the lock of the mailbox before each swap; its controls write no QMP command and need no change.
+
+On this host (QEMU 8.2.2, TCG): a guest of 93 bytes at the reset vector of the `pc` machine locks an ATAPI drive `mbox` (call C582). No QMP command locks a tray, and the binary of Ubuntu has no `qtest` accelerator, so a guest is necessary. `query-block` gives `"locked": true`, a change with no `force` gets the error of the run on Windows, and two swaps with `Swap::next` put the new file in; the guest locks each new medium again after it took the reports of the change.
+
+`cargo test -p pod-guest --all-features`: 163 unit tests passed, 1 ignored (new: `swap::tests::a_swap_changes_a_medium_that_the_guest_locked`, `swap::tests::the_lock_of_the_mailbox_is_read_from_its_entry_of_query_block`, `swap::tests::a_real_emulator_changes_a_medium_that_the_guest_locked`, `qmp::tests::a_bool_member_is_read_and_a_key_in_a_value_is_not_a_member`, `qmp::tests::each_object_of_a_list_response_is_one_entry`). Plants, each caught by hand: `guest-swap-no-force` (the stand-in test, the real-QEMU test and the request test fail), `guest-swap-lock-of-another-drive`. The live proof is the next run of `guest-windows.yml`: the parent dispatches it after the merge.
+
+# T-632: `pod-guest`: the QMP commands of the mailbox name the drive by `id`, not by the deprecated `device`
+
+**Source:** T-630 (a finding of its work).
+**Category:** chore
+**Milestone:** M7
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`swap::change_request` and the other QMP commands of the mailbox name the drive with the argument `device`. QEMU deprecated `device` for these commands in favour of `id` (the id of the device) in version 2.8. QEMU 8.2 and the current master still take it; a later version can remove it, and the swap then fails.
+
+## Premise
+
+- Read: the Done section of T-630 and calls C581, C582; `crates/pod-guest/src/swap.rs`; `crates/pod-guest/src/plan/options.rs` (the `usb-storage` device of the mailbox has no `id`); QEMU's `qapi/block.json` (`blockdev-change-medium`, `blockdev-open-tray`).
+
+## Approach
+
+Give the `usb-storage` device of the mailbox an id (`id=wqmbox`), and name it with `"id"` in each QMP command of the mailbox. The tests of the argv, the stand-in and the test on the QEMU of the host follow. A plant that sends `device` to a stand-in that refuses it.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features
+```

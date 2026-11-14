@@ -72,9 +72,9 @@ restored at each later run in place of a boot ("The warm start", below).
 | `dos` | `argv`, `stage(&s, ...)`, `run(&plan, batch, token, timeout)`, `batch_from_argv`, `DEFAULT_MEM_MIB`, `CPUS`, `DEFAULT_TIMEOUT_SECS`, the boot waits `TO_MENU_MS`, `TO_PROCEED_MS`, `TO_PROMPT_MS`, `MBOX_DRIVE`, `BAT` |
 | `fat16` | `Fat16` (`new`, `with_oem`, `from_image`, `put` (an 8.3 name, or a long name of up to `MAX_LONG_NAME` = 32 characters with VFAT entries and an alias `BASIS~N.EXT`), `get` (by the 8.3 name, the alias or the long name, in any case), `remove` (the file, its clusters and the long-name entries before it; `Ok(false)`: no such file), `list` (the long name where there is one), `is_mailbox`, `image`, `volume_id`, `set_volume_id`), `checksum` (of an 8.3 alias, for its long-name entries), `format`, `format_with`, `oem_bytes`, the geometry (16 MiB behind an MBR at LBA 2048, 4 KiB clusters), `LABEL`, `OEM`, `VOLUME_ID` |
 | `fetch` | `Ceiling { max_bytes, fsize }` (the ceiling of one entry), `check_declared`, `Origin` (`get(from) -> Reply`: the caller's HTTP client; `from > 0` sends `Range: bytes=FROM-`), `Reply { status, length, range, body }`, `Stream::new(reader, declared)` (an origin of one stream that does not resume), `store(&mut origin, dest, want, ceiling, tries)` (the sha256 in hex; see "The store"), `partial` (`NAME.part`), `Span`, `parse_content_range`, `Refusal` (`DeclaredTooLarge`, `OverCeiling`, `Digest`, `Size`, `Range`, `Status`, `Broken`, `Busy`; `keeps_part`), `refusal(&failure)` |
-| `qmp` | `Monitor` (`connect`, `call`, `ask(body)` (the response line), `keys`, `screendump(file)`, `quit`), `send_key`, `json_text`, `json_member(line, key)` (a string member of a response), `is_event`, `response_ok`, `key(char)` (the `send-key` name and shift for a US layout), `HOLD_MS` |
+| `qmp` | `Monitor` (`connect`, `call`, `ask(body)` (the response line), `keys`, `screendump(file)`, `quit`), `send_key`, `json_text`, `json_member(line, key)` (a string member of a response), `json_bool(line, key)` (a member `true` or `false`), `list_entries(line)` (each object of the list of a response, as text), `is_event`, `response_ok`, `key(char)` (the `send-key` name and shift for a US layout), `HOLD_MS` |
 | `warm` | `fingerprint(&plan, base_digest, agent)` (`Fingerprint { qemu, cpu, firmware, base, agent, machine }`, `text()`), `qemu_version`, `host_cpu(cpuinfo)`, `machine_line(&plan)`, `stage_idle(&s, qemu_img, base, &plan, agent)`, `save(&plan, &fingerprint, dir, wait)`, `idle(&fat16)`, `restore(&s, qemu_img, &plan, &request, &warm)`, `incoming_argv(&plan, dir)`, `start(&s, qemu_img, base, &plan, agent, &request, &warm) -> (Child, Start)`, `Warm { dir, fingerprint, wait }`, `Start::{Warm, Cold(Cold)}`, `Cold::{Missing, Stale { saved, now }, Failed { why }}` (`NotFound`, `Config`, `Unavailable`), `cold(&failure)`, the file names `STATE`, `ROOT`, `MAILBOX`, `VARS`, `FINGERPRINT`, `FORMAT` ("The warm start") |
-| `swap` | `Swap::new(&plan, token)` (`Usage` for a mailbox that is not `MailboxBus::Usb`), `current()`, `token()`, `poll()` (the settled outcome of the current command), `next(&mut monitor, &s, agent, &request)` (a new mailbox with the next volume id in the other file, then QMP `blockdev-change-medium`; `Usage` before a settled result, `Protocol` for a refusal, and the medium stays); `settled(&fat16, token)` (the code of the token and no `WQGO.TXT`), `change_request(file)`, `other_file(&plan)` (`MAILBOX.swap`) ("The next command") |
+| `swap` | `Swap::new(&plan, token)` (`Usage` for a mailbox that is not `MailboxBus::Usb`), `current()`, `token()`, `poll()` (the settled outcome of the current command), `next(&mut monitor, &s, agent, &request)` (a new mailbox with the next volume id in the other file, then QMP `blockdev-change-medium` with `force`; `Usage` before a settled result, `Protocol` for a refusal, and the medium stays); `settled(&fat16, token)` (the code of the token and no `WQGO.TXT`), `change_request(file)` (with `force`: the guest locks its medium), `mailbox_locked(query_block)` (the lock of the drive `mbox`), `other_file(&plan)` (`MAILBOX.swap`) ("The next command") |
 | `modloop` | `modules(reader, kernel_release, names) -> ModuleSet` (`release`, `modules`: each `Module { path, name, bytes }` in load order, `builtin`, `dep`, `size()`), `Fault`, `fault(&failure)`, `MAX_SET`, `RELEASE_DIRS` |
 | `squashfs` | `Image::open(reader)` (`superblock`, `root`, `inode(reference)`, `entries(&dir)`, `lookup(path)`, `file_at(path)`, `read(&file)`, `ids`, `export(number)`), `Superblock::parse`, `Compressor`, `Inode`, `Kind`, `Dir`, `File`, `Entry`, `listing(bytes)`, `Fault`, `fault(&failure)`, the ceilings `MAX_FILE`, `MAX_LISTING`, `MAX_LINK` |
 
@@ -180,7 +180,7 @@ cache, so the agent may not see it (T-602, call C543).
 
 A guest in keep-alive mode gets each next command on a new medium of a
 USB mailbox (`MailboxBus::Usb`), never by a write into the image that it
-has mounted (T-602, calls C542 to C544):
+has mounted (T-602, calls C542 to C544; T-630, calls C581 and C582):
 
 1. `Swap::poll` waits for the settled result of the command before: its
    code with the token and no `WQGO.TXT` (the agent deletes the token
@@ -188,7 +188,10 @@ has mounted (T-602, calls C542 to C544):
    token).
 2. `Swap::next` writes a new mailbox with the next command and the next
    volume id into the other file (`MAILBOX` and `MAILBOX.swap` in turn),
-   and sends `blockdev-change-medium` for the drive `mbox`.
+   and sends `blockdev-change-medium` with `force` for the drive `mbox`.
+   Windows locks the medium that it has mounted, and QEMU changes a
+   locked medium only with `force`; it then clears the lock of the guest
+   and reports the same medium change.
 3. The emulator reports a unit attention at the next access of the guest.
    The disk class driver marks the device for a verify; FastFAT reads the
    boot sector, finds another volume id, drops its cache with no flush, and
@@ -397,16 +400,24 @@ older QEMU refuses the save with its reasons and `start` boots cold.
 The tests of the next command (`src/swap/tests.rs`) check the settled
 result (no swap while `WQGO.TXT` is on the medium), the refusal of an NVMe
 mailbox, the new medium in the other file with another volume id and the
-request of the change against a QMP stand-in, and a refusal of the
-emulator that keeps the medium and the token.
+request of the change against a QMP stand-in, a refusal of the emulator
+that keeps the medium and the token, two swaps against a stand-in that
+refuses a change with no `force` while the guest locks the medium, and
+the lock of the drive `mbox` in its own entry of `query-block`.
 `a_real_emulator_changes_the_medium_of_a_usb_mailbox` starts the QEMU of
 the host with the plan line of a USB mailbox and a firmware of `hlt`,
 swaps two times, and reads the new file in `query-block`; it skips where
 no `qemu-system-x86_64` or `qemu-img` is on `PATH`.
+`a_real_emulator_changes_a_medium_that_the_guest_locked` starts the QEMU
+of the host with a firmware of 93 bytes that locks the medium of an ATAPI
+drive `mbox` again and again, checks the refusal of a change with no
+`force`, and swaps two times; it skips where no `qemu-system-x86_64` is
+on `PATH`.
 `tests/windows_keep_live.rs` (ignored; `guest-windows.yml` runs it by
 hand under KVM) installs Windows Server 2019 Server Core from the
 evaluation ISO with the agent, runs a first command and two next commands
-on new media, checks the three outcomes, and prints if a write into a
+on new media, prints the lock of the medium before each swap, checks the
+three outcomes, and prints if a write into a
 mounted USB and a mounted NVMe mailbox reached the agent.
 
 The tests of the store (`src/fetch/tests/stand.rs`) run against the HTTP

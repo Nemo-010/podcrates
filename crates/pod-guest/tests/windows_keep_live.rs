@@ -6,8 +6,9 @@
 //!    at the end of setup, with the agent as a boot task.
 //! 2. swap: a boot with a USB mailbox. The first command is on the mailbox
 //!    before the boot; two more come on new media through
-//!    `blockdev-change-medium` (`swap::Swap::next`). Each outcome is
-//!    checked.
+//!    `blockdev-change-medium` with `force` (`swap::Swap::next`): Windows
+//!    locks the medium that it has mounted. The test prints the lock before
+//!    each swap and checks each outcome.
 //! 3. controls: a command that the host writes into the image of the
 //!    mounted mailbox, on the USB mailbox of step 2 and on an NVMe mailbox
 //!    (the line of a run before T-602). The test prints if each one
@@ -273,6 +274,8 @@ fn a_windows_guest_takes_each_next_command_on_a_new_medium() {
     let mut outcomes = Vec::new();
     for (word, token) in [("two", "tok-two"), ("three", "tok-three")] {
         let next = request(&format!("echo pod-guest-{word}& ver"), token, Mode::KeepAlive);
+        let block = m.ask("{\"execute\":\"query-block\"}").unwrap_or_default();
+        env.say(&format!("swap: the guest locks the medium: {:?}", swap::mailbox_locked(&block)));
         sw.next(&mut m, &st, agent::AGENT_CMD, &next).expect("the swap");
         env.say(&format!("swap: medium {} is in the guest with the token {token}", sw.current().display()));
         let o = settled(&env, &mut g, sw.current(), token, COMMAND).unwrap_or_else(|| panic!("no result of {token}"));

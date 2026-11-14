@@ -1,0 +1,8 @@
+# The swap sends `blockdev-change-medium` with no `force` (T-630), so the
+# emulator refuses to change the medium that Windows locks. The test of
+# the swap of a locked medium must fail.
+ENTRY=T-630
+GROUP=guest
+EXPECT='test swap::tests::a_swap_changes_a_medium_that_the_guest_locked \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- swap::tests::a_swap_changes_a_medium_that_the_guest_locked'
+LIMIT=1800
