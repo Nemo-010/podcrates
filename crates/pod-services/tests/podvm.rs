@@ -97,7 +97,7 @@ fn the_inputs_of_podvm_measure_come_from_the_files() {
 #[test]
 fn each_sum_of_a_guest_image_is_a_sha256() {
     let ids: Vec<&str> = pod_services::of_kind("guest-image").map(|s| s.id()).collect();
-    assert_eq!(ids, ["alpine-netboot", "freedos-image", "microsoft-validationos"]);
+    assert_eq!(ids, ["alpine-netboot", "freedos-image", "microsoft-validationos", "microsoft-windows-eval"]);
     for id in ids {
         let sums: Vec<&str> = service(id)
             .facts()
@@ -121,6 +121,29 @@ fn the_vhdx_extent_lies_inside_the_iso() {
     assert!(start + fact("vhdx-bytes") <= fact("iso-bytes"));
     let dos = service("freedos-image");
     assert_eq!(dos.int("image-bytes"), Some(32 << 20), "FD_IMG_BYTES");
+}
+
+/// podvm `crates/podvm-windows/src/catalog.rs`, the entry `2019`
+/// (PodUtils/podvm#361): the media of `windows:2019`, and the range of the
+/// watch inside the ISO.
+#[test]
+fn the_windows_evaluation_media_hold_the_pin_of_podvm() {
+    let eval = service("microsoft-windows-eval");
+    let iso = eval.endpoint("server-2019").unwrap();
+    assert_eq!(
+        iso.url(),
+        "https://software-download.microsoft.com/download/pr/\
+         17763.737.190906-2324.rs5_release_svc_refresh_SERVER_EVAL_x64FRE_en-us_1.iso"
+    );
+    assert_eq!(eval.int("server-2019-bytes"), Some(5_296_713_728));
+    assert_eq!(
+        eval.text("server-2019-sha256"),
+        Some("549bca46c055157291be6c22a3aaaed8330e78ef4382c99ee82c896426a1cee1")
+    );
+    let fact = |name| eval.int(name).unwrap_or_else(|| panic!("no {name}"));
+    let start = fact("pvd-lba") * fact("sector-bytes");
+    assert_eq!(start, 32_768);
+    assert!(start + fact("pvd-bytes") <= fact("server-2019-bytes"));
 }
 
 /// podvm's inventory gaps (PodUtils/podvm#263, podvm `1cb2fb1`): the

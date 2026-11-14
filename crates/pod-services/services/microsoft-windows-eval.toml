@@ -1,0 +1,65 @@
+# The Windows evaluation media of Microsoft on software-download.microsoft.com:
+# the ISO of the guest windows:2019 of podvm, which podvm fetches with a
+# pinned sha256. A full read is 5 GB: the watch reads the primary volume
+# descriptor (one sector) by a range, and the length. A new master of the
+# ISO changes both: the watch then fails.
+id = "microsoft-windows-eval"
+kind = "guest-image"
+party = "Microsoft"
+about = "Windows evaluation media: the ISO of Windows Server 2019 Evaluation for x64, en-US"
+
+[[endpoint]]
+name = "server-2019"
+scheme = "https"
+host = "software-download.microsoft.com"
+port = 443
+path = "/download/pr/17763.737.190906-2324.rs5_release_svc_refresh_SERVER_EVAL_x64FRE_en-us_1.iso"
+source = { ruling = "PodUtils/podvm crates/podvm-windows/src/catalog.rs, the entry 2019, at 7a05b85 (PodUtils/podvm#361)", read = 2026-11-14, note = "a HEAD with no login answered 200 with Accept-Ranges: bytes on 2026-11-14" }
+
+[[fact]]
+name = "server-2019-sha256"
+value = "549bca46c055157291be6c22a3aaaed8330e78ef4382c99ee82c896426a1cee1"
+source = { ruling = "PodUtils/podvm crates/podvm-windows/src/catalog.rs, the entry 2019, at 7a05b85", read = 2026-11-14, note = "the pin of dockur/windows src/define.sh; podvm checks it against the bytes at each download" }
+
+[[fact]]
+name = "server-2019-bytes"
+value = 5296713728
+unit = "bytes"
+source = { measured = "the Content-Length of a HEAD of the endpoint", read = 2026-11-14, note = "the size of the entry 2019 of PodUtils/podvm crates/podvm-windows/src/catalog.rs, at 7a05b85" }
+
+[[fact]]
+name = "sector-bytes"
+value = 2048
+unit = "bytes"
+source = { measured = "the logical block size (bytes 128 and 129, little-endian) of the primary volume descriptor of the endpoint", read = 2026-11-14, note = "ECMA-119 gives 2048 bytes for each logical sector" }
+
+# The primary volume descriptor of ECMA-119: sector 16, one sector.
+[[fact]]
+name = "pvd-lba"
+value = 16
+source = { measured = "the bytes from 32768 (sector 16) of the endpoint start with 1 and CD001, the primary volume descriptor", read = 2026-11-14 }
+
+[[fact]]
+name = "pvd-bytes"
+value = 2048
+unit = "bytes"
+source = { measured = "a range read of sector 16 of the endpoint gave this many bytes", read = 2026-11-14 }
+
+[[fact]]
+name = "pvd-sha256"
+value = "b97e01feef15d3e9fbc880e63226aaf1bf50caf1ff4d96033d58a7f81dbb4595"
+source = { measured = "the SHA-256 of a range read of pvd-bytes bytes from sector pvd-lba of the endpoint", read = 2026-11-14 }
+
+[[fact]]
+name = "volume-id"
+value = "SSS_X64FREE_EN-US_DV9"
+source = { measured = "the volume identifier (bytes 40 to 71, with no trailing spaces) of the primary volume descriptor of the endpoint", read = 2026-11-14 }
+
+[[watch]]
+kind = "http-sha256"
+endpoint = "server-2019"
+length = "server-2019-bytes"
+start = "pvd-lba"
+sector = "sector-bytes"
+bytes = "pvd-bytes"
+fact = "pvd-sha256"

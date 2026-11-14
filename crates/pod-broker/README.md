@@ -91,6 +91,7 @@ policy keeps the rule, `JobInfo::flagged` and the control answer
 | --- | --- |
 | `Policy`, `Mode`, `Rule` | the policy of a job, version 1: `from_json`, `from_toml`, `from_value`, `read` (TOML for `.toml`, else JSON), `compile` |
 | `Compiled`, `Verdict` | a checked policy: `verdict(target, path)` gives `Allow(rule)`, `PathsOnly` or `Deny(rule)`; `allows_path` for a TLS end |
+| `Compiled::no_rule(target)`, `NoRule` | why no rule allows a target: `Host`, `Port(ports)` (the ports that the rules of the host take) or `Path`; `NoRule::words(target)` is the text of the 403 (T-609) |
 | `DenyList` | nets, addresses and names: `fixed()`, `host_addresses(..)`, `parse(text, prefix)`, `read(path)`, `check_ip`, `check_name`, `check_host`; `deny::check_port` |
 | `target::{parse_host, parse_authority, parse_absolute, normal_path}` | the strict reading of a target (400 on an ambiguous one) |
 | `Broker::new(settings, resolve, dial)` | a broker; `with_audit`, `with_tunnel_end` |
@@ -180,6 +181,23 @@ The words of PodUtils/podvm#184. Each answer closes the connection.
 | 403 | a deny or the policy refused the target | policy |
 | 502 | the resolve, the upstream proxy or the far end failed | of the failure |
 | 504 | the resolve or the far end did not answer in time | timeout |
+
+The text after the status names the cause (T-609):
+
+* 403 of a deny: `denied by the rule fixed:private`.
+* 403 of `policy:no-rule`: the half of the rules that failed, for example
+  `denied by the rule policy:no-rule: the rules of the host example.com
+  take the port 443, not 80`, or `no allow rule names the host
+  example.com`.
+* 502 of a refusal of the upstream proxy: its status by the RFC 9110
+  name, the proxy and the target, for example `the upstream proxy
+  http://proxy.example:3128 answered "403 Forbidden" to CONNECT
+  192.0.2.10:443`. The reason phrase and the body of the proxy stay out.
+* Another 502 or 504: the failure of the resolve or of the dial, and
+  `(through the upstream proxy LABEL)` when the dial went through one.
+
+No text holds a credential: a proxy label has none, and the broker
+removes the user information of each URL in the text.
 
 A plain request goes to the far end in origin form with its own `Host`,
 with no `Proxy-Authorization` and no hop-by-hop header, with

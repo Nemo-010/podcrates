@@ -1,0 +1,12 @@
+--- a/crates/pod-broker/src/serve.rs
++++ b/crates/pod-broker/src/serve.rs
+@@ -360,7 +360,8 @@
+         if answer {
+             let headers: &[(&str, &str)] =
+                 if refusal.status == 407 { &[("Proxy-Authenticate", "Basic realm=\"pod-broker\"")] } else { &[] };
+-            let _ = io.write_all(&refusal_bytes(refusal.status, &refusal.words, headers)).await;
++            let words = if refusal.status >= 500 { "the far end failed" } else { refusal.words.as_str() };
++            let _ = io.write_all(&refusal_bytes(refusal.status, words, headers)).await;
+             let _ = io.shutdown().await;
+         }
+     }

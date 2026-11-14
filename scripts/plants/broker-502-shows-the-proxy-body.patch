@@ -1,0 +1,18 @@
+--- a/crates/pod-broker/src/words.rs
++++ b/crates/pod-broker/src/words.rs
+@@ -11,13 +11,13 @@
+ pub(crate) fn of_failure(f: &Failure, via: Option<&str>) -> String {
+     let dial = std::error::Error::source(f).and_then(|e| e.downcast_ref::<DialError>());
+     let words = match dial {
+-        Some(DialError::ProxyRefused { proxy, target, status, .. }) => {
++        Some(DialError::ProxyRefused { proxy, target, status, reason }) => {
+             let via = via.unwrap_or(proxy);
+             let line = match phrase(*status) {
+                 Some(phrase) => format!("{status} {phrase}"),
+                 None => status.to_string(),
+             };
+-            format!("the upstream proxy {via} answered \"{line}\" to CONNECT {target}")
++            format!("the upstream proxy {via} answered \"{line}: {reason}\" to CONNECT {target}")
+         }
+         // A failure at the proxy names the proxy already.
+         Some(e) if e.stage_and_class().0 == Stage::Proxy => e.to_string(),

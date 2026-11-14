@@ -6,7 +6,7 @@ map, iroh's relays and pkarr, Piping, the magic-wormhole mailboxes and
 transit, OpenTunnel, the edge of Cloudflare's tunnels and its quick
 tunnels, WARP, ACME, the public forwarders, Pinggy, GitHub's SSH host
 keys, the OCI registries with the images that podvm pins, the guest
-images of podvm with their sums, the GSRN relay of gsocket, the TCP
+images and the Windows evaluation media of podvm with their sums, the GSRN relay of gsocket, the TCP
 relays of ZeroTier and of Tox, the public MQTT brokers on port 443, the
 public hosts of temporary files, and the management API and the relay
 protocol of Microsoft Dev Tunnels.
@@ -274,6 +274,7 @@ let relay = services.of_kind("relay").next();
 | `hyperdht-bootstrap` | `dht-bootstrap` | `node1` to `node3` (role `node`, scheme `udp`, port 49737, each with its address) | `nodes` (`IP@NAME:PORT`, as HyperDHT takes them; PodUtils/podssh@T-736), `addresses` |
 | `freedos-image` | `guest-image` | `zip` | `sha256`, `zip-bytes`, `image-member`, `image-bytes` |
 | `microsoft-validationos` | `guest-image` | `iso` | `iso-bytes`, `vhdx-lba`, `sector-bytes`, `vhdx-bytes`, `vhdx-sha256`, `vhdx-magic` |
+| `microsoft-windows-eval` | `guest-image` | `server-2019` (`software-download.microsoft.com`) | `server-2019-sha256`, `server-2019-bytes` (the pins of podvm's `windows:2019`), `sector-bytes`, `pvd-lba`, `pvd-bytes`, `pvd-sha256`, `volume-id` (the primary volume descriptor that the watch reads by a range); the Windows evaluation media (PodUtils/podvm#361) |
 | `hackerschoice-gsr` | `gsr-relay` | `default` (scheme `tcp`; the shard letter goes in front of the host) | `shard-count`, `addr-key`, `srp-key`, `srp-password-hex-chars`, `srp-user`, `srp-group`, `cipher`, `secret-prefix`, `secret-suffix`, `secret-max-bytes`, `protocol-major`, `protocol-minor`, `ping-interval-ms`, `idle-timeout-ms` (the facts of gsocket, read by `pod-gsr`) |
 | `microsoft-devtunnel` | `devtunnel` | `management` (`https://global.rel.tunnels.api.visualstudio.com`; the relay URI of a tunnel is in its connect information) | `api-version`, `tunnels-path`, `token-scope`, `cluster-host-rule`, `user-schemes`, `relay-scheme`, `subprotocol`, `ssh-user`, `ssh-auth`, `channel-type`, `connect-host` (the values of the vendor's client, read by `pod-devtunnel`, T-378); `relay-calls`, `management-calls`, `user-scheme-calls`, `endpoint-fields`, `relay-endpoint-fields`, `tunnel-fields` (the words of the vendor's code that the `github-file` watches check) |
 
@@ -584,6 +585,7 @@ podvm's own rows in `docs/research/services/podvm-inventory.md`), at
 | `experiments/369-windows-tcg-dos.sh` `FD_URL`, `FD_SHA256`, `FD_IMG_BYTES` (E04) | [x] `freedos-image` endpoint `zip`, facts `sha256`, `image-bytes` |
 | `crates/podvm/src/windows/dos.rs`, `windows/doctor.rs` the text that names FreeDOS 1.4 (E03) | stays: podvm's text |
 | `experiments/371-validationos-stream.sh` `URL`, `ISO_LEN`, `VHDX_LBA`, `VHDX_LEN`, `VHDX_SHA256`; `experiments/lib/kvm-guest-base.sh` `VHDX_LEN`, `VHDX_SHA256` (E05) | [x] `microsoft-validationos` endpoint `iso`, facts `iso-bytes`, `vhdx-lba`, `vhdx-bytes`, `vhdx-sha256` |
+| `crates/podvm-windows/src/catalog.rs` the entry `2019` (`url`, `size`, `sha256`; at podvm `7a05b85`, PodUtils/podvm#361) | [x] `microsoft-windows-eval` endpoint `server-2019`, facts `server-2019-bytes`, `server-2019-sha256` |
 | `podvm windows fetch --url`, `--sha256`; the cache paths of the bases (E01, E02, E09) | stay: the user's own data |
 | `scripts/common/distro-matrix.sh` `DISTRO_ROWS_NSSWITCH` (the hosts and the digests) | [x] `docker-hub-registry` fact `images`; the row names and the libc column stay in podvm |
 | `distro-matrix.sh` `DISTRO_ROWS_M5` (the hosts and the digests) (F01) | [x] the facts `images` of `ecr-public-registry`, `ghcr-registry`, `quay-registry`, `opensuse-registry`; the row names and the libc column stay in podvm |
@@ -657,8 +659,9 @@ podvm's own rows in `docs/research/services/podvm-inventory.md`), at
   `the_embedded_edge_roots_are_real_certificates`,
   `quic_alpn_and_sni_are_different_strings`,
   `the_servers_are_ip_addresses_of_two_operators`.
-* `tests/podvm.rs` (10): the constants of podvm come back from the files
-  (`reference.rs`, `images.rs`, `workload.rs`, `371-validationos-stream.sh`);
+* `tests/podvm.rs` (11): the constants of podvm come back from the files
+  (`reference.rs`, `images.rs`, `workload.rs`, `371-validationos-stream.sh`,
+  the entry `2019` of `podvm-windows` `catalog.rs`);
   each registry answers at `/v2/`; each image is a repository and a
   SHA-256 digest; each sum of a guest image is a SHA-256; the registry of
   playwright holds podvm's pin; the npm archive of workerd and the release
@@ -781,6 +784,7 @@ podvm:
 | `ALPINE_REF`, `KURL`, `KERNEL_SHA256`, `MURL`, `MODLOOP_SHA256` of `experiments/146`, `147`, `360`, `361`, `390` | the same reads, through the export of the files (T-050) |
 | `FD_URL`, `FD_SHA256`, `FD_IMG_BYTES` of `experiments/369` | `get("freedos-image")...endpoint("zip").url()`, `text("sha256")`, `int("image-bytes")` |
 | `URL`, `ISO_LEN`, `VHDX_LBA`, `VHDX_LEN`, `VHDX_SHA256` of `experiments/371` and `lib/kvm-guest-base.sh` | `get("microsoft-validationos")...endpoint("iso").url()`, `int("iso-bytes")`, `int("vhdx-lba")`, `int("vhdx-bytes")`, `text("vhdx-sha256")`; the offset is `vhdx-lba` times `sector-bytes` |
+| the `url`, `size` and `sha256` of the entry `2019` of `podvm_windows::catalog` | `get("microsoft-windows-eval")...endpoint("server-2019").url()`, `int("server-2019-bytes")`, `text("server-2019-sha256")` |
 | the hosts and the digests of `DISTRO_ROWS_NSSWITCH` and `DISTRO_ROWS_M5` | `of_kind("oci-registry")`: for each, `endpoint("registry").host()` and each item of `texts("images")`; the row names and the libc column stay in `distro-matrix.sh` |
 | the pins of `experiments/70`, `80`, `90`, `220`, `105`, `106`, `280`, `367` | `docker-hub-registry` `experiment-images`, `quay-registry` `images`, `ecr-public-registry` `registry-image`, `aarch64-image` |
 | a registry, a login or a guest image of the user's own (`--insecure-registry`, `podvm login SERVER`, `windows fetch --url`) | the flags stay; a consumer can also lay a file (`Catalog::lay`, feature `overlay`) |

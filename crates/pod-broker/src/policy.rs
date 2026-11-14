@@ -189,6 +189,36 @@ pub enum Verdict {
     Deny(String),
 }
 
+/// The half of the rules that failed for a target of [`Verdict::Deny`]
+/// ([`Compiled::no_rule`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NoRule {
+    /// No allow rule names the host.
+    Host,
+    /// The rules of the host take these ports only.
+    Port(Vec<u16>),
+    /// A rule names the host and the port, but no rule holds the path of
+    /// the plain request.
+    Path,
+}
+
+impl NoRule {
+    /// The words for `target`: `no allow rule names the host example.com`,
+    /// `the rules of the host example.com take the port 443, not 80`.
+    pub fn words(&self, target: &Authority) -> String {
+        let host = &target.host;
+        match self {
+            NoRule::Host => format!("no allow rule names the host {host}"),
+            NoRule::Port(ports) => {
+                let words = if ports.len() == 1 { "port" } else { "ports" };
+                let ports: Vec<String> = ports.iter().map(u16::to_string).collect();
+                format!("the rules of the host {host} take the {words} {}, not {}", ports.join(", "), target.port)
+            }
+            NoRule::Path => format!("no allow rule of {target} holds the path"),
+        }
+    }
+}
+
 /// A policy in its checked form.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Compiled {
@@ -238,6 +268,22 @@ impl Compiled {
             }
         }
         if paths_only { Verdict::PathsOnly } else { Verdict::Deny("policy:no-rule".into()) }
+    }
+
+    /// Why no rule allows `target`: the words of a [`Verdict::Deny`], so
+    /// that the job finds the fix. An open policy denies no target.
+    pub fn no_rule(&self, target: &Authority) -> NoRule {
+        let named: Vec<&CompiledRule> = self.rules.iter().filter(|r| r.holds_host(&target.host)).collect();
+        if named.is_empty() {
+            return NoRule::Host;
+        }
+        if named.iter().any(|r| r.ports.is_empty() || r.ports.contains(&target.port)) {
+            return NoRule::Path;
+        }
+        let mut ports: Vec<u16> = named.iter().flat_map(|r| r.ports.iter().copied()).collect();
+        ports.sort_unstable();
+        ports.dedup();
+        NoRule::Port(ports)
     }
 
     /// The rule that allows `path` on `target` inside a tunnel, for a TLS

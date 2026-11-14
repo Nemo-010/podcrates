@@ -1,0 +1,11 @@
+--- a/crates/pod-broker/src/words.rs
++++ b/crates/pod-broker/src/words.rs
+@@ -55,7 +55,7 @@
+         out.push_str(head);
+         let end = tail.find(|c: char| c.is_whitespace() || "/?#\"'<>".contains(c)).unwrap_or(tail.len());
+         let authority = &tail[..end];
+-        out.push_str(authority.rsplit_once('@').map_or(authority, |(_, host)| host));
++        out.push_str(authority);
+         rest = &tail[end..];
+     }
+     out.push_str(rest);

@@ -921,10 +921,11 @@ path of `/tmp`, with mode 0600 set after the bind.
   (`crates/pod-broker/src/serve.rs:266`). The path rules of a policy thus
   apply in this mode with no TLS end; a CONNECT needs a TLS end for them
   (`PATH_NEEDS_TLS_END`).
-- Found, not in the review: `crates/pod-broker/src/serve.rs:355` says "the far end failed".
-  The broker answers each status of 500 or more with these fixed words.
-  The review asks for a 502 with the words of the verifier in the body.
-  That changes a rule of the crate.
+- Found, not in the review: a 502 or a 504 names what failed
+  (`crates/pod-broker/src/words.rs`, T-609, C469); `refused` writes the
+  words of each refusal (`crates/pod-broker/src/serve.rs`). A 502 with
+  the words of the verifier in the body thus changes no rule of the
+  crate.
 - Found, not in the review: `head` writes the `Host` with no port for port
   80 only (`crates/pod-broker/src/forward.rs:54-57`). Toward TLS the
   default port is 443.

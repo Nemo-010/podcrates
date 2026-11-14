@@ -39,11 +39,12 @@ mod prefixed;
 mod serve;
 pub mod target;
 pub mod tunnel;
+mod words;
 
 pub use audit::{Audit, JsonLines, Line, Memory, Tracing};
 pub use broker::{Broker, Settings, upstream};
 pub use deny::DenyList;
 pub use jobs::{JobInfo, Load, Token};
 pub use names::UpstreamCheck;
-pub use policy::{Compiled, Mode, Policy, Rule, Verdict};
+pub use policy::{Compiled, Mode, NoRule, Policy, Rule, Verdict};
 pub use tunnel::{Counts, Splice, Tunnel, TunnelEnd};

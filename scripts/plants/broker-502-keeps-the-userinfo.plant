@@ -1,0 +1,7 @@
+# The words of a 502 keep the user information of a URL: a credential of
+# a proxy URL or of a resolver URL reaches the job (T-609).
+ENTRY=T-609
+GROUP=proxy
+EXPECT='no_user_information_of_a_url_stays_in_the_words'
+RUN='cargo test -p pod-broker --all-features --lib'
+LIMIT=1800

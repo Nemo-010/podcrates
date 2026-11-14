@@ -1,0 +1,7 @@
+# The words of a 502 carry the reason of the upstream proxy, which holds
+# its own phrase and the first line of its body (T-609).
+ENTRY=T-609
+GROUP=proxy
+EXPECT='a_refusal_of_the_upstream_proxy_gets_502_with_its_status_and_the_proxy'
+RUN='cargo test -p pod-broker --all-features --test words'
+LIMIT=1800
