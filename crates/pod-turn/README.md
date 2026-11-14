@@ -218,8 +218,18 @@ this crate, and the tests that hold them:
   of another user, a wrong password, a root that the client does not
   trust; the plants `turn-coturn-channel-data-not-padded` and
   `turn-coturn-skip-fails`.
-- [ ] The SHA-256 credentials against a server of another party: coturn
-  4.18.0 keys with SHA-1 alone; the mock and the vector prove them (T-403).
+- [x] The SHA-256 credentials of a request against a server of another
+  party (T-403, call C576): libjuice 1.7.4 on 127.0.0.1
+  (`scripts/ci/turn-tests.sh` builds it from its source at a pinned
+  commit with `scripts/ci/juice-turn.c`; `tests/juice.rs`). Its 401 has
+  the nonce cookie `AAAD` and offers SHA-256 and MD5; it takes the
+  Allocate with USERHASH, PASSWORD-ALGORITHMS, PASSWORD-ALGORITHM SHA-256
+  and MESSAGE-INTEGRITY-SHA256 alone, and refuses a wrong password; the
+  plants `turn-juice-sha256-key-of-md5`, `turn-juice-md5-preferred` and
+  `turn-juice-skip-fails`. libjuice signs its success with
+  MESSAGE-INTEGRITY and the MD5 key alone, so the client refuses it:
+  the check of an answer's MESSAGE-INTEGRITY-SHA256 has the mock and the
+  vector alone.
 - [x] The fuzz target `stun_message` (`fuzz/`), and the static probe line.
 - [ ] Plain TURN over TCP (RFC 8656, 3.1, with no TLS): not in this crate;
   GitHub #100 puts it out of this change.
@@ -257,10 +267,11 @@ Allocate and the errors (28 unit tests), the mock over UDP
 (`tests/turn_tls.rs`), the nonce cookie, USERHASH, the redirect and the
 ALPN (`tests/turn_redirect.rs`); `tests/live.rs` is `#[ignore]`.
 `tests/coturn.rs` (7 tests) and `tests/coturn_options.rs` (6 tests) skip
-with no coturn; `sh scripts/ci/turn-tests.sh` starts coturn 4.18.0 on the
-loopback, and a second one that redirects to it (docker, or
-`POD_TURN_TEST_COTURN_BIN`, a `turnserver` of the host; coturn 4.6.1 of
-Ubuntu passes too), and fails on a skip. The mock (`tests/common/mock.rs`) is its
+with no coturn, and `tests/juice.rs` (2 tests) with no libjuice;
+`sh scripts/ci/turn-tests.sh` starts coturn 4.18.0 on the loopback, and a
+second one that redirects to it (docker, or `POD_TURN_TEST_COTURN_BIN`, a
+`turnserver` of the host; coturn 4.6.1 of Ubuntu passes too), and the TURN
+server of libjuice 1.7.4 (git and a C compiler), and fails on a skip. The mock (`tests/common/mock.rs`) is its
 own reading of RFC 8656: a session for each UDP 5-tuple or TLS
 connection, a relay socket on the loopback for each allocation, the 401,
 the 438 on request of a test, a 441 for a user who is not the owner, the

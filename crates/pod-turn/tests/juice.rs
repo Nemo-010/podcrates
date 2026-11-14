@@ -1,0 +1,190 @@
+//! The SHA-256 credentials of the TURN client against libjuice's TURN
+//! server, a server that this crate did not write (T-403, call C576): its
+//! 401 has a nonce cookie that announces PASSWORD-ALGORITHMS and username
+//! anonymity, and offers SHA-256 and MD5; it checks the request's
+//! PASSWORD-ALGORITHMS, PASSWORD-ALGORITHM, USERHASH and
+//! MESSAGE-INTEGRITY-SHA256 (RFC 8489, 9.2). coturn has none of them.
+//! libjuice signs each answer with MESSAGE-INTEGRITY and the MD5 key alone:
+//! the client's check of a MESSAGE-INTEGRITY-SHA256 answer has the mock
+//! alone (`tests/turn_redirect.rs`).
+//!
+//! `scripts/ci/turn-tests.sh` builds libjuice at a pinned commit with the
+//! program `scripts/ci/juice-turn.c`, starts it on 127.0.0.1 with the login
+//! below, and names it in `POD_TURN_TEST_JUICE_UDP`. With no such variable
+//! each test skips with the reason, unless `POD_TURN_TEST_JUICE=required`,
+//! which the script sets.
+
+mod common;
+
+use std::io::{self, IoSliceMut};
+use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
+
+use common::LIMIT;
+use pod_core::{Datagrams, RecvMeta, Transmit};
+use pod_turn::stun::{
+    self, ALLOCATE, Class, IntegrityError, MESSAGE_INTEGRITY, MESSAGE_INTEGRITY_SHA256, NONCE, PASSWORD_ALGORITHM,
+    PASSWORD_ALGORITHMS, PasswordAlgorithm, SecurityFeature, USERHASH, USERNAME,
+};
+use pod_turn::{Client, Credentials, Error, Settings};
+
+/// The made-up login of `scripts/ci/turn-tests.sh` for libjuice.
+const USER: &str = "pod-turn-test";
+const PASSWORD: &str = "made-up-juice-password";
+const REALM: &str = "juice.test";
+
+/// Where libjuice listens, or `None` with a line when no variable names it.
+fn juice() -> Option<SocketAddr> {
+    let Some(udp) = std::env::var("POD_TURN_TEST_JUICE_UDP").ok().filter(|v| !v.is_empty()) else {
+        assert!(
+            std::env::var("POD_TURN_TEST_JUICE").as_deref() != Ok("required"),
+            "POD_TURN_TEST_JUICE=required: no libjuice here: POD_TURN_TEST_JUICE_UDP names none"
+        );
+        println!("skipped: POD_TURN_TEST_JUICE_UDP names no libjuice");
+        return None;
+    };
+    Some(udp.parse().expect("HOST:PORT of libjuice, an IP address"))
+}
+
+async fn within<T>(future: impl std::future::Future<Output = T>) -> T {
+    tokio::time::timeout(pod_testkit::host::scaled(LIMIT), future).await.expect("the test's bound")
+}
+
+/// A UDP socket on 127.0.0.1 that keeps each datagram that it sends and
+/// receives, so that a test reads the wire of the credentials.
+#[derive(Debug)]
+struct Recorded {
+    socket: pod_core::SystemDatagrams,
+    sent: Mutex<Vec<Vec<u8>>>,
+    received: Mutex<Vec<Vec<u8>>>,
+}
+
+impl Recorded {
+    async fn bind() -> Arc<Recorded> {
+        let socket = pod_core::SystemDatagrams::bind("127.0.0.1:0".parse().unwrap()).await.unwrap();
+        Arc::new(Recorded { socket, sent: Mutex::default(), received: Mutex::default() })
+    }
+}
+
+impl Datagrams for Recorded {
+    fn poll_writable(&self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        self.socket.poll_writable(cx)
+    }
+
+    fn try_send(&self, transmit: &Transmit<'_>) -> io::Result<()> {
+        let sent = self.socket.try_send(transmit);
+        if sent.is_ok() {
+            self.sent.lock().unwrap().push(transmit.contents.to_vec());
+        }
+        sent
+    }
+
+    fn poll_recv(
+        &self,
+        cx: &mut Context<'_>,
+        bufs: &mut [IoSliceMut<'_>],
+        meta: &mut [RecvMeta],
+    ) -> Poll<io::Result<usize>> {
+        let polled = self.socket.poll_recv(cx, bufs, meta);
+        if let Poll::Ready(Ok(n)) = &polled {
+            let mut received = self.received.lock().unwrap();
+            for (buf, meta) in bufs.iter().zip(meta.iter()).take(*n) {
+                received.push(buf[..meta.len].to_vec());
+            }
+        }
+        polled
+    }
+
+    fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.socket.local_addr()
+    }
+}
+
+/// The client's source of the recorded socket.
+struct RecordedSource(Arc<Recorded>);
+
+impl pod_turn::UdpSource for RecordedSource {
+    fn open<'a>(
+        &'a self,
+        server: &'a pod_core::Target,
+        _deadline: tokio::time::Instant,
+    ) -> pod_core::BoxFuture<'a, Result<pod_turn::Opened, pod_core::Failure>> {
+        Box::pin(async move {
+            let pod_core::Target::Addr(addr) = server else { panic!("the tests use addresses") };
+            Ok((self.0.clone() as Arc<dyn Datagrams>, *addr))
+        })
+    }
+}
+
+fn settings(juice: SocketAddr, socket: &Arc<Recorded>, password: &str) -> Settings {
+    let source = Arc::new(RecordedSource(socket.clone()));
+    let mut settings = Settings::udp(pod_core::Target::Addr(juice), Credentials::new(USER, password), source);
+    settings.realm = Some(REALM.into());
+    settings.software = Some("pod-turn-juice-test".into());
+    settings
+}
+
+/// The STUN messages of `datagrams`; ChannelData is left out.
+fn messages(datagrams: &[Vec<u8>]) -> Vec<stun::Message<'_>> {
+    datagrams.iter().filter(|d| d.first().is_some_and(|b| b >> 6 == 0)).filter_map(|d| stun::decode(d).ok()).collect()
+}
+
+/// Over UDP: the 401 announces both features and offers SHA-256; the
+/// signed Allocate sends USERHASH in place of USERNAME, the algorithms of
+/// the 401, PASSWORD-ALGORITHM SHA-256 and MESSAGE-INTEGRITY-SHA256 alone,
+/// and libjuice takes it: its answer is a success. libjuice signs the
+/// success with MESSAGE-INTEGRITY and the MD5 key alone, so the client
+/// refuses it (RFC 8489, 9.2.4 asks for MESSAGE-INTEGRITY-SHA256 there).
+#[tokio::test]
+async fn libjuice_takes_sha256_and_userhash_and_its_md5_answer_is_refused() {
+    pod_testkit::need_loopback!();
+    let Some(juice) = juice() else { return };
+    let socket = Recorded::bind().await;
+    let e = within(Client::allocate(settings(juice, &socket, PASSWORD))).await.unwrap_err();
+    let success = stun::message_type(ALLOCATE, Class::Success);
+    assert!(matches!(&e, Error::Integrity { kind, error: IntegrityError::Missing(_) } if *kind == success), "{e:?}");
+
+    let received = socket.received.lock().unwrap().clone();
+    let answers = messages(&received);
+    let challenge = answers.iter().find(|m| m.error().and_then(Result::ok).is_some_and(|(c, _)| c == 401));
+    let challenge = challenge.expect("a 401 of libjuice");
+    let nonce = challenge.attribute(NONCE).expect("the nonce of the 401");
+    assert!(SecurityFeature::PasswordAlgorithms.announced_by(nonce), "{:?}", String::from_utf8_lossy(nonce));
+    assert!(SecurityFeature::UsernameAnonymity.announced_by(nonce), "{:?}", String::from_utf8_lossy(nonce));
+    let offered = challenge.attribute(PASSWORD_ALGORITHMS).expect("the PASSWORD-ALGORITHMS of the 401");
+    let numbers: Vec<u16> = stun::password_algorithms(offered).unwrap().iter().map(|(n, _)| *n).collect();
+    assert!(numbers.contains(&PasswordAlgorithm::Sha256.number()), "{numbers:?}");
+
+    let sent = socket.sent.lock().unwrap().clone();
+    let signed: Vec<_> = messages(&sent).into_iter().filter(|m| m.attribute(NONCE).is_some()).collect();
+    let [request] = signed.as_slice() else { panic!("{} signed requests", signed.len()) };
+    assert_eq!(request.kind, stun::message_type(ALLOCATE, Class::Request));
+    assert_eq!(request.attribute(USERHASH), Some(stun::userhash(USER, REALM).as_slice()));
+    assert_eq!(request.attribute(USERNAME), None);
+    assert_eq!(request.attribute(PASSWORD_ALGORITHMS), Some(offered));
+    assert_eq!(request.attribute(PASSWORD_ALGORITHM), Some(PasswordAlgorithm::Sha256.attribute().as_slice()));
+    assert_eq!(request.attribute(MESSAGE_INTEGRITY), None);
+    assert!(request.attribute(MESSAGE_INTEGRITY_SHA256).is_some());
+
+    let taken = received.iter().find(|d| stun::decode(d).is_ok_and(|m| m.kind == success));
+    let taken = taken.expect("libjuice's success to the Allocate with SHA-256");
+    assert_eq!(stun::decode(taken).unwrap().attribute(MESSAGE_INTEGRITY_SHA256), None);
+    stun::integrity(taken, &stun::long_term_key(USER, REALM, PASSWORD)).expect("the MD5 key of the success");
+    println!("juice: an Allocate with SHA-256 and USERHASH got a success");
+    println!("juice: a success signed with MD5 alone was refused");
+}
+
+/// A wrong password: libjuice checks MESSAGE-INTEGRITY-SHA256, and the
+/// second 401 fails the Allocate.
+#[tokio::test]
+async fn a_wrong_password_with_sha256_gets_401() {
+    pod_testkit::need_loopback!();
+    let Some(juice) = juice() else { return };
+    let socket = Recorded::bind().await;
+    let e = within(Client::allocate(settings(juice, &socket, "not-the-password"))).await.unwrap_err();
+    assert!(matches!(e, Error::Server { method: ALLOCATE, code: 401, .. }), "{e:?}");
+    let sent = socket.sent.lock().unwrap().clone();
+    assert!(messages(&sent).iter().any(|m| m.attribute(MESSAGE_INTEGRITY_SHA256).is_some()));
+    println!("juice: a wrong password with SHA-256 got 401");
+}

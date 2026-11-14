@@ -1,0 +1,8 @@
+# The tests of pod-turn against libjuice: with POD_TURN_TEST_JUICE=required,
+# a host with no libjuice must fail, not skip. RUN names no libjuice.
+ENTRY=T-403
+GROUP=turn
+EXPECT='POD_TURN_TEST_JUICE=required: no libjuice here'
+RUN='POD_TURN_TEST_JUICE=required POD_TURN_TEST_JUICE_UDP= cargo test -p pod-turn --all-features --test juice'
+LIMIT=1800
+SWITCH=1

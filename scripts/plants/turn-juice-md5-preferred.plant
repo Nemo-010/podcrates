@@ -1,0 +1,9 @@
+# The client takes MD5 where the 401 offers SHA-256 too: no
+# MESSAGE-INTEGRITY-SHA256 goes, and the test of a wrong password with
+# SHA-256 against libjuice must fail. It needs docker, openssl, git and a C
+# compiler.
+ENTRY=T-403
+GROUP=turn
+EXPECT='test a_wrong_password_with_sha256_gets_401 \.\.\. FAILED'
+RUN='sh scripts/ci/turn-tests.sh'
+LIMIT=1800
