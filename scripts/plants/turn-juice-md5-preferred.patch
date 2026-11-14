@@ -1,0 +1,18 @@
+diff --git a/crates/pod-turn/src/client/exchange.rs b/crates/pod-turn/src/client/exchange.rs
+index 2c79efd..37a5491 100644
+--- a/crates/pod-turn/src/client/exchange.rs
++++ b/crates/pod-turn/src/client/exchange.rs
+@@ -178,10 +178,10 @@ impl Client {
+             Some(value) => {
+                 let list = stun::password_algorithms(value).map_err(|why| Error::Protocol { kind, why })?;
+                 let has = |a: PasswordAlgorithm| list.iter().any(|(n, _)| *n == a.number());
+-                let algorithm = if has(PasswordAlgorithm::Sha256) {
+-                    PasswordAlgorithm::Sha256
+-                } else if has(PasswordAlgorithm::Md5) {
++                let algorithm = if has(PasswordAlgorithm::Md5) {
+                     PasswordAlgorithm::Md5
++                } else if has(PasswordAlgorithm::Sha256) {
++                    PasswordAlgorithm::Sha256
+                 } else {
+                     return Err(protocol("a challenge with no password algorithm that this client knows"));
+                 };

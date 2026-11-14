@@ -6,10 +6,13 @@
 # realm, a certificate of a root that this script makes, peers on the
 # loopback, FINGERPRINT on each answer, and nonces of 2 s. A second coturn
 # with the same options answers each Allocate with 300 and the address of
-# the first (--alternate-server, --tls-alternate-server).
-# POD_TURN_TEST_COTURN=required and POD_PROXY_TEST_STUN=required make a skip
-# a failure, and the run must say each line below, so the check cannot pass
-# by a skip. It needs docker and openssl. POD_TURN_TEST_COTURN_BIN names a
+# the first (--alternate-server, --tls-alternate-server). libjuice's TURN
+# server (T-403, call C576), built from its source at a pinned commit with
+# scripts/ci/juice-turn.c, offers SHA-256 and announces USERHASH on UDP.
+# POD_TURN_TEST_COTURN=required, POD_TURN_TEST_JUICE=required and
+# POD_PROXY_TEST_STUN=required make a skip a failure, and the run must say
+# each line below, so the check cannot pass by a skip. It needs docker,
+# openssl, git and a C compiler. POD_TURN_TEST_COTURN_BIN names a
 # turnserver program of the host to run in place of the image.
 set -eu
 cd "$(dirname "$0")/../.." || exit 71
@@ -23,8 +26,30 @@ redirect_tls=5358
 user=pod-turn-test
 password=made-up-coturn-password
 realm=coturn.test
+# libjuice 1.7.4, its port and the made-up password and realm of
+# tests/juice.rs of pod-turn.
+juice_commit=b89c792e3612faf2f12cf35bcc56857313a06be3
+juice=3498
+juice_password=made-up-juice-password
+juice_realm=juice.test
 dir=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/coturn-tests.XXXXXX")
 chmod 755 "$dir"
+
+# The source of libjuice at the pinned commit, checked by its id.
+git init -q "$dir/libjuice"
+sh scripts/retry.sh git -C "$dir/libjuice" fetch -q --depth 1 \
+    https://github.com/paullouisageneau/libjuice.git "$juice_commit"
+git -C "$dir/libjuice" -c advice.detachedHead=false checkout -q FETCH_HEAD
+if [ "$(git -C "$dir/libjuice" rev-parse HEAD)" != "$juice_commit" ]; then
+    echo "turn-tests: libjuice is not at $juice_commit" >&2
+    exit 1
+fi
+src=$dir/libjuice
+"${CC:-cc}" -O2 -std=gnu11 -DJUICE_STATIC -DUSE_NETTLE=0 -I"$src/include" -I"$src/include/juice" -I"$src/src" \
+    "$src"/src/*.c scripts/ci/juice-turn.c -lpthread -o "$dir/juice-turn"
+"$dir/juice-turn" "$juice" "$user" "$juice_password" "$juice_realm" > "$dir/juice.log" 2>&1 &
+juice_pid=$!
+trap 'kill $juice_pid 2> /dev/null || true; rm -rf "$dir"' EXIT
 
 # A root and a certificate of coturn.test and 127.0.0.1 from it, P-256.
 printf '[req]\ndistinguished_name=dn\n[dn]\n' > "$dir/req.cnf"
@@ -57,7 +82,8 @@ if [ -n "${POD_TURN_TEST_COTURN_BIN:-}" ]; then
     # shellcheck disable=SC2086
     "$POD_TURN_TEST_COTURN_BIN" "$@" $redirect --no-cli > "$dir/redirect.log" 2>&1 &
     pid="$pid $!"
-    trap 'tail -n 40 "$dir/coturn.log" "$dir/redirect.log"; kill $pid 2> /dev/null || true; rm -rf "$dir"' EXIT
+    trap 'tail -n 40 "$dir/coturn.log" "$dir/redirect.log" "$dir/juice.log"; kill $pid $juice_pid 2> /dev/null || true
+        rm -rf "$dir"' EXIT
 else
     ref=$(tr -d '\r' < images/coturn/Dockerfile | sed -n 's/^FROM[[:space:]]\{1,\}\([^[:space:]]\{1,\}\).*/\1/p')
     case "$ref" in
@@ -74,13 +100,14 @@ else
     # shellcheck disable=SC2086
     docker run -d --name "$name-redirect" --network host -v "$dir:$dir:ro" --entrypoint turnserver "$image" \
         "$@" $redirect > /dev/null
-    trap 'for n in "$name" "$name-redirect"; do docker logs "$n" 2>&1 | tail -n 40; done
-        docker rm -f "$name" "$name-redirect" > /dev/null 2>&1 || true; rm -rf "$dir"' EXIT
+    trap 'for n in "$name" "$name-redirect"; do docker logs "$n" 2>&1 | tail -n 40; done; tail -n 40 "$dir/juice.log"
+        docker rm -f "$name" "$name-redirect" > /dev/null 2>&1 || true; kill $juice_pid 2> /dev/null || true
+        rm -rf "$dir"' EXIT
 fi
 
-# Wait for a Binding answer on each UDP port and for each TLS port, at most
-# 60 s.
-python3 -I - "$udp" "$tls" "$redirect_udp" "$redirect_tls" <<'EOF'
+# Wait for a Binding answer on each UDP port and for each TLS port (0: no
+# TLS), at most 60 s.
+python3 -I - "$udp" "$tls" "$redirect_udp" "$redirect_tls" "$juice" 0 <<'EOF'
 import socket, sys, time
 ports = [int(p) for p in sys.argv[1:]]
 deadline = time.monotonic() + 60
@@ -92,18 +119,20 @@ while True:
                 s.settimeout(0.5)
                 s.sendto(request, ("127.0.0.1", udp))
                 s.recvfrom(1500)
-            socket.create_connection(("127.0.0.1", tls), 1).close()
+            if tls:
+                socket.create_connection(("127.0.0.1", tls), 1).close()
         break
     except OSError:
         if time.monotonic() > deadline:
-            sys.exit("turn-tests: coturn did not listen within 60 s")
+            sys.exit("turn-tests: coturn or libjuice did not listen within 60 s")
         time.sleep(0.5)
 EOF
 
 export POD_TURN_TEST_COTURN=required POD_TURN_TEST_COTURN_UDP=127.0.0.1:$udp \
     POD_TURN_TEST_COTURN_TLS=127.0.0.1:$tls POD_TURN_TEST_COTURN_CA="$dir/ca.pem" \
-    POD_TURN_TEST_COTURN_REDIRECT_UDP=127.0.0.1:$redirect_udp POD_TURN_TEST_COTURN_REDIRECT_TLS=127.0.0.1:$redirect_tls
-out=$(cargo test --locked -p pod-turn --all-features --test coturn --test coturn_options -- --nocapture 2>&1) ||
+    POD_TURN_TEST_COTURN_REDIRECT_UDP=127.0.0.1:$redirect_udp POD_TURN_TEST_COTURN_REDIRECT_TLS=127.0.0.1:$redirect_tls \
+    POD_TURN_TEST_JUICE=required POD_TURN_TEST_JUICE_UDP=127.0.0.1:$juice
+out=$(cargo test --locked -p pod-turn --all-features --test coturn --test coturn_options --test juice -- --nocapture 2>&1) ||
     { printf '%s\n' "$out"; exit 1; }
 printf '%s\n' "$out"
 stun=$(POD_PROXY_TEST_STUN=required POD_PROXY_TEST_STUN_SERVER=127.0.0.1:$udp \
@@ -122,7 +151,10 @@ for line in 'coturn: an allocation over UDP relayed a Send and ChannelData' \
     'coturn: IPv6 got 440, and both families got IPv4' \
     'coturn: the ALPN stun.turn was chosen over TLS' \
     'coturn: a 300 of the first Allocate was followed to the alternate server' \
-    'coturn: a redirect that the way out refuses failed with its words'; do
+    'coturn: a redirect that the way out refuses failed with its words' \
+    'juice: an Allocate with SHA-256 and USERHASH got a success' \
+    'juice: a success signed with MD5 alone was refused' \
+    'juice: a wrong password with SHA-256 got 401'; do
     if ! printf '%s\n' "$out" | grep -qxF "$line"; then
         echo "turn-tests: the run did not say: $line" >&2
         exit 1

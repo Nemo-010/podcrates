@@ -1,0 +1,7 @@
+# A plant of T-478 (the client of the HTTP road in pod-relay sends `close`
+# when the caller goes): the split form's task down returns with no request
+# when the caller dropped its stream; the test of the split form must fail.
+ENTRY=T-478
+GROUP=relay
+EXPECT='test the_split_form_closes_the_session_when_the_caller_drops_its_stream \.\.\. FAILED'
+RUN='cargo test -p pod-relay --test http_road_gone -- the_split_form_closes_the_session_when_the_caller_drops_its_stream'

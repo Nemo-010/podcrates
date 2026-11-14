@@ -73,24 +73,49 @@ pub(super) fn acknowledged(answer: &Head, seq: u64) -> Result<(), End> {
 }
 
 /// The target's bytes down to the caller, until the session ends or the
-/// caller is gone. An end that the bytes up found stops them too, so that
-/// the caller's stream ends.
-pub(super) async fn down(conn: Conn, s: Arc<Shared>, mut to_app: WriteHalf<DuplexStream>) {
+/// caller is gone; then one `close` ([`caller_gone`]). An end that the
+/// bytes up found stops them too, so that the caller's stream ends.
+pub(super) async fn down(mut conn: Conn, s: Arc<Shared>, mut to_app: WriteHalf<DuplexStream>) {
     let ended = s.ended.clone();
-    tokio::select! {
+    let gone = tokio::select! {
         biased;
-        () = ended.wait() => {}
-        pumped = pump(conn, &s, &mut to_app) => match pumped {
-            Some(end) => s.end(end),
-            None => return,
+        () = ended.wait() => false,
+        pumped = pump(&mut conn, &s, &mut to_app) => match pumped {
+            Some(end) => {
+                s.end(end);
+                false
+            }
+            None => true,
         },
+    };
+    if gone {
+        return caller_gone(&mut conn, &s).await;
     }
     let _ = to_app.shutdown().await;
 }
 
+/// The caller went before the session's end: one `close`, within
+/// [`LIMIT`], so that the role frees the session, its target and its
+/// windows at once, not at its idle limit.
+pub(super) async fn caller_gone(conn: &mut Conn, s: &Shared) {
+    if s.ended.get().is_some() {
+        return;
+    }
+    // The end comes first: the role's `410` to the other task after the
+    // close is then no failure of the session.
+    s.end(End::Closed { code: 1000, reason: "client closed".into() });
+    let head = s.request("POST", &s.path("close", ""), Some(0));
+    let _ = tokio::time::timeout(LIMIT, async {
+        if let Ok(answer) = conn.ask(&head, &[], LIMIT).await {
+            conn.drop_body(&answer, LIMIT).await;
+        }
+    })
+    .await;
+}
+
 /// The requests down, until the session's end; `None` once the caller is
 /// gone.
-async fn pump(mut conn: Conn, s: &Shared, to_app: &mut WriteHalf<DuplexStream>) -> Option<End> {
+async fn pump(conn: &mut Conn, s: &Shared, to_app: &mut WriteHalf<DuplexStream>) -> Option<End> {
     let mut at: u64 = 0;
     let mut tries = Retry::start();
     let limit = s.wait + SLACK;
@@ -113,7 +138,7 @@ async fn pump(mut conn: Conn, s: &Shared, to_app: &mut WriteHalf<DuplexStream>) 
                         "the relay sent the bytes of the HTTP road from another offset than {at}"
                     ));
                 }
-                let came = carried(&mut conn, &answer, to_app, limit).await?;
+                let came = carried(conn, &answer, to_app, limit).await?;
                 at += came;
                 s.came_down(at);
                 // A body cut before its first byte is no answer.

@@ -1,0 +1,13 @@
+diff --git a/crates/pod-turn/src/stun_sha256.rs b/crates/pod-turn/src/stun_sha256.rs
+index f48a333..8a244e0 100644
+--- a/crates/pod-turn/src/stun_sha256.rs
++++ b/crates/pod-turn/src/stun_sha256.rs
+@@ -111,7 +111,7 @@ impl PasswordAlgorithm {
+     pub fn key(self, user: &str, realm: &str, password: &str) -> Vec<u8> {
+         match self {
+             PasswordAlgorithm::Md5 => super::long_term_key(user, realm, password).to_vec(),
+-            PasswordAlgorithm::Sha256 => sha256_key(user, realm, password).to_vec(),
++            PasswordAlgorithm::Sha256 => super::long_term_key(user, realm, password).to_vec(),
+         }
+     }
+ 

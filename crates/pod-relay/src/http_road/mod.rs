@@ -42,7 +42,8 @@
 //!   OFFSET in a whole answer, as `down` gives them. While the caller has
 //!   not read the bytes down that the client holds, the serial form sends
 //!   its batches by `up` alone, on the same connection.
-//! - `POST /v1/http/s/ID/close` ends the session at once.
+//! - `POST /v1/http/s/ID/close` ends the session at once. The split and
+//!   serial forms send it once when the caller goes before the end.
 //! - One-POST: `POST /v1/http/one/HOST/PORT[?family=4|6]` with the forward
 //!   token and a body in chunks, on one connection: the role answers `200`
 //!   at once, in chunks, whose first bytes are [`MARK`]; then each chunk up

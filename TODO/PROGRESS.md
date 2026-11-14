@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 513 entries: 107 open, 9 partial, 6 blocked, 391 done.
+`TODO/INDEX.md` holds 514 entries: 106 open, 9 partial, 6 blocked, 393 done.
 
 ## State
 
@@ -77,10 +77,8 @@ The Windows guest of podvm (#152): T-602 (the first run of
 `guest-windows.yml`), T-628. Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
 
-1. **The defects and asks of the consumers:** T-403 (the SHA-256
-   credentials against a server of
-   another party: coturn keys with SHA-1 alone); T-478 (the client of
-   the HTTP road never sends `close`); T-378 (`pod-devtunnel`, GitHub #94 and
+1. **The defects and asks of the consumers:** T-631 (the check of a
+   SHA-256 answer against xturn); T-378 (`pod-devtunnel`, GitHub #94 and
    PodUtils/podssh#216: partial: the client side is in `v0.33.0` for
    PodUtils/podssh@T-755; the second part is the creation of tunnels, the
    logins and the token store; then T-386 and T-385); T-330 (podvm's pair

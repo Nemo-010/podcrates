@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**513 entries: 107 open, 9 partial, 6 blocked, 391 done.**
+**514 entries: 106 open, 9 partial, 6 blocked, 393 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 103 | 117 |
 | P2 | 50 | 3 | 4 | 207 | 264 |
-| P3 | 46 | 3 | 2 | 79 | 130 |
-| **All** | 107 | 9 | 6 | 391 | 513 |
+| P3 | 45 | 3 | 2 | 81 | 131 |
+| **All** | 106 | 9 | 6 | 393 | 514 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -379,7 +379,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-394](adapters.md) | P1 | M | M3 | feature | done | `pod-warp`: the streams of a `WarpNet` fail at once when its session closes, and a close by the caller (podnet issues 125, 112, 185) |
 | [T-395](adapters.md) | P2 | S | M3 | defect | done | `pod-warp`: a UDP datagram of `WarpNet` to a family that the device lacks is refused (podnet issue 112) |
 | [T-396](transport.md) | P2 | M | M2 | feature | done | `pod-link`: a TCP carrier with TLS 1.3 that pins the Ed25519 key of the peer, and its accept side (PodUtils/podnet#513) |
-| [T-403](transport.md) | P3 | M | M1 | feature | open | `pod-turn`: the SHA-256 credentials against a TURN server of another party |
+| [T-403](transport.md) | P3 | M | M1 | feature | done | `pod-turn`: the SHA-256 credentials against a TURN server of another party |
 | [T-406](adapters.md) | P1 | M | M3 | feature | done | `pod-warp`: the L4 door of `--l4` and its proxy, after HTTP/3 |
 | [T-407](transport.md) | P2 | S | M3 | chore | open | `pod-proxy`: fuzz targets of the server face of a proxy |
 | [T-409](adapters.md) | P2 | S | M3 | feature | open | `pod-warp`: HTTP/3 on a socket of the system takes the UDP socket of noq (GSO, GRO) |
@@ -421,7 +421,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-475](adapters.md) | P3 | S | M3 | feature | done | `pod-warp`: the rules `port:N=WAY` and `tcp:HOST:PORT=WAY` in the reader of the rules (PodUtils/podnet#518) |
 | [T-476](relay.md) | P2 | M | M2 | feature | done | `pod-relay`: the invariants 6 to 10 of the HTTP road, client and server, with a test of lost acknowledgements (PodUtils/podssh#221) |
 | [T-477](relay.md) | P1 | S | M2 | defect | done | `pod-relay`: the serial form of the HTTP road deadlocks when the bytes down block the bytes up (PodUtils/podssh#222) |
-| [T-478](relay.md) | P3 | S | M2 | defect | open | `pod-relay`: the client of the HTTP road never sends `close`, so a caller that drops its stream leaves the session at the role |
+| [T-478](relay.md) | P3 | S | M2 | defect | done | `pod-relay`: the client of the HTTP road never sends `close`, so a caller that drops its stream leaves the session at the role |
 | [T-480](adapters.md) | P2 | S | M3 | feature | done | `pod-warp`: the API sends a team's token with a registration and names the base that answered |
 | [T-481](adapters.md) | P2 | M | M3 | feature | open | `pod-warp`: a session to a connect-ip server of the user's own over HTTP/3 (RFC 9484) |
 | [T-482](relay.md) | P2 | S | M2 | defect | open | `pod-netstack`: a stream dropped before its handshake ends finishes the handshake later |
@@ -560,3 +560,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-627](relay.md) | P3 | S | M2 | feature | done | `pod-link`: the stand-in of the S3 API behind the feature `s3-standin` (PodUtils/podnet#564) |
 | [T-628](podvm.md) | P2 | S | M7 | defect | open | `pod-guest`: the warm restore gives the next command on a new mailbox medium after the load |
 | [T-629](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: a plan with a boot medium gives the root disk no `bootindex`, so OVMF deletes the boot entry of the installed system |
+| [T-631](transport.md) | P3 | M | M1 | chore | open | `pod-turn`: the check of a MESSAGE-INTEGRITY-SHA256 answer against a server of another party |

@@ -4943,7 +4943,7 @@ sends `close`). `cargo test -p pod-relay --all-features` passes.
 **Milestone:** M2
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -4975,6 +4975,28 @@ stand-in record the close.
 ```sh
 cargo test -p pod-relay --all-features
 ```
+
+## Done
+
+2026-11-14, commit `19b4673`. When the caller drops its stream before
+the session's end, the split form's task down (at the failed write of
+the bytes down) and the serial form (at the closed channel to its
+writer) send one `POST /v1/http/s/ID/close` with the session's key,
+within `LIMIT` (20 s), and set the end `Closed { code: 1000, reason:
+"client closed" }`. The end comes before the request, so that a `410`
+that the task up gets after the close is no failure. `Shared::path`
+gives no `?` with no query. The stand-in role counts each close and wakes
+a waiter. `tests/http_road_gone.rs`, 2 passed, on a paused clock: a
+caller drops its stream after 512 KiB of 4 MiB down, in each form; the
+stand-in records one close within `LIMIT`, and no second one in 120 s.
+Both tests fail on the code before the fix ("no close came within 20s").
+The plants, each proved by hand: `relay-t478-serial-no-close` and
+`relay-t478-split-no-close` (no request when the caller is gone; the test
+of the form fails). `cargo test -p pod-relay --all-features`: 428
+passed, no failure. podssh: no change of the role. Its `serve::http_road`
+already serves `close` (`answers::close`: the end `1000 client closed`,
+`204`). podssh's client sends the close once it takes the tag with this
+commit.
 
 # T-482: `pod-netstack`: a stream dropped before its handshake ends finishes the handshake later
 

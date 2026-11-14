@@ -1,0 +1,13 @@
+diff --git a/crates/pod-relay/src/http_road/split.rs b/crates/pod-relay/src/http_road/split.rs
+index f8e7148..b9a59ab 100644
+--- a/crates/pod-relay/src/http_road/split.rs
++++ b/crates/pod-relay/src/http_road/split.rs
+@@ -89,7 +89,7 @@ pub(super) async fn down(mut conn: Conn, s: Arc<Shared>, mut to_app: WriteHalf<D
+         },
+     };
+     if gone {
+-        return caller_gone(&mut conn, &s).await;
++        return;
+     }
+     let _ = to_app.shutdown().await;
+ }
