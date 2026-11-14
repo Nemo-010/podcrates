@@ -50,12 +50,17 @@ fn main() {
             }
         }
     }
-    // The report of the real set reads back to the same text.
+    // The report of the real set reads back to the same text. It runs
+    // here and not under libtest, whose binary refuses the child flag: the
+    // findings are the host's, not those of a refused child.
     #[cfg(feature = "report")]
     {
         use pod_hostprobe::{report, select::Selection};
-        let text = report::write(&f, &Selection::choose(&f));
+        let s = Selection::choose(&f);
+        let text = report::write(&f, &s);
         let (f2, s2) = report::read(&text).unwrap_or_else(|e| panic!("the report of this host: {e}"));
+        assert_eq!(f2.rows.len(), probes::PROBES.len());
+        assert_eq!(s2.rung, s.rung, "the rung of this host does not read back");
         assert_eq!(report::write(&f2, &s2), text, "the report of this host does not read back");
         println!("children: the report of {} bytes reads back to the same text", text.len());
     }

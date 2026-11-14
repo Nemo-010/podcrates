@@ -1,0 +1,6 @@
+# The reader of the report gives another rung than the one written: the round trip of the report of this host in tests/children.rs must fail (T-625).
+ENTRY=T-625
+GROUP=hostprobe
+EXPECT='the rung of this host does not read back'
+RUN='cargo test -p pod-hostprobe --all-features --test children'
+LIMIT=1800

@@ -139,20 +139,9 @@ pub fn run_child(name: &str, out: &mut dyn std::io::Write) -> i32 {
 mod tests {
     use super::*;
 
-    #[test]
-    fn every_child_probe_runs_and_answers_in_a_child() {
-        // The real path: one real child for each probe. The test checks the
-        // shape of the answers, not that this host permits a thing. libtest
-        // does not know the child flag, so each child row is a skip here;
-        // tests/children.rs runs the rows.
-        let f = run(&Settings::default(), &writable::candidates(&[]));
-        assert_eq!(f.rows.len(), probes::PROBES.len());
-        for (name, o) in &f.rows {
-            if o.verdict == verdict::Verdict::Denied {
-                assert!(o.errno.is_some(), "{name} denied with no errno");
-            }
-        }
-    }
+    // The real path, one child for each probe, is `tests/children.rs`: a
+    // binary with no libtest, which takes the child flag. A child of this
+    // binary refuses the flag.
 
     #[test]
     fn a_probe_name_that_does_not_exist_exits_two() {

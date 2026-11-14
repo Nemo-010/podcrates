@@ -92,17 +92,6 @@ fn each_row_name_is_the_name_of_its_probe() {
 }
 
 #[test]
-fn the_findings_of_this_host_read_back_to_the_same_text() {
-    let f = crate::run(&crate::Settings::default(), &crate::writable::candidates(&[]));
-    let s = Selection::choose(&f);
-    let text = write(&f, &s);
-    let (f2, s2) = read(&text).unwrap();
-    assert_eq!(f2.rows.len(), probes::PROBES.len());
-    assert_eq!(s2.rung, s.rung);
-    assert_eq!(write(&f2, &s2), text);
-}
-
-#[test]
 fn the_keys_in_another_order_and_white_space_read() {
     let v = written();
     let pretty = serde_json::to_string_pretty(&v).unwrap();
