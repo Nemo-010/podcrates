@@ -7604,3 +7604,34 @@ of one stem with an 8.3 name in the way, a name of 32 characters and a
 chain with another checksum). Plants:
 `guest-fat16-long-name-checksum-rotates-left`,
 `guest-fat16-alias-collides`, each caught by hand.
+
+# T-617: `pod-guest`: an NTFS and hive writer for an offline setup of a Windows guest
+
+**Source:** T-595 (its Approach; PodUtils/podvm#350, item 6).
+**Category:** feature
+**Milestone:** M7
+**Priority:** P3
+**Effort:** M
+**Status:** blocked
+
+## Problem
+
+The provision of a Windows guest types the installer into a ready guest (T-595). An offline setup writes the answer and the first commands into the image before it boots: an NTFS writer and a writer of a registry hive. podvm measures first whether `AutoRun` fires on the x64 image; without it, an offline setup gains nothing.
+
+## Premise
+
+- Read: PodUtils/podvm#350, item 6; the Done section of T-595 and calls C451 to C454.
+
+## Approach
+
+When podvm's measure says that `AutoRun` fires: a writer of NTFS that adds a file to an image, and a writer of a registry hive that sets a value, each as a module of `pod-guest` or a crate of its own (a call). Tests against images that real tools made, and plants.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features
+```
+
+## Blocker
+
+podvm measures whether `AutoRun` fires on the x64 image (PodUtils/podvm#350, item 6).

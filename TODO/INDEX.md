@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**500 entries: 119 open, 8 partial, 5 blocked, 368 done.**
+**501 entries: 119 open, 8 partial, 6 blocked, 368 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 101 | 115 |
 | P2 | 55 | 2 | 4 | 199 | 260 |
-| P3 | 53 | 3 | 1 | 66 | 123 |
-| **All** | 119 | 8 | 5 | 368 | 500 |
+| P3 | 53 | 3 | 2 | 66 | 124 |
+| **All** | 119 | 8 | 6 | 368 | 501 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -547,3 +547,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-614](upkeep.md) | P3 | S | M5 | chore | open | CI: a job that runs as root the tests that start a worker of uid 1000 |
 | [T-615](podvm.md) | P3 | S | M6 | defect | open | `pod-extract`: `open_tree` and the removal hold one descriptor for each level of depth |
 | [T-616](podvm.md) | P2 | S | M6 | defect | open | `pod-supervise`: the thread of the foreground hold blocks the shutdown signals |
+| [T-617](podvm.md) | P3 | M | M7 | feature | blocked | `pod-guest`: an NTFS and hive writer for an offline setup of a Windows guest |
