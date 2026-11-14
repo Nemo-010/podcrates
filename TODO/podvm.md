@@ -7659,3 +7659,30 @@ cargo test -p pod-guest --all-features
 ## Blocker
 
 podvm measures whether `AutoRun` fires on the x64 image (PodUtils/podvm#350, item 6).
+
+# T-618: `pod-hostprobe`: the signal calls on mips and mips64
+
+**Source:** T-616 (a finding of its work).
+**Category:** defect
+**Milestone:** M6
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`crates/pod-hostprobe/src/sys.rs` gives `SIG_BLOCK = 0`, `SIG_SETMASK = 2` and a mask of 8 bytes for `rt_sigprocmask` and `signalfd4`, the values of most Linux architectures. mips and mips64 use `SIG_BLOCK = 1`, `SIG_SETMASK = 3` and a mask of 16 bytes, so the kernel refuses these calls there with `EINVAL`. mips is not a target of a consumer (`docs/design.md`, section 7), so nothing fails today.
+
+## Premise
+
+- Read: the report of T-616 and call C486; `crates/pod-hostprobe/src/sys.rs` and `src/sys/sigmask.rs`.
+
+## Approach
+
+Give the values for each architecture (or take them from `linux_raw_sys`), and pass a mask of the size of the kernel's mask to `sigblock_shutdown`, `sigrestore`, `signalfd_shutdown` and `sigblock`. Add a compile check for mips to `scripts/agent/`, or record mips as a target with no signal calls.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features
+```
