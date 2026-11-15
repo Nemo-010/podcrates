@@ -8573,7 +8573,7 @@ cargo test -p pod-enter --all-features
 **Milestone:** M6
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8593,6 +8593,68 @@ The maps and the paths built before the fork; in the child, the user namespace f
 ```sh
 cargo test -p pod-enter --all-features
 cargo test -p pod-hostprobe --all-features
+```
+
+## Done
+
+2026-11-15, commit 147239f9 and the next commit. `pod_hostprobe::userns` (`Maps`, `enter`, `Step`): `unshare(CLONE_NEWUSER)`, `deny` into `setgroups`, `0 EUID 1` and `0 EGID 1`, built before the fork and async-signal-safe after it (C641). `pod-enter`: the module `ns_user` (steps `NS_USER_STEP` 23, `NS_SETGROUPS_STEP` 24, `NS_UID_MAP_STEP` 25, `NS_GID_MAP_STEP` 26 in `ns_setup_step`); `spawn_namespace` and the overlay root try the rung as now and, at `EPERM` of `unshare(CLONE_NEWNS)` only, again with the user namespace first, then fall back to chroot with both refusals in the line (`both_refused`). The banner goes out one time for each entry (C644). `pod-hostprobe`: the census row `mount(tmpfs,/tmp) in unshare(NEWUSER+maps,NEWNS)` (`USERNS_LEG`), the namespace rung in the selection where it passes, `Provides::namespaces` `user+mount` (C642); the schema has the row. Tests: 3 unit tests of `ns_user`, 3 of `userns`, 2 of the selection, 1 of the row, the numbers of `geteuid` and `getegid`; `tests/userns.rs` and `tests/userns_leg.rs` as uid 65534 with no capabilities (kernel 6.18): the payload sees uid 0, the name `unit2`, a private `/tmp`, the word `namespace` and one banner, and the leg is `OK`. With no retry the test failed (`the namespace rung refused at unshare(CLONE_NEWNS) (EPERM (1))`). `scripts/ci/userns-tests.sh` in `ci.yml` (C643). The plants `enter-userns-not-tried`, `enter-userns-no-maps`, `enter-userns-banner-twice`, `hostprobe-userns-leg-not-selected` and `hostprobe-userns-leg-no-user` are caught. `cargo test -p pod-enter --all-features` (192 unit tests) and `cargo test -p pod-hostprobe --all-features` (148 unit tests) passed; workspace clippy is clean. Left: T-671 (the join of such a run), T-672 (a `/proc` there).
+
+# T-671: `pod-enter`: the join of a run that entered the namespace rung through a user namespace
+
+**Source:** T-670 (a finding of its work).
+**Category:** defect
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+A caller with no capabilities enters the namespace rung through a user namespace of its own (T-670). An exec into that run (`spawn_joined`) calls `setns(pidfd, CLONE_NEWNS)` from the user namespace of the caller. The kernel needs `CAP_SYS_ADMIN` over the user namespace that owns the mount namespace of the payload, and in the user namespace of the caller: the caller has neither, so the join gets `EPERM`. The entry then enters a mount namespace of its own (`ns_join_fallback_line`): the payload of the exec does not see the `/tmp` and the writes of the payload of the run.
+
+## Premise
+
+- Read: `crates/pod-enter/src/entry.rs` (`spawn_joined_root`), `crates/pod-enter/src/launch.rs` (the join in the child), `setns(2)` (a pidfd with several flags joins the namespaces in one call).
+- Not measured: a join of the user and the mount namespace of a payload of uid 0 in its namespace, by the caller of uid 65534 that owns that namespace.
+
+## Approach
+
+Where the user namespace of the payload is not the one of the caller (compare `/proc/self/ns/user` with the one of the pid, before the fork), the child calls `setns(pidfd, CLONE_NEWUSER | CLONE_NEWNS)`: the owner of a user namespace holds each capability in it. A step byte and a name for the call. A live test as a caller with no capabilities in `tests/userns.rs` (a run, then a joined exec that reads a file of the run in `/tmp`); a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+sh scripts/ci/userns-tests.sh
+```
+
+# T-672: `pod-enter`: a `/proc` for the namespace rung through a user namespace
+
+**Source:** T-670 (a finding of its work).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The namespace rung mounts a fresh `proc` on the `/proc` of the image (`ns_optional`). In a user namespace that the rung makes for a caller with no capabilities (T-670), the kernel refuses that mount with `EPERM`: a proc mount needs `CAP_SYS_ADMIN` over the user namespace that owns the PID namespace, and the rung makes no PID namespace. The child writes its one line and the payload runs with no `/proc`, as on the chroot rung. As root, the same rung gives a `/proc`.
+
+## Premise
+
+- Measured (kernel 6.18, uid 65534, no capabilities): in `unshare -Urm`, `mount -t proc p /mnt` fails ("permission denied"), and `mount --rbind /proc /mnt` works.
+- Read: `crates/pod-enter/src/ns_optional.rs`.
+
+## Approach
+
+At `EPERM` of the proc mount in a user namespace, a recursive bind of the host's `/proc` on the `/proc` of the image (`MS_BIND | MS_REC`), then `nosuid`, `nodev` and `noexec` by a remount of the bind where the kernel takes it. The payload sees the host's processes, as on the rung as root (no PID namespace). A step of its own in the one line of a refusal. A live test as a caller with no capabilities (`/proc/self/status` reads); a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+sh scripts/ci/userns-tests.sh
 ```
 
 # T-676: `pod-hostprobe`: the KVM leg is a yes only for a device that runs a guest of the build's architecture (PodUtils/podvm#407)

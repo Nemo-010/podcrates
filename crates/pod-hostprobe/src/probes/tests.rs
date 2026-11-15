@@ -171,3 +171,14 @@ fn the_root_listing_block_is_three_outer_legs_in_order() {
     }
     assert_eq!(at, want.len(), "root-listing legs missing from PROBES");
 }
+
+/// The leg of the namespace rung through a user namespace is a census row
+/// that runs its own unshare, in a child with no namespace flags: an
+/// `EPERM` of `CLONE_NEWUSER` is then a denial with its errno, not a skip
+/// of the clone.
+#[test]
+fn the_user_namespace_leg_is_a_census_row_of_its_own() {
+    let p = find(USERNS_LEG).expect("the row exists");
+    assert!(p.group == Group::Census);
+    assert!(matches!(p.kind, Kind::Child { ns_flags: 0, .. }));
+}

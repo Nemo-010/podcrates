@@ -1,0 +1,13 @@
+diff --git a/crates/pod-hostprobe/src/select.rs b/crates/pod-hostprobe/src/select.rs
+index 67d0f876..743acb4d 100644
+--- a/crates/pod-hostprobe/src/select.rs
++++ b/crates/pod-hostprobe/src/select.rs
+@@ -168,7 +168,7 @@ impl Selection {
+         // cannot use.
+         // A caller with no capabilities gets the rung through a user
+         // namespace of its own: the leg measures that whole sequence.
+-        if mount_only(f) || ok(f, USERNS_LEG) {
++        if mount_only(f) {
+             return Selection { rung: Rung::Namespace, rejected, ..Selection::controls(f) };
+         }
+         rejected.push(Rejection {

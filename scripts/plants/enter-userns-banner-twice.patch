@@ -1,0 +1,13 @@
+diff --git a/crates/pod-enter/src/ns_user.rs b/crates/pod-enter/src/ns_user.rs
+index e6a77963..c9e82caa 100644
+--- a/crates/pod-enter/src/ns_user.rs
++++ b/crates/pod-enter/src/ns_user.rs
+@@ -97,7 +97,7 @@ pub(crate) fn spawn_own(root: &RootDir, plan: &Plan, mount: &mut NsMount, banner
+     match spawn_with(root, plan, word, None, None, None, Some(NsEntry::Own(mount)), banner, err) {
+         Err(Error::NsSetup { step, errno }) if calls_for_user_namespace(step, errno) => {
+             mount.user = Some(Maps::of_caller());
+-            let result = spawn_with(root, plan, word, None, None, None, Some(NsEntry::Own(mount)), false, err);
++            let result = spawn_with(root, plan, word, None, None, None, Some(NsEntry::Own(mount)), true, err);
+             Own { result, first: Some((step, errno)) }
+         }
+         result => Own { result, first: None },

@@ -1,11 +1,13 @@
+diff --git a/crates/pod-enter/src/entry.rs b/crates/pod-enter/src/entry.rs
+index 30fdbbe6..fea5cdc8 100644
 --- a/crates/pod-enter/src/entry.rs
 +++ b/crates/pod-enter/src/entry.rs
-@@ -340,7 +340,7 @@
- /// enters an overlay root of its own ([`spawn_namespace_root`]), which
+@@ -365,7 +365,7 @@ pub fn spawn_joined(root: &RootDir, plan: &Plan, pidfd: i64, err: &mut dyn Write
+ /// enters an overlay root of its own ([`crate::spawn_namespace_root`]), which
  /// never falls back to chroot.
  pub fn spawn_joined_root(root: Root<'_>, plan: &Plan, pidfd: i64, err: &mut dyn Write) -> Result<Child> {
 -    let join = NsEntry::Join(pidfd, matches!(root, Root::Overlay { .. }));
 +    let join = NsEntry::Join(pidfd, false);
-     match spawn_with(root.dir(), plan, Rung::Namespace.word(), None, None, None, Some(join), err) {
+     match spawn_with(root.dir(), plan, Rung::Namespace.word(), None, None, None, Some(join), true, err) {
          Err(Error::NsSetup { step, errno }) => {
              let cause = format!("{step} ({} ({}))", errno.name(), errno.0);

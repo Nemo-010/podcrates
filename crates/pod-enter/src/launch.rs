@@ -25,10 +25,12 @@ const SETUP_FAILED: i32 = 125;
 /// candidates (the loader of the entry with no chroot). `userland` is
 /// `None` for the chroot sequence, and the table of the run for the
 /// sequence with `fchdir` only. `ns` carries the
-/// mounts of the namespace rung (its own, or a join), or nothing. One function, so the fork, the
+/// mounts of the namespace rung (its own, or a join), or nothing. `banner`
+/// is false on a second fork of one entry (a fallback or a retry): the
+/// banner goes out one time. One function, so the fork, the
 /// rules of the root and the readiness pipe are the same for each entry.
 ///
-/// Eight parameters, each one used: they are the fixed set of the fork
+/// Nine parameters, each one used: they are the fixed set of the fork
 /// (each thing that the child touches exists before it).
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn spawn_with(
@@ -39,6 +41,7 @@ pub(crate) fn spawn_with(
     fd_exec: Option<i64>,
     userland: Option<&Maps>,
     ns: Option<NsEntry<'_>>,
+    banner: bool,
     err: &mut dyn Write,
 ) -> Result<Child> {
     // Before the fork. Each allocation of the child happens here: between
@@ -168,8 +171,10 @@ pub(crate) fn spawn_with(
     // The banner before the fork, so it cannot mix with the first output
     // of the payload. It goes to the error writer, never to the standard
     // output.
-    let _ = write!(err, "{}", plan.banner);
-    let _ = err.flush();
+    if banner {
+        let _ = write!(err, "{}", plan.banner);
+        let _ = err.flush();
+    }
 
     // The readiness pipe. `O_CLOEXEC` on both ends: the `execve` closes the
     // write end, and the read of the parent then gives the end of the file.
@@ -234,6 +239,10 @@ pub(crate) fn spawn_with(
             // its private tmpfs on the `/tmp` of the image. A failure
             // reports its step, and the parent enters chroot.
             if let Some(NsEntry::Own(m)) = ns {
+                // A user namespace first, where the rung needs one (`ns_user`).
+                if let Some(Err((step, e))) = m.user.as_ref().map(crate::ns_user::enter) {
+                    report(step, e);
+                }
                 // The lower layer of an overlay is the working directory:
                 // the unshare moves it into the new namespace, and a
                 // descriptor of the old one does not mount there.

@@ -1,0 +1,6 @@
+# pod-enter: the namespace rung does not try the user namespace at EPERM of unshare(CLONE_NEWNS), so a caller with no capabilities falls back to chroot; the live test as such a caller must fail (T-670).
+ENTRY=T-670
+GROUP=enter
+EXPECT='test a_caller_with_no_capabilities_enters_the_namespace_rung \.\.\. FAILED'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

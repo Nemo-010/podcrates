@@ -1,0 +1,6 @@
+# pod-enter: the user namespace of the rung gets no setgroups, uid_map and gid_map, so the payload sees the overflow uid and not 0; the live test as a caller with no capabilities must fail at its check of the uid (T-670).
+ENTRY=T-670
+GROUP=enter
+EXPECT='left: Ok\(3\)'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

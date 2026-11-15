@@ -1,0 +1,14 @@
+diff --git a/crates/pod-hostprobe/src/userns.rs b/crates/pod-hostprobe/src/userns.rs
+index 46992950..e7301dd5 100644
+--- a/crates/pod-hostprobe/src/userns.rs
++++ b/crates/pod-hostprobe/src/userns.rs
+@@ -97,6 +97,9 @@ fn write_file(path: &CBuf, bytes: &[u8]) -> Result<(), Errno> {
+ /// with more (`EINVAL`). Async-signal-safe.
+ pub fn enter(m: &Maps) -> Result<(), (Step, Errno)> {
+     sys::unshare(sys::CLONE_NEWUSER).map_err(|e| (Step::Unshare, e))?;
++    if !m.uid_line.is_empty() {
++        return Ok(());
++    }
+     // A kernel before 3.19 has no `setgroups` file, and takes the map of
+     // the group with no `deny`.
+     match write_file(&m.setgroups, b"deny") {

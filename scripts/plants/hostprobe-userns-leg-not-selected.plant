@@ -1,0 +1,6 @@
+# pod-hostprobe: the selection ignores the leg through a user namespace, so a caller with no capabilities never gets the namespace rung; the unit test of the selection must fail (T-670).
+ENTRY=T-670
+GROUP=hostprobe
+EXPECT='test select::tests::the_leg_through_a_user_namespace_selects_namespace \.\.\. FAILED'
+RUN='cargo test -p pod-hostprobe --all-features --lib select::'
+LIMIT=1800

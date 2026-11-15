@@ -177,6 +177,7 @@
             "mount(tmpfs,/mnt)",
             "mount(tmpfs,/mnt) in clone(NEWNS)",
             "mount(MS_SLAVE,/) in clone(NEWNS)",
+            "mount(tmpfs,/tmp) in unshare(NEWUSER+maps,NEWNS)",
             "pivot_root(/tmp,/tmp)",
             "ptrace(PTRACE_TRACEME)",
             "mknod(chr 1:3 /tmp/nodprobe)",

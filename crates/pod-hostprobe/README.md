@@ -30,8 +30,9 @@ s390x; mips and 32-bit powerpc refuse to compile).
 | `Findings` | the rows, `identity`, `writable`, `self_exe` |
 | `verdict` | `Verdict` (`Ok`, `Denied`, `Skip`), `Outcome`, the wire line `pod-hostprobe/1` (`encode`, `decode`), `Outcome::row` (the row format of the Go reference instrument) |
 | `child` | `Spawner`: `clone_accepted`, `run_probe` |
-| `probes` | `PROBES` (66 rows: census, attribution, machine, supervise), `Kind`, `Group`, `find`, `MACHINE_LEGS`, `SUPERVISE_LEGS`, `SUPERVISION_LEGS`, `chroot_usable`, `ptmx_usable`, `fuse_usable`, `PTMX`, `FUSE` |
-| `select` | `Rung` (`word`, `requirement`, `must_never_claim`), `Strictness`, `Rejection`, `Selection` (`choose`, `meets`, `exit_code`, `STRICT_FLOOR`), `Provides`, `control_rows` |
+| `probes` | `PROBES` (67 rows: census, attribution, machine, supervise), `Kind`, `Group`, `find`, `USERNS_LEG` (the namespace rung through a user namespace: the sequence of `userns::enter`, then `unshare(CLONE_NEWNS)`, `/` private and a tmpfs on `/tmp`; the denial names the refused call), `MACHINE_LEGS`, `SUPERVISE_LEGS`, `SUPERVISION_LEGS`, `chroot_usable`, `ptmx_usable`, `fuse_usable`, `PTMX`, `FUSE` |
+| `select` | `Rung` (`word`, `requirement`, `must_never_claim`), `Strictness`, `Rejection`, `Selection` (`choose`, `meets`, `exit_code`, `STRICT_FLOOR`), `Provides`, `control_rows`. The namespace rung needs a mount namespace and a mount in the user namespace of the caller, or the leg `USERNS_LEG`; `Provides::namespaces` is `mount-only`, or `user+mount` where only the leg passes |
+| `userns` | `Maps` (`new(uid, gid)`, `of_caller`, `uid_line`, `gid_line`), `map_line`, `enter(&Maps)`, `Step` (`name`): the user namespace of a caller with no capabilities, as `unshare -Ur` makes it, async-signal-safe after the fork; the namespace rung of `pod-enter` and the leg call the one sequence |
 | `report` (feature `report`) | `write(&Findings, &Selection) -> String`, `read(&str) -> Result<(Findings, Selection), ReadError>`, `SCHEMA`, `ReadError` (`Form`, `Version`, `UnknownRow`, `DuplicateRow`, `Word`, `DenialWithoutErrno`); `schema() -> serde_json::Value` and `SCHEMA_ID` (feature `schema`): the JSON object of one run and its JSON Schema (see "The report") |
 | `mounts` | `Mounts`: create, configure, attach, use; `summary`, `capability_note` |
 | `machine` | `assess`, `Assessment`, `Profile` (`Full`, `Tcg`), `Leg`, the leg names, `accelerators_in`. The KVM leg opens `/dev/kvm`, then asks the device for a guest of the build's architecture (`KVM_GET_API_VERSION`, `KVM_CREATE_VM`, then `KVM_GET_SUPPORTED_CPUID` on x86_64 or `KVM_ARM_PREFERRED_TARGET` on aarch64): a device that QEMU user mode passes through from another architecture is a denial with `ENOTTY` or `EINVAL` and the reason (PodUtils/podvm#407). `Assessment::refusal` is one sentence with its verdict (`machine tier refused: LEG; LEG`): a printer adds no verdict word before it |
@@ -121,7 +122,7 @@ Against podvm `crates/podvm-probe`, `crates/podvm-image/src/space.rs` and
 | --- | --- |
 | [x] One disposable child for each probe, the line and the exit status cross-checked | `child` |
 | [x] The three states, the wire line | `verdict` (magic `pod-hostprobe/1`) |
-| [x] The probe table and the bodies (66 rows) | `probes` |
+| [x] The probe table and the bodies (66 rows; 67 with the leg `USERNS_LEG` of T-670) | `probes` |
 | [x] The selection of the rung, `Strictness`, the controls, `Provides` | `select` |
 | [x] `BANNER_ROWS`, `banner_cell` | stay in podvm, with its report |
 | [x] Create, configure, attach and use of a mount | `mounts` |
@@ -187,6 +188,13 @@ and `supervise::tests::the_refusal_names_every_missing_leg_in_run_order`
 check that `; ` separates the legs of a refusal and that the verdict comes
 one time; the plants `hostprobe-machine-legs-run-together` and
 `hostprobe-supervise-legs-run-together` prove them.
+`select::tests::the_leg_through_a_user_namespace_selects_namespace`
+checks the selection through the leg, and the plant
+`hostprobe-userns-leg-not-selected` proves it. `tests/userns_leg.rs` (no
+libtest) runs the leg as a caller with no capabilities (as root, the
+binary starts again as uid 65534); `scripts/ci/userns-tests.sh` runs it in
+CI and fails on a skip, and the plant `hostprobe-userns-leg-no-user`
+proves it.
 `sys::tests::the_kernel_mask_has_the_kernels_size_and_keeps_signals_1_to_64`
 checks the size of the mask against `_NSIG`, the order of signals 1 to
 64 through the words of the kernel, and a `signalfd` with the mask; the

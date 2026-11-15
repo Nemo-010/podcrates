@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 540 entries: 108 open, 9 partial, 6 blocked, 417 done.
+`TODO/INDEX.md` holds 543 entries: 110 open, 9 partial, 6 blocked, 418 done.
 
 ## State
 
@@ -97,8 +97,8 @@ for podnet (item 3c): T-526. Then the items below, in order.
       with the first carrier over a shared path), T-514 (a stream-aware
       ARQ, when podnet asks), T-501 (`pod-turn` with RFC 6062),
       T-214 and T-215 (`pod-transit`, `pod-wormhole`).
-   e. Then: T-029 and T-030 (`pod-cloudflare`), T-035 and T-302
-      (`pod-egress`), T-039 (`pod-ts`), T-502 (a headscale harness).
+   e. Then: T-029 and T-030 (`pod-cloudflare`), T-035, T-302 and T-673
+      (`pod-egress`; T-673 makes `check-probe.py` green), T-039 (`pod-ts`), T-502 (a headscale harness).
    The rest of `pod-warp`: T-339 (partial: the trial patches and the
    live run), T-482, T-481, T-470, T-410, T-409; T-407 (the fuzz targets
    of the server face of `pod-proxy`). T-121 and T-124
@@ -109,8 +109,8 @@ for podnet (item 3c): T-526. Then the items below, in order.
    (PodUtils/podvm@T-1662 waits for it and for the module set of the
    modloop, which `pod-guest` has); T-347 after both, then T-348;
    `exec_attached` of `pod-incus` when PodUtils/podvm@T-1722 asks for it.
-   T-670 (the namespace rung through a user namespace, PodUtils/podvm#406)
-   next; T-649 (a FAT image writer, PodUtils/podvm#386) is not urgent.
+   T-671 (the join of a run that entered the namespace rung through a
+   user namespace) and T-672 (a `/proc` there); T-649 (a FAT image writer, PodUtils/podvm#386) is not urgent.
    T-448 (a wrong fact of
    FUSE in `pod-enter`); T-444 (the probe rows of
    the namespace and FUSE rungs; the rows of podswarm alone wait). T-040

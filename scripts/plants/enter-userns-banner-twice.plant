@@ -1,0 +1,6 @@
+# pod-enter: the retry of the namespace rung in a user namespace writes the banner a second time; the live test as a caller with no capabilities must fail at its count of the banner (T-670).
+ENTRY=T-670
+GROUP=enter
+EXPECT='the banner goes out one time'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800
