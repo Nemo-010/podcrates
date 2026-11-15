@@ -1,5 +1,5 @@
 //! What the stand-in OpenTunnel server reads as the service does, written
-//! here apart from podssh's code, so that a defect of one is not the other's:
+//! here apart from the crate's code, so that a defect of one is not the other's:
 //! a CSR (PKCS #10, RFC 2986), its key and its names, which the service
 //! checks before each order ("Only a tunnel's own names",
 //! anomalyco/opentunnel:docs/server.md at v0.6.1); and the SNI of a

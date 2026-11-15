@@ -1976,6 +1976,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pod-opentunnel"
+version = "0.48.0"
+dependencies = [
+ "pod-core",
+ "pod-proxy",
+ "pod-services",
+ "pod-session",
+ "pod-tls",
+ "pod-ws",
+ "rand",
+ "rustls",
+ "serde_json",
+ "tokio",
+ "zeroize",
+]
+
+[[package]]
 name = "pod-piping"
 version = "0.48.0"
 dependencies = [
@@ -2222,6 +2239,7 @@ dependencies = [
  "pod-link",
  "pod-netlab",
  "pod-oci",
+ "pod-opentunnel",
  "pod-piping",
  "pod-proxy",
  "pod-qga",

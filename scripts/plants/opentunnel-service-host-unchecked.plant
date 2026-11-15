@@ -1,0 +1,7 @@
+# The parse of a service's URL takes each host, as podssh's did, so that
+# `https://n::1]:8443` gives the host `n::1]` (T-033): the test of the hosts
+# that are refused must fail.
+ENTRY=T-033
+GROUP=opentunnel
+EXPECT='test tests::a_service_whose_host_is_no_name_and_no_address_is_refused_without_its_text \.\.\. FAILED'
+RUN='cargo test --locked -p pod-opentunnel --lib tests::a_service_whose_host_is_no_name_and_no_address_is_refused_without_its_text'

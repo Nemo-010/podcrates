@@ -1,0 +1,9 @@
+# podssh's plant t530-tunnel-not-kept, on pod-opentunnel's copy of the file.
+# podssh T-530: the node keeps no record of its tunnel, so each start makes a
+# new tunnel and binds a new CSR, of the 5 that the service gives a tunnel
+# each day; the test of a node started again against the stand-in OpenTunnel
+# server must fail.
+ENTRY=T-033
+GROUP=opentunnel
+EXPECT='test a_node_started_again_keeps_its_tunnel_and_binds_no_new_csr \.\.\. FAILED'
+RUN='cargo test --locked --no-fail-fast -p pod-opentunnel --test opentunnel_link -- a_node_started_again_keeps_its_tunnel_and_binds_no_new_csr'

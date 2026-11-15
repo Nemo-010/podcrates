@@ -1,4 +1,4 @@
-//! The keys and certificates of the stand-in OpenTunnel server (T-530): P-256
+//! The keys and certificates of the stand-in OpenTunnel server: P-256
 //! keys of p256, PKCS #8 written by hand as the binary's ACME client writes
 //! it, the stand-in's own CA (as OpenTunnel's server with `ISSUER=local`),
 //! and the credentials of a test's node, a key and the CSR of its name, made
@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use base64::Engine as _;
-use podssh_relay::opentunnel::Credentials;
+use pod_opentunnel::Credentials;
 use zeroize::Zeroizing;
 
 /// A P-256 key, for rcgen's certificates and CSRs.
@@ -142,7 +142,7 @@ impl Credentials for TestCredentials {
     }
 
     fn csr(&self, key_pem: &str, hostname: &str) -> Result<String, String> {
-        let key = Key::of(podssh_ws::tls_server::signing_key(key_pem.as_bytes())?);
+        let key = Key::of(pod_tls::server::signing_key(key_pem.as_bytes())?);
         let names = vec![hostname.to_string(), format!("*.{hostname}")];
         let mut params = rcgen::CertificateParams::new(names).map_err(|e| e.to_string())?;
         params.distinguished_name = rcgen::DistinguishedName::new();
@@ -162,7 +162,7 @@ impl Credentials for NoWildcard {
     }
 
     fn csr(&self, key_pem: &str, hostname: &str) -> Result<String, String> {
-        let key = Key::of(podssh_ws::tls_server::signing_key(key_pem.as_bytes())?);
+        let key = Key::of(pod_tls::server::signing_key(key_pem.as_bytes())?);
         let mut params = rcgen::CertificateParams::new(vec![hostname.to_string()]).map_err(|e| e.to_string())?;
         params.distinguished_name.push(rcgen::DnType::CommonName, hostname);
         let request = params.serialize_request(&key).map_err(|e| e.to_string())?;

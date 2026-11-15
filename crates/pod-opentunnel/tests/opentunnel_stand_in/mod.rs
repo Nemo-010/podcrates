@@ -1,4 +1,4 @@
-//! A stand-in OpenTunnel server for the tests of the OpenTunnel road (T-530),
+//! A stand-in OpenTunnel server for the tests of the OpenTunnel carrier,
 //! as anomalyco/opentunnel:docs/protocol.md and docs/server.md at v0.6.1 tell
 //! it, over pipes in memory or the loopback's TCP: no listener but the
 //! loopback's. Its API in plain HTTP/1.1, as the server's `HTTP_MODE=serve`:
@@ -26,13 +26,13 @@ use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use podssh_relay::opentunnel::dial::{BoxIo, Dial, Dialing, Visit};
-use podssh_relay::opentunnel::Service;
-use podssh_ws::frame::{OPCODE_BINARY, OPCODE_CLOSE, OPCODE_TEXT};
-use podssh_ws::RelaySession;
-use serde_json::{json, Value};
+use pod_opentunnel::Service;
+use pod_opentunnel::dial::{BoxIo, Dial, Dialing, Visit};
+use pod_ws::RelaySession;
+use pod_ws::frame::{OPCODE_BINARY, OPCODE_CLOSE, OPCODE_TEXT};
+use serde_json::{Value, json};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
-use tokio::sync::{mpsc, Notify};
+use tokio::sync::{Notify, mpsc};
 
 /// The domain of the stand-in's tunnels and of its API.
 pub const DOMAIN: &str = "opentunnel.test";
@@ -160,14 +160,14 @@ impl StandIn {
 
     /// The API, on one connection: one request, one answer.
     pub async fn serve_api<S: Io>(self: Arc<Self>, mut io: S) {
-        let Ok((request, rest)) = podssh_ws::http::read_request(&mut io, Vec::new()).await else { return };
+        let Ok((request, rest)) = pod_proxy::http::read_request(&mut io, Vec::new()).await else { return };
         let target = request.target.split('?').next().unwrap_or_default().to_string();
         let path: Vec<&str> = target.split('/').collect();
-        if let ("GET", ["", "api", "tunnel", id, "connect"]) = (request.method.as_str(), &path[..]) {
-            if request.has_token("connection", "upgrade") {
-                let id = id.to_string();
-                return self.bridge(io, &request, &id, rest).await;
-            }
+        if let ("GET", ["", "api", "tunnel", id, "connect"]) = (request.method.as_str(), &path[..])
+            && request.has_token("connection", "upgrade")
+        {
+            let id = id.to_string();
+            return self.bridge(io, &request, &id, rest).await;
         }
         let body = read_body(&mut io, &request, rest).await;
         let bearer = request.header("authorization").and_then(|v| v.strip_prefix("Bearer ")).map(str::to_string);
@@ -271,13 +271,13 @@ impl StandIn {
         tunnel.leaf = Some(self.ca.leaf(&want, &csr.point));
     }
 
-    async fn bridge<S: Io>(self: Arc<Self>, mut io: S, request: &podssh_ws::http::Request, id: &str, rest: Vec<u8>) {
+    async fn bridge<S: Io>(self: Arc<Self>, mut io: S, request: &pod_proxy::http::Request, id: &str, rest: Vec<u8>) {
         if !request.has_token("sec-websocket-protocol", "opentunnel") {
-            let _ = io.write_all(&podssh_ws::http::request::refusal(400, "the subprotocol opentunnel", &[])).await;
+            let _ = io.write_all(&pod_proxy::http::request::refusal(400, "the subprotocol opentunnel", &[])).await;
             return;
         }
         let Some(key) = request.header("sec-websocket-key") else { return };
-        let accept = podssh_ws::handshake::accept_key(key);
+        let accept = pod_ws::handshake::accept_key(key);
         let head = format!(
             "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: {accept}\r\nSec-WebSocket-Protocol: opentunnel\r\n\r\n"
         );
@@ -461,7 +461,7 @@ impl StandIn {
 }
 
 /// The bytes of a request's body, by its `Content-Length`.
-async fn read_body<S: Io>(io: &mut S, request: &podssh_ws::http::Request, mut rest: Vec<u8>) -> Vec<u8> {
+async fn read_body<S: Io>(io: &mut S, request: &pod_proxy::http::Request, mut rest: Vec<u8>) -> Vec<u8> {
     let want = request.header("content-length").and_then(|v| v.parse::<usize>().ok()).unwrap_or(0).min(1 << 20);
     let mut chunk = [0u8; 4096];
     while rest.len() < want {

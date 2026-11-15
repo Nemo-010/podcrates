@@ -2,7 +2,8 @@ name: live
 
 # The tests with `#[ignore]` that need a live service: the relay of podssh,
 # the public DoH resolvers (on Thursdays and by hand: CoreDNS on the
-# loopback proves the client on each push, T-350), ppng.io (T-032), a host that offers
+# loopback proves the client on each push, T-350), ppng.io (T-032),
+# opentunnel.xyz (T-033), a host that offers
 # Multipath TCP, a public registry, the WARP API and its front door,
 # Alpine's mirror, the public mailboxes of magic-wormhole, the public ntfy
 # servers (T-554), the public Nostr relays (T-550), the public WebTorrent trackers (T-551) and the public MQTT
@@ -211,6 +212,31 @@ jobs:
           if [ "$MEASURE" = piping-rates ]; then
             timeout 1200 cargo test --locked -p pod-piping --test piping_live -- --ignored --nocapture the_rates
           fi
+      # A short run through opentunnel.xyz, OpenTunnel's own service, of
+      # pod-opentunnel (T-033): a node makes a tunnel with a throwaway key, a
+      # client reaches it by TLS by name and echoes 256 KiB, a second start
+      # keeps the tunnel, and the tunnel is deleted at the end. A planted run
+      # makes the client dial a route that no bridge holds, and must fail.
+      # OpenTunnel's own server on the loopback proves the carrier
+      # (opentunnel-interop.yml), and the stand-in on each push (ci.yml).
+      - name: pod-opentunnel, a tunnel of opentunnel.xyz
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -eu
+          if [ "$EVENT" = schedule ] && [ "$(date -u +%u)" != 4 ]; then
+            echo "OpenTunnel's service runs on Thursdays and by hand"
+            exit 0
+          fi
+          timeout 300 cargo test --locked -p pod-opentunnel --test opentunnel_live -- --ignored --nocapture
+          rc=0
+          POD_OPENTUNNEL_TEST_PLANT=other-route \
+            timeout 300 cargo test --locked -p pod-opentunnel --test opentunnel_live -- --ignored || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "the check is vacuous: a route that no bridge holds passed"
+            exit 1
+          fi
+          echo "a route that no bridge holds failed (exit $rc), as it must"
       - name: pod-services, a round trip through each public file host
         env:
           EVENT: ${{ github.event_name }}

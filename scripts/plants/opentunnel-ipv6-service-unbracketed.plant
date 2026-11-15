@@ -1,0 +1,7 @@
+# A service on an IPv6 address on port 443 shows its address with no
+# brackets, so that its URL reads back as another service (T-033): the test
+# of an IPv6 service must fail.
+ENTRY=T-033
+GROUP=opentunnel
+EXPECT='test tests::an_ipv6_service_is_shown_in_brackets_and_reads_back_to_itself \.\.\. FAILED'
+RUN='cargo test --locked -p pod-opentunnel --lib tests::an_ipv6_service_is_shown_in_brackets_and_reads_back_to_itself'

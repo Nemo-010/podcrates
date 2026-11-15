@@ -1,0 +1,12 @@
+diff --git a/crates/pod-opentunnel/src/lib.rs b/crates/pod-opentunnel/src/lib.rs
+--- a/crates/pod-opentunnel/src/lib.rs
++++ b/crates/pod-opentunnel/src/lib.rs
+@@ -104,7 +104,7 @@
+         }
+         // A name, an IPv4 address or an IPv6 one; the refusal does not echo
+         // the host, as the rest of the URL may hold a secret.
+-        if pod_core::names::check_target(host).is_err() {
++        if host.is_empty() && pod_core::names::check_target(host).is_err() {
+             return Err("an OpenTunnel service's host is not a host name or an IP address".into());
+         }
+         Ok(Service { host: host.to_ascii_lowercase(), port })

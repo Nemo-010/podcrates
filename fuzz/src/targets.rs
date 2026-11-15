@@ -14,6 +14,7 @@ mod e2e;
 mod job;
 mod link;
 mod netlab;
+mod opentunnel;
 mod piping;
 mod podvm;
 mod qga;
@@ -31,6 +32,7 @@ pub use devtunnel::devtunnel_connect_info;
 pub use e2e::{e2e_frame, e2e_handover, e2e_proof, e2e_record};
 #[cfg(test)]
 pub(crate) use link::run_kcp;
+pub use opentunnel::{opentunnel_answer, opentunnel_message};
 pub use piping::{piping_answer, piping_hello};
 pub use podvm::{elf_header, extract_layer, oci_challenge, oci_manifest, squashfs_image};
 pub use qga::qga_answer;

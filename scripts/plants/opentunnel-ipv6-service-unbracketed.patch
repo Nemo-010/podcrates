@@ -1,0 +1,12 @@
+diff --git a/crates/pod-opentunnel/src/lib.rs b/crates/pod-opentunnel/src/lib.rs
+--- a/crates/pod-opentunnel/src/lib.rs
++++ b/crates/pod-opentunnel/src/lib.rs
+@@ -119,7 +119,7 @@
+     /// IPv6 address in brackets, so that the URL that [`Service::shown`]
+     /// gives reads back to the same service.
+     pub fn authority(&self) -> String {
+-        pod_proxy::host::host_header(&self.host, self.port)
++        if self.port == PORT { self.host.clone() } else { pod_proxy::host::authority(&self.host, self.port) }
+     }
+ 
+     /// The service as a line names it.
