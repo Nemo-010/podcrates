@@ -27,7 +27,7 @@ pod-e2e = { workspace = true }
 # Each road. `fuzzing` is out: it is for the fuzz targets of fuzz/, and no
 # consumer turns it on; `plain-ws` is out: it is for the tests of the Access
 # road over plain TCP to the loopback.
-pod-egress = { workspace = true, features = ["via", "forwarder", "wisp", "wstunnel", "meek", "webtunnel", "cloudflare"] }
+pod-egress = { workspace = true, features = ["via", "forwarder", "wisp", "wstunnel", "meek", "webtunnel", "cloudflare", "eice", "iap"] }
 pod-enter = { workspace = true }
 pod-extract = { workspace = true }
 pod-gsr = { workspace = true, features = ["blocking"] }

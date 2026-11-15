@@ -9,7 +9,7 @@ repo PodUtils/podssh 2ffb7cd77731e24a98e93c106ca7db7c5c4bd472
 # takes the crate is ported here. forwarder/carry.rs and forwarder/end.rs
 # are the shared parts of each road here (src/carry.rs, src/end.rs). The
 # other roads of the directories of podssh-ws (vless/, vmess/, trojan/,
-# shadowsocks/, eice/, iap/) join the crate in later parts of T-035.
+# shadowsocks/) join the crate in part 2 of T-035; eice/ and iap/ are part 3.
 dir crates/podssh-ws/src/via
 dir crates/podssh-ws/src/forwarder
 dir crates/podssh-ws/src/wstunnel
@@ -61,7 +61,7 @@ file 4d21a404112c1974bd42f3d71b4c61ce8b49f9e3 crates/podssh-ws/src/eice/mod.rs -
 file ae8bfc65e27a94dea465be28be5ae21a9e2ff565 crates/podssh-ws/src/eice/sigv4.rs -> crates/pod-egress/src/eice/sigv4.rs
 file 3b58ad69e2f9462176818bd2a1187900a7c2eed8 crates/podssh-ws/src/eice/sigv4/tests.rs -> crates/pod-egress/src/eice/sigv4/tests.rs
 file 46340abfc7885a1af1aabca063ef8e94a7429a3d crates/podssh-ws/src/eice/tests.rs -> crates/pod-egress/src/eice/tests.rs
-file b52459861e1895184a00c85f0171c7145b7b645e crates/podssh-ws/src/iap/carry.rs -> crates/pod-egress/src/iap/carry.rs
+file b52459861e1895184a00c85f0171c7145b7b645e crates/podssh-ws/src/iap/carry.rs -> crates/pod-egress/src/iap/carry.rs crates/pod-egress/src/iap/carry/ended.rs
 file bd99a8b38e1a1993ced75554a95ea40509afec73 crates/podssh-ws/src/iap/carry/link.rs -> crates/pod-egress/src/iap/carry/link.rs
 file 288ef33eb7d5bbff71af09163b14b0243e76f0a4 crates/podssh-ws/src/iap/carry/tests.rs -> crates/pod-egress/src/iap/carry/tests.rs
 file f06d6a8232db338355834b69ddc2558a9ef0c4b8 crates/podssh-ws/src/iap/close.rs -> crates/pod-egress/src/iap/close.rs
