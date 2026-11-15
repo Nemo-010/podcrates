@@ -403,10 +403,42 @@ What podssh must do: take `adoption/podssh/pod-egress.patch` with the tag
 that carries the crate (the patch names `v0.51.0`), and drop its own copies
 of the moved tests, plants and `forwarder-live.yml`.
 
-Left (parts 2 and 3): `vless/`, `vmess/`, `trojan/` and `shadowsocks/`
-(with podssh's `vless` interop), then `eice/` and `iap/`, each by the
-procedure of `docs/design.md`, section 8, onto the shared parts of this
-part; their trials in podssh; then the entry is done.
+2026-11-15, partial: part 3, EICE and IAP. Commits `f434e83` (the import
+of PodUtils/podssh:crates/podssh-ws/src/eice and iap at `2ffb7cd7`, with
+their tests), `61d4665` (the edition), `b9b9e2e` (the adaptation),
+`880a0de` (the stand-in of IAP), `873db38` (the plants, the fuzz target),
+`90e0548` (the README, the static probe, the tables), `8786cc4` (the
+adoption trial); calls C631 to C634.
+
+- `crates/pod-egress`: the features `eice` and `iap`; each road dials
+  through the caller's `pod_ws::Way` and sends its user agent; neither is
+  a `pod_core::Dial` (C632). The IAP carrier says its steps as events of
+  the caller's `Note` (`iap.lost`, `iap.resumed`, `iap.step`; C631), and
+  its `NotOpen` and `Ended` give a `pod_core::Failure` with the stage and
+  the class of each Close (`close::stage_and_class`).
+- `cargo test -p pod-egress --all-features`: 93 unit tests (34 of part 3);
+  `eice` 3 and `iap` 2 against stand-ins on the loopback, through a way
+  whose dialer takes port 443 to the stand-in (C633).
+- The plants (group `egress`), each caught by hand:
+  `egress-eice-refusal-shows-credential`,
+  `egress-eice-credential-unchecked`, `egress-iap-refusal-untyped`,
+  `egress-iap-refusal-shows-token`. The fuzz target `iap_message`.
+- The trial `adoption/podssh/pod-egress-part3.patch` (`.run`, `.commit`,
+  `.needs`: after `pod-egress.patch`), on a scratch copy of podssh at
+  `2ffb7cd7` with this tree, each step passed: `podssh-todo check` (the
+  citations of the moved files name PodUtils/podcrates), `check-repo.py`,
+  clippy and the tests of podssh-ws (all features: 133 unit tests and each
+  test target), clippy of podssh-cli, the CLI's unit tests `ssh::cloud`
+  and `cp::link` (29), `iap_cli` (6) and `eice_cli` (5) through the
+  stand-in proxy, rustfmt, the two consumer checks.
+
+What podssh must do for part 3: take `adoption/podssh/pod-egress-part3.patch`
+with the tag that carries it (the patch names `v0.52.0`).
+
+Left (part 2): `vless/`, `vmess/`, `trojan/` and `shadowsocks/` (with
+podssh's `vless` interop), by the procedure of `docs/design.md`, section
+8, onto the shared parts of part 1; its trial in podssh; then the entry is
+done.
 
 # T-036: `pod-relay-serve`: the relay role and its mailbox
 
