@@ -10,7 +10,8 @@
   #176, COORD-106): parts 2 and 3 of `pod-egress` (T-035), T-668 to
   T-672, T-676, T-678, T-679 to T-683.
 - In release: `v0.53.0` (`docs/releases/v0.53.0.md`): T-686, T-687
-  (PodUtils/podssh#262), T-688 (PodUtils/podvm#414), T-684.
+  (PodUtils/podssh#262), T-688 (PodUtils/podvm#414), T-691
+  (PodUtils/podvm#422), T-684.
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.51.0` (`3f6a9fe`, PodUtils/podssh#260): part 1 of
