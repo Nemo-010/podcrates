@@ -8,7 +8,7 @@
 //!
 //! A node's key is derived from the seed of its identity, with a label of
 //! its own: its address stays across runs as its identity does, and no key
-//! does two jobs (`crate::identity`). A client's is new for each run, so two
+//! does two jobs (`pod-identity`). A client's is new for each run, so two
 //! clients of one user never hold one key on a server, which would take
 //! them for one client connected twice.
 
@@ -20,14 +20,15 @@ use hkdf::Hkdf;
 use sha2::Sha256;
 use zeroize::Zeroizing;
 
-use super::frame::NONCE;
-use crate::identity::Identity;
-use crate::session::secret::{Entropy, NoRandom};
+use pod_core::entropy::{Entropy, NoRandom};
+use pod_identity::Identity;
 
-/// The label of a node's DERP key, derived from its seed.
+use super::frame::NONCE;
+
+/// The label of a node's DERP key, derived from its seed. It names the
+/// derivation, so it stays: a node's ticket stays across a change of the
+/// program.
 const NODE_LABEL: &[u8] = b"podssh derp key, version 1";
-/// The name by which a server may count its clients (`ClientInfo.AppName`).
-pub const APP_NAME: &str = "podssh";
 
 /// A key of DERP: the address of an end on a server.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -123,10 +124,13 @@ impl fmt::Debug for Secret {
 
 /// The client's info, as Go's `json.Marshal` writes `ClientInfo` with no
 /// mesh key: the version of the protocol, the pings that it does not
-/// acknowledge, and the name of the program, which a server may count by,
-/// or refuse (derper's `--disallow-app-names`).
+/// acknowledge, and the name of the program (`Names::app`), which a server
+/// may count by, or refuse (derper's `--disallow-app-names`).
 pub fn client_info_json(app: &str) -> Vec<u8> {
-    format!(r#"{{"version":{},"CanAckPings":false,"AppName":"{app}"}}"#, super::frame::VERSION).into_bytes()
+    // Go's order of the fields; the name as a JSON string, so that a name of
+    // the caller's with a quote stays one member.
+    let app = serde_json::Value::from(app);
+    format!(r#"{{"version":{},"CanAckPings":false,"AppName":{app}}}"#, super::frame::VERSION).into_bytes()
 }
 
 /// What the server says of itself: its version, and the rate at which it
@@ -169,7 +173,7 @@ mod tests {
 
     // A vector of NaCl's `crypto_box` from PHP Sodium Compat, as RustCrypto's
     // crypto_box 0.9.1 carries it in its tests/lib.rs: bytes of software that
-    // podssh did not write.
+    // the authors of this crate did not write.
     const ALICE_SECRET: &str = "68f208412d8dd5db9d0c6d18512e86f0ec75665ab841372d57b042b27ef89d4c";
     const ALICE_PUBLIC: &str = "ac3a70ba35df3c3fae427a7c72021d68f2c1e044040b75f17313c0c8b5d4241d";
     const BOB_SECRET: &str = "b581fb5ae182a16f603f39270d4e3b95bc008310b727a11dd4e784a0044d461b";
@@ -237,7 +241,10 @@ mod tests {
 
     #[test]
     fn the_client_s_info_is_the_json_that_go_writes_and_the_server_s_is_read_in_both_cases() {
-        assert_eq!(client_info_json(APP_NAME), br#"{"version":2,"CanAckPings":false,"AppName":"podssh"}"#);
+        assert_eq!(client_info_json("podssh"), br#"{"version":2,"CanAckPings":false,"AppName":"podssh"}"#);
+        // A name of the caller's is JSON's string, whatever it holds.
+        let odd = client_info_json("a\"b");
+        assert_eq!(serde_json::from_slice::<serde_json::Value>(&odd).unwrap()["AppName"], "a\"b");
         let go = server_info(br#"{"version":2,"TokenBucketBytesPerSecond":5000,"TokenBucketBytesBurst":9000}"#);
         assert_eq!(go, Ok(ServerInfo { version: 2, bytes_per_second: 5000, burst: 9000 }));
         let camel = server_info(br#"{"Version":2,"tokenBucketBytesPerSecond":1}"#).unwrap();

@@ -1,18 +1,23 @@
 //! The DERP servers that a node may call home: Tailscale's fleet for
-//! tailcat, which needs no account (https://tailcat.dev/derpmap.json, read
-//! on 2026-10-31: four regions, one server each), then Tailscale's main
-//! fleet, which serves Tailscale's own clients and let podssh in when it
-//! was tried (the operator's ruling Q74, T-534) unless [`MAIN_ENV`] says
-//! no; or those of [`ENV`], a derper of the user's own. The home is the first of the list
-//! whose probe answers through the proxy, as the iroh road picks its home
-//! relay; a client tries the server of the ticket first, then the others
-//! of the fleet, as a node whose home went away calls the next one home.
+//! tailcat, which needs no account (`https://tailcat.dev/derpmap.json`: four
+//! regions, one server each), then Tailscale's main fleet, which serves
+//! Tailscale's own clients and let podssh in when it was tried (podssh's
+//! ruling Q74, PodUtils/podssh@T-534) unless the caller keeps to tailcat's;
+//! or the servers that the user names, a derper of the user's own. The home
+//! is the first of the list whose probe answers through the caller's way
+//! out, as the iroh road picks its home relay; a client tries the server of
+//! the ticket first, then the others of the fleet, as a node whose home went
+//! away calls the next one home.
 
 use std::fmt;
 use std::time::Duration;
 
-use podssh_ws::{Cut, ProxyChoice, Trust};
+pub use pod_proxy::Missed;
+use pod_proxy::{Client, Cut};
+use pod_ws::Trust;
 use tokio::time::Instant;
+
+use crate::Names;
 
 /// tailcat's DERP: the service `tailcat-derp` of `pod-services`.
 fn tailcat_derp() -> &'static pod_services::Service {
@@ -24,11 +29,6 @@ fn tailcat_derp() -> &'static pod_services::Service {
 pub fn tailcat() -> Vec<&'static str> {
     tailcat_derp().endpoints_of("region").map(|e| e.host()).collect()
 }
-/// The variable that names the servers in place of the fleet:
-/// `HOST[:PORT][,...]`.
-pub const ENV: &str = "PODSSH_DERP_SERVER";
-/// The variable that keeps tailcat's four alone: `no`.
-pub const MAIN_ENV: &str = "PODSSH_DERP_MAIN";
 
 /// Tailscale's main fleet: the service `tailscale-derp` of `pod-services`.
 fn main_derp() -> &'static pod_services::Service {
@@ -45,14 +45,15 @@ pub fn main_fleet() -> Vec<Server> {
     ordered.map(|e| Server { host: e.host().to_ascii_lowercase(), port: e.port() }).collect()
 }
 
-/// Whether the main fleet follows tailcat's, by the value of [`MAIN_ENV`]:
-/// unset, empty or yes, it does; no keeps tailcat's four alone.
-pub fn main_wanted(value: Option<&str>) -> Result<bool, String> {
+/// Whether the main fleet follows tailcat's, by the value of the setting
+/// that `names.main` names: unset, empty or yes, it does; no keeps
+/// tailcat's four alone.
+pub fn main_wanted(value: Option<&str>, names: &Names) -> Result<bool, String> {
     let Some(value) = value else { return Ok(true) };
     match value.trim().to_ascii_lowercase().as_str() {
         "" | "yes" | "on" | "true" | "1" => Ok(true),
         "no" | "off" | "false" | "0" => Ok(false),
-        _ => Err(format!("{MAIN_ENV}={value}: yes or no")),
+        _ => Err(format!("{}={}: yes or no", names.main, pod_core::text::one_line(value))),
     }
 }
 /// derper's probe of latency (tailscale/tailscale:cmd/derper/derper.go): an
@@ -74,7 +75,7 @@ pub struct Server {
 
 impl Server {
     pub fn new(host: &str, port: u16) -> Result<Server, String> {
-        podssh_ws::names::check_host(host)?;
+        pod_core::names::check_host(host)?;
         if port == 0 {
             return Err("port 0 is not a port".into());
         }
@@ -98,7 +99,7 @@ impl Server {
 
     /// `HOST:PORT`, as a `Host` header names it.
     pub fn authority(&self) -> String {
-        podssh_ws::dial::authority(&self.host, self.port)
+        pod_proxy::authority(&self.host, self.port)
     }
 
     /// Whether this is a server of tailcat's fleet.
@@ -120,11 +121,12 @@ impl Server {
 
     /// The words after this server in a line: its fleet, and for the main
     /// fleet what it is and how to keep to tailcat's.
-    pub fn fleet_note(&self) -> String {
+    pub fn fleet_note(&self, names: &Names) -> String {
         match self.fleet_name() {
             Some(MAIN_FLEET) => format!(
-                ", of {MAIN_FLEET}, which serves Tailscale's own clients and which podssh tries after tailcat's four \
-                 ({MAIN_ENV}=no keeps to those)"
+                ", of {MAIN_FLEET}, which serves Tailscale's own clients and which {} tries after tailcat's four \
+                 ({}=no keeps to those)",
+                names.app, names.main
             ),
             Some(fleet) => format!(", of {fleet}"),
             None => String::new(),
@@ -160,33 +162,27 @@ pub fn fleet_with(main: bool) -> Vec<Server> {
     servers
 }
 
-/// The fleet of the road, by [`MAIN_ENV`]; a value that is neither yes nor
-/// no keeps the main fleet, as [`from_environment`] refuses it before.
-pub fn fleet() -> Vec<Server> {
-    fleet_with(main_wanted(std::env::var(MAIN_ENV).ok().as_deref()).unwrap_or(true))
-}
-
-/// The servers of `flag`, else of [`ENV`], else the fleet; and whether the
-/// user named them. A value of [`MAIN_ENV`] that is neither yes nor no is
-/// refused.
-pub fn from_environment(flag: Option<&str>) -> Result<(Vec<Server>, bool), String> {
-    let named = flag.map(str::to_string).or_else(|| std::env::var(ENV).ok().filter(|v| !v.trim().is_empty()));
+/// The servers that the user named (`HOST[:PORT][,...]`: a flag, else a
+/// setting of the consumer that is not empty), else the fleet with the main
+/// fleet as `main` says ([`main_wanted`]); and whether the user named them.
+/// A value of `main` that is neither yes nor no is refused.
+pub fn chosen(named: Option<&str>, main: Option<&str>, names: &Names) -> Result<(Vec<Server>, bool), String> {
     let Some(list) = named else {
-        let main = main_wanted(std::env::var(MAIN_ENV).ok().as_deref())?;
-        return Ok((fleet_with(main), false));
+        return Ok((fleet_with(main_wanted(main, names)?), false));
     };
     let servers = list.split(',').map(Server::parse).collect::<Result<Vec<_>, _>>()?;
     Ok((servers, true))
 }
 
 /// The servers that a client tries for a node whose home is `home`: it
-/// first, then the rest of the fleet when it is of the fleet, as the node
-/// calls the next one home when its own goes away.
-pub fn for_client(home: &Server) -> Vec<Server> {
-    for_client_in(home, &fleet())
+/// first, then the rest of the fleet (with the main fleet when `main`) when
+/// it is of the fleet, as the node calls the next one home when its own goes
+/// away.
+pub fn for_client(home: &Server, main: bool) -> Vec<Server> {
+    for_client_in(home, &fleet_with(main))
 }
 
-/// [`for_client`] with the client's own list in place of the fleet (T-379):
+/// [`for_client`] with the client's own list in place of the fleet:
 /// `home` first, then the rest of `list` when `home` is of it, in the
 /// list's order, which is the order in which a node of that list moves.
 pub fn for_client_in(home: &Server, list: &[Server]) -> Vec<Server> {
@@ -197,25 +193,17 @@ pub fn for_client_in(home: &Server, list: &[Server]) -> Vec<Server> {
     servers
 }
 
-/// Why a probe got no answer: the words, and how the connection ended
-/// where an error of I/O or the bound ended it, which `podssh doctor` reads
-/// (T-487); an answer of another status has none.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Missed {
-    pub why: String,
-    pub cut: Option<Cut>,
+/// derper's probe at `server`, with `client` (the caller's way out, its TLS
+/// and its user agent): how long its answer took, or why none came.
+pub async fn probe(server: &Server, client: &Client, trust: &Trust) -> Result<Duration, String> {
+    probe_kept(server, client, trust).await.map_err(|missed| missed.why)
 }
 
-/// derper's probe at `server`, through `proxy`: how long its answer took, or
-/// why none came.
-pub async fn probe(server: &Server, trust: &Trust, proxy: &ProxyChoice) -> Result<Duration, String> {
-    probe_kept(server, trust, proxy).await.map_err(|missed| missed.why)
-}
-
-/// [`probe`], with the cut of a failure beside its words.
-pub async fn probe_kept(server: &Server, trust: &Trust, proxy: &ProxyChoice) -> Result<Duration, Missed> {
+/// [`probe`], with the cut of a failure beside its words (`Missed`), which a
+/// doctor of the consumer reads; an answer of another status has none.
+pub async fn probe_kept(server: &Server, client: &Client, trust: &Trust) -> Result<Duration, Missed> {
     let started = Instant::now();
-    let get = podssh_ws::client::https_get(&server.host, server.port, probe_path(), 1024, trust, proxy, PROBE_LIMIT);
+    let get = client.https_get(&server.host, server.port, probe_path(), 1024, trust, PROBE_LIMIT);
     let missed = |why: String, cut: Option<Cut>| Err(Missed { why, cut });
     match tokio::time::timeout(PROBE_LIMIT, get).await {
         Err(_) => missed(
@@ -224,22 +212,25 @@ pub async fn probe_kept(server: &Server, trust: &Trust, proxy: &ProxyChoice) -> 
         ),
         Ok(Ok(answer)) if (200..300).contains(&answer.status) => Ok(started.elapsed()),
         Ok(Ok(answer)) => missed(format!("{server} answered {} with HTTP {}", probe_path(), answer.status), None),
-        Ok(Err(e)) => missed(format!("{server}: {e}"), e.cut()),
+        Ok(Err(failure)) => {
+            let e = pod_ws::client::request_error(failure, PROBE_LIMIT, &server.host, server.port);
+            missed(format!("{server}: {e}"), e.cut())
+        }
     }
 }
 
 /// [`probe`] of owned values, for a search that probes one server after
 /// another (`far::home`): whether it answered.
-pub async fn answers(server: Server, trust: Trust, proxy: ProxyChoice) -> Result<(), String> {
-    probe(&server, &trust, &proxy).await.map(|_| ())
+pub async fn answers(server: Server, client: Client, trust: Trust) -> Result<(), String> {
+    probe(&server, &client, &trust).await.map(|_| ())
 }
 
 /// The first of `servers` whose probe answers, in their order; and why each
 /// one before it did not.
-pub async fn home(servers: &[Server], trust: &Trust, proxy: &ProxyChoice) -> (Option<Server>, Vec<String>) {
+pub async fn home(servers: &[Server], client: &Client, trust: &Trust) -> (Option<Server>, Vec<String>) {
     let mut missed = Vec::new();
     for server in servers {
-        match probe(server, trust, proxy).await {
+        match probe(server, client, trust).await {
             Ok(_) => return (Some(server.clone()), missed),
             Err(why) => missed.push(why),
         }
@@ -267,13 +258,13 @@ mod tests {
         let fleet = tailcat_fleet();
         assert_eq!(fleet.len(), 4);
         assert!(fleet.iter().all(Server::in_fleet));
-        assert_eq!(fleet_with(false), fleet, "{MAIN_ENV}=no keeps tailcat's four alone");
+        assert_eq!(fleet_with(false), fleet, "PODSSH_DERP_MAIN=no keeps tailcat's four alone");
         let tokyo = Server::parse("tc304a.ipn.dev").unwrap();
         let order = for_client_in(&tokyo, &fleet);
         assert_eq!(order[0], tokyo);
         assert_eq!(order.len(), 4);
         let own = Server::parse("derp.example.org").unwrap();
-        assert_eq!(for_client(&own), vec![own]);
+        assert_eq!(for_client(&own, true), vec![own]);
     }
 
     #[test]
@@ -300,13 +291,14 @@ mod tests {
 
     #[test]
     fn podssh_derp_main_is_yes_or_no() {
+        let names = Names::podssh("podssh/1.0");
         for on in [None, Some(""), Some("yes"), Some("ON"), Some("1")] {
-            assert_eq!(main_wanted(on), Ok(true), "{on:?}");
+            assert_eq!(main_wanted(on, &names), Ok(true), "{on:?}");
         }
         for off in ["no", "Off", "false", "0"] {
-            assert_eq!(main_wanted(Some(off)), Ok(false), "{off}");
+            assert_eq!(main_wanted(Some(off), &names), Ok(false), "{off}");
         }
-        assert!(main_wanted(Some("maybe")).unwrap_err().starts_with("PODSSH_DERP_MAIN=maybe"));
+        assert!(main_wanted(Some("maybe"), &names).unwrap_err().starts_with("PODSSH_DERP_MAIN=maybe"));
     }
 
     #[test]
@@ -323,10 +315,15 @@ mod tests {
 
     #[test]
     fn the_flag_names_the_servers_in_place_of_the_fleet() {
-        let (servers, named) = from_environment(Some("a.example.org,b.example.org:8443")).unwrap();
+        let names = Names::default();
+        let (servers, named) = chosen(Some("a.example.org,b.example.org:8443"), Some("maybe"), &names).unwrap();
         assert!(named);
         let shown: Vec<String> = servers.iter().map(ToString::to_string).collect();
         assert_eq!(shown, ["a.example.org", "b.example.org:8443"]);
-        assert!(from_environment(Some("a.example.org,,")).is_err());
+        assert!(chosen(Some("a.example.org,,"), None, &names).is_err());
+        // No servers named: the fleet, with or without the main fleet.
+        assert_eq!(chosen(None, None, &names), Ok((fleet_with(true), false)));
+        assert_eq!(chosen(None, Some("no"), &names), Ok((tailcat_fleet(), false)));
+        assert!(chosen(None, Some("maybe"), &names).is_err());
     }
 }

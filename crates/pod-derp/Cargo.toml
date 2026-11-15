@@ -1,7 +1,58 @@
 [package]
 name = "pod-derp"
+description = "A carrier of the resumable layer through DERP servers (Tailscale's fleets for tailcat and its own clients, or a derper of the user's own): DERP over a WebSocket through the caller's way out, an adapter that sends again what a server drops, the links of a client and of a node, and the node's ticket."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+
+[features]
+default = []
+# The stand-in DERP server in memory (`standin`), for the tests of this
+# crate and of a consumer: a consumer turns it on in [dev-dependencies]
+# only, and no binary carries it.
+standin = []
+
+[dependencies]
+# The failure and its stage and class, the events, the entropy, the backoff,
+# the text made safe to print, the check of a host name.
+pod-core = { workspace = true, features = ["async"] }
+# The WebSocket of DERP: the upgrade, the session, the frames; the way out
+# of the caller (its dialer, its TLS context, its user agent) and its trust.
+pod-ws = { workspace = true }
+# The client of derper's probe, the authority of a host, the cut of a
+# connection that a probe did not get.
+pod-proxy = { workspace = true }
+# The node's identity, from whose seed its DERP key comes; the key that a
+# ticket names.
+pod-identity = { workspace = true }
+# The resumable layer over each link: the client across links, the far end
+# and its keeper.
+pod-session = { workspace = true }
+# Tailscale's DERP servers: the services `tailcat-derp` and `tailscale-derp`.
+pod-services = { workspace = true }
+tokio = { workspace = true, features = ["io-util", "time", "sync", "rt", "macros"] }
+# DERP's handshake: the client's info sealed to the server's key with NaCl's
+# crypto_box (X25519, XSalsa20, Poly1305). Pure Rust; no `getrandom`: a
+# nonce comes from pod-core's entropy.
+crypto_box = { version = "0.9", default-features = false, features = ["alloc", "salsa20"] }
+# A node's DERP key from the seed of its identity.
+hkdf = { workspace = true }
+sha2 = { workspace = true }
+zeroize = { workspace = true }
+# The server's info and the client's are JSON.
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["io-util", "time", "sync", "rt", "rt-multi-thread", "macros", "test-util"] }
+# The digests of the bytes that the tests carry.
+sha2 = { workspace = true }
+# The live tests reach Tailscale's servers through rustls with ring.
+rustls = { workspace = true, features = ["ring"] }
+pod-tls = { workspace = true }
+
+[[test]]
+name = "derp_link"
+required-features = ["standin"]

@@ -8,6 +8,11 @@
 
 use std::sync::Arc;
 
+use pod_core::entropy::{NoRandom, OsEntropy};
+use pod_core::{Class, Events, Failure, Stage};
+use pod_session::client::{self, Outcome};
+use pod_session::resume::{self, Next, Note};
+use pod_session::{Ask, Ended, Hearing, Settings};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::Mutex;
 
@@ -17,11 +22,7 @@ use super::key::{Key, Secret};
 use super::link::Link;
 use super::servers::{self, Server};
 use super::ticket::Ticket;
-use super::Say;
-use crate::session::client::{self, Outcome};
-use crate::session::resume::{self, Next, Note};
-use crate::session::secret::NoRandom;
-use crate::session::{Ask, Ended, Hearing, OsEntropy, Settings};
+use crate::Names;
 
 /// The links of one client to one node.
 pub struct Dialer {
@@ -29,24 +30,38 @@ pub struct Dialer {
     servers: Vec<Server>,
     dial: Dial,
     secret: Arc<Secret>,
-    say: Say,
+    events: Arc<dyn Events>,
+    names: Names,
     /// The connection, and the place of its server in `servers`.
     conn: Mutex<Option<(usize, Conn)>>,
 }
 
 impl Dialer {
-    /// The dialer of the node of `ticket`, with a key of this run's.
-    pub fn new(ticket: &Ticket, dial: Dial, say: Say) -> Result<Dialer, NoRandom> {
-        Dialer::with_servers(ticket, servers::for_client(&ticket.server), dial, say)
+    /// The dialer of the node of `ticket`, with a key of this run's: the
+    /// ticket's server, then the rest of `fleet` when the server is of it
+    /// ([`servers::for_client_in`]).
+    pub fn new(
+        ticket: &Ticket,
+        fleet: &[Server],
+        dial: Dial,
+        events: Arc<dyn Events>,
+        names: Names,
+    ) -> Result<Dialer, NoRandom> {
+        Dialer::with_servers(ticket, servers::for_client_in(&ticket.server, fleet), dial, events, names)
     }
 
-    /// [`Dialer::new`], trying `servers` in their order (T-379): the
-    /// ticket's server and the rest of the user's list, by
-    /// [`servers::for_client_in`].
-    pub fn with_servers(ticket: &Ticket, servers: Vec<Server>, dial: Dial, say: Say) -> Result<Dialer, NoRandom> {
+    /// [`Dialer::new`], trying `servers` in their order: the ticket's server
+    /// and the rest of the user's list, by [`servers::for_client_in`].
+    pub fn with_servers(
+        ticket: &Ticket,
+        servers: Vec<Server>,
+        dial: Dial,
+        events: Arc<dyn Events>,
+        names: Names,
+    ) -> Result<Dialer, NoRandom> {
         let secret = Arc::new(Secret::random(&mut OsEntropy)?);
         let servers = if servers.is_empty() { vec![ticket.server.clone()] } else { servers };
-        Ok(Dialer { node: ticket.derp, servers, dial, secret, say, conn: Mutex::new(None) })
+        Ok(Dialer { node: ticket.derp, servers, dial, secret, events, names, conn: Mutex::new(None) })
     }
 
     /// The servers, in the order that this client tries them.
@@ -67,8 +82,8 @@ impl Dialer {
 
     /// A new link to the node, which it answered: at the server of the
     /// connection while it lives, then at each other server in turn; else
-    /// why none answered.
-    pub async fn link(&self) -> Result<Link, String> {
+    /// why none answered (stage `Relay`, class `Unavailable`).
+    pub async fn link(&self) -> Result<Link, Failure> {
         let mut slot = self.conn.lock().await;
         let first = slot.as_ref().map_or(0, |(at, _)| *at);
         let mut missed = Vec::new();
@@ -87,7 +102,7 @@ impl Dialer {
                             conn
                         }
                         Err(why) => {
-                            missed.push(why);
+                            missed.push(why.to_string());
                             continue;
                         }
                     }
@@ -96,7 +111,7 @@ impl Dialer {
             let link = match conn.open_link(self.node, &mut OsEntropy) {
                 Ok(link) => link,
                 Err(why) => {
-                    missed.push(why);
+                    missed.push(why.to_string());
                     continue;
                 }
             };
@@ -105,13 +120,15 @@ impl Dialer {
                 Err(why) => missed.push(format!("{}: {why}", conn.server())),
             }
         }
-        Err(format!("no link to the node: {}", missed.join("; ")))
+        let text = format!("no link to the node: {}", missed.join("; "));
+        Err(Failure::new(Stage::Relay, Class::Unavailable, text))
     }
 
-    async fn connect(&self, at: usize) -> Result<Conn, String> {
+    async fn connect(&self, at: usize) -> Result<Conn, Failure> {
         let server = self.servers[at].clone();
         let io = (self.dial)(&server).await?;
-        let setup = Setup { secret: self.secret.clone(), serves: false, say: self.say.clone() };
+        let (events, names) = (self.events.clone(), self.names.clone());
+        let setup = Setup { secret: self.secret.clone(), serves: false, events, names };
         Conn::start(server, io, setup).await
     }
 
@@ -126,7 +143,7 @@ impl Dialer {
 /// Carry `app` to the node of `dialer`: the first link and the layer's
 /// handshake on it, then a new link after each lost one, until the session
 /// ends. `note` hears each step of the session across links.
-pub async fn carry<A, N>(dialer: &Dialer, app: A, settings: Settings, note: N) -> Result<Outcome, String>
+pub async fn carry<A, N>(dialer: &Dialer, app: A, settings: Settings, note: N) -> Result<Outcome, Failure>
 where
     A: AsyncRead + AsyncWrite + Unpin + Send,
     N: FnMut(Note),
@@ -142,18 +159,18 @@ pub async fn carry_heard<A, N>(
     settings: Settings,
     note: N,
     hearing: Arc<Hearing>,
-) -> Result<Outcome, String>
+) -> Result<Outcome, Failure>
 where
     A: AsyncRead + AsyncWrite + Unpin + Send,
     N: FnMut(Note),
 {
     let first = dialer.link().await?;
-    let client = client::start(first, Ask::New, settings, &mut OsEntropy).await.map_err(|e| e.to_string())?;
+    let client = client::start(first, Ask::New, settings, &mut OsEntropy).await.map_err(Failure::from)?;
     let client = client.with_hearing(hearing);
     let connect = |_: &Ended| async move {
         match dialer.link().await {
             Ok(link) => Next::Link(link),
-            Err(why) => Next::Retry(why),
+            Err(why) => Next::Retry(why.to_string()),
         }
     };
     Ok(resume::run(client, app, connect, note, &mut OsEntropy).await)

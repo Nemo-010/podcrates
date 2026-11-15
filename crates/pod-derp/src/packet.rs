@@ -1,5 +1,5 @@
-//! The packets of a link, inside DERP's: podssh's own, as a server forwards
-//! any bytes from one key to another. Each starts with [`MAGIC`], its kind
+//! The packets of a link, inside DERP's: this road's own, as a server
+//! forwards any bytes from one key to another. Each starts with [`MAGIC`], its kind
 //! and the id of its link, which the client chose; anyone who knows a key may
 //! send to it, so a packet that is not one of these is dropped. Numbers are
 //! big-endian. Sans-IO.
@@ -13,7 +13,8 @@
 
 use std::fmt;
 
-/// What each packet of a link starts with: podssh's DERP link, version 1.
+/// What each packet of a link starts with: the DERP link of podssh's road,
+/// version 1. It names the protocol, so it stays.
 pub const MAGIC: &[u8; 4] = b"pdl1";
 /// A link's id.
 pub const ID: usize = 16;
@@ -73,8 +74,8 @@ pub enum PacketError {
 impl fmt::Display for PacketError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            PacketError::NotOurs => f.write_str("a packet that is not podssh's"),
-            PacketError::Kind(kind) => write!(f, "a packet of the kind {kind}, which this podssh has not"),
+            PacketError::NotOurs => f.write_str("a packet that is not of a DERP link"),
+            PacketError::Kind(kind) => write!(f, "a packet of the kind {kind}, which this version has not"),
             PacketError::Malformed(why) => write!(f, "a malformed packet: {why}"),
         }
     }
@@ -145,7 +146,7 @@ impl Packet {
             // The peer's words go to a terminal: made safe first.
             RESET => {
                 let reason = String::from_utf8_lossy(&body[..body.len().min(MAX_REASON)]);
-                Body::Reset(podssh_ws::text::one_line(&reason))
+                Body::Reset(pod_core::text::one_line(&reason))
             }
             other => return Err(PacketError::Kind(other)),
         };

@@ -21,7 +21,7 @@ use tokio::time::Instant;
 use super::packet::Ack;
 use super::rtt::{self, Rtt};
 
-/// The most bytes of one segment: with podssh's header, DERP's and the
+/// The most bytes of one segment: with the link's header, DERP's and the
 /// frame's, a packet stays under the 32,768 bytes that derper's WebSocket
 /// takes in one message (coder/websocket's read limit, at v1.8.15).
 pub const SEGMENT: usize = 30 * 1024;
@@ -227,11 +227,11 @@ impl Sender {
         let timeout = self.rtt.timeout();
         let mut expired = false;
         for seg in self.queue.iter_mut() {
-            if let (Some((at, _)), false, false) = (seg.sent, seg.held, seg.lost) {
-                if now.saturating_duration_since(at) >= timeout {
-                    seg.lost = true;
-                    expired = true;
-                }
+            if let (Some((at, _)), false, false) = (seg.sent, seg.held, seg.lost)
+                && now.saturating_duration_since(at) >= timeout
+            {
+                seg.lost = true;
+                expired = true;
             }
         }
         if expired {
@@ -288,11 +288,11 @@ impl Sender {
         // and still missing, was dropped.
         let mut lost = false;
         for seg in self.queue.iter_mut() {
-            if let (Some((_, order)), false, false) = (seg.sent, seg.held, seg.lost) {
-                if order < delivered {
-                    seg.lost = true;
-                    lost = true;
-                }
+            if let (Some((_, order)), false, false) = (seg.sent, seg.held, seg.lost)
+                && order < delivered
+            {
+                seg.lost = true;
+                lost = true;
             }
         }
         if let Some(rtt) = sample {

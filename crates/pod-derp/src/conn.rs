@@ -10,23 +10,24 @@
 //! a client opens them ([`Conn::open_link`]).
 
 use std::collections::HashMap;
-use std::future::Future;
-use std::sync::{Arc, Mutex, MutexGuard, Weak};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use podssh_ws::frame::{OPCODE_BINARY, OPCODE_CLOSE};
-use podssh_ws::session::{close_code_and_reason, RelaySession};
+use pod_core::entropy::Entropy;
+use pod_core::{Class, Event, Events, Failure, Stage};
 use tokio::sync::{mpsc, watch};
-use tokio::time::{Instant, MissedTickBehavior};
+use tokio::time::Instant;
 
 use super::dial::{self, BoxIo};
 use super::frame::{self, Decoder, Frame};
-use super::key::{self, Key, Secret, ServerInfo};
+use super::key::{Key, Secret, ServerInfo};
 use super::link::{self, Link, Shared};
 use super::packet::{self, Body, LinkId, Packet};
 use super::servers::Server;
-use super::Say;
-use crate::session::secret::{Entropy, OsEntropy};
+use crate::Names;
+
+// DERP's handshake, the reader and the writer of a connection.
+mod wire;
 
 /// The bound of each step of DERP's handshake, as derper bounds its own.
 pub const HANDSHAKE_LIMIT: Duration = Duration::from_secs(10);
@@ -41,12 +42,18 @@ const QUEUE: usize = 64;
 /// The most `RESET`s each second for packets of links that this end has not.
 const RESETS_PER_SECOND: u32 = 10;
 
+/// The kind of the event of a server's words on a connection.
+pub const HEALTH: &str = "derp.health";
+
 /// What a connection is for.
 pub struct Setup {
     pub secret: Arc<Secret>,
     /// A node takes the links that clients open; a client takes none.
     pub serves: bool,
-    pub say: Say,
+    /// The sink of the lines for the user: a server's words ([`HEALTH`]).
+    pub events: Arc<dyn Events>,
+    /// The program's name in the client's info and its `User-Agent`.
+    pub names: Names,
 }
 
 /// A connection to a DERP server. Its clones are one connection; it ends
@@ -67,7 +74,7 @@ struct Inner {
     links: Mutex<HashMap<(Key, LinkId), Arc<Shared>>>,
     incoming: Option<(mpsc::Sender<Link>, tokio::sync::Mutex<mpsc::Receiver<Link>>)>,
     ended: watch::Sender<Option<String>>,
-    say: Say,
+    events: Arc<dyn Events>,
     resets: Mutex<(Instant, u32)>,
 }
 
@@ -77,11 +84,13 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 
 impl Conn {
     /// DERP over `io`, a stream to `server`: the WebSocket, the handshake,
-    /// and the tasks that read and write.
-    pub async fn start(server: Server, io: BoxIo, setup: Setup) -> Result<Conn, String> {
-        let session = dial::upgrade(io, &server).await?;
+    /// and the tasks that read and write. A failure of the handshake is of
+    /// the stage `Relay`.
+    pub async fn start(server: Server, io: BoxIo, setup: Setup) -> Result<Conn, Failure> {
+        let session = dial::upgrade(io, &server, &setup.names.user_agent).await?;
         let mut decoder = Decoder::new();
-        let (server_key, info) = handshake(&session, &mut decoder, &setup.secret, &server).await?;
+        let shook = wire::handshake(&session, &mut decoder, &setup.secret, &server, &setup.names.app).await;
+        let (server_key, info) = shook.map_err(|(class, text)| Failure::new(Stage::Relay, class, text))?;
         let (ctl, ctl_rx) = mpsc::channel(QUEUE);
         let (data, data_rx) = mpsc::channel(QUEUE);
         let incoming = setup.serves.then(|| {
@@ -99,13 +108,13 @@ impl Conn {
             links: Mutex::new(HashMap::new()),
             incoming,
             ended,
-            say: setup.say,
+            events: setup.events,
             resets: Mutex::new((Instant::now(), 0)),
         });
         let session = Arc::new(session);
         let (read_end, write_end) = (inner.ended.subscribe(), inner.ended.subscribe());
-        tokio::spawn(read_loop(Arc::downgrade(&inner), session.clone(), decoder, read_end));
-        tokio::spawn(write_loop(Arc::downgrade(&inner), session, ctl_rx, data_rx, write_end, info));
+        tokio::spawn(wire::read_loop(Arc::downgrade(&inner), session.clone(), decoder, read_end));
+        tokio::spawn(wire::write_loop(Arc::downgrade(&inner), session, ctl_rx, data_rx, write_end, info));
         Ok(Conn { inner })
     }
 
@@ -153,12 +162,13 @@ impl Conn {
 
     /// A new link to the end of `peer`, whose `OPEN` goes at once; it is the
     /// peer's once [`Link::opened`] says so.
-    pub fn open_link(&self, peer: Key, entropy: &mut dyn Entropy) -> Result<Link, String> {
+    pub fn open_link(&self, peer: Key, entropy: &mut dyn Entropy) -> Result<Link, Failure> {
         if let Some(why) = self.why_ended() {
-            return Err(format!("the connection to the DERP server {} ended: {why}", self.inner.server));
+            let text = format!("the connection to the DERP server {} ended: {why}", self.inner.server);
+            return Err(Failure::new(Stage::Relay, Class::Unavailable, text));
         }
         let mut id = [0u8; packet::ID];
-        entropy.fill(&mut id).map_err(|e| e.to_string())?;
+        entropy.fill(&mut id).map_err(|e| Failure::new(Stage::Relay, Class::Unavailable, e.to_string()))?;
         let shared = Shared::opening(peer, id, Instant::now());
         lock(&self.inner.links).insert((peer, id), shared.clone());
         tokio::spawn(link::drive(shared.clone(), self.clone()));
@@ -233,7 +243,9 @@ impl Inner {
                 self.fail_peer(Key(key), why);
             }
             Frame::Health(text) if text.is_empty() => {}
-            Frame::Health(text) => (self.say)(format!("the DERP server {} says: {text}", self.server)),
+            Frame::Health(text) => {
+                self.events.event(Event::warn(HEALTH, format!("the DERP server {} says: {text}", self.server)))
+            }
             Frame::Restarting { reconnect_ms, .. } => {
                 self.end(format!("the DERP server restarts, and asks for a new connection after {reconnect_ms} ms"))
             }
@@ -305,171 +317,6 @@ impl Inner {
             lock(&self.links).iter().filter(|((from, _), _)| *from == peer).map(|(_, shared)| shared.clone()).collect();
         for shared in links {
             shared.fail(why, false);
-        }
-    }
-}
-
-/// DERP's handshake on `session`: the server's key and info.
-async fn handshake(
-    session: &RelaySession<BoxIo>,
-    decoder: &mut Decoder,
-    secret: &Secret,
-    server: &Server,
-) -> Result<(Key, ServerInfo), String> {
-    let server_key = match within(next_frame(session, decoder), server, "its key").await? {
-        Frame::ServerKey { key } => Key(key),
-        other => return Err(format!("{server} sent {} first, where a DERP server sends its key", other.name())),
-    };
-    let mut nonce = [0u8; frame::NONCE];
-    OsEntropy.fill(&mut nonce).map_err(|e| e.to_string())?;
-    let sealed = secret.seal(&server_key, &key::client_info_json(key::APP_NAME), nonce);
-    let hello = frame::client_info(&secret.public().0, &sealed);
-    session.send_binary(&hello).await.map_err(|e| format!("{server}: {e}"))?;
-    let sealed = match within(next_frame(session, decoder), server, "its info").await? {
-        Frame::ServerInfo { sealed } => sealed,
-        other => {
-            let sent = other.name();
-            return Err(format!("{server} sent {sent} after this end's key, where a DERP server sends its info"));
-        }
-    };
-    let json = secret.open(&server_key, &sealed).map_err(|why| format!("{server}'s info: {why}"))?;
-    let info = key::server_info(&json).map_err(|why| format!("{server}: {why}"))?;
-    Ok((server_key, info))
-}
-
-async fn within<T>(step: impl Future<Output = Result<T, String>>, server: &Server, what: &str) -> Result<T, String> {
-    match tokio::time::timeout(HANDSHAKE_LIMIT, step).await {
-        Err(_) => Err(format!("{server} did not send {what} within {} s", HANDSHAKE_LIMIT.as_secs())),
-        Ok(answer) => answer,
-    }
-}
-
-async fn next_frame(session: &RelaySession<BoxIo>, decoder: &mut Decoder) -> Result<Frame, String> {
-    loop {
-        if let Some(frame) = decoder.decode().map_err(|e| e.to_string())? {
-            return Ok(frame);
-        }
-        let message = session.read_frame().await.map_err(|e| e.to_string())?;
-        match message.opcode {
-            OPCODE_BINARY => decoder.push(&message.payload),
-            OPCODE_CLOSE => return Err(closed(&message.payload)),
-            _ => return Err("a text message, where DERP sends binary ones".to_string()),
-        }
-    }
-}
-
-fn closed(payload: &[u8]) -> String {
-    match close_code_and_reason(payload) {
-        (Some(code), reason) if reason.is_empty() => format!("the server closed its WebSocket ({code})"),
-        (Some(code), reason) => format!("the server closed its WebSocket ({code} {reason})"),
-        (None, _) => "the server closed its WebSocket".to_string(),
-    }
-}
-
-async fn read_loop(
-    inner: Weak<Inner>,
-    session: Arc<RelaySession<BoxIo>>,
-    mut decoder: Decoder,
-    mut ended: watch::Receiver<Option<String>>,
-) {
-    let why = loop {
-        match decoder.decode() {
-            Ok(Some(frame)) => {
-                let Some(inner) = inner.upgrade() else { return };
-                inner.handle(frame);
-                continue;
-            }
-            Ok(None) => {}
-            Err(e) => break e.to_string(),
-        }
-        let message = tokio::select! {
-            message = session.read_frame() => message,
-            _ = ended.wait_for(Option::is_some) => return,
-        };
-        match message {
-            Ok(message) if message.opcode == OPCODE_BINARY => decoder.push(&message.payload),
-            Ok(message) if message.opcode == OPCODE_CLOSE => break closed(&message.payload),
-            Ok(_) => break "a text message, where DERP sends binary ones".to_string(),
-            Err(e) => break e.to_string(),
-        }
-    };
-    if let Some(inner) = inner.upgrade() {
-        inner.end(why);
-    }
-}
-
-async fn write_loop(
-    inner: Weak<Inner>,
-    session: Arc<RelaySession<BoxIo>>,
-    mut ctl: mpsc::Receiver<Vec<u8>>,
-    mut data: mpsc::Receiver<Vec<u8>>,
-    mut ended: watch::Receiver<Option<String>>,
-    info: ServerInfo,
-) {
-    let mut pings = tokio::time::interval(PING_EVERY);
-    pings.set_missed_tick_behavior(MissedTickBehavior::Delay);
-    let mut bucket = Bucket::of(&info);
-    let mut sent: u64 = 0;
-    let why = loop {
-        // The end's future drops the watch's guard before the select sees its
-        // output: a guard there may not live across any branch's await.
-        let frame = tokio::select! {
-            biased;
-            _ = async { drop(ended.wait_for(Option::is_some).await) } => None,
-            Some(frame) = ctl.recv() => Some(frame),
-            Some(frame) = data.recv() => {
-                if let Some(bucket) = bucket.as_mut() {
-                    bucket.take(frame.len()).await;
-                }
-                Some(frame)
-            }
-            _ = pings.tick() => {
-                sent += 1;
-                Some(frame::ping(sent.to_be_bytes()))
-            }
-        };
-        let Some(frame) = frame else {
-            let _ = session.send_close(1000, "").await;
-            return;
-        };
-        if let Err(e) = session.send_binary(&frame).await {
-            break format!("a write to the server failed: {e}");
-        }
-    };
-    if let Some(inner) = inner.upgrade() {
-        inner.end(why);
-    }
-}
-
-/// The rate that a server names in its info, kept as Go's client keeps it,
-/// but by waiting where Go's client drops.
-struct Bucket {
-    rate: f64,
-    burst: f64,
-    tokens: f64,
-    at: Instant,
-}
-
-impl Bucket {
-    fn of(info: &ServerInfo) -> Option<Bucket> {
-        (info.bytes_per_second > 0).then(|| {
-            let burst = info.burst.max((frame::MAX_PACKET + frame::KEY + frame::HEADER) as u64) as f64;
-            Bucket { rate: info.bytes_per_second as f64, burst, tokens: burst, at: Instant::now() }
-        })
-    }
-
-    async fn take(&mut self, bytes: usize) {
-        let need = (bytes as f64).min(self.burst);
-        loop {
-            let now = Instant::now();
-            let since = now.saturating_duration_since(self.at).as_secs_f64();
-            self.tokens = (self.tokens + self.rate * since).min(self.burst);
-            self.at = now;
-            if self.tokens >= need {
-                self.tokens -= bytes as f64;
-                return;
-            }
-            tokio::time::sleep(Duration::from_secs_f64((need - self.tokens) / self.rate)).await;
         }
     }
 }

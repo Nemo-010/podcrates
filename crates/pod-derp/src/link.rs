@@ -2,7 +2,7 @@
 //! resumable layer reads and writes as it does a relay's link. The two halves
 //! of the adapter ([`Sender`], [`Receiver`]) hold its state; a task of its
 //! own sends what they say, when they say it, through the connection
-//! ([`drive`]); the connection's reader gives it each packet of the link.
+//! (`drive`); the connection's reader gives it each packet of the link.
 //!
 //! A client's link is the node's once the node answered its `OPEN`, which
 //! goes again until then. A link that failed ends both ways with the reason.
@@ -16,7 +16,7 @@ use std::task::{Context, Poll, Waker};
 use std::time::Duration;
 
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio::sync::{watch, Notify};
+use tokio::sync::{Notify, watch};
 use tokio::time::Instant;
 
 use super::conn::Conn;
@@ -245,10 +245,10 @@ impl Shared {
             state.finished = true;
             return ended(packets);
         }
-        if state.send.space() > 0 {
-            if let Some(writer) = state.writer.take() {
-                writer.wake();
-            }
+        if state.send.space() > 0
+            && let Some(writer) = state.writer.take()
+        {
+            writer.wake();
         }
         let at = [open_at, state.send.deadline(), state.recv.deadline(), state.linger].into_iter().flatten().min();
         Step { packets, at, end: false }

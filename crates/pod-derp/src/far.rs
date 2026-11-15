@@ -1,27 +1,43 @@
 //! The node of the DERP road: a connection to its home server, made again
-//! after each loss with the forward opener's jittered backoff, under the
+//! after each loss with a jittered backoff (`pod_core::backoff`), under the
 //! node's own key, so that its address stays; and each link that a client
 //! opens there served by the resumable layer's far end, with the sessions
 //! kept by one keeper across links and connections, as on the iroh road. A
 //! new session reaches its target only after its handshake. A node of a list
-//! moves home when its home goes away (T-379): after a few failed
-//! connections in a row, the first other server of the list that takes one,
-//! in the list's order, which a client of the list tries after the ticket's.
+//! moves home when its home goes away: after a few failed connections in a
+//! row, the first other server of the list that takes one, in the list's
+//! order, which a client of the list tries after the ticket's.
+//!
+//! The node's lines go to the caller's sink as events: [`ONLINE`],
+//! [`ENDED`], [`UNREACHABLE`], [`RETRY`] and [`MOVED`].
 
 use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
+use pod_core::{Event, Events, Failure};
+use pod_session::budget::Tell;
+use pod_session::keep::Keeper;
+use pod_session::record::Role;
+use pod_session::{Settings, far};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::conn::{Conn, Setup};
 use super::dial::Dial;
 use super::key::Secret;
 use super::servers::Server;
-use super::Say;
-use crate::session::keep::Keeper;
-use crate::session::record::Role;
-use crate::session::{far, Settings};
+use crate::Names;
+
+/// The kind of the event of a node online at a server.
+pub const ONLINE: &str = "derp.online";
+/// The kind of the event of a node's connection that ended.
+pub const ENDED: &str = "derp.ended";
+/// The kind of the event of a connection that a node did not get.
+pub const UNREACHABLE: &str = "derp.unreachable";
+/// The kind of the event of the wait before a node connects again.
+pub const RETRY: &str = "derp.retry";
+/// The kind of the event of a node's new home.
+pub const MOVED: &str = "derp.moved";
 
 /// How often the sessions whose links are lost are checked for their
 /// deadline.
@@ -55,18 +71,28 @@ pub struct Node {
     /// Its home.
     pub server: Server,
     pub dial: Dial,
-    pub say: Say,
+    /// The sink of the node's lines.
+    pub events: Arc<dyn Events>,
+    /// The program's names on the wire.
+    pub names: Names,
+}
+
+impl Node {
+    fn say(&self, event: Event) {
+        self.events.event(event);
+    }
 }
 
 /// A connection to the node's home, under its key.
-pub async fn connect(node: &Node) -> Result<Conn, String> {
+pub async fn connect(node: &Node) -> Result<Conn, Failure> {
     connect_to(node, &node.server).await
 }
 
 /// A connection to `server`, under the node's key.
-pub async fn connect_to(node: &Node, server: &Server) -> Result<Conn, String> {
+pub async fn connect_to(node: &Node, server: &Server) -> Result<Conn, Failure> {
     let io = (node.dial)(server).await?;
-    let setup = Setup { secret: node.secret.clone(), serves: true, say: node.say.clone() };
+    let (events, names) = (node.events.clone(), node.names.clone());
+    let setup = Setup { secret: node.secret.clone(), serves: true, events, names };
     Conn::start(server.clone(), io, setup).await
 }
 
@@ -84,7 +110,8 @@ pub const MAIN_SEARCH: Duration = Duration::from_secs(60);
 pub async fn home<P, F>(
     secret: &Arc<Secret>,
     dial: &Dial,
-    say: &Say,
+    events: &Arc<dyn Events>,
+    names: &Names,
     servers: &[Server],
     probe: P,
 ) -> (Option<(Server, Conn)>, Vec<String>)
@@ -107,7 +134,8 @@ where
             missed.push(why);
             continue;
         }
-        let node = Node { secret: secret.clone(), server: server.clone(), dial: dial.clone(), say: say.clone() };
+        let (events, names) = (events.clone(), names.clone());
+        let node = Node { secret: secret.clone(), server: server.clone(), dial: dial.clone(), events, names };
         match connect(&node).await {
             Ok(conn) => return (Some((server.clone(), conn)), missed),
             Err(why) => missed.push(format!("{server} answered its probe, then its handshake failed: {why}")),
@@ -117,15 +145,16 @@ where
 }
 
 /// Serve the sessions of each link of `node`, for ever, with a keeper of
-/// its own; a new session's target comes from `open`, and the replay
-/// buffers of all sessions stay within `budget` bytes.
-pub async fn serve<A, O, F>(node: Node, settings: Settings, budget: usize, open: O)
+/// its own, whose lines of the budget go to `tell`; a new session's target
+/// comes from `open`, and the replay buffers of all sessions stay within
+/// `budget` bytes.
+pub async fn serve<A, O, F>(node: Node, settings: Settings, budget: usize, open: O, tell: Tell)
 where
     A: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     O: Fn() -> F + Clone + Send + Sync + 'static,
     F: Future<Output = Result<A, String>> + Send + 'static,
 {
-    let keeper = Arc::new(Keeper::new(settings.resume_deadline).with_tell(crate::session::budget::told()));
+    let keeper = Arc::new(Keeper::new(settings.resume_deadline).with_tell(tell));
     serve_kept(node, settings, budget, open, keeper).await
 }
 
@@ -196,7 +225,7 @@ pub async fn serve_roaming<A, O, F>(
         match conn {
             Ok(conn) => {
                 (retry, failed) = (0, 0);
-                (node.say)(format!("online at the DERP server {} as {}", node.server, conn.key()));
+                node.say(Event::info(ONLINE, format!("online at the DERP server {} as {}", node.server, conn.key())));
                 while let Some(link) = conn.accept().await {
                     let (keeper, open) = (keeper.clone(), open.clone());
                     tokio::spawn(async move {
@@ -204,23 +233,24 @@ pub async fn serve_roaming<A, O, F>(
                     });
                 }
                 let why = conn.why_ended().unwrap_or_else(|| "it closed".to_string());
-                (node.say)(format!("the connection to the DERP server {} ended: {why}", node.server));
+                node.say(Event::warn(ENDED, format!("the connection to the DERP server {} ended: {why}", node.server)));
             }
             Err(why) => {
                 failed = failed.saturating_add(1);
-                (node.say)(format!("no connection to the DERP server {}: {why}", node.server));
+                let text = format!("no connection to the DERP server {}: {why}", node.server);
+                node.say(Event::warn(UNREACHABLE, text));
             }
         }
-        if failed >= MOVE_AFTER {
-            if let Some(conn) = move_home(&mut node, &roam).await {
-                (retry, failed) = (0, 0);
-                next = Some(conn);
-                continue;
-            }
+        if failed >= MOVE_AFTER
+            && let Some(conn) = move_home(&mut node, &roam).await
+        {
+            (retry, failed) = (0, 0);
+            next = Some(conn);
+            continue;
         }
         retry = retry.saturating_add(1);
-        let wait = crate::open::backoff(retry);
-        (node.say)(format!("connecting again in {} ms", wait.as_millis()));
+        let wait = pod_core::backoff::backoff(retry);
+        node.say(Event::info(RETRY, format!("connecting again in {} ms", wait.as_millis())));
         tokio::time::sleep(wait).await;
     }
 }
@@ -232,12 +262,13 @@ async fn move_home(node: &mut Node, roam: &Roam) -> Option<Conn> {
     for server in roam.servers.iter().filter(|server| **server != node.server) {
         match connect_to(node, server).await {
             Ok(conn) => {
-                (node.say)(format!("the DERP server {} went away; {server} is the node's home now", node.server));
+                let text = format!("the DERP server {} went away; {server} is the node's home now", node.server);
+                node.say(Event::warn(MOVED, text));
                 node.server = server.clone();
                 (roam.moved)(server);
                 return Some(conn);
             }
-            Err(why) => (node.say)(format!("no connection to the DERP server {server}: {why}")),
+            Err(why) => node.say(Event::warn(UNREACHABLE, format!("no connection to the DERP server {server}: {why}"))),
         }
     }
     None

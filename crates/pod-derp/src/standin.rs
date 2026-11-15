@@ -1,4 +1,4 @@
-//! A stand-in DERP server for the tests of the DERP road (T-349), over pipes
+//! A stand-in DERP server for the tests of the DERP road, over pipes
 //! in memory: no listener. It answers the WebSocket upgrade at `/derp` with
 //! the subprotocol `derp`, runs DERP's handshake as derper does
 //! (tailscale/tailscale:derp/derpserver/derpserver.go at v1.104.4): its key,
@@ -7,20 +7,21 @@
 //! for each receiver whose oldest packet goes when it is full, and drops a
 //! share of the packets at random, by a seed. It answers pings, and derper's
 //! probe at `/derp/probe`. Its frames are written here, apart from the
-//! library's, so that a defect of one is not the other's. The tests of the
-//! command line serve it over TLS on the loopback (T-379).
-
-#![allow(dead_code)]
+//! library's, so that a defect of one is not the other's. The tests of a
+//! consumer's command line serve it over TLS on the loopback.
+//!
+//! The feature `standin` builds it, for the tests of this crate and of a
+//! consumer; no binary carries it.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
+use crate::Server;
+use crate::dial::{BoxIo, Dial, Dialing};
 use crypto_box::aead::Aead;
 use crypto_box::{PublicKey, SalsaBox, SecretKey};
-use podssh_relay::derp::dial::{BoxIo, Dial, Dialing};
-use podssh_relay::derp::Server;
-use podssh_ws::frame::{self, Frame, Role, OPCODE_BINARY, OPCODE_CLOSE};
+use pod_ws::frame::{self, Frame, OPCODE_BINARY, OPCODE_CLOSE, Role};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream, ReadHalf, WriteHalf};
 use tokio::sync::Notify;
 
@@ -137,6 +138,14 @@ impl StandIn {
         }
     }
 
+    /// Send the client of `key` a health frame with `text`, as derper says
+    /// what is wrong with a connection.
+    pub fn health(&self, key: &[u8; 32], text: &str) {
+        if let Some(client) = lock(&self.clients).get(key) {
+            client.queue.push(derp(0x14, text.as_bytes()));
+        }
+    }
+
     pub fn connected(&self) -> usize {
         lock(&self.clients).len()
     }
@@ -250,8 +259,8 @@ async fn upgrade(reader: &mut ReadHalf<DuplexStream>, writer: &mut WriteHalf<Dup
         buf.extend_from_slice(&chunk[..n]);
     };
     let head = String::from_utf8_lossy(&buf[..end]).to_string();
-    // derper's probe of latency, an empty answer, by which a node of the
-    // command line finds its home (T-379).
+    // derper's probe of latency, an empty answer, by which a node of a
+    // command line finds its home.
     if head.starts_with("GET /derp/probe HTTP/1.1\r\n") {
         let _ = writer.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await;
         let _ = writer.shutdown().await;
@@ -268,7 +277,7 @@ async fn upgrade(reader: &mut ReadHalf<DuplexStream>, writer: &mut WriteHalf<Dup
         let _ = writer.write_all(b"HTTP/1.1 426 Upgrade Required\r\nContent-Length: 0\r\n\r\n").await;
         return None;
     }
-    let accept = podssh_ws::handshake::accept_key(&header("sec-websocket-key")?);
+    let accept = pod_ws::handshake::accept_key(&header("sec-websocket-key")?);
     let answer = format!(
         "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
          Sec-WebSocket-Accept: {accept}\r\nSec-WebSocket-Protocol: derp\r\n\r\n"

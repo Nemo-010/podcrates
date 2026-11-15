@@ -28,4 +28,4 @@ file f9efe6223b94470991f06b5ef2be3cc2bdf025cc crates/podssh-relay/src/derp/ticke
 file ce7bef921b349ad180f447fc0787d33da9752b40 crates/podssh-relay/tests/derp_link.rs -> crates/pod-derp/tests/derp_link.rs
 file e7510c89acfcfddfefd715a45c22b124d4cc55b1 crates/podssh-relay/tests/derp_live.rs -> crates/pod-derp/tests/derp_live.rs
 file 6f2e1828cf86ad39f9586612f68f5e16a18ee22d crates/podssh-relay/tests/derp_main_live.rs -> crates/pod-derp/tests/derp_main_live.rs
-file 645198964d71f6796625f43ec0cf584e4d779957 crates/podssh-relay/tests/derp_stand_in/mod.rs -> crates/pod-derp/tests/derp_stand_in/mod.rs
+file 645198964d71f6796625f43ec0cf584e4d779957 crates/podssh-relay/tests/derp_stand_in/mod.rs -> crates/pod-derp/src/standin.rs

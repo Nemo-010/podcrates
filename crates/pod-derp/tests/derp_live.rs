@@ -1,23 +1,24 @@
-//! The DERP road against Tailscale's servers for tailcat (T-349), live and
-//! short, run by hand: a node and a client in this process, at the first
-//! server of the fleet whose probe answers through the proxy of the
-//! environment, 64 KiB each way over one link with equal digests. The
-//! operator's ruling Q50 lets the road use the fleet unasked. No throughput
-//! is measured here: through a shared relay that measures its rate limit,
-//! and tailcat refuses its own test of throughput through Tailscale's.
+//! The DERP road against Tailscale's servers for tailcat, live and short,
+//! run by hand: a node and a client in this process, at the first server of
+//! the fleet whose probe answers through the proxy of the environment, 64
+//! KiB each way over one link with equal digests. podssh's ruling Q50 lets
+//! the road use the fleet unasked. No throughput is measured here: through a
+//! shared relay that measures its rate limit, and tailcat refuses its own
+//! test of throughput through Tailscale's.
 //!
-//!     cargo test -p podssh-relay --features derp --test derp_live -- --ignored
+//!     cargo test -p pod-derp --test derp_live -- --ignored
 
-#![cfg(feature = "derp")]
+mod common;
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use podssh_relay::derp::conn::Setup;
-use podssh_relay::derp::{dial, servers, Conn, Dialer, Secret, Ticket};
-use podssh_relay::identity::PublicKey;
-use podssh_relay::session::OsEntropy;
-use podssh_ws::{ProxyChoice, Trust};
+use pod_core::entropy::OsEntropy;
+use pod_core::{Event, Events};
+use pod_derp::conn::Setup;
+use pod_derp::{Conn, Dialer, Names, Secret, Ticket, dial, servers};
+use pod_identity::PublicKey;
+use pod_ws::Trust;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -27,19 +28,22 @@ const LIMIT: Duration = Duration::from_secs(90);
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[ignore = "live: Tailscale's servers for tailcat, through the proxy of the environment"]
 async fn a_link_through_tailcat_s_fleet_carries_64_kib_each_way() {
-    let (trust, proxy) = (Trust::Default, ProxyChoice::FromEnvironment);
-    let (home, missed) = servers::home(&servers::fleet(), &trust, &proxy).await;
+    let ((way, client), trust) = (common::from_environment(), Trust::Default);
+    let fleet = servers::fleet_with(true);
+    let (home, missed) = servers::home(&fleet, &client, &trust).await;
     let home = home.unwrap_or_else(|| panic!("no server of the fleet answered its probe: {missed:?}"));
     eprintln!("home: {home} (missed: {missed:?})");
-    let dial = dial::tls(trust, proxy);
-    let say: podssh_relay::derp::Say = Arc::new(|line: String| eprintln!("{line}"));
+    let dial = dial::tls(way, trust);
+    let say: Arc<dyn Events> = Arc::new(|event: Event| eprintln!("{event}"));
+    let names = Names { user_agent: common::USER_AGENT.into(), ..Names::default() };
     let secret = Arc::new(Secret::random(&mut OsEntropy).unwrap());
     let io = (dial)(&home).await.expect("TLS to the server");
-    let node = Conn::start(home.clone(), io, Setup { secret, serves: true, say: say.clone() }).await;
+    let setup = Setup { secret, serves: true, events: say.clone(), names: names.clone() };
+    let node = Conn::start(home.clone(), io, setup).await;
     let node = node.expect("DERP's handshake with the node's key");
     let ticket = Ticket { node: PublicKey([0; 32]), derp: node.key(), server: home };
     eprintln!("ticket: {ticket}");
-    let dialer = Dialer::new(&ticket, dial, say).unwrap();
+    let dialer = Dialer::new(&ticket, &fleet, dial, say, names).unwrap();
     let run = async {
         let (client, served) = tokio::join!(dialer.link(), node.accept());
         let (client, served) = (client.expect("the node answers"), served.expect("a link"));

@@ -199,11 +199,7 @@ fn eight(body: &[u8]) -> [u8; 8] {
 
 fn parse(kind: u8, body: &[u8]) -> Result<Frame, FrameError> {
     let at_least = |need: usize| {
-        if body.len() < need {
-            Err(FrameError::Short { kind, len: body.len() })
-        } else {
-            Ok(())
-        }
+        if body.len() < need { Err(FrameError::Short { kind, len: body.len() }) } else { Ok(()) }
     };
     Ok(match kind {
         kind::SERVER_KEY => {
@@ -235,7 +231,7 @@ fn parse(kind: u8, body: &[u8]) -> Result<Frame, FrameError> {
             Frame::Pong(eight(body))
         }
         // The server's words go to a terminal: made safe first.
-        kind::HEALTH => Frame::Health(podssh_ws::text::one_line(&String::from_utf8_lossy(body))),
+        kind::HEALTH => Frame::Health(pod_core::text::one_line(&String::from_utf8_lossy(body))),
         kind::RESTARTING => {
             at_least(8)?;
             Frame::Restarting {

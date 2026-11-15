@@ -1,6 +1,6 @@
-//! Whether Tailscale's main DERP fleet lets podssh in (T-534, Q74), live and
-//! short: for the first server of each region of the list that podssh
-//! uses (the service `tailscale-derp` of pod-services), or of the map that
+//! Whether Tailscale's main DERP fleet lets podssh in (podssh's T-534 and
+//! ruling Q74), live and short: for the first server of each region of the
+//! list (the service `tailscale-derp` of pod-services), or of the map that
 //! `PODSSH_DERP_MAP_FILE` names (Tailscale's default map, read on the test's
 //! day from the service `tailscale-derp-map` of pod-services), DERP's
 //! handshake with a random key and podssh's name, then a node and a client
@@ -9,22 +9,24 @@
 //! relays; each result is a line, for the record. Ignored, and run by hand:
 //!
 //! ```sh
-//! cargo test -p podssh-relay --features derp --test derp_main_live -- --ignored --nocapture
+//! cargo test -p pod-derp --test derp_main_live -- --ignored --nocapture
 //! ```
 //!
-//! `.github/workflows/derp-main-live.yml` runs it from GitHub Actions.
+//! The job `derp-main` of `.github/workflows/live.yml` runs it from GitHub
+//! Actions.
 
-#![cfg(feature = "derp")]
+mod common;
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use podssh_relay::derp::conn::Setup;
-use podssh_relay::derp::servers::Server;
-use podssh_relay::derp::{dial, Conn, Dialer, Secret, Ticket};
-use podssh_relay::identity::PublicKey;
-use podssh_relay::session::OsEntropy;
-use podssh_ws::{ProxyChoice, Trust};
+use pod_core::entropy::OsEntropy;
+use pod_core::{Event, Events};
+use pod_derp::conn::Setup;
+use pod_derp::servers::Server;
+use pod_derp::{Conn, Dialer, Names, Secret, Ticket, dial};
+use pod_identity::PublicKey;
+use pod_ws::Trust;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -51,16 +53,17 @@ fn first_of_each_region(map: &serde_json::Value) -> Vec<(String, String)> {
 /// One server: `Ok` with the round trip when it relayed 64 KiB each way,
 /// else where it stopped.
 async fn relays(server: Server) -> Result<String, String> {
-    let (trust, proxy) = (Trust::Default, ProxyChoice::FromEnvironment);
-    let dial = dial::tls(trust, proxy);
-    let say: podssh_relay::derp::Say = Arc::new(|_: String| {});
+    let ((way, _), trust) = (common::from_environment(), Trust::Default);
+    let dial = dial::tls(way, trust);
+    let say: Arc<dyn Events> = Arc::new(|_: Event| {});
+    let names = Names::podssh(common::USER_AGENT);
     let secret = Arc::new(Secret::random(&mut OsEntropy).map_err(|e| format!("{e:?}"))?);
     let io = (dial)(&server).await.map_err(|e| format!("TLS: {e}"))?;
-    let setup = Setup { secret, serves: true, say: say.clone() };
+    let setup = Setup { secret, serves: true, events: say.clone(), names: names.clone() };
     let node = Conn::start(server.clone(), io, setup).await.map_err(|e| format!("the handshake: {e}"))?;
     let ticket = Ticket { node: PublicKey([0; 32]), derp: node.key(), server: server.clone() };
     // This server alone: no fallback to tailcat's, which would measure another.
-    let dialer = Dialer::with_servers(&ticket, vec![server], dial, say).map_err(|e| format!("{e:?}"))?;
+    let dialer = Dialer::with_servers(&ticket, vec![server], dial, say, names).map_err(|e| format!("{e:?}"))?;
     let (client, served) = tokio::join!(dialer.link(), node.accept());
     let (client, served) = match (client, served) {
         (Ok(client), Some(served)) => (client, served),

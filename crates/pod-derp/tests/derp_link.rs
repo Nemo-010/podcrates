@@ -1,34 +1,34 @@
-//! The DERP road (T-349) through a stand-in DERP server in memory
-//! (`derp_stand_in`): 8 MiB both ways over one link with equal digests,
+//! The DERP road through a stand-in DERP server in memory
+//! (`pod_derp::standin`, the feature `standin`): 8 MiB both ways over one link with equal digests,
 //! with no loss and with 5 % of the packets dropped under the adapter; a
 //! session of the resumable layer that goes on after the client's connection
 //! is cut; and a client that gives up on a node that is not there within
 //! its limit. A node whose home goes away moves to the next server of its
 //! list, and a client of the old ticket and that list finds it there, where
-//! the ticket's server alone finds nothing (T-379). The tests marked
-//! `ignore` run against Tailscale's derper, which `scripts/interop-derp.sh`
+//! the ticket's server alone finds nothing. The tests marked `ignore` run
+//! against Tailscale's derper, which podssh's `scripts/interop-derp.sh`
 //! starts in Podman. A planted adapter that never sends a segment again
 //! fails the test with drops. A server that closes after the client's info
-//! sends a node to the next server of its list (T-534).
+//! sends a node to the next server of its list.
 
-#![cfg(feature = "derp")]
-
-mod derp_stand_in;
+mod common;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use derp_stand_in::StandIn;
-use podssh_relay::derp::conn::Setup;
-use podssh_relay::derp::dial::{self, Dial, Dialing};
-use podssh_relay::derp::far::Roam;
-use podssh_relay::derp::link::OPEN_LIMIT;
-use podssh_relay::derp::{self as road, servers, Conn, Dialer, Key, Link, Node, Secret, Server, Ticket};
-use podssh_relay::identity::PublicKey;
-use podssh_relay::session::keep::Keeper;
-use podssh_relay::session::resume::Note;
-use podssh_relay::session::{OsEntropy, Settings};
+use pod_core::entropy::OsEntropy;
+use pod_core::{Class, Event, Events, Level, Stage};
+use pod_derp::conn::Setup;
+use pod_derp::dial::{self, Dial, Dialing};
+use pod_derp::far::Roam;
+use pod_derp::link::OPEN_LIMIT;
+use pod_derp::standin::StandIn;
+use pod_derp::{self as road, Conn, Dialer, Key, Link, Names, Node, Secret, Server, Ticket, servers};
+use pod_identity::PublicKey;
+use pod_session::Settings;
+use pod_session::keep::Keeper;
+use pod_session::resume::Note;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
 use tokio::time::Instant;
@@ -38,8 +38,13 @@ const LIMIT: Duration = Duration::from_secs(180);
 /// The replay buffers that a node keeps, at most, as a node of the CLI does.
 const BUDGET: usize = 64 << 20;
 
-fn say(who: &'static str) -> road::Say {
-    Arc::new(move |line: String| eprintln!("{who}: {line}"))
+fn say(who: &'static str) -> Arc<dyn Events> {
+    Arc::new(move |event: Event| eprintln!("{who}: {event}"))
+}
+
+/// The fleet that a client of the stand-in tries after its ticket's server.
+fn fleet() -> Vec<Server> {
+    servers::fleet_with(true)
 }
 
 /// Bytes that a seed fixes (xorshift64*).
@@ -92,10 +97,10 @@ async fn both_ways_timed(link: Link, out: Vec<u8>) -> ((Vec<u8>, usize), Option<
 async fn ends(dial: Dial, server: Server) -> (Conn, Dialer) {
     let secret = Arc::new(Secret::random(&mut OsEntropy).expect("random bytes"));
     let io = (dial)(&server).await.expect("a pipe to the server");
-    let setup = Setup { secret, serves: true, say: say("node") };
+    let setup = Setup { secret, serves: true, events: say("node"), names: Names::default() };
     let node = Conn::start(server.clone(), io, setup).await.expect("the node's connection");
     let ticket = Ticket { node: PublicKey([0; 32]), derp: node.key(), server };
-    let dialer = Dialer::new(&ticket, dial, say("client")).expect("random bytes");
+    let dialer = Dialer::new(&ticket, &fleet(), dial, say("client"), Names::default()).expect("random bytes");
     (node, dialer)
 }
 
@@ -133,12 +138,12 @@ async fn eight_mib_go_both_ways_with_five_percent_of_the_packets_dropped() {
 async fn a_client_gives_up_on_a_node_that_is_not_at_its_server_within_its_limit() {
     let stand_in = StandIn::new(0);
     let ticket = Ticket { node: PublicKey([0; 32]), derp: Key([0x42; 32]), server: StandIn::server() };
-    let dialer = Dialer::new(&ticket, stand_in.dial(), say("client")).unwrap();
+    let dialer = Dialer::new(&ticket, &fleet(), stand_in.dial(), say("client"), Names::default()).unwrap();
     let started = Instant::now();
     let err = tokio::time::timeout(LIMIT, dialer.link()).await.expect("in time").unwrap_err();
     let took = started.elapsed();
     assert!(took >= OPEN_LIMIT && took < OPEN_LIMIT + Duration::from_secs(5), "{took:?}");
-    assert!(err.contains("did not answer"), "{err}");
+    assert!(err.text().contains("did not answer"), "{err}");
 }
 
 /// An echo of each byte, as a node's target.
@@ -158,12 +163,13 @@ async fn echo() -> Result<DuplexStream, String> {
 async fn echo_session(dial: Dial, server: Server, drops: Option<Arc<StandIn>>) -> Vec<Note> {
     let settings = Settings { features: road::FEATURES, ..Settings::default() };
     let secret = Arc::new(Secret::random(&mut OsEntropy).unwrap());
-    let node = Node { secret, server: server.clone(), dial: dial.clone(), say: say("node") };
+    let node =
+        Node { secret, server: server.clone(), dial: dial.clone(), events: say("node"), names: Names::default() };
     let first = road::far::connect(&node).await.expect("the node's connection");
     let ticket = Ticket { node: PublicKey([0; 32]), derp: first.key(), server };
     let keeper = Arc::new(Keeper::new(settings.resume_deadline));
     let serving = tokio::spawn(road::far::serve_from(node, Some(first), settings, BUDGET, echo, keeper));
-    let dialer = Dialer::new(&ticket, dial, say("client")).unwrap();
+    let dialer = Dialer::new(&ticket, &fleet(), dial, say("client"), Names::default()).unwrap();
     let notes = Mutex::new(Vec::new());
     let (app, user) = tokio::io::duplex(256 * 1024);
     let out = bytes(2 * MIB, 3);
@@ -184,10 +190,10 @@ async fn echo_session(dial: Dial, server: Server, drops: Option<Arc<StandIn>>) -
                 let n = reader.read(&mut buf).await.expect("the echo");
                 assert!(n > 0, "the session ended after {} bytes", back.len());
                 back.extend_from_slice(&buf[..n]);
-                if back.len() >= out.len() / 3 {
-                    if let Some(stand_in) = cut.take() {
-                        stand_in.cut(&dialer.key().0);
-                    }
+                if back.len() >= out.len() / 3
+                    && let Some(stand_in) = cut.take()
+                {
+                    stand_in.cut(&dialer.key().0);
                 }
             }
             back
@@ -225,7 +231,9 @@ async fn a_node_whose_home_went_away_moves_and_a_client_of_the_old_ticket_finds_
         let (a, b, down) = (a.clone(), b.clone(), down.clone());
         Arc::new(move |server: &Server| -> Dialing {
             let io = match server.host.as_str() {
-                "a.test" if down.load(Ordering::SeqCst) => Err("a.test: connection refused".to_string()),
+                "a.test" if down.load(Ordering::SeqCst) => {
+                    Err(pod_core::Failure::new(Stage::Connect, Class::Unavailable, "a.test: connection refused"))
+                }
                 "a.test" => Ok(a.connect()),
                 _ => Ok(b.connect()),
             };
@@ -234,7 +242,7 @@ async fn a_node_whose_home_went_away_moves_and_a_client_of_the_old_ticket_finds_
     };
     let settings = Settings { features: road::FEATURES, ..Settings::default() };
     let secret = Arc::new(Secret::random(&mut OsEntropy).unwrap());
-    let node = Node { secret, server: at_a.clone(), dial: dial.clone(), say: say("node") };
+    let node = Node { secret, server: at_a.clone(), dial: dial.clone(), events: say("node"), names: Names::default() };
     let first = road::far::connect(&node).await.expect("the node at a.test");
     let ticket = Ticket { node: PublicKey([0; 32]), derp: first.key(), server: at_a.clone() };
     let (moved, mut heard) = tokio::sync::mpsc::unbounded_channel();
@@ -252,24 +260,25 @@ async fn a_node_whose_home_went_away_moves_and_a_client_of_the_old_ticket_finds_
     assert_eq!(home, at_b, "the next server of the list");
     let list = [at_a.clone(), at_b.clone()];
     let order = servers::for_client_in(&ticket.server, &list);
-    let dialer = Dialer::with_servers(&ticket, order, dial.clone(), say("client")).unwrap();
+    let dialer = Dialer::with_servers(&ticket, order, dial.clone(), say("client"), Names::default()).unwrap();
     let link = tokio::time::timeout(LIMIT, dialer.link()).await.expect("in time").expect("the node at b.test");
     assert_eq!(dialer.server().await, Some(at_b.clone()));
     drop(link);
     dialer.close().await;
-    let alone = Dialer::with_servers(&ticket, vec![at_a], dial, say("client")).unwrap();
+    let alone = Dialer::with_servers(&ticket, vec![at_a], dial, say("client"), Names::default()).unwrap();
     let missed = tokio::time::timeout(LIMIT, alone.link()).await.expect("in time");
     assert!(missed.is_err(), "the ticket's server alone found the node that moved");
     assert!(b.logins.load(Ordering::SeqCst) >= 2, "the node and the client at b.test");
     serving.abort();
 }
 
-/// The server and the trust of the derper of `scripts/interop-derp.sh`.
+/// The server and the trust of the derper of podssh's
+/// `scripts/interop-derp.sh`.
 fn derper() -> (Dial, Server) {
     let server = std::env::var("PODSSH_DERP_TEST_SERVER").expect("PODSSH_DERP_TEST_SERVER=HOST:PORT of a derper");
     let ca = std::env::var("PODSSH_DERP_TEST_CA").expect("PODSSH_DERP_TEST_CA=FILE, the derper's certificate");
-    let trust = podssh_ws::Trust::File(ca.into());
-    (dial::tls(trust, podssh_ws::ProxyChoice::Direct), Server::parse(&server).expect("HOST:PORT"))
+    let trust = pod_ws::Trust::File(ca.into());
+    (dial::tls(common::direct().0, trust), Server::parse(&server).expect("HOST:PORT"))
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -284,9 +293,9 @@ async fn through_derper_eight_mib_go_both_ways() {
 async fn through_derper_a_node_that_is_not_there_is_not_answered() {
     let (dial, server) = derper();
     let ticket = Ticket { node: PublicKey([0; 32]), derp: Key([0x42; 32]), server };
-    let dialer = Dialer::new(&ticket, dial, say("client")).unwrap();
+    let dialer = Dialer::new(&ticket, &fleet(), dial, say("client"), Names::default()).unwrap();
     let err = tokio::time::timeout(LIMIT, dialer.link()).await.expect("in time").unwrap_err();
-    assert!(err.contains("did not answer"), "{err}");
+    assert!(err.text().contains("did not answer"), "{err}");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -299,7 +308,7 @@ async fn through_derper_a_session_of_the_layer_echoes_two_mib() {
 
 /// A server that answers its probe and closes after the client's info, as
 /// derper with `--verify-clients` closes on a key that it does not know
-/// (T-534), sends the node on to the next server of its list, which it
+/// (podssh's T-534), sends the node on to the next server of its list, which it
 /// calls home. Planted: the stand-in that refuses is the only server, and
 /// the node has no home.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -317,13 +326,84 @@ async fn a_server_that_closes_after_the_client_s_info_sends_the_node_to_the_next
     let secret = Arc::new(Secret::random(&mut OsEntropy).unwrap());
     let answers = |_: &Server| async { Ok(()) };
     let list = [at_strict.clone(), at_open.clone()];
-    let (home, missed) = road::far::home(&secret, &dial, &say("node"), &list, answers).await;
+    let (home, missed) = road::far::home(&secret, &dial, &say("node"), &Names::default(), &list, answers).await;
     let (server, conn) = home.expect("a home after the strict server");
     assert_eq!(server, at_open);
     assert_eq!((strict.logins.load(Ordering::SeqCst), open.logins.load(Ordering::SeqCst)), (0, 1));
     assert_eq!(missed.len(), 1, "{missed:?}");
     assert!(missed[0].starts_with("strict.test answered its probe, then its handshake failed"), "{missed:?}");
     drop(conn);
-    let (none, missed) = road::far::home(&secret, &dial, &say("node"), &list[..1], answers).await;
+    let (none, missed) = road::far::home(&secret, &dial, &say("node"), &Names::default(), &list[..1], answers).await;
     assert!(none.is_none() && missed.len() == 1, "the strict server alone is no home");
+}
+
+/// The next event of `kind` that `heard` gets, within [`LIMIT`].
+async fn next_of(heard: &mut tokio::sync::mpsc::UnboundedReceiver<Event>, kind: &str) -> Event {
+    let wait = async {
+        loop {
+            let event = heard.recv().await.expect("the sink lives");
+            if event.kind == kind {
+                return event;
+            }
+        }
+    };
+    tokio::time::timeout(LIMIT, wait).await.unwrap_or_else(|_| panic!("no event {kind} in time"))
+}
+
+/// The lines of a node and of its connection go to the caller's sink as
+/// events, each of its kind and level: online, the server's words made safe,
+/// the connection that ended, and the wait before the next.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_node_s_lines_are_events_of_their_kinds() {
+    let stand_in = StandIn::new(0);
+    let (sink, mut heard) = tokio::sync::mpsc::unbounded_channel();
+    let events: Arc<dyn Events> = Arc::new(move |event: Event| {
+        let _ = sink.send(event);
+    });
+    let settings = Settings { features: road::FEATURES, ..Settings::default() };
+    let secret = Arc::new(Secret::random(&mut OsEntropy).unwrap());
+    let node = Node { secret, server: StandIn::server(), dial: stand_in.dial(), events, names: Names::default() };
+    let first = road::far::connect(&node).await.expect("the node's connection");
+    let key = first.key();
+    let keeper = Arc::new(Keeper::new(settings.resume_deadline));
+    let serving = tokio::spawn(road::far::serve_from(node, Some(first), settings, BUDGET, echo, keeper));
+    let online = next_of(&mut heard, road::far::ONLINE).await;
+    assert_eq!(online.level, Level::Info);
+    assert!(online.text.starts_with("online at the DERP server derp.test as "), "{online:?}");
+    stand_in.health(&key.0, "a duplicate\x1b[2J connection");
+    let health = next_of(&mut heard, road::conn::HEALTH).await;
+    assert_eq!(health.level, Level::Warn);
+    assert!(health.text.starts_with("the DERP server derp.test says: a duplicate"), "{health:?}");
+    assert!(!health.text.contains('\x1b'), "{health:?}");
+    stand_in.cut(&key.0);
+    let ended = next_of(&mut heard, road::far::ENDED).await;
+    assert_eq!(ended.level, Level::Warn);
+    assert!(ended.text.starts_with("the connection to the DERP server derp.test ended"), "{ended:?}");
+    let retry = next_of(&mut heard, road::far::RETRY).await;
+    assert!(retry.text.starts_with("connecting again in "), "{retry:?}");
+    serving.abort();
+}
+
+/// Each failure of the road carries its stage and its class: a node that
+/// does not answer, a server that ends the handshake, a dial that failed.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_failure_of_the_road_carries_its_stage_and_class() {
+    let stand_in = StandIn::new(0);
+    let ticket = Ticket { node: PublicKey([0; 32]), derp: Key([0x42; 32]), server: StandIn::server() };
+    let dialer = Dialer::new(&ticket, &fleet(), stand_in.dial(), say("client"), Names::default()).unwrap();
+    let missed = tokio::time::timeout(LIMIT, dialer.link()).await.expect("in time").unwrap_err();
+    assert_eq!((missed.stage, missed.class), (Stage::Relay, Class::Unavailable), "{missed}");
+    stand_in.refuses.store(true, Ordering::SeqCst);
+    let secret = Arc::new(Secret::random(&mut OsEntropy).unwrap());
+    let node =
+        Node { secret, server: StandIn::server(), dial: stand_in.dial(), events: say("node"), names: Names::default() };
+    let refused = road::far::connect(&node).await.err().expect("a server that ends the handshake");
+    assert_eq!(refused.stage, Stage::Relay, "DERP's handshake: {refused}");
+    assert_eq!(refused.class, Class::Unavailable, "a connection that ended: {refused}");
+    let failed: Dial = Arc::new(|_: &Server| -> Dialing {
+        Box::pin(async { Err(pod_core::Failure::new(Stage::Proxy, Class::Refused, "the proxy refused")) })
+    });
+    let node = Node { dial: failed, ..node };
+    let dialed = road::far::connect(&node).await.err().expect("a dial that failed");
+    assert_eq!((dialed.stage, dialed.class), (Stage::Proxy, Class::Refused), "the dial's own: {dialed}");
 }

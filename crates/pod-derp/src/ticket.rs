@@ -4,13 +4,13 @@
 //! credential, as an iroh ticket is: the end-to-end channel above the layer
 //! checks the Ed25519 key that it names, and the node's allowlist lets in
 //! the clients that it names. The word has no `@` and no `/`, which a
-//! destination of `podssh ssh` reads as a user and a route.
+//! destination of a command line (`podssh ssh`) reads as a user and a route.
 
 use std::fmt;
 
 use super::key::Key;
 use super::servers::Server;
-use crate::identity::PublicKey;
+use pod_identity::PublicKey;
 
 /// The scheme of a ticket.
 pub const SCHEME: &str = "derp:";
@@ -54,7 +54,7 @@ impl Ticket {
         }
         if bytes[0] != VERSION {
             return Err(format!(
-                "{}: a ticket of version {}, which this podssh does not read (it reads {VERSION})",
+                "{}: a ticket of version {}, which this version does not read (it reads {VERSION})",
                 shown(text),
                 bytes[0]
             ));
@@ -74,7 +74,7 @@ impl Ticket {
 
 /// A ticket in a message: its start, as it may be long.
 fn shown(text: &str) -> String {
-    let text = podssh_ws::text::one_line(text);
+    let text = pod_core::text::one_line(text);
     match text.char_indices().nth(24) {
         Some((cut, _)) => format!("{}...", &text[..cut]),
         None => text,
