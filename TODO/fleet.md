@@ -2837,7 +2837,7 @@ cargo test -p pod-lab --all-features
 
 # T-700: `pod-manual`: one crate for the help and the manual of each command line of PodUtils (PodUtils/podnet#584)
 
-**Source:** PodUtils/podnet#584 (COORD-090 of podnet; PodUtils/podnet@T-359); the owner's ruling "Discipline" (2026-11-15).
+**Source:** PodUtils/podnet#584 (COORD-090 of podnet; PodUtils/podnet@T-359); the owner's rulings "Discipline" and "The text of a command line" (2026-11-15).
 **Category:** feature
 **Milestone:** M8
 **Priority:** P1
@@ -2868,7 +2868,13 @@ Take podnet's `src/manual/` and `PodUtils/podnet:scripts/gen-llms.py` at `78a391
 9. The writers: plain text that needs nothing of the host; man(7) that groff and mandoc render with no warning; one JSON object; `llms.txt` and `llms-full.txt` from the JSON.
 10. The pager: only on a terminal; `PAGER` when the user names it; else `less` only where a probe finds it; never a helper otherwise; `--no-pager` (podssh's rule). No dynamic library.
 11. A test of the exit codes against the facts: a code that a program gives with no fact fails (podnet, PodUtils/podnet#585; podnet has the test of the variables both ways).
-12. A helper for the text of an error: "OPTION: what is wrong; fix: what to do" (podrunner).
+13. The rules of the text (the owner's ruling "The text of a command line", 2026-11-15), checked by a test of the crate over each string of the model, the facts and the tables, and by a check of the strings of a release binary:
+    - no emoji and no pictograph;
+    - valid UTF-8 only, with no control character but the newline and the tab; no escape sequence of a terminal in the text (a writer adds a colour only on a terminal);
+    - no id of a work entry (`T-NNN`, `C123`, `Q12`, an issue number of a record) and no text quoted from a work record;
+    - ASD-STE100: short sentences (a limit of words for each sentence, 20 in a procedure and 25 in a description), active voice, one instruction for each sentence.
+    A program that breaks a rule fails its own tests. The rule applies also to each error and each log line that a program writes from a fact.
+14. A helper for the text of an error: "OPTION: what is wrong; fix: what to do" (podrunner).
 
 Not needed by a consumer: a page for each subcommand, translations. The handoff of the tag names the step of each consumer: its help and its manual come from `pod-manual`, `CLI man --no-pager` works, and the drift test runs in its CI.
 
@@ -2904,4 +2910,65 @@ After part 1 of T-692: a profile for each class, in the form of part 1. The clas
 
 ```sh
 cargo test -p pod-lab --all-features
+```
+
+# T-702: one POSIX installer for each project, hermetic, idempotent and fast, run in the labs (the ruling "Installer")
+
+**Source:** the owner's ruling "Installer" (2026-11-15); podrunner's lessons (asked in the COORD issue of the ruling).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P1
+**Effort:** M
+**Status:** open
+
+## Problem
+
+A user spends about 20 minutes to set up a project of PodUtils. The owner's ruling "Installer" (2026-11-15): each project publishes one installer in POSIX `sh` that runs on any host (each profile of `pod-lab`), installs and sets up the project as fast as possible, is hermetic (it reads nothing of the host that it does not need, writes only under its own prefix, and needs no root, no package manager and no compiler) and is idempotent (a second run changes nothing and says so; an interrupted run leaves no half install). podrunner learnt this on its own first user runs (PodUtils/podrunner#153, #155 to #178).
+
+## Premise
+
+- Not read: podrunner's installer and its lessons (asked in the COORD issue of the ruling); the installers of podssh, podnet and podvm.
+
+## Approach
+
+1. Collect podrunner's installer and its lessons, and the installer of each other project, by the COORD issue of the ruling.
+2. podcrates gives the shared part: a POSIX `sh` core (the detection of the OS and the architecture, the download of the static binary of the release with the first fetch tool that a probe finds, the check of its SHA-256 against the `SHA256SUMS` of the release, an atomic move into the prefix, the PATH line, a second run that changes nothing, `--prefix`, `--version`, `--dry-run`, an offline install from a file, and the proxy of the environment), with the text rules of T-700. Each project keeps its name, its files and its setup steps in a small part of its own.
+3. A test runs the installer of each project in each profile of `pod-lab` (T-692, T-701) with `shellcheck --shell=sh` and `dash`, `busybox sh` and `bash --posix`: a first run, a second run that changes nothing, and a run cut in the middle. The time of a run is measured and has a limit.
+4. podcrates publishes its own installer for `podlab`.
+
+## Prove
+
+```sh
+sh scripts/check-installer.sh
+```
+
+# T-703: a mechanical check of the open issues and their comments against the record, for each project (the ruling "Issues")
+
+**Source:** the owner's ruling "Issues" (2026-11-15).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P1
+**Effort:** M
+**Status:** open
+
+## Problem
+
+The open issues of the projects of PodUtils and their comments go stale and drift from the work: an issue stays open after its work is done, a closed issue holds work that is open, and an old comment states a plan that changed. They mislead external users and testers, and they mislead the agents of the project itself. The owner's ruling "Issues" (2026-11-15) asks for a mechanical solution. podcrates has only `scripts/check-github-numbers.py`, which compares `TODO/github.txt` with the state of each number on GitHub; nothing ties the state of an issue to the state of its entries.
+
+## Premise
+
+- Read: `scripts/check-github-numbers.py`, `crates/pod-todo/src/github.rs`.
+- Not read: how podssh, podnet, podvm and podrunner map their issues to their records.
+
+## Approach
+
+1. `pod-todo` (the shared checker of the records, T-001) gets a check of the issues: each issue of `TODO/issues.md` is open exactly when one of its entries is not `done`; an issue whose entries are all `done` must close; an issue with an open entry must stay open; an issue with no entry fails.
+2. The status of an issue is one block in its body that a tool writes from the record (the entries, their status, the tag that carries the work, the date), between two markers. A comment never holds the current state. A session never edits the block by hand.
+3. A workflow of each project (a reusable workflow of podcrates, at a tag) runs on each push to the default branch and each day: it writes the block of each issue, closes an issue whose entries are done (with a comment that names the tag), reopens a closed issue with an open entry, and fails when an open issue has no entry or no block. It uses `GITHUB_TOKEN` with `issues: write`.
+4. Each project takes the workflow; podcrates first.
+
+## Prove
+
+```sh
+cargo test -p pod-todo
 ```

@@ -59,6 +59,12 @@ everything must be statically compiled." (the owner, 2026-11-05)
   release in the labs of `pod-lab` (T-692), and each command line takes
   its help and its manual from `pod-manual` (T-700): `CLI man
   --no-pager`, a generated help, and a test of each drift.
+  No text of a command line has an emoji, a byte that is not UTF-8, a
+  control character or an id of a work entry; each text is ASD-STE100.
+* Installer and issues (the owner, 2026-11-15): each project publishes one
+  POSIX `sh` installer, hermetic and idempotent, tested in the labs
+  (T-702). The state of each issue comes from the record by a tool
+  (T-703).
 
 ## 3. Git
 

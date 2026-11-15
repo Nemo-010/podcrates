@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**560 entries: 110 open, 8 partial, 6 blocked, 436 done.**
+**562 entries: 112 open, 8 partial, 6 blocked, 436 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 14 | 3 | 0 | 118 | 135 |
+| P1 | 16 | 3 | 0 | 118 | 137 |
 | P2 | 45 | 2 | 4 | 230 | 281 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 110 | 8 | 6 | 436 | 560 |
+| **All** | 112 | 8 | 6 | 436 | 562 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -607,3 +607,5 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-692](fleet.md) | P1 | L | M8 | feature | open | `pod-lab`: the hostile host classes as shared profiles, `podlab check` and `podlab run` (PodUtils/podrunner#180) |
 | [T-700](fleet.md) | P1 | L | M8 | feature | open | `pod-manual`: one crate for the help and the manual of each command line of PodUtils (PodUtils/podnet#584) |
 | [T-701](fleet.md) | P1 | M | M8 | feature | open | `pod-lab`: the host classes of podssh and podnet as profiles, with the lane of each project (PodUtils/podssh#268, PodUtils/podnet#585) |
+| [T-702](fleet.md) | P1 | M | M8 | feature | open | one POSIX installer for each project, hermetic, idempotent and fast, run in the labs (the ruling "Installer") |
+| [T-703](fleet.md) | P1 | M | M8 | feature | open | a mechanical check of the open issues and their comments against the record, for each project (the ruling "Issues") |
