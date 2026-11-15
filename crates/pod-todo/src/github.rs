@@ -17,6 +17,9 @@ use crate::model::Problem;
 pub const LIST: &str = "github.txt";
 /// The map, in `TODO/`.
 pub const MAP: &str = "issues.md";
+/// The two files as a problem names them, from the root.
+pub const MAP_AT: &str = "TODO/issues.md";
+pub const LIST_AT: &str = "TODO/github.txt";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -34,12 +37,49 @@ pub struct Number {
     pub line: usize,
 }
 
-/// A place of an issue in the map: its line, and the State of its row, when
-/// it is a row.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A place of an issue in the map: its line, the State of its row (when it
+/// is a row), its subject, the Kind of its row (when the table has the
+/// column), and the text that names its entries (the Entries of a row, or
+/// the paragraph of a bold head).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Place {
     pub line: usize,
     pub state: Option<String>,
+    pub subject: String,
+    pub kind: Option<String>,
+    pub entries: String,
+}
+
+/// The columns of a table of the map, by the names of its header. A table
+/// with no header has the form `| Issue | Subject | State | Entries |`.
+#[derive(Debug, Clone, Copy)]
+struct Columns {
+    subject: Option<usize>,
+    state: Option<usize>,
+    entries: Option<usize>,
+    kind: Option<usize>,
+}
+
+impl Default for Columns {
+    fn default() -> Self {
+        Self { subject: Some(1), state: Some(2), entries: Some(3), kind: None }
+    }
+}
+
+impl Columns {
+    /// The columns that a header row names, or `None` for a row that is no
+    /// header of the map.
+    fn of_header(cells: &[&str]) -> Option<Self> {
+        let at = |names: &[&str]| cells.iter().position(|c| names.iter().any(|n| c.eq_ignore_ascii_case(n)));
+        let state = at(&["State"]);
+        let entries = at(&["Entries"]);
+        (state.is_some() || entries.is_some()).then(|| Self {
+            subject: at(&["Subject", "Title"]),
+            state,
+            entries,
+            kind: at(&["Kind"]),
+        })
+    }
 }
 
 /// What the map names: each issue's places, and the line that names the
@@ -73,14 +113,14 @@ pub fn read_list(text: &str, p: &mut Vec<Problem>) -> BTreeMap<u32, Number> {
         };
         let Some((n, kind, open, deleted)) = parsed else {
             p.push(Problem::new(
-                LIST,
+                LIST_AT,
                 i + 1,
                 format!("not NUMBER issue|pull open|closed, or NUMBER issue deleted: {line:?}"),
             ));
             continue;
         };
         if list.insert(n, Number { kind, open, deleted, line: i + 1 }).is_some() {
-            p.push(Problem::new(LIST, i + 1, format!("#{n} is listed twice")));
+            p.push(Problem::new(LIST_AT, i + 1, format!("#{n} is listed twice")));
         }
     }
     list
@@ -118,20 +158,51 @@ fn numbers_in(text: &str) -> Vec<u32> {
 /// requests".
 pub fn read_map(text: &str) -> Map {
     let mut map = Map::default();
+    let mut columns = Columns::default();
+    // The bold head whose paragraph goes on: the text names its entries.
+    let mut head: Option<u32> = None;
     for (i, raw) in text.lines().enumerate() {
         let line = raw.trim_start();
+        if line.trim().is_empty() {
+            head = None;
+            continue;
+        }
         if let Some(rest) = line.strip_prefix('|') {
-            let cells: Vec<&str> = rest.split('|').map(str::trim).collect();
+            head = None;
+            let cells: Vec<&str> = rest.trim_end().trim_end_matches('|').split('|').map(str::trim).collect();
             if let Some(n) = cells.first().and_then(|c| number_at(c)).filter(|_| cells[0].len() > 1)
                 && cells[0][1..].chars().all(|c| c.is_ascii_digit())
             {
-                let state = cells.get(2).map(|s| s.to_string());
-                map.issues.entry(n).or_default().push(Place { line: i + 1, state });
+                let cell = |at: Option<usize>| at.and_then(|k| cells.get(k)).map(|s| s.to_string());
+                map.issues.entry(n).or_default().push(Place {
+                    line: i + 1,
+                    state: cell(columns.state),
+                    subject: cell(columns.subject).unwrap_or_default(),
+                    kind: cell(columns.kind),
+                    entries: cell(columns.entries).unwrap_or_default(),
+                });
+            } else if let Some(c) = Columns::of_header(&cells) {
+                columns = c;
             }
         } else if let Some(n) = line.strip_prefix("**").and_then(number_at) {
-            map.issues.entry(n).or_default().push(Place { line: i + 1, state: None });
+            // `**#18, transports.** text`: the subject is the bold text.
+            let bold = &line[2..];
+            let (inside, after) = bold.split_once("**").unwrap_or((bold, ""));
+            let subject = inside.trim_start_matches(|c: char| c == '#' || c.is_ascii_digit());
+            let subject = subject.trim_start_matches([',', ':']).trim().to_string();
+            map.issues.entry(n).or_default().push(Place {
+                line: i + 1,
+                subject,
+                entries: after.trim().to_string(),
+                ..Place::default()
+            });
+            head = Some(n);
         } else if let Some((before, _)) = line.split_once("are pull requests") {
+            head = None;
             map.pulls = Some((i + 1, numbers_in(before)));
+        } else if let Some(place) = head.and_then(|n| map.issues.get_mut(&n)).and_then(|v| v.last_mut()) {
+            place.entries.push(' ');
+            place.entries.push_str(line.trim());
         }
     }
     map
@@ -146,10 +217,10 @@ pub fn check(root: &Path, p: &mut Vec<Problem>) {
         (Err(_), Err(_)) => return,
         (Ok(map), Ok(list)) => (map, list),
         (Ok(_), Err(e)) => {
-            return p.push(Problem::new(LIST, 0, format!("the map has no list of GitHub's numbers: {e}")));
+            return p.push(Problem::new(LIST_AT, 0, format!("the map has no list of GitHub's numbers: {e}")));
         }
         (Err(e), Ok(_)) => {
-            return p.push(Problem::new(MAP, 0, format!("the list of GitHub's numbers has no map: {e}")));
+            return p.push(Problem::new(MAP_AT, 0, format!("the list of GitHub's numbers has no map: {e}")));
         }
     };
     let list = read_list(&list_text, p);
@@ -162,7 +233,7 @@ pub fn agree(list: &BTreeMap<u32, Number>, map: &Map, p: &mut Vec<Problem>) {
     for (n, number) in list {
         match number.kind {
             Kind::Issue => match map.issues.get(n).map(Vec::as_slice) {
-                None | Some([]) => p.push(Problem::new(MAP, 0, format!("issue #{n} has no place in the map"))),
+                None | Some([]) => p.push(Problem::new(MAP_AT, 0, format!("issue #{n} has no place in the map"))),
                 Some([one]) => {
                     let want = match (number.deleted, number.open) {
                         (true, _) => "deleted",
@@ -171,14 +242,14 @@ pub fn agree(list: &BTreeMap<u32, Number>, map: &Map, p: &mut Vec<Problem>) {
                     };
                     if let Some(state) = one.state.as_deref().filter(|s| !s.starts_with(want)) {
                         p.push(Problem::new(
-                            MAP,
+                            MAP_AT,
                             one.line,
                             format!("issue #{n} is {want} on GitHub, and its row says {state:?}"),
                         ));
                     }
                 }
                 Some(many) => p.push(Problem::new(
-                    MAP,
+                    MAP_AT,
                     many[1].line,
                     format!("issue #{n} has {} places in the map, at lines {}", many.len(), lines(many)),
                 )),
@@ -186,14 +257,14 @@ pub fn agree(list: &BTreeMap<u32, Number>, map: &Map, p: &mut Vec<Problem>) {
             Kind::Pull => {
                 if !pulls.contains(n) {
                     p.push(Problem::new(
-                        MAP,
+                        MAP_AT,
                         pull_line,
                         format!("pull request #{n} is not in the line of pull requests"),
                     ));
                 }
                 if let Some(places) = map.issues.get(n) {
                     p.push(Problem::new(
-                        MAP,
+                        MAP_AT,
                         places[0].line,
                         format!("#{n} is a pull request, and has a place as an issue"),
                     ));
@@ -203,18 +274,22 @@ pub fn agree(list: &BTreeMap<u32, Number>, map: &Map, p: &mut Vec<Problem>) {
     }
     for (n, places) in &map.issues {
         if !list.contains_key(n) {
-            p.push(Problem::new(MAP, places[0].line, format!("the map names #{n}, which TODO/{LIST} does not hold")));
+            p.push(Problem::new(
+                MAP_AT,
+                places[0].line,
+                format!("the map names #{n}, which TODO/{LIST} does not hold"),
+            ));
         }
     }
     for n in &pulls {
         match list.get(n) {
             None => p.push(Problem::new(
-                MAP,
+                MAP_AT,
                 pull_line,
                 format!("the line of pull requests names #{n}, which TODO/{LIST} does not hold"),
             )),
             Some(number) if number.kind == Kind::Issue => {
-                p.push(Problem::new(MAP, pull_line, format!("the line of pull requests names #{n}, an issue")))
+                p.push(Problem::new(MAP_AT, pull_line, format!("the line of pull requests names #{n}, an issue")))
             }
             Some(_) => {}
         }
@@ -240,10 +315,31 @@ mod tests {
             "| Issue | Subject | State | Entries |\n| --- | --- | --- | --- |\n| #1 | a | closed (`f502fba`) | T-1 |\n\
              **#18, transports.** text\n#37 to #39 and #41 are pull requests; more\n| Report | Entries |\n| lablup | T-1 |\n",
         );
-        assert_eq!(map.issues[&1], [Place { line: 3, state: Some("closed (`f502fba`)".into()) }]);
-        assert_eq!(map.issues[&18], [Place { line: 4, state: None }]);
+        let one = &map.issues[&1];
+        assert_eq!((one.len(), one[0].line, one[0].state.as_deref()), (1, 3, Some("closed (`f502fba`)")));
+        assert_eq!((one[0].subject.as_str(), one[0].entries.as_str(), one[0].kind.as_deref()), ("a", "T-1", None));
+        let head = &map.issues[&18];
+        assert_eq!((head.len(), head[0].line, head[0].state.as_deref()), (1, 4, None));
+        assert_eq!((head[0].subject.as_str(), head[0].entries.as_str()), ("transports.", "text"));
         assert_eq!(map.pulls, Some((5, vec![37, 38, 39, 41])));
         assert_eq!(map.issues.len(), 2, "a report's row is no issue");
+    }
+
+    /// The header names the columns: a column Kind, in any place, is read,
+    /// and the paragraph of a bold head goes on to its blank line.
+    #[test]
+    fn the_header_names_the_columns_and_a_head_s_paragraph_names_its_entries() {
+        let map = read_map(
+            "| Issue | Kind | Subject | State | Entries |\n| --- | --- | --- | --- | --- |\n\
+             | #3 | tracker | asks | open | T-2, T-4 |\n\n**#9, many asks.** First T-5;\nthen T-6.\n\nT-7 is no part.\n",
+        );
+        let row = &map.issues[&3][0];
+        assert_eq!(
+            (row.kind.as_deref(), row.subject.as_str(), row.state.as_deref()),
+            (Some("tracker"), "asks", Some("open"))
+        );
+        assert_eq!(row.entries, "T-2, T-4");
+        assert_eq!(map.issues[&9][0].entries, "First T-5; then T-6.");
     }
 
     #[test]

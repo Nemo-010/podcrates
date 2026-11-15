@@ -1,0 +1,11 @@
+--- a/crates/pod-todo/src/block.rs
++++ b/crates/pod-todo/src/block.rs
+@@ -237,7 +237,7 @@
+     }
+     s += "A tool writes this block from the work record of this repository (`TODO/issues.md`). \
+           Do not edit it: change the record.\n";
+-    s += &format!("{DATE}{}.\n{END}", date.unwrap_or("not known"));
++    s += &format!("{DATE}{}.\n", date.unwrap_or("not known"));
+     s
+ }
+ 

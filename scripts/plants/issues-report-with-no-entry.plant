@@ -1,0 +1,7 @@
+# The check of the issues takes a report or a tracker that names no
+# entry; its unit test must fail.
+ENTRY=T-703
+GROUP=record
+EXPECT='a_report_or_a_tracker_with_no_entry_fails_and_a_request_needs_none'
+RUN='cargo test -p pod-todo --lib issues'
+LIMIT=900

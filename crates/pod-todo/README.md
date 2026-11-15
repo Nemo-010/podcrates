@@ -8,8 +8,16 @@ dependency.
 ## Commands
 
 `check`, `set T-NNN open|partial|blocked|done`, `counts`, `next`,
-`remap [--dry-run] FILE...`, with `--root DIR` and `--base REV`. The rules
-of the record are in `TODO/RULES.md` of each repository.
+`remap [--dry-run] FILE...`, `issues --block NUMBER | --json`, with
+`--root DIR` and `--base REV`. The rules of the record are in
+`TODO/RULES.md` of each repository.
+
+`check` also holds the map of the issues (`TODO/issues.md`) to the status
+of the entries: a report, a deferred issue and a tracker are open exactly
+when one of their entries is not done (`src/issues.rs`). `issues` prints
+the status block of an issue, or each issue with its block as JSON for
+`scripts/issue-sync.py` (`src/block.rs`); it refuses a map that breaks a
+rule.
 
 ## The facts of a repository
 

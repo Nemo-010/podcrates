@@ -1,0 +1,7 @@
+# The block of an issue has no end marker, so the sync cannot find it
+# again; its unit test must fail.
+ENTRY=T-703
+GROUP=record
+EXPECT='the_block_has_its_markers_its_state_and_each_entry'
+RUN='cargo test -p pod-todo --lib block'
+LIMIT=900

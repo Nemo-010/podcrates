@@ -3221,7 +3221,7 @@ sh scripts/check-installer.sh
 **Milestone:** M8
 **Priority:** P1
 **Effort:** M
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -3246,7 +3246,49 @@ The kinds of issue, each with its rule (from the answers): an external report (a
 
 ```sh
 cargo test -p pod-todo
+python3 -I scripts/issue-sync.py --self-test
 ```
+
+## Done
+
+2026-11-15, partial: the check, the block, the sync and the workflow of
+podcrates are in (calls C692 to C698); the take of each project is left.
+
+- The kinds (`crates/pod-todo/src/issues.rs`, C692): report, coord,
+  request, deferred and tracker from the title, or from the column `Kind`
+  of the map; pull from the line of pull requests. `TODO/issues.md` has the
+  column `Kind` for each row. `read_map` reads the columns by the header,
+  and the paragraph of a bold head as its entries.
+- The rules (`cargo todo check`, C693): a report, a deferred issue or a
+  tracker names one entry or more, and is open in `TODO/github.txt`
+  exactly when one entry is not done. The rows that they found (C698):
+  #1 is closed in the record; #124, #125 and #131 are coord.
+- The block (`cargo todo issues --block N`, `--json`;
+  `crates/pod-todo/src/block.rs`, C694, C695): the kind, the state, each
+  entry with its status, its title and its tag, and the date of the
+  record, between `<!-- pod-todo:state -->` and
+  `<!-- /pod-todo:state -->`. Each done entry of the map gets a tag.
+- The sync (`scripts/issue-sync.py`, C696, C697): the block written or
+  replaced (the rest of the body kept), a close with one comment, an open
+  again, `--dry-run`, the guard of the ruling "Strangers", and a failure
+  on drift that it cannot fix. `.github/workflows/issue-sync.yml`: each
+  push to `main`, each day, by hand (`dry_run`), and `workflow_call` with
+  the input `podcrates_ref`; the dry run, then the sync.
+- Tests: `cargo test -p pod-todo --lib`, 46 unit tests passed (15 new in
+  `issues` and `block`); `python3 -I scripts/issue-sync.py --self-test`,
+  16 checks passed. Plants: `issues-closed-with-an-open-entry`,
+  `issues-open-with-each-entry-done`, `issues-report-with-no-entry`,
+  `issues-block-with-no-end-marker` (group `record`),
+  `issue-sync-edits-a-stranger`, `issue-sync-dry-run-writes`,
+  `issue-sync-drops-the-body` (group `agent`), each caught.
+
+Left: the first run of `issue-sync.yml` on `main` (a dispatch with
+`dry_run` first, then the sync, which closes #1 on GitHub); then a COORD
+issue `(to all)` that names the tag, and the take of podssh, podnet,
+podrunner and podvm (`docs/session-protocol.md`, item 5): each adds the
+column `Kind` where a title does not give the kind, fixes the rows that the
+rules find, and calls the workflow. The State column of the map can then
+become the state alone.
 
 # T-704: `podlab`: the usage errors of clap in the form of `pod_manual::error::fault`
 

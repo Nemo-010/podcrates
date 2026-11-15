@@ -1,0 +1,11 @@
+--- a/scripts/issue-sync.py
++++ b/scripts/issue-sync.py
+@@ -87,7 +87,7 @@
+     """True for an author of the team, or an issue that its session
+     confirmed."""
+     labels = [label.get("name") for label in item.get("labels") or []]
+-    return item.get("author_association") in TEAM or CONFIRMED in labels
++    return True
+ 
+ 
+ def comment_text(issue):

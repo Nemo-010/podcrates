@@ -1,0 +1,6 @@
+# The sync drops the text of the body after the block; its self-test
+# must fail.
+ENTRY=T-703
+GROUP=agent
+EXPECT='FAIL  the block is replaced and the rest of the body is kept'
+RUN='python3 -I scripts/issue-sync.py --self-test'

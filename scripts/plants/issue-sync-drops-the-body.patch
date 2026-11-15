@@ -1,0 +1,11 @@
+--- a/scripts/issue-sync.py
++++ b/scripts/issue-sync.py
+@@ -76,7 +76,7 @@
+     i, j = body.index(START), body.index(END)
+     if j < i:
+         raise Broken("the end marker of the block comes before its start marker")
+-    return body[:i] + block + body[j + len(END):]
++    return body[:i] + block
+ 
+ 
+ def without_date(text):

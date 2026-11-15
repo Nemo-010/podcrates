@@ -1,0 +1,11 @@
+--- a/scripts/issue-sync.py
++++ b/scripts/issue-sync.py
+@@ -199,7 +199,7 @@
+     for line in notes:
+         out(f"note  {line}")
+     failed = 0
+-    if not dry_run:
++    if True:
+         for n, fields, comment, _ in actions:
+             try:
+                 api.edit(n, fields)

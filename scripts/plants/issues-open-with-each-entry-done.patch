@@ -1,0 +1,11 @@
+--- a/crates/pod-todo/src/issues.rs
++++ b/crates/pod-todo/src/issues.rs
+@@ -199,7 +199,7 @@
+             .filter_map(|id| status.get(id.as_str()).filter(|s| **s != "done").map(|s| format!("{id} ({s})")))
+             .collect();
+         match (issue.state, not_done.is_empty()) {
+-            ("open", true) => p.push(Problem::new(
++            ("open", true) if false => p.push(Problem::new(
+                 github::MAP,
+                 issue.line,
+                 format!(

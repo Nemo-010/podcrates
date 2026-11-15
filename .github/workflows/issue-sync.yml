@@ -1,0 +1,93 @@
+name: issue-sync
+
+# The issues of the repository against its work record (the owner's ruling
+# "Issues"). scripts/issue-sync.py writes the status block of each issue
+# from the record (`pod-todo issues --json`), closes an issue that the
+# record closes, opens one again that the record opens, and fails on drift
+# that it cannot fix. It prints the dry run first. It never edits an issue
+# of an author outside the team that has no label `confirmed`.
+#
+# Another project of PodUtils calls it at a tag of podcrates, with the
+# same tag as input, from a workflow of its own (docs/session-protocol.md):
+#
+#   jobs:
+#     issues:
+#       permissions:
+#         contents: read
+#         issues: write
+#       uses: PodUtils/podcrates/.github/workflows/issue-sync.yml@TAG
+#       with:
+#         podcrates_ref: TAG
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Each day at 06:17 UTC, off the hour.
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Print each change and change nothing
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      podcrates_ref:
+        description: The tag of podcrates that `uses:` names; the script and pod-todo come from it
+        type: string
+        required: true
+      dry_run:
+        description: Print each change and change nothing
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: issue-sync-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      # The whole history and the tags: the block names the tag that
+      # carries the work of each entry.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: PodUtils/podcrates
+          ref: ${{ inputs.podcrates_ref || github.sha }}
+          path: .podcrates
+          persist-credentials: false
+      - name: The toolchain of podcrates
+        working-directory: .podcrates
+        run: sh scripts/retry.sh rustup toolchain install
+      - name: pod-todo
+        working-directory: .podcrates
+        run: cargo build --release --locked -p pod-todo
+      # A run that only prints fails on drift; before a sync, the sync
+      # itself fails on it, after it fixed what it can.
+      - name: The changes (a dry run)
+        continue-on-error: ${{ !inputs.dry_run }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python3 -I .podcrates/scripts/issue-sync.py --root . --dry-run
+          --todo "$GITHUB_WORKSPACE/.podcrates/target/release/pod-todo"
+      - name: The sync
+        if: ${{ !inputs.dry_run }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          python3 -I .podcrates/scripts/issue-sync.py --root .
+          --todo "$GITHUB_WORKSPACE/.podcrates/target/release/pod-todo"

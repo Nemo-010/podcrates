@@ -1,0 +1,7 @@
+# The check of the issues lets an issue stay open when each of its
+# entries is done; its unit test must fail.
+ENTRY=T-703
+GROUP=record
+EXPECT='an_open_issue_whose_entries_are_all_done_fails'
+RUN='cargo test -p pod-todo --lib issues'
+LIMIT=900

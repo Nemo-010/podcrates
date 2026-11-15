@@ -1,0 +1,7 @@
+# The check of the issues lets a closed issue keep an entry that is not
+# done; its unit test must fail.
+ENTRY=T-703
+GROUP=record
+EXPECT='a_closed_issue_with_an_entry_that_is_not_done_fails'
+RUN='cargo test -p pod-todo --lib issues'
+LIMIT=900

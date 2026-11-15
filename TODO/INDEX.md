@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**572 entries: 116 open, 10 partial, 6 blocked, 440 done.**
+**572 entries: 115 open, 11 partial, 6 blocked, 440 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 14 | 5 | 0 | 122 | 141 |
+| P1 | 13 | 6 | 0 | 122 | 141 |
 | P2 | 51 | 2 | 4 | 230 | 287 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 116 | 10 | 6 | 440 | 572 |
+| **All** | 115 | 11 | 6 | 440 | 572 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -612,7 +612,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-700](fleet.md) | P1 | L | M8 | feature | partial | `pod-manual`: one crate for the help and the manual of each command line of PodUtils (PodUtils/podnet#584) |
 | [T-701](fleet.md) | P1 | M | M8 | feature | open | `pod-lab`: the host classes of podssh and podnet as profiles, with the lane of each project (PodUtils/podssh#268, PodUtils/podnet#585) |
 | [T-702](fleet.md) | P1 | M | M8 | feature | open | one POSIX installer for each project, hermetic, idempotent and fast, run in the labs (the ruling "Installer") |
-| [T-703](fleet.md) | P1 | M | M8 | feature | open | a mechanical check of the open issues and their comments against the record, for each project (the ruling "Issues") |
+| [T-703](fleet.md) | P1 | M | M8 | feature | partial | a mechanical check of the open issues and their comments against the record, for each project (the ruling "Issues") |
 | [T-704](fleet.md) | P2 | S | M8 | feature | open | `podlab`: the usage errors of clap in the form of `pod_manual::error::fault` |
 | [T-705](fleet.md) | P2 | S | M8 | feature | open | `check-strings.py`: the strings of Mach-O and PE binaries |
 | [T-710](foundation.md) | P1 | S | M0 | chore | done | one watcher of the organization for each session: issues, pull requests and Actions runs (the ruling "Watcher") |

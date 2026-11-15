@@ -1,0 +1,5 @@
+# The dry run of the sync writes to GitHub; its self-test must fail.
+ENTRY=T-703
+GROUP=agent
+EXPECT='FAIL  the dry run writes nothing'
+RUN='python3 -I scripts/issue-sync.py --self-test'

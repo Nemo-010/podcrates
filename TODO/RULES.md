@@ -159,12 +159,48 @@ no XL: make two entries.
 - Each request of an issue becomes one entry or more. The Source is
   `GitHub #N`, and the title ends with `(GitHub #N)`.
 - `TODO/issues.md` maps each issue to its entries: one row
-  (`| #N | Subject | State | Entries |`), or one bold head
-  (`**#N, subject.**`) for an issue with many requests. The State starts
-  with the state on GitHub: `open`, `closed` or `deleted`.
+  (`| #N | Kind | Subject | State | Entries |`), or one bold head
+  (`**#N, subject.**`) for an issue with many requests; the text of the
+  head's paragraph names its entries. The header of a table names its
+  columns; the column Kind can be absent. The State starts with the state
+  of the issue in the record: `open`, `closed` or `deleted`.
 - `TODO/github.txt` lists each number of GitHub from #1 on, one on each
   line: `NUMBER issue|pull open|closed`, or `NUMBER issue deleted` for an
-  issue that GitHub deleted.
+  issue that GitHub deleted. The record sets the state: the sync
+  (`scripts/issue-sync.py`, below) makes GitHub agree.
+
+### The kind of an issue
+
+| Kind | What | The title, when the column Kind is absent |
+| --- | --- | --- |
+| `report` | An external report, or a request of a user or a tester. | Each other title. |
+| `coord` | A message between sessions, or a hand-over to another project. | `COORD-NNN: ...` |
+| `request` | A request of a run of a workflow. | `[gh action] requested ...` |
+| `deferred` | An issue that its author deferred. | `[DEFERRED] ...` |
+| `tracker` | An issue whose body lists the asks of a project. | Only the column names it. |
+| `pull` | A pull request: the line of pull requests names it. | |
+
+- The column Kind cannot change the kind that the title gives to `coord`,
+  `request` and `deferred`.
+- A report, a deferred issue and a tracker hold work. Each names one
+  entry or more. Each is open in the record exactly when one of its
+  entries is not `done`. `cargo todo check` fails on an open one whose
+  entries are all done, and on a closed one with an entry that is not
+  done.
+- A message and a request close on an answer or on the runs, not on
+  entries. They need no entry.
+
+### The status block and the sync
+
+- `cargo todo issues --block N` prints the status block of issue N from
+  the record: the kind, the state, each entry with its status, its title
+  and the tag that carries its work, and the date of the record, between
+  `<!-- pod-todo:state -->` and `<!-- /pod-todo:state -->`.
+- `.github/workflows/issue-sync.yml` runs `scripts/issue-sync.py` on each
+  push to `main` and each day. It writes the block into the body of each
+  issue, closes an issue that the record closes, and opens again one that
+  the record opens. Do not edit the block by hand: change the record.
+  Do not write the state of an issue in a comment.
 - Each pull request of the list is in one line of `TODO/issues.md` that
   ends with "are pull requests": `#2 and #5 to #7 are pull requests.`
 - Change `TODO/issues.md` and `TODO/github.txt` in the same commit as the
@@ -172,12 +208,13 @@ no XL: make two entries.
   .github/workflows/record-issues.yml holds the list to GitHub each day
   (`scripts/check-github-numbers.py`). It is red until a session maps the
   new number.
-- When each entry of an issue is done: close it with the commits and the
-  evidence. On an issue of another author, write them in a comment. On an
-  issue of this session (a COORD issue, a tracker), amend the body to end
-  with one line of the result, and add no comment. Then set the State of
-  its row to `closed`, with the commit or the result, and change its line
-  in `TODO/github.txt`.
+- When each entry of an issue is done: set the State of its row to
+  `closed`, with the commit or the result, and change its line in
+  `TODO/github.txt`, in the commit that closes the last entry. The sync
+  closes the issue on GitHub; on a report, a deferred issue or a tracker
+  it writes one comment that names each entry and its tag. On an issue of
+  this session (a COORD issue), amend the body to end with one line of the
+  result. An issue of a project with no sync yet is closed by its session.
 - An issue that GitHub deleted stays in the list as `NUMBER issue
   deleted`. Its row's State starts with `deleted`. Its entries stay. No
   comment goes to it.

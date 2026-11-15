@@ -1,0 +1,11 @@
+--- a/crates/pod-todo/src/issues.rs
++++ b/crates/pod-todo/src/issues.rs
+@@ -208,7 +208,7 @@
+                     github::LIST
+                 ),
+             )),
+-            ("closed", false) => p.push(Problem::new(
++            ("closed", false) if false => p.push(Problem::new(
+                 github::MAP,
+                 issue.line,
+                 format!(

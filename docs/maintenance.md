@@ -82,6 +82,9 @@ the tools.
   * `retry.sh COMMAND...`: a command up to 5 times, for the steps of CI
     that read the network.
   * `check-github-numbers.py`: `TODO/github.txt` against GitHub.
+  * `issue-sync.py [--dry-run]`: the issues on GitHub against the record
+    (see "The state of an issue"). It runs only in CI, with
+    `GITHUB_TOKEN`; `--self-test` runs its checks with a fake API.
   * `check-crates-io-names.py`: each name of `docs/design.md`, section 4,
     on crates.io with the repository of podcrates (GitHub #1).
 
@@ -99,11 +102,38 @@ the tools.
    once).
 5. Run the checks (`docs/development.md`). Commit and push to `main`.
 6. Watch the runs of the commit (`watch-runs.sh`).
-7. Set each entry to `done` with its Done section. Close the issue when
-   each of its entries is done: the commits, the cause, the change, the
-   tests and the CI runs go in a comment on an issue of another author;
-   on an issue of this session they go into the body (see "Talk between
-   sessions").
+7. Set each entry to `done` with its Done section. When each entry of
+   the issue is done, set the issue to `closed` in `TODO/github.txt` and
+   in its row, in the same commit. The sync closes it on GitHub, with one
+   comment that names the entries and their tags (see "The state of an
+   issue").
+
+### The state of an issue
+
+The state of each issue comes from the record by a tool, not by hand (the
+owner's ruling "Issues"):
+
+* `cargo todo check` holds the state of each issue in `TODO/github.txt`
+  to the status of its entries, by its kind (`TODO/RULES.md`, section 4).
+* `cargo todo issues --block N` prints the status block of issue N: its
+  kind, its state, each entry with its status, its title and its tag,
+  and the date of the record. The tag is the first tag that holds the
+  commits that the Done of the entry names, or else the commit that set
+  its row to `done`.
+* `.github/workflows/issue-sync.yml` runs on each push to `main`, each day
+  and by hand (the input `dry_run`). It prints the dry run of
+  `scripts/issue-sync.py`, then syncs: it writes the block into the body
+  of each issue (it keeps the rest of the body), closes an issue that the
+  record closes (with one comment on a report, a deferred issue or a
+  tracker), and opens again one that the record opens. It fails on drift
+  that it cannot fix: an open issue with no row, a number that GitHub
+  does not have as an issue, a body with a broken block. It does not edit
+  an issue of an author outside the team with no label `confirmed`; it
+  reports it.
+* A session never edits the block by hand and never writes the state of
+  an issue in a comment or in a `state:` line: it changes the record.
+* A push of a session whose account has no GitHub Actions starts no run:
+  the daily run syncs, or a dispatch of `issue-sync.yml`.
 
 ## One crate
 
@@ -143,8 +173,9 @@ for each writer; no session sends a direct message (the ruling
   session writes nothing to a consumer. The title starts with a unique id
   and names the reader: `COORD-NNN: subject (to podnet)`. A session opens
   and amends these issues with no new yes of the owner (the ruling Q5).
-* The writer amends its own body, not a comment, with a line
-  `state: ... at TIME (UTC)` that the reader can poll for.
+* The status block of the sync (see "The state of an issue") gives the
+  state of the message from the record; the writer adds no `state:` line
+  and no status comment.
 * The reader polls through the read-only mirror:
   `curl -qfsS "https://forge.web.pkgforge.dev/github/repos/OWNER/REPO/issues?state=open&n=$RANDOM"`
   and `.../issues/N?n=$RANDOM`.
@@ -183,8 +214,8 @@ For each consumer, the repositories are the channel:
 The session dispatches a workflow with the GitHub MCP tool
 `actions_run_trigger` (`run_workflow`, with the ref and the inputs), and
 reads the run with `actions_list` and `actions_get`. A push to `main`
-starts `ci.yml`, `adoption.yml`, `plants.yml`, `deny.yml` and
-`secrets.yml`; a newer push cancels the queued run of `ci.yml`,
+starts `ci.yml`, `adoption.yml`, `plants.yml`, `deny.yml`, `secrets.yml`
+and `issue-sync.yml`; a newer push cancels the queued run of `ci.yml`,
 `adoption.yml` and `plants.yml`. Dispatch the other workflows (`nightly.yml`, `live.yml`,
 `services.yml`, `release.yml`, `upstream.yml`, `record-issues.yml`) when a step needs them.
 
