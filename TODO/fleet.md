@@ -3577,3 +3577,34 @@ sh scripts/plant-each.sh issue-sync-closes-a-reference
 ## Done
 
 2026-11-16. `Kind::Reference` in `crates/pod-todo/src/issues.rs` (`[Reference]` titles and the column), the block says "a reference that holds no work", and `scripts/issue-sync.py` writes only the block of a reference (`BY_HAND`). Tests: `a_reference_needs_no_entry_and_its_entries_are_notes`, and a check of the sync self-test; the plant `issue-sync-closes-a-reference` is caught.
+
+# T-724: `issue-sync.yml` builds `pod-todo` under the caller's `.cargo/config.toml` (PodUtils/podvm#437)
+
+**Source:** PodUtils/podvm#437 (COORD-146 of podvm); podvm's dry run 43770947835.
+**Category:** defect
+**Milestone:** M8
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+The reusable workflow `issue-sync.yml` checks out podcrates at `.podcrates`, under the workspace of the caller, and builds `pod-todo` there. Cargo reads each `.cargo/config.toml` from the current directory up, so it took podvm's (`[build] target = "x86_64-unknown-linux-musl"`), and the runner has no musl target: `can't find crate for std`. A caller with a build target, a linker or rustflags in its configuration meets the same.
+
+## Premise
+
+- Measured here: a copy of podcrates under a directory whose `.cargo/config.toml` names a bogus target fails to build `pod-todo` in place, and builds from a directory outside it. Run from outside, rustup does not find `rust-toolchain.toml` either, so the build must name the toolchain.
+
+## Approach
+
+The step builds from `$RUNNER_TEMP` with `--manifest-path`, `--target-dir "$RUNNER_TEMP/pod-todo"`, `RUSTUP_TOOLCHAIN` from `rust-toolchain.toml` of podcrates, and no `CARGO_BUILD_TARGET`, `RUSTFLAGS` or `CARGO_ENCODED_RUSTFLAGS`; the sync reads the binary there.
+
+## Prove
+
+```sh
+python3 scripts/check-workflows.py
+```
+
+## Done
+
+2026-11-16. The script of the step, run here under a workspace with a bogus target in `.cargo/config.toml` and in `CARGO_BUILD_TARGET`, built `pod-todo` at `$RUNNER_TEMP/pod-todo/release/pod-todo`.

@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**576 entries: 117 open, 11 partial, 6 blocked, 442 done.**
+**577 entries: 117 open, 11 partial, 6 blocked, 443 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 12 | 6 | 0 | 124 | 142 |
+| P1 | 12 | 6 | 0 | 125 | 143 |
 | P2 | 54 | 2 | 4 | 230 | 290 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 117 | 11 | 6 | 442 | 576 |
+| **All** | 117 | 11 | 6 | 443 | 577 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -623,3 +623,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-715](fleet.md) | P2 | S | M8 | feature | open | `pod-hostprobe`: the rows of the file classes of podssh (absent paths, the terminal, the lines of the ids, `HOME`, read-only mounts) |
 | [T-716](fleet.md) | P2 | M | M8 | feature | open | `pod-lab`: the labs and the probe rows of the network classes of podssh and podnet (podnet's hand-off) |
 | [T-723](fleet.md) | P1 | S | M8 | feature | done | `pod-todo`: a kind `reference` for an issue that holds no work (PodUtils/podvm#435) |
+| [T-724](fleet.md) | P1 | S | M8 | defect | done | `issue-sync.yml` builds `pod-todo` under the caller's `.cargo/config.toml` (PodUtils/podvm#437) |
