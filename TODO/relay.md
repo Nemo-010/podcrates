@@ -8016,11 +8016,11 @@ cargo test -p pod-ws --all-features
 **Milestone:** M2
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
-In CI the test failed at `crates/pod-transit/tests/transit.rs:93` with `ConnectionReset` on the link. The log shows the node's first meeting at the loopback transit relay fail ("the relay ended the connection before the meeting: the server closed the connection without a WebSocket Close") and a retry in 842 ms, while the client already met a connection: the client took the node's dead connection for its pair. `pod-transit` did not change since `v0.56.0`, whose `ci` passed.
+In CI the test failed at `crates/pod-transit/tests/transit.rs:95` with `ConnectionReset` on the link. The log shows the node's first meeting at the loopback transit relay fail ("the relay ended the connection before the meeting: the server closed the connection without a WebSocket Close") and a retry in 842 ms, while the client already met a connection: the client took the node's dead connection for its pair. `pod-transit` did not change since `v0.56.0`, whose `ci` passed.
 
 ## Premise
 
@@ -8035,3 +8035,11 @@ Read the relay stub of the tests and the meeting of the client and the node: fin
 ```sh
 cargo test -p pod-transit --test transit
 ```
+
+## Correction
+
+2026-11-15. The runs of the Premise prove nothing about the relay: with no Python that imports `wormhole_transit_relay` (this host has none, and `POD_WORMHOLE_TEST_PYTHON` was not set), each test of the relay says `did not run` and passes. Only `scripts/ci/mailbox-tests.sh` runs them, with `POD_WORMHOLE_TEST_SERVER=required`.
+
+## Done
+
+2026-11-15, the commit of the fix. The cause is in the harness of the tests, not in the crate. The lines `node: waiting at the transit relay ... for the pair's operators`, `a meeting ... failed` and `waiting ... again in 842 ms` come from `far::serve_kept`, which only `a_session_moves_to_another_road_when_the_transit_relay_stops` runs (`--nocapture` puts the lines of each test in one log): that test stops its relay on purpose, and its node's waiting connection then ends with no Close. `two_ends_meet_and_carry_one_mib_each_way` met through `node_meets` and `Dialer::link`: both ends proved the pair, so the link was a true meeting. `Relay::start` chose its two ports with `free_port` (a bind to port 0, then the release of the port) and took the relay as up when a connection to the WebSocket port passed. Two tests that run at a time can choose one port: the second relay cannot bind it and ends, while the first relay's listener takes the connections of the second test. The test of 1 MiB then ran through the relay of the other test, and its link got `ConnectionReset` when that test killed its relay. The client cannot take a connection that ends before the meeting for its pair: `meet` gives a link only after `ok`, the hello and a proof of the pair from the peer, and an end before the proof is `Dropped` or `Broken` (the client tries again). The fix (call C717): `transit_server::own_listener` takes the relay only when its own child holds the listening socket of the port (its inode in `/proc/net/tcp` among the files of `/proc/PID/fd`; on a system with no `/proc`, a connection while the child lives); a child that ends or does not listen within `START_LIMIT` is killed, and `Relay::start` tries again with new ports, 5 times at most. The test `the_harness_takes_only_its_own_child_s_listener_for_a_relay` (Linux, python3 alone, no relay): a listener of the test holds a port; a child that cannot bind that port ends and is refused, a child that does not listen is refused within 2 s, and a child that listens on its own port is taken. The plant `transit-harness-any-listener` (a connection to the port as the proof, as before) fails it at each run. No change of the crate: no line for the release notes. `cargo test -p pod-transit --all-features` passed; 100 runs of `--test transit` passed as root, 100 as uid 65534, 100 on one loaded CPU (`taskset -c 0`, with two busy loops on that CPU) and 20 more there as uid 65534. The tests of the relay itself said `did not run` here (see the Correction); `scripts/ci/mailbox-tests.sh` runs them. The same choice of a port is in five more harnesses: T-732.

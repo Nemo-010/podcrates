@@ -1,0 +1,9 @@
+# The harness of the transit relay takes any listener on the port that it
+# chose for its own relay, as before T-731: a listener of another process
+# (another test's relay) then takes the test's connections. The test of
+# the harness must fail. It needs python3 alone, not the transit relay.
+ENTRY=T-731
+GROUP=transit
+EXPECT='test the_harness_takes_only_its_own_child_s_listener_for_a_relay \.\.\. FAILED'
+RUN='cargo test -p pod-transit --test transit -- the_harness_takes_only_its_own_child_s_listener_for_a_relay --exact'
+LIMIT=1800

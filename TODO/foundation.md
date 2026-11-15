@@ -1934,3 +1934,35 @@ sh scripts/plant-each.sh watch-misses-an-edited-comment
 The same day, after a live run: the organization has 26 repositories, so a list of issues and of comments for each was over 50 reads for each poll, and the mirror refused some (403); the watcher then fell back to ORG/ME alone. Now two searches of the organization (`org:PodUtils is:issue` and `is:pr`, `updated:>=` the last poll less 10 min) find what changed, and the watcher reads the comments of each changed item since the last poll (an edit of a comment moves the `updated_at` of its item: measured on PodUtils/podcrates#181). The text of an item is compared by a hash, so a comment does not read as an amended message. A failed read gets one more short try, and a silence of 10 min is said once (podssh's fix of its `watch-runs.py`, PodUtils/podssh#270 at `7870c2b`). The checks moved to `scripts/agent/watch_test.py` (40 checks), as `watch.py` reached 500 lines. The live run reported the edit of a comment on PodUtils/podcrates#180 as `COMMENT edited`. Plants: `watch-amends-on-a-comment` is new.
 
 The same day, a live run over the state of the earlier form: the first search reached 30 days and printed each older item as new, and the first read of the runs printed 30 runs. Now the first search and the first read of the runs of a repository record and print nothing; a run over a state of the earlier form printed no line. The loop has no unit check; the live run is the proof.
+
+# T-732: `pod-testkit`: a server of a test harness is up only when its own child listens on its port
+
+**Source:** T-731 (a finding of its work).
+**Category:** defect
+**Milestone:** M0
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+Five harnesses choose the port of a server child with a bind to port 0 and the release of the port, and take the server as up when a connection to the port passes: `crates/pod-wormhole/tests/harness/mod.rs` and `crates/pod-wormhole/tests/harness/broker.rs`, `crates/pod-relay/tests/mailbox_harness/mod.rs`, `crates/pod-services-watch/tests/watches/transit.rs`, `crates/pod-dns/tests/doh_coredns.rs` (and `free_port` of `crates/pod-oci/tests/common/distribution/mod.rs`). Two tests that run at a time can choose one port: the second child cannot bind it and ends, and its test runs against the server of the other test, which can stop it at any time. T-731 was this defect in `pod-transit`.
+
+## Premise
+
+- Read: the harnesses above, and `crates/pod-transit/tests/transit_server/mod.rs` (`own_listener`, the fix of T-731).
+- Not measured: a failure of these harnesses in CI.
+
+## Approach
+
+Move `own_listener` (the inode of the listener in `/proc/net/tcp` among the files of the child) to `pod-testkit` (`host` or a new module), with its test. Use it in each harness, with new ports for a child that ends or does not listen, and in `pod-transit` in place of its own copy.
+
+## Prove
+
+```sh
+cargo test -p pod-testkit --all-features
+cargo test -p pod-wormhole --all-features
+cargo test -p pod-relay --all-features
+cargo test -p pod-services-watch
+cargo test -p pod-dns --all-features
+```

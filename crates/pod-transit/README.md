@@ -137,13 +137,19 @@ and passes, unless `POD_WORMHOLE_TEST_SERVER=required`
 - `a_side_that_knows_the_token_alone_is_refused_by_the_node`;
 - `two_clients_of_one_pair_never_take_each_other_for_the_node`;
 - `a_session_moves_to_another_road_when_the_transit_relay_stops`;
+- `the_harness_takes_only_its_own_child_s_listener_for_a_relay` (Linux,
+  python3 alone): the harness takes a relay only when its own child
+  listens on the port that it chose (`/proc/net/tcp` and the child's
+  files), else it chooses new ports; a listener of another test's relay
+  on that port is not the test's relay;
 - live (`#[ignore]`, `live.yml`):
   `through_least_authority_two_ends_meet_and_carry_one_mib_each_way`,
   `through_least_authority_a_session_of_the_layer_echoes_one_mib`.
 
 The plants (`scripts/plants/`, group `transit`): `transit-same-side`,
 `transit-proof-any-role`, `transit-hello-own-part`,
-`transit-refusal-echoes`, `transit-answer-unbounded`.
+`transit-refusal-echoes`, `transit-answer-unbounded`,
+`transit-harness-any-listener`.
 
 ## Sources
 

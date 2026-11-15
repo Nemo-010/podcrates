@@ -8,7 +8,9 @@
 //! The tests marked `ignore` run one short session through Least
 //! Authority's relay, from GitHub Actions (`live.yml`). Planted
 //! (`scripts/plants/transit-same-side.patch`): each end's line names one
-//! side, and the meeting fails.
+//! side, and the meeting fails. Planted
+//! (`scripts/plants/transit-harness-any-listener.patch`): the harness takes
+//! a listener of another process on its port for its relay.
 
 mod cleanup;
 mod transit_server;
@@ -194,6 +196,57 @@ async fn two_clients_of_one_pair_never_take_each_other_for_the_node() {
     let (first, second) = (first.to_string(), second.to_string());
     assert!(first.contains("no node met") && second.contains("no node met"), "{first}; {second}");
     assert!(first.contains("another client") || second.contains("another client"), "they never met: {first}");
+}
+
+/// The harness takes only its own child's listener for a relay: a child
+/// that lost its port to another process (another test's relay, on a port
+/// that both chose) ends, and one that does not listen yet is not taken; a
+/// child that listens itself is. Needs no transit relay. Linux only: the
+/// proof reads `/proc`.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_harness_takes_only_its_own_child_s_listener_for_a_relay() {
+    use std::io::BufRead;
+    use std::process::{Child, Command, Stdio};
+    /// A child that ends with the test.
+    struct Killed(Child);
+    impl Drop for Killed {
+        fn drop(&mut self) {
+            let _ = self.0.kill();
+            let _ = self.0.wait();
+        }
+    }
+    pod_testkit::need_loopback!();
+    pod_testkit::need_tool!("python3");
+    let other = std::net::TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).expect("a port of the loopback");
+    let taken = other.local_addr().expect("its address");
+    let python = |code: &str| {
+        let mut child = Command::new("python3");
+        child
+            .args(["-I", "-c", code])
+            .arg(taken.port().to_string())
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null());
+        Killed(child.spawn().expect("python3 starts"))
+    };
+    let listen = "import socket, sys, time\ns = socket.socket()\ns.bind(('127.0.0.1', int(sys.argv[1])))\n\
+                  s.listen()\nprint(s.getsockname()[1], flush=True)\ntime.sleep(60)";
+    let mut lost = python(listen);
+    let why = transit_server::own_listener(&mut lost.0, taken, Duration::from_secs(20));
+    let why = why.expect_err("the harness took another process's listener for its child's");
+    assert!(why.contains("ended"), "{why}");
+    let mut late = python("import time\ntime.sleep(60)");
+    let why = transit_server::own_listener(&mut late.0, taken, Duration::from_secs(2));
+    let why = why.expect_err("the harness took another process's listener for its child's");
+    assert!(why.contains("did not listen"), "{why}");
+    let mut own = python(&listen.replace("int(sys.argv[1])", "0"));
+    let mut port = String::new();
+    let out = own.0.stdout.take().expect("the child's stdout");
+    std::io::BufReader::new(out).read_line(&mut port).expect("the child's port");
+    let at = std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, port.trim().parse::<u16>().expect("a port")));
+    transit_server::own_listener(&mut own.0, at, Duration::from_secs(20)).expect("the child's own listener");
+    drop(other);
 }
 
 /// An echo of each byte, as a node's target.

@@ -1,0 +1,11 @@
+--- a/crates/pod-transit/tests/transit_server/mod.rs
++++ b/crates/pod-transit/tests/transit_server/mod.rs
+@@ -152,7 +152,7 @@
+         if let Ok(Some(status)) = child.try_wait() {
+             return Err(format!("it ended ({status}) before it listened at {at}"));
+         }
+-        if holds_listener(child.id(), at) {
++        if std::net::TcpStream::connect_timeout(&at, Duration::from_millis(200)).is_ok() {
+             return Ok(());
+         }
+         if Instant::now() >= deadline {
