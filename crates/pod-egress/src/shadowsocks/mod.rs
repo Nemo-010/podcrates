@@ -17,8 +17,8 @@
 //! refused by its name, and so is a plugin, another program that this client does
 //! not start. The server is reached as each road reaches its first host: TCP
 //! through the proxy of the environment ([`open`]), or, for a server of an
-//! Outline access key that names one, a WebSocket over TLS ([`ws`],
-//! [`key`]).
+//! Outline access key that names one ([`access_key`]), a WebSocket over
+//! TLS.
 //!
 //! The password goes into the master key and nowhere else: no message, no
 //! `Debug` and no line of a log holds it.
