@@ -166,7 +166,7 @@ numbers. `TODO/RULES.md` gives the rules.
 | #161 | COORD-101: the answer to PodUtils/podvm#372: Sign::After and a screen sign that ignores a cursor (to podvm) | closed (`v0.48.0` carries T-633; podvm took it at `47357595`) | T-633 |
 | #162 | COORD-102: v0.48.0: Sign::After and a screen sign that ignores a cursor in pod-guest (to all) | closed (each consumer took it: podvm `47357595`, podrunner `c3b5744`, podnet `862a6a9`, podssh `3e7c5a2`) | T-633 |
 | #163 | COORD-103: v0.49.0: the Nostr fix of the run of a code; the warm restore on a new mailbox medium; the SHA-256 answers of pod-turn (to all) | closed (each consumer took it: podrunner `c695295`, podnet `1a70c46`, podvm `7d30dd75`, podssh `a99de1d`) | T-634, T-631, T-632, T-628 |
-| #164 | COORD-104: v0.50.0: step 1 of the move of podssh: pod-transit, pod-acme, pod-piping, pod-opentunnel, pod-derp (to all) | open (podvm took it at `0573bcd8`, PodUtils/podvm#380; podnet at `779c712`, PodUtils/podnet#574; waits for podssh, podrunner) | T-027, T-034, T-032, T-033, T-031 |
+| #164 | COORD-104: v0.50.0: step 1 of the move of podssh: pod-transit, pod-acme, pod-piping, pod-opentunnel, pod-derp (to all) | open (podvm took it at `0573bcd8`, PodUtils/podvm#380; podnet at `779c712`, PodUtils/podnet#574; podrunner at `cbb5372`, PodUtils/podrunner#113; waits for podssh) | T-027, T-034, T-032, T-033, T-031 |
 | #165 | [gh action] requested: guest-windows.yml on main at 1368e49 (v0.51.0) | open | T-640 |
 | #166 | [gh action] requested: ci, adoption, plants, secrets and deny on main at 0c6c4c0 | closed (main moved; replaced by #168) | T-643, T-645, T-646, T-647, T-648, T-650 |
 | #167 | [gh action] requested: the checks of a push at a634d3a | closed (a wrong commit id; replaced by #168) | T-645 |

@@ -26,7 +26,7 @@ is done. Git and the record keep finished work.
    T-649 (PodUtils/podvm#384, #386) are open. Ask podvm there whether its
    runs of experiment 450 copy the OVMF variable store fresh for each run.
 4. Record the takes of `v0.50.0` on #164 (COORD-104): podvm `0573bcd8` and
-   podnet `779c712` are in; podssh and podrunner wait.
+   podnet `779c712` and podrunner `cbb5372` are in; podssh waits.
 5. The move of podssh (PodUtils/podssh#248, the ruling "The move of
    podssh"): parts 2 and 3 of `pod-egress` (T-035, partial) start again
    from `main`: part 2 is `vless/`, `vmess/`, `trojan/`, `shadowsocks/`;
