@@ -1,10 +1,10 @@
 diff --git a/crates/pod-enter/src/ns_optional.rs b/crates/pod-enter/src/ns_optional.rs
-index 4374e8ae..7fb1da01 100644
+index ee6faa27..7c883ae6 100644
 --- a/crates/pod-enter/src/ns_optional.rs
 +++ b/crates/pod-enter/src/ns_optional.rs
-@@ -91,7 +91,7 @@ pub(crate) fn optional_mounts(root: &str, names: &Names) -> Vec<Optional> {
- pub(crate) fn mount_each(list: &[Optional], user: bool) {
-     for m in list {
+@@ -92,7 +92,7 @@ pub(crate) fn mount_each(ns: &crate::entry::NsMount) {
+     let user = ns.user.is_some();
+     for m in &ns.optional {
          let Err(e) = sys::mount(&m.source, &m.target, &m.fstype, m.flags) else { continue };
 -        if user && e == sys::EPERM && !matches!(m.fallback, Fallback::None) {
 +        if false && user && e == sys::EPERM && !matches!(m.fallback, Fallback::None) {
