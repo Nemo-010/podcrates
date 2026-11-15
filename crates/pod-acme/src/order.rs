@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use base64::Engine as _;
 use podssh_ws::tls_server::Served;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::certs::{self, Key, Leaf};
 use super::client::{self, Client, PEM_CHAIN};

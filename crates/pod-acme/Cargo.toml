@@ -2,7 +2,7 @@
 name = "pod-acme"
 description = "An ACME client: a certificate for a name by TLS-ALPN-01, kept and renewed."
 version.workspace = true
-edition = "2021"
+edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true

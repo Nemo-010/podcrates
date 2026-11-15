@@ -9,7 +9,7 @@ use std::time::Duration;
 use podssh_ws::client::open_tls;
 use podssh_ws::http::{self, Response};
 use podssh_ws::{ProxyChoice, Trust};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use super::jws::Account;
 use crate::update::fetch::Url;

@@ -3,9 +3,9 @@
 //! thumbprint (RFC 7638), which each key authorization ends with.
 
 use aws_lc_rs::rand::SystemRandom;
-use aws_lc_rs::signature::{EcdsaKeyPair, KeyPair, ECDSA_P256_SHA256_FIXED_SIGNING};
+use aws_lc_rs::signature::{ECDSA_P256_SHA256_FIXED_SIGNING, EcdsaKeyPair, KeyPair};
 use base64::Engine as _;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use sha2::Digest as _;
 use zeroize::Zeroizing;
 

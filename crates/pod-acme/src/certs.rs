@@ -7,7 +7,7 @@
 use std::sync::Arc;
 
 use aws_lc_rs::rand::SystemRandom;
-use aws_lc_rs::signature::{EcdsaKeyPair, KeyPair, ECDSA_P256_SHA256_ASN1_SIGNING};
+use aws_lc_rs::signature::{ECDSA_P256_SHA256_ASN1_SIGNING, EcdsaKeyPair, KeyPair};
 use base64::Engine as _;
 use rustls::sign::CertifiedKey;
 use sha2::Digest as _;
