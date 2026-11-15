@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**519 entries: 105 open, 8 partial, 6 blocked, 400 done.**
+**520 entries: 105 open, 8 partial, 6 blocked, 401 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 106 | 120 |
-| P2 | 49 | 2 | 4 | 209 | 264 |
+| P2 | 49 | 2 | 4 | 210 | 265 |
 | P3 | 45 | 3 | 2 | 83 | 133 |
-| **All** | 105 | 8 | 6 | 400 | 519 |
+| **All** | 105 | 8 | 6 | 401 | 520 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -566,4 +566,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-633](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: the screen sign of the readiness fails on Validation OS, so the provision never types into a Windows guest |
 | [T-634](relay.md) | P1 | S | M2 | defect | done | `pod-relay`: the run of a code fails over the Nostr relays alone, though `pod_wormhole::nostr` pairs (PodUtils/podssh#247) |
 | [T-635](podvm.md) | P3 | S | M7 | feature | open | `pod-guest`: a setting of the bus of the root disk, so that a warm start runs on QEMU 8.2 |
-| [T-639](relay.md) | P2 | S | M2 | defect | open | `pod-link`: a closed half of a split session can end the listener with "the carrier of the link ended" in place of the lost half |
+| [T-639](relay.md) | P2 | S | M2 | defect | done | `pod-link`: a closed half of a split session can end the listener with "the carrier of the link ended" in place of the lost half |

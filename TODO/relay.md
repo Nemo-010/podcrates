@@ -7825,7 +7825,7 @@ PodUtils/podnet@T-353), a defect of T-500.
 **Milestone:** M2
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7869,3 +7869,33 @@ the fix and runs its test 50 times.
 ```sh
 cargo test -p pod-link --all-features --test split
 ```
+
+## Done
+
+2026-11-14, commit `1bc0e9c`. Calls C610 and C611.
+
+- The cause: a link closes its byte stream when the loss of a half ended
+  it. The task of an end that sends the link's bytes on its main half
+  could read that close before it saw the fault, and sent `END`. The peer
+  link then read the end of its bytes and ended with "the carrier of the
+  link ended" before its own end saw the loss. The task now reads the
+  fault after each read of the link's bytes and sends `LOST` in place of
+  `END` (call C610). The fault is set before the state turns to `Failed`
+  (`pipes::Ends::failed`). A write to the byte stream of a carrier of
+  tasks (poll, s3, split) after a fault gives the fault.
+- Test: `a_closed_half_ends_each_link_with_the_loss_of_that_half_in_each_round_under_load`
+  in `tests/split.rs`: 240 rounds of a link over each end, 3 bytes, then
+  the up or the down half closed at each end (podnet's form) or at one end
+  while the other end sees silence, on the multi-thread runtime (4
+  workers) with 8 tasks that spin 200 µs between yields; it checks the
+  text of each link in each round (call C611). On the old code: 6 of 240
+  rounds and 14 of 240 rounds failed in two runs (one of them in podnet's
+  form, "the listener: the carrier of the link ended"). After the fix:
+  `tests/split.rs` 6 passed, 10 runs of 10; the pipes test checks the
+  write after a fault. `cargo test -p pod-link --all-features`: each
+  passes.
+- Plant `link-split-end-after-loss`, caught by hand (14 of 240 rounds
+  failed). `sh scripts/plant-each.sh --apply`: 0 stale.
+- podnet proves it with the tag of the fix: its test
+  `link_split::a_closed_down_half_ends_the_session_with_down_carrier_lost`
+  50 times in a loop, and its full `cargo test --workspace` under load.
