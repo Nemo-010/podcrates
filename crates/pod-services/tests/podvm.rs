@@ -221,3 +221,23 @@ fn the_archive_of_wasmtime_holds_the_pins_of_podvm() {
     assert_eq!(w.text("bin-sha256"), Some("983e57573a320cf44c93ccaa571a25640cf38b15e8e14160aa7bb919336caae8"));
     assert_eq!(w.int("bin-bytes"), Some(67_964_264));
 }
+
+/// The static QEMU of pkgforge's bincache for podvm's store
+/// (PodUtils/podvm#389): the pins of podvm.
+#[test]
+fn the_static_qemu_holds_the_pins_of_podvm() {
+    let q = service("pkgforge-qemu");
+    assert_eq!(q.text("version"), Some("9.2.0"));
+    // The name of an endpoint is a word: `_` becomes `-`.
+    for (file, sha, bytes) in [
+        ("qemu-system-x86_64", "b0597850cc3aa3d473410d8da27102eddfcf3f23abbe58bd1efc7a06f197b0a1", 42_899_120),
+        ("qemu-img", "7311a2598164b3055097f8f0484c1bbb0cd92463889fd8108c2f40fcc9f597c6", 11_009_488),
+    ] {
+        let name = file.replace('_', "-");
+        let e = q.endpoint(&name).unwrap();
+        assert_eq!(e.host(), "api.ghcr.pkgforge.dev");
+        assert!(e.path().unwrap().ends_with(&format!("/{file}?tag=9.2.0-x86_64-linux&download={file}")), "{name}");
+        assert_eq!(q.text(&format!("{name}-sha256")), Some(sha), "{name}");
+        assert_eq!(q.int(&format!("{name}-bytes")), Some(bytes), "{name}");
+    }
+}

@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**528 entries: 106 open, 9 partial, 6 blocked, 407 done.**
+**533 entries: 107 open, 9 partial, 6 blocked, 411 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 3 | 0 | 107 | 121 |
-| P2 | 46 | 3 | 4 | 213 | 266 |
-| P3 | 49 | 3 | 2 | 85 | 139 |
-| **All** | 106 | 9 | 6 | 407 | 528 |
+| P1 | 12 | 3 | 0 | 108 | 123 |
+| P2 | 45 | 3 | 4 | 216 | 268 |
+| P3 | 50 | 3 | 2 | 85 | 140 |
+| **All** | 107 | 9 | 6 | 411 | 533 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -573,5 +573,10 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-640](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: a cold boot of a Windows guest under KVM reaches no shutdown on one run of two, and a run that times out keeps no trace |
 | [T-641](podvm.md) | P3 | S | M7 | defect | open | `pod-guest`: the installer tries its shutdown again, and `dos::run` keeps the evidence of a run that times out |
 | [T-642](roads.md) | P3 | S | M4 | chore | open | `pod-egress`: the Python packages of `forwarder-live.yml` by a hashed lock |
-| [T-643](relay.md) | P2 | S | M1 | defect | open | `pod-quic`: a way whose reads keep failing spins a core, and the drop of the endpoint hangs (PodUtils/podssh#253) |
+| [T-643](relay.md) | P2 | S | M1 | defect | done | `pod-quic`: a way whose reads keep failing spins a core, and the drop of the endpoint hangs (PodUtils/podssh#253) |
 | [T-644](podvm.md) | P3 | S | M6 | feature | open | `pod-enter`: a form of `run_ladder` that gives the caller the child before its wait (PodUtils/podvm#384) |
+| [T-645](upkeep.md) | P1 | S | M5 | defect | open | `secrets.yml` is red on each push: three made-up URLs of `pod-broker` read as unknown |
+| [T-646](upkeep.md) | P1 | S | M5 | defect | done | `adoption.yml`: the trial of `pod-egress` in podssh fails, as podssh's record cites the files that leave podssh |
+| [T-647](podvm.md) | P2 | S | M6 | feature | done | `pod-services`: the host `api.ghcr.pkgforge.dev` of the static QEMU of podvm's store (PodUtils/podvm#389) |
+| [T-648](podvm.md) | P2 | S | M6 | feature | done | `pod-hostprobe`: a leg that reports a delegated cgroup2 subtree with no root (PodUtils/podvm#390) |
+| [T-649](podvm.md) | P3 | M | M6 | feature | open | `pod-guest`: a FAT image writer with directories, long names and a size from the content (PodUtils/podvm#386) |

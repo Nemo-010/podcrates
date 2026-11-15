@@ -8372,3 +8372,97 @@ A `spawn_ladder` that returns a `Child` (its pid and `wait_forwarding`), as `spa
 ```sh
 cargo test -p pod-enter --all-features
 ```
+
+# T-647: `pod-services`: the host `api.ghcr.pkgforge.dev` of the static QEMU of podvm's store (PodUtils/podvm#389)
+
+**Source:** PodUtils/podvm#389 (COORD-124 of podvm; PodUtils/podvm@T-1875).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+PodUtils/podvm@T-1875 fetches a pinned static QEMU 9.2.0 (`qemu-system-x86_64`, `qemu-img`) into its store on a host with no QEMU. The source is the pkgforge `bincache` (package `ppkg.qemu`), at `https://api.ghcr.pkgforge.dev/pkgforge/bincache/qemu/ppkg/<name>?tag=9.2.0-x86_64-linux&download=<name>`. podvm pins each file by size and sha256. podvm's test `hosts_tests::each_host_that_podvm_names_is_in_pod_services` needs each host that podvm names in `pod-services`; podvm keeps the host in its list `WAITING` until a tag of podcrates lists it. The ask: add `api.ghcr.pkgforge.dev` (purpose: the static QEMU of the store; HTTPS; a GET with redirects).
+
+## Premise
+
+- Read: PodUtils/podvm#389; the guest images of `crates/pod-services/services` (`freedos-image.toml`).
+- Not measured: the redirect target of the endpoint and the sizes of the files.
+
+## Approach
+
+A service file `pkgforge-qemu.toml` (kind of a download of a tool): the endpoint of each file at the tag `9.2.0-x86_64-linux`, the size and the sha256 that podvm pins as facts with podvm's commit as the source, and an `http-sha256` watch. The tests of `pod-services` read it.
+
+## Prove
+
+```sh
+cargo test -p pod-services --all-features
+```
+
+## Done
+
+2026-11-15, the commit of the change. `crates/pod-services/services/pkgforge-qemu.toml` (kind `tool`): the endpoints `qemu-system-x86-64` and `qemu-img` (a name is a word, so `_` is `-`), the version and the sha256 and the length of each file, and an `http-sha256` watch of each. A GET of each file from this session gave 42899120 and 11009488 bytes and the sha256 values that podvm pins at `25024cb3`. The test `the_static_qemu_holds_the_pins_of_podvm` of `tests/podvm.rs`; `cargo test -p pod-services --all-features` passed.
+
+
+# T-648: `pod-hostprobe`: a leg that reports a delegated cgroup2 subtree with no root (PodUtils/podvm#390)
+
+**Source:** PodUtils/podvm#390 (COORD-125 of podvm; PodUtils/podvm@T-1747; the ask V-3 of podswarm in #124; G-12 of #36).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+podvm's `run --memory`, `--cpus` and `--pids-limit` need cgroup2 where the host delegates a subtree to the user. The ask: a leg of `pod-hostprobe` that reports, with no root: (1) whether `/sys/fs/cgroup` is cgroup2 (`statfs` magic `CGROUP2_SUPER_MAGIC`); (2) the cgroup of the process (`/proc/self/cgroup`, the line `0::PATH`); (3) the nearest directory at or above it that the user can write, whose `cgroup.subtree_control` the user can write, and the controllers that `cgroup.controllers` offers there (`memory`, `cpu`, `pids`); (4) a verdict: `delegated` with the path and the controllers, or the reason that there is none (cgroup v1, no write access, a missing controller). podvm makes the child cgroup of each run and writes the limits itself. A hosted runner of GitHub and podvm's machine tier can have a delegation; podvm's cloud host has cgroup v1.
+
+## Premise
+
+- Read: PodUtils/podvm#390; `crates/pod-hostprobe/src/probes.rs` and `crates/pod-hostprobe/src/verdict.rs` (the form of a leg).
+- Not measured: a host with a delegation (this sandbox).
+
+## Approach
+
+A module `cgroup` of `pod-hostprobe`: the reads behind a root path, so that a test gives a made-up tree (cgroup v1, no write access, a missing controller, a delegation); the leg in the report with its verdict and reason; a plant that reports a delegation for a tree with no write access.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features
+```
+
+## Done
+
+2026-11-15, the commit of the change. `crates/pod-hostprobe/src/cgroup.rs`: `probe()` (the `statfs` of `/sys/fs/cgroup`, the line `0::` of `/proc/self/cgroup`, the write test of `mkdir` and `rmdir` of a child and an open of `cgroup.subtree_control` for write) and `assess` over a made-up tree; `Delegation::Delegated { path, controllers, enabled }` or `None(Reason)` with `NoMount`, `NotCgroup2`, `NoMembership`, `NotWritable`, `MissingControllers`; `words` for one line. A membership with `..` is refused, and the walk does not leave the root. Six tests in `src/cgroup/tests.rs` (`cargo test -p pod-hostprobe --all-features --lib cgroup`: 6 passed). The plant `hostprobe-cgroup-missing-controller-delegated` (a directory with no `cpu` read as delegated) fails the first test. This session (cgroup v1 or no delegation) gives a verdict of none; a host with a delegation is podvm's run.
+
+
+# T-649: `pod-guest`: a FAT image writer with directories, long names and a size from the content (PodUtils/podvm#386)
+
+**Source:** PodUtils/podvm#386 (COORD-123 of podvm; PodUtils/podvm@T-1872).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+PodUtils/podvm@T-1872: `podvm windows run -v HOST:C:\path[:ro]` as a one-way copy through a USB medium (`Options::media`, `MediumKind::Usb`) with a marker file. `pod_guest::fat16` writes the mailbox only: a fixed volume of 16 MiB, files in the root, 8.3 names and one long name. The ask: a writer of a FAT image (FAT32 above the FAT16 cluster limit) behind an MBR partition, from a directory tree of the host: directories at each depth and VFAT long names (up to 255 UTF-16 units, the case kept); a size from the content with a margin, up to a ceiling of the caller (for example `RLIMIT_FSIZE`); a refusal by name of an entry that the image cannot hold (a symbolic link, a special file, a name that FAT refuses, `<>:"/\|?*`, a trailing dot or space, a file over 4 GiB - 1); the mode 0600 of the image file; a reader for the tests, as `Fat16::from_image` is. The geometry of the mailbox (a partition at LBA 2048) is a good start. Not urgent: `podvm cp` of PodUtils/podvm@T-1868 is the other road.
+
+## Premise
+
+- Read: PodUtils/podvm#386; `crates/pod-guest/src/fat16.rs`.
+- Not measured: the mount of such an image by Windows as a removable medium.
+
+## Approach
+
+A module `fat` of `pod-guest` beside `fat16`: the layout of FAT16 or FAT32 from the count of clusters, the directory entries with their long names, the size from the content, the refusals by name; a reader for the tests; a test of each refusal and a round trip of a tree. podvm's run under Windows proves the mount.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features
+```

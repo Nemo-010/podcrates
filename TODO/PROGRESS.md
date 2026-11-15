@@ -1,37 +1,23 @@
 # Progress
 
-`TODO/INDEX.md` holds 528 entries: 106 open, 9 partial, 6 blocked, 407 done.
+`TODO/INDEX.md` holds 533 entries: 107 open, 9 partial, 6 blocked, 411 done.
 
 ## State
 
 - `docs/HANDOFF.md` has what is in flight and what waits.
-- Last release: `v0.39.0` at `4c2d17c` (`docs/releases/v0.39.0.md`; ci
-  43399257316, adoption 43399257385, release 43405496549; the hand-off
-  #137, COORD-077, closed: each consumer took it): T-508
-  (PodUtils/podnet#524), T-506, T-510, T-310.
-- In release: `v0.40.0` at `3d6bbf0` (`docs/releases/v0.40.0.md`): the
-  poll, quic, udp, dns and icmp carriers of `pod-link`, `cpu_s` and
-  `peak_rss_mib` of `pod-job`, and the forms of the file hosts.
-- The consumers and their tags:
-  - podssh: `v0.39.0` (`5228b65`, PodUtils/podssh#229; its crates/podssh-warp is glue over `pod-warp` and holds fixes only (#135); its server of the HTTP road takes `http_road::window`; its
-    PodUtils/podssh@T-755 is on its `main` over `pod-devtunnel`): the MQTT
-    brokers of `code::run` (PodUtils/podssh@T-737) and `syncthing-relay`
-    (PodUtils/podssh@T-571).
-  - podnet: `v0.39.0` (`306d80b`, PodUtils/podnet#526; its own fix of #524 dropped; its `src/warp/` is glue over `pod-warp` and holds fixes only (#135); its
-    PodUtils/podnet@T-268 runs on the `tcp` carrier of `pod-link`; its
-    relay client is glue over `pod-relay`; its netns router holds each SYN
-    with `pod_hold::syn_hold`). It sets the profile of `kcp` with its take
-    of the udp carrier (#139, T-526).
-  - podvm: `v0.39.0` (`19892c50`, PodUtils/podvm#309; its channel of a guest runs on `pod-link`; its `v0.2.0-beta.8` is out; its PodUtils/podvm@T-1746 and PodUtils/podvm@T-1749 are low priority now; `pod-netlab` in its
-    `podvm lab`; its relay over `pod_relay::blocking`, T-326; its fix of
-    #102 is `655cf941`, PodUtils/podvm#289, in its `v0.2.0-beta.7`).
-  - podrunner: `v0.39.0` (`69d7b14`, PodUtils/podrunner#84; its live gates start on a test organization, its DR-7): its local
-    mode takes `pod-actions-expr` and `pod-actions-workflow`
-    (PodUtils/podrunner@T-046); its T-042 takes `pod-confine` through
-    podvm's `--podvm-confine`; its T-048 takes `check_upstream`,
-    `names_upstream` and the flagged rules of `pod-broker`; its
-    PodUtils/podrunner@T-096 takes podvm `v0.2.0-beta.7`; its T-108 fills
-    `cpu_s` and `peak_rss_mib` with `v0.40.0` (PodUtils/podrunner#86).
+- Last release: `v0.50.0` at `26fb91f` (`docs/releases/v0.50.0.md`; ci
+  43669018284, adoption 43669018236, release 43672638621; the hand-off
+  #164, COORD-104): step 1 of the move of podssh.
+- On `main` for `v0.51.0`: T-639 (PodUtils/podnet#572), T-640
+  (PodUtils/podvm#380), part 1 of `pod-egress` (T-035).
+- The consumers and their tags (the details of each take are on its
+  hand-off issue):
+  - podssh: `v0.49.0` (`a99de1d`, PodUtils/podssh#252); step 1 of the move
+    waits for its take of `v0.50.0`.
+  - podnet: `v0.50.0` (`779c712`, PodUtils/podnet#574). It sets the
+    profile of `kcp` with its take of the udp carrier (#139, T-526).
+  - podvm: `v0.50.0` (`0573bcd8`).
+  - podrunner: `v0.49.0` (`c695295`, PodUtils/podrunner#109).
 - Takes that wait: podvm's check of T-208 against `lambda-al2023`, and
   its module set of T-206 with PodUtils/podvm@T-1662 (after `pod-netlab`,
   T-207, #70).
@@ -72,9 +58,8 @@ online"): the work for podrunner and podnet comes first, then podssh and
 podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
-First: the release `v0.51.0` (the fixes of PodUtils/podnet#572 and
-PodUtils/podvm#380, part 1 of T-035) and the takes of `v0.50.0` (#164). Then T-643
-(PodUtils/podssh#253). Then the move of podssh's waves 3 and 4 (the
+First: T-645 (the red run of `secrets.yml`; its fix waits for the run on the push). Then the release `v0.51.0` (the fixes of PodUtils/podnet#572,
+PodUtils/podvm#380 and PodUtils/podssh#253, part 1 of T-035, the asks of PodUtils/podvm#389 and #390) and the takes of `v0.50.0` (#164). Then the move of podssh's waves 3 and 4 (the
 ruling "The move of podssh", PodUtils/podssh#248): T-035 (parts 2 and 3);
 T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
@@ -122,6 +107,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
    (PodUtils/podvm@T-1662 waits for it and for the module set of the
    modloop, which `pod-guest` has); T-347 after both, then T-348;
    `exec_attached` of `pod-incus` when PodUtils/podvm@T-1722 asks for it.
+   T-649 (a FAT image writer, PodUtils/podvm#386) is not urgent.
    T-448 (a wrong fact of
    FUSE in `pod-enter`); T-444 (the probe rows of
    the namespace and FUSE rungs; the rows of podswarm alone wait). T-040
