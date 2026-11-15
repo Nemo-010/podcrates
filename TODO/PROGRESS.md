@@ -8,8 +8,10 @@
 - Last release: `v0.50.0` at `26fb91f` (`docs/releases/v0.50.0.md`; ci
   43669018284, adoption 43669018236, release 43672638621; the hand-off
   #164, COORD-104): step 1 of the move of podssh.
-- On `main` for `v0.51.0`: T-639 (PodUtils/podnet#572), T-640
-  (PodUtils/podvm#380), part 1 of `pod-egress` (T-035).
+- In release: `v0.51.0` (`docs/releases/v0.51.0.md`): part 1 of
+  `pod-egress` (T-035), T-639 (PodUtils/podnet#572), T-640
+  (PodUtils/podvm#380), T-643 (PodUtils/podssh#253), T-647, T-648, T-650
+  (PodUtils/podvm#389, #390, #393).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.49.0` (`a99de1d`, PodUtils/podssh#252); step 1 of the move
