@@ -166,6 +166,12 @@ hmac = { version = "0.13", default-features = false, features = ["zeroize"] }
 # HMAC-SHA1 of the MESSAGE-INTEGRITY of STUN (pod-turn).
 sha1 = { version = "0.11", default-features = false }
 hkdf = { version = "0.13", default-features = false }
+# The master key of Shadowsocks's AEAD form (EVP_BytesToKey) and VMess's
+# key of an ID and its body's keys (pod-egress): MD5, pure Rust.
+md5 = { version = "0.8", default-features = false }
+# The keys of Shadowsocks 2022 (pod-egress): BLAKE3's derive_key, its
+# portable code alone (feature pure), so no C and no assembly.
+blake3 = { version = "1.8", default-features = false, features = ["std", "pure"] }
 aes-gcm = { version = "0.11", default-features = false, features = ["aes", "alloc", "zeroize"] }
 aes = { version = "0.9", default-features = false, features = ["zeroize"] }
 chacha20poly1305 = { version = "0.11", default-features = false, features = ["alloc", "zeroize"] }

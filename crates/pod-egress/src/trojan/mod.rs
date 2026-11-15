@@ -1,17 +1,19 @@
-//! Trojan (T-491, the operator's ruling Q66): a server that the user runs,
-//! trojan-gfw's, trojan-go's, Xray-core's or sing-box's, takes the target
-//! from a short request after a real TLS handshake and dials it, so that it
-//! is a road in place of the relay. The stream goes in TLS alone, or in a
-//! WebSocket over TLS ([`ws`]), which passes through a CDN and where a front
-//! end serves other paths. TLS is podssh's, checked for the link's name,
-//! through `HTTPS_PROXY` when it is set, as each road dials.
+//! Trojan: a server that the user runs, trojan-gfw's, trojan-go's,
+//! Xray-core's or sing-box's, takes the target from a short request after a
+//! real TLS handshake and dials it, so that it is a road in place of the
+//! relay. The stream goes in TLS alone, or in a WebSocket over TLS (`ws`),
+//! which passes through a CDN and where a front end serves other paths. Each
+//! connection goes through the caller's way out ([`Dial::way`]), its TLS
+//! checked for the link's name.
 //!
 //! The link and its password come from a private file ([`link`]); the
-//! request is [`request`]'s. Trojan has no answer, so the first bytes tell
-//! the target from the server's fallback ([`answer`]): a session whose server
+//! request is `request`'s. Trojan has no answer, so the first bytes tell
+//! the target from the server's fallback (`answer`): a session whose server
 //! speaks first (SSH) waits for them, and one whose client may speak first
 //! (a pipe) takes the stream after a short silence. The settings of a dial
 //! are VLESS's ([`crate::vless::Dial`]), as both roads dial alike.
+//!
+//! A [`Road`] is a [`pod_core::Dial`]: a dial of a target is a session to it.
 
 mod answer;
 pub mod link;
@@ -20,8 +22,11 @@ mod ws;
 
 use std::time::Duration;
 
-use crate::dial::DialError;
-use crate::via::Duplex;
+use pod_core::{BoxFuture, Class, Connected, Failure, Stage, Target};
+use pod_proxy::DialError;
+use tokio::time::Instant;
+
+use crate::Duplex;
 
 pub use crate::vless::{AtEnd, Dial};
 pub use link::{Password, Server, Transport};
@@ -52,7 +57,42 @@ pub enum TrojanError {
     Silent(Duration),
 }
 
+impl std::fmt::Display for TrojanError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TrojanError::Target(why) | TrojanError::Carry(why) => f.write_str(why),
+            TrojanError::Dial(e) => write!(f, "{e}"),
+            TrojanError::Refused { status, why } => write!(f, "the Trojan server refused {why}: HTTP {status}"),
+            TrojanError::Fallback(line) => write!(f, "the Trojan server handed the session to its fallback ({line:?})"),
+            TrojanError::Ended => f.write_str("the Trojan server ended the session before the target said anything"),
+            TrojanError::Silent(after) => write!(f, "nothing of the Trojan server within {} s", after.as_secs()),
+        }
+    }
+}
+
+impl std::error::Error for TrojanError {}
+
+impl From<TrojanError> for Failure {
+    fn from(e: TrojanError) -> Failure {
+        let (stage, class) = e.stage_and_class();
+        Failure::caused(stage, class, e.to_string(), e)
+    }
+}
+
 impl TrojanError {
+    /// The stage and the class of the failure. The server is the relay of
+    /// the road: its fallback is its refusal of the password.
+    pub fn stage_and_class(&self) -> (Stage, Class) {
+        match self {
+            TrojanError::Target(_) => (Stage::Connect, Class::Usage),
+            TrojanError::Dial(e) => e.stage_and_class(),
+            TrojanError::Carry(_) => (Stage::WebSocket, Class::Unavailable),
+            TrojanError::Refused { .. } => (Stage::WebSocket, Class::Refused),
+            TrojanError::Fallback(_) | TrojanError::Ended => (Stage::Relay, Class::Refused),
+            TrojanError::Silent(_) => (Stage::Relay, Class::Timeout),
+        }
+    }
+
     /// The line that says it, for the server `shown` and the target. No line
     /// holds the password or its hash.
     pub fn line(&self, shown: &str, target: &str) -> String {
@@ -89,7 +129,7 @@ pub struct Opened {
 }
 
 /// A session to `host:port` through `server`, on the link's transport.
-pub async fn open(server: &Server, host: &str, port: u16, dial: &Dial<'_>) -> Result<Opened, TrojanError> {
+pub async fn open(server: &Server, host: &str, port: u16, dial: &Dial) -> Result<Opened, TrojanError> {
     let request = request::request(&server.password, host, port).map_err(TrojanError::Target)?;
     let stream: Box<dyn Duplex> = match server.transport {
         Transport::Tls => Box::new(tls(server, request, dial).await?),
@@ -111,11 +151,10 @@ pub async fn open(server: &Server, host: &str, port: u16, dial: &Dial<'_>) -> Re
 
 /// TLS for the link's name, then the request as the first bytes of its
 /// stream, in one write, as trojan-gfw reads it whole from its first read.
-async fn tls(server: &Server, request: Vec<u8>, dial: &Dial<'_>) -> Result<impl Duplex + use<>, TrojanError> {
+async fn tls(server: &Server, request: Vec<u8>, dial: &Dial) -> Result<impl Duplex + use<>, TrojanError> {
     use tokio::io::AsyncWriteExt;
-    let mut tls = crate::client::open_tls(&server.host, server.port, &server.sni, dial.trust, dial.proxy, dial.timeout)
-        .await
-        .map_err(|e| ws::failed(e, "/"))?;
+    let opened = dial.way.open_tls(&server.host, server.port, &server.sni, &dial.trust, dial.timeout, &[]).await;
+    let (mut tls, _) = opened.map_err(|e| ws::failed(e, "/"))?;
     let sent = async {
         tls.write_all(&request).await?;
         tls.flush().await
@@ -125,6 +164,46 @@ async fn tls(server: &Server, request: Vec<u8>, dial: &Dial<'_>) -> Result<impl 
         .map_err(|_| TrojanError::Carry(format!("Trojan's request not sent within {} s", dial.timeout.as_secs())))?
         .map_err(|e| TrojanError::Carry(format!("sending Trojan's request failed: {e}")))?;
     Ok(tls)
+}
+
+/// A Trojan server as a dialer: each dial is a session to its target.
+#[derive(Debug, Clone)]
+pub struct Road {
+    pub server: Server,
+    pub dial: Dial,
+}
+
+impl pod_core::Dial for Road {
+    fn label(&self) -> String {
+        format!("Trojan {}", self.server.shown())
+    }
+
+    fn proxy_label(&self, _target: &Target) -> Option<String> {
+        Some(self.server.shown())
+    }
+
+    /// A session to `target`, open before `deadline`.
+    fn dial<'a>(&'a self, target: &'a Target, deadline: Instant) -> BoxFuture<'a, Result<Connected, Failure>> {
+        Box::pin(async move {
+            let left = crate::road::left(deadline, target)?;
+            let dial = Dial { timeout: self.dial.timeout.min(left), ..self.dial.clone() };
+            let shown = self.server.shown();
+            let host = target.host();
+            let opening = open(&self.server, &host, target.port(), &dial);
+            let opened = tokio::time::timeout_at(deadline, opening)
+                .await
+                .map_err(|_| crate::road::late(target, &shown))?
+                .map_err(|e| {
+                    let (stage, class) = e.stage_and_class();
+                    Failure::caused(stage, class, e.line(&shown, &target.to_string()), e)
+                })?;
+            Ok(Connected::new(Box::new(opened.stream)))
+        })
+    }
+
+    fn names_inside(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]

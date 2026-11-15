@@ -1,6 +1,6 @@
-//! Shadowsocks 2022 (SIP022, T-492), against a stand-in server written here
+//! Shadowsocks 2022 (SIP022), against a stand-in server written here
 //! from shadowsocks.org's `sip022.html` with the AEAD crates and BLAKE3
-//! themselves, not podssh's codec: each stream's key by `derive_key` with
+//! themselves, not this crate's codec: each stream's key by `derive_key` with
 //! "shadowsocks 2022 session subkey" over the key and the salt; the
 //! request's fixed header (type 0, a timestamp, the next header's length)
 //! and its variable one (the address, then padding); the response's fixed
@@ -18,9 +18,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes128Gcm, Aes256Gcm};
 use chacha20poly1305::ChaCha20Poly1305;
-use podssh_ws::ProxyChoice;
-use podssh_ws::shadowsocks::{self, ChunkError, Method, Node, OpenError};
+use pod_egress::shadowsocks::{self, ChunkError, Method, Node, OpenError};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+#[path = "common/way.rs"]
+mod way;
 use tokio::net::TcpStream;
 
 const CONTEXT: &str = "shadowsocks 2022 session subkey";
@@ -185,11 +187,10 @@ async fn stand_in(method: Method, psk: Vec<u8>, banner: &'static [u8], answer: A
     (port, task)
 }
 
-fn dial(answer: Duration) -> shadowsocks::Dial<'static> {
-    static DIRECT: ProxyChoice = ProxyChoice::Direct;
-    static TRUST: podssh_ws::Trust = podssh_ws::Trust::Default;
+fn dial(answer: Duration) -> shadowsocks::Dial {
+    let (way, trust) = (way::direct(), pod_tls::Trust::Default);
     let timeout = Duration::from_secs(10);
-    shadowsocks::Dial { proxy: &DIRECT, trust: &TRUST, timeout, answer: Some(answer), silence_is_ready: false }
+    shadowsocks::Dial { way, trust, timeout, answer: Some(answer), silence_is_ready: false }
 }
 
 #[tokio::test]
@@ -272,4 +273,40 @@ fn a_2022_key_is_read_from_an_ss_line_and_one_of_several_users_is_refused() {
     let short = ["ss://", "2022-blake3-aes-128-gcm", ":", &encoded, "@127.0.0.1:8388"].concat();
     let e = Node::parse(&short).unwrap_err();
     assert!(e.contains("base64 of 16 bytes"), "{e}");
+}
+
+/// A [`shadowsocks::Road`] is a dialer: a dial names the target in the
+/// address and carries the server's answer and an echo. A wrong key is a
+/// silence of the relay, a failure of the class timeout, in the line that
+/// names the server, with no key in it.
+#[tokio::test]
+async fn a_shadowsocks_road_is_a_dialer_and_a_silence_is_a_typed_failure() {
+    let method = Method::Blake3Aes256Gcm;
+    let (psk, text) = key_of(method, 3);
+    let (port, server) = stand_in(method, psk, b"SSH-2.0-stand-in\r\n", RIGHT).await;
+    let node = Node::new(method, &text, "127.0.0.1", port).unwrap();
+    let road = shadowsocks::Road { node, dial: dial(Duration::from_secs(5)) };
+    let dialer: &dyn pod_core::Dial = &road;
+    assert!(dialer.names_inside());
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(20);
+    let target = pod_core::Target::new("target.test", 2222);
+    let mut io = dialer.dial(&target, deadline).await.unwrap_or_else(|e| panic!("{e}")).io;
+    let (mut banner, mut back) = ([0u8; 18], [0u8; 9]);
+    io.read_exact(&mut banner).await.unwrap();
+    io.write_all(b"a dialer!").await.unwrap();
+    io.read_exact(&mut back).await.unwrap();
+    assert_eq!((&banner, &back), (b"SSH-2.0-stand-in\r\n", b"a dialer!"));
+    drop(io);
+    assert_eq!(server.await.unwrap().as_deref(), Some("target.test:2222"));
+    let (psk, _) = key_of(method, 1);
+    let (_, wrong) = key_of(method, 2);
+    let (port, _server) = stand_in(method, psk, b"SSH-2.0-x\r\n", RIGHT).await;
+    let node = Node::new(method, &wrong, "127.0.0.1", port).unwrap();
+    let wrong_road = shadowsocks::Road { node, dial: dial(Duration::from_millis(400)) };
+    let failure = (&wrong_road as &dyn pod_core::Dial).dial(&target, deadline).await.expect_err("a silence");
+    assert_eq!((failure.stage, failure.class), (pod_core::Stage::Relay, pod_core::Class::Timeout), "{failure}");
+    let words = format!(
+        "the Shadowsocks server ss://127.0.0.1:{port}: no answer within 0.4 s of the salt and target.test:2222"
+    );
+    assert!(failure.text().starts_with(&words) && !failure.text().contains(&wrong), "{failure}");
 }

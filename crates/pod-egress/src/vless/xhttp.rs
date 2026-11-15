@@ -18,7 +18,7 @@
 //! `extra` says `noGRPCHeader`, as Xray-core's client does, so that a CDN
 //! does not hold it. Where the server, or a front end that ends TLS on the
 //! way, takes no HTTP/2, packet-up and stream-up go over HTTP/1.1 on two
-//! connections to the same server ([`super::h1_modes`], the ruling Q67);
+//! connections to the same server ([`super::h1_modes`]);
 //! stream-one cannot, as Go's server reads a whole body before it answers on
 //! HTTP/1.1.
 
@@ -32,10 +32,15 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::link::{Mode, Server};
 use super::split::Halves;
-use super::{Dial, VlessError};
-use crate::via::{Duplex, Stream};
+use pod_core::BoxedIo;
+use pod_tls::Trust;
+use pod_ws::Way;
 
-/// The windows that the client grants, as `--via` grants them.
+use super::{Dial, VlessError};
+use crate::Duplex;
+use pod_ws::h2_road::Stream;
+
+/// The windows that the client grants, as the via road grants them.
 const STREAM_WINDOW: u32 = 4 << 20;
 const CONNECTION_WINDOW: u32 = 8 << 20;
 
@@ -43,7 +48,7 @@ pub(super) async fn open(
     server: &Server,
     mode: Mode,
     first: Vec<u8>,
-    dial: &Dial<'_>,
+    dial: &Dial,
 ) -> Result<(Box<dyn Duplex>, String), VlessError> {
     let (sender, over) = match connection(server, dial).await? {
         Spoken::H2(sender, over) => (sender, over),
@@ -53,7 +58,7 @@ pub(super) async fn open(
     // knowledge that fails at its first requests is tried over HTTP/1.1. A
     // refusal by status is the server's word, and stands.
     let again = (!server.tls).then(|| first.clone());
-    match h2_modes(server, mode, sender, first, dial.timeout).await {
+    match h2_modes(server, mode, sender, first, dial).await {
         Ok(stream) => Ok((stream, format!("XHTTP {} over {over}", mode.name()))),
         Err(VlessError::Carry(_)) if again.is_some() => {
             let conn = super::h1::Again::of(server, dial).connect().await?;
@@ -68,12 +73,13 @@ async fn h2_modes(
     mode: Mode,
     sender: SendRequest<Bytes>,
     first: Vec<u8>,
-    limit: Duration,
+    dial: &Dial,
 ) -> Result<Box<dyn Duplex>, VlessError> {
+    let (limit, agent) = (dial.timeout, dial.way.user_agent.as_str());
     let stream: Box<dyn Duplex> = match mode {
-        Mode::StreamOne => Box::new(stream_one(server, sender, first, limit).await?),
-        Mode::StreamUp => Box::new(stream_up(server, sender, first, limit).await?),
-        Mode::PacketUp | Mode::Auto => Box::new(super::packet::open(server, sender, first, limit).await?),
+        Mode::StreamOne => Box::new(stream_one(server, sender, first, limit, agent).await?),
+        Mode::StreamUp => Box::new(stream_up(server, sender, first, limit, agent).await?),
+        Mode::PacketUp | Mode::Auto => Box::new(super::packet::open(server, sender, first, limit, agent).await?),
     };
     Ok(stream)
 }
@@ -89,28 +95,31 @@ enum Spoken {
 /// TCP through the host's proxy, TLS with the link's ALPN, and HTTP/2's
 /// handshake where the server chose `h2`; the connection runs in a task
 /// while a handle or a stream of it lasts. A server that chose no `h2`
-/// keeps the connection for HTTP/1.1 (Q67).
-async fn connection(server: &Server, dial: &Dial<'_>) -> Result<Spoken, VlessError> {
-    let tcp = crate::dial::dial(&server.host, server.port, dial.proxy, dial.timeout).await.map_err(VlessError::Dial)?;
+/// keeps the connection for HTTP/1.1.
+async fn connection(server: &Server, dial: &Dial) -> Result<Spoken, VlessError> {
+    let way = &dial.way;
+    let tcp = way.tcp(&server.host, server.port, dial.timeout).await.map_err(VlessError::Dial)?.io;
     if !server.tls {
         return Ok(Spoken::H2(handshake(tcp, dial.timeout).await?, "HTTP/2 with no TLS"));
     }
-    let tls = tls(server, dial.trust, dial.timeout, server.alpn.clone(), tcp).await?;
+    let tls = tls(server, way, &dial.trust, dial.timeout, server.alpn.clone(), tcp).await?;
     if tls.get_ref().1.alpn_protocol() != Some(b"h2".as_slice()) {
         return Ok(Spoken::H1(tokio::io::BufReader::new(Box::new(tls))));
     }
     Ok(Spoken::H2(handshake(tls, dial.timeout).await?, "HTTP/2"))
 }
 
-/// TLS for the link's name over `tcp`, offering `alpn`, within `limit`.
+/// TLS for the link's name over `tcp`, offering `alpn`, within `limit`, with
+/// the TLS context of `way`.
 pub(super) async fn tls(
     server: &Server,
-    trust: &crate::tls::Trust,
+    way: &Way,
+    trust: &Trust,
     limit: Duration,
     alpn: Vec<Vec<u8>>,
-    tcp: tokio::net::TcpStream,
-) -> Result<tokio_rustls::client::TlsStream<tokio::net::TcpStream>, VlessError> {
-    let config = crate::tls::config_for(trust).map_err(|e| VlessError::Carry(e.to_string()))?;
+    tcp: BoxedIo,
+) -> Result<tokio_rustls::client::TlsStream<BoxedIo>, VlessError> {
+    let config = way.tls.config_for(trust).map_err(|e| VlessError::Carry(e.to_string()))?;
     let mut config = (*config).clone();
     config.alpn_protocols = alpn;
     let name = rustls_pki_types::ServerName::try_from(server.sni.clone())
@@ -119,7 +128,7 @@ pub(super) async fn tls(
     tokio::time::timeout(limit, connector.connect(name, tcp))
         .await
         .map_err(|_| VlessError::Carry(format!("no TLS handshake within {} s", limit.as_secs())))?
-        .map_err(|e| VlessError::Carry(format!("TLS: {}", crate::tls::handshake_failure(&e))))
+        .map_err(|e| VlessError::Carry(format!("TLS: {}", pod_tls::handshake_failure(&e, way.tls.words()))))
 }
 
 async fn handshake<S>(io: S, limit: Duration) -> Result<SendRequest<Bytes>, VlessError>
@@ -153,6 +162,7 @@ pub(super) fn request(
     method: http::Method,
     path: &str,
     streamed: bool,
+    user_agent: &str,
 ) -> Result<http::Request<()>, VlessError> {
     let scheme = if server.tls { "https" } else { "http" };
     let (from, to) = server.extra.padding;
@@ -163,7 +173,7 @@ pub(super) fn request(
         .method(method)
         .uri(format!("{scheme}://{}{path}", server.authority))
         .header(http::header::REFERER, referer)
-        .header(http::header::USER_AGENT, crate::url::USER_AGENT);
+        .header(http::header::USER_AGENT, user_agent);
     if streamed && !server.extra.no_grpc_header {
         builder = builder.header(http::header::CONTENT_TYPE, "application/grpc");
     }
@@ -175,17 +185,17 @@ pub(super) fn request(
 
 /// A random number below `n`, from the system's source.
 fn random_below(n: u32) -> Result<u32, VlessError> {
-    use rustls::crypto::SecureRandom as _;
+    use pod_core::entropy::Entropy as _;
     let mut b = [0u8; 4];
-    crate::crypto::random::OsRandom.fill(&mut b).map_err(|_| VlessError::Carry("no random bytes".into()))?;
+    pod_core::entropy::OsEntropy.fill(&mut b).map_err(|_| VlessError::Carry("no random bytes".into()))?;
     Ok(u32::from_le_bytes(b) % n.max(1))
 }
 
 /// A session's id: a random UUID, as `GenerateSessionID` makes one.
 pub(super) fn session_id() -> Result<String, VlessError> {
-    use rustls::crypto::SecureRandom as _;
+    use pod_core::entropy::Entropy as _;
     let mut b = [0u8; 16];
-    crate::crypto::random::OsRandom.fill(&mut b).map_err(|_| VlessError::Carry("no random bytes".into()))?;
+    pod_core::entropy::OsEntropy.fill(&mut b).map_err(|_| VlessError::Carry("no random bytes".into()))?;
     b[6] = (b[6] & 0x0f) | 0x40;
     b[8] = (b[8] & 0x3f) | 0x80;
     let hex: String = b.iter().map(|x| format!("{x:02x}")).collect();
@@ -254,12 +264,13 @@ async fn stream_one(
     sender: SendRequest<Bytes>,
     first: Vec<u8>,
     limit: Duration,
+    agent: &str,
 ) -> Result<Stream, VlessError> {
-    let request = request(server, http::Method::POST, &at(server, ""), true)?;
+    let request = request(server, http::Method::POST, &at(server, ""), true, agent)?;
     let (response, mut up) = send(&sender, request, false, limit).await?;
     send_all(&mut up, Bytes::from(first), false).await.map_err(VlessError::Carry)?;
     let response = answer(response, limit, "the POST of stream-one").await?;
-    Ok(Stream::from_parts(up, response.into_body()))
+    Ok(pod_ws::h2_road::duplex(up, response.into_body()))
 }
 
 async fn stream_up(
@@ -267,17 +278,18 @@ async fn stream_up(
     sender: SendRequest<Bytes>,
     first: Vec<u8>,
     limit: Duration,
+    agent: &str,
 ) -> Result<Halves<Stream, Stream>, VlessError> {
     let id = session_id()?;
-    let get = request(server, http::Method::GET, &at(server, &id), false)?;
+    let get = request(server, http::Method::GET, &at(server, &id), false, agent)?;
     let (down, closed) = send(&sender, get, true, limit).await?;
-    let post = request(server, http::Method::POST, &at(server, &id), true)?;
+    let post = request(server, http::Method::POST, &at(server, &id), true, agent)?;
     let (posted, mut up) = send(&sender, post, false, limit).await?;
     send_all(&mut up, Bytes::from(first), false).await.map_err(VlessError::Carry)?;
     let down = answer(down, limit, "the GET of stream-up").await?;
     let posted = answer(posted, limit, "the POST of stream-up").await?;
-    let read = Stream::from_parts(closed, down.into_body());
-    Ok(Halves { read, write: Stream::from_parts(up, posted.into_body()), failed: Arc::default() })
+    let read = pod_ws::h2_road::duplex(closed, down.into_body());
+    Ok(Halves { read, write: pod_ws::h2_road::duplex(up, posted.into_body()), failed: Arc::default() })
 }
 
 #[cfg(test)]
@@ -296,14 +308,14 @@ mod tests {
         let plain = server("");
         assert_eq!(at(&plain, "abc/3"), "/xh/abc/3");
         for _ in 0..20 {
-            let request = request(&plain, http::Method::POST, &at(&plain, ""), true).unwrap();
+            let request = request(&plain, http::Method::POST, &at(&plain, ""), true, "pod-egress/test").unwrap();
             let referer = request.headers()[http::header::REFERER].to_str().unwrap().to_string();
             let padding = referer.strip_prefix("https://v.example/xh/?x_padding=").expect("Referer's form");
             assert!((100..=1000).contains(&padding.len()) && padding.bytes().all(|b| b == b'X'), "{}", padding.len());
             assert_eq!(request.uri().to_string(), "https://v.example/xh/");
             assert_eq!(request.headers()[http::header::CONTENT_TYPE], "application/grpc");
         }
-        let get = request(&plain, http::Method::GET, &at(&plain, "s"), false).unwrap();
+        let get = request(&plain, http::Method::GET, &at(&plain, "s"), false, "pod-egress/test").unwrap();
         assert!(get.headers().get(http::header::CONTENT_TYPE).is_none());
         let id = session_id().unwrap();
         assert_eq!((id.len(), &id[14..15]), (36, "4"), "{id}");

@@ -1,8 +1,8 @@
-//! HTTP/1.1 for XHTTP (Q67): the connection to the server, a request's head
+//! HTTP/1.1 for XHTTP: the connection to the server, a request's head
 //! as `super::xhttp::request` makes it for HTTP/2 (the padding of `Referer`,
 //! `User-Agent`, the link's headers, gRPC's type on a streamed upload), and a
 //! response read as a stream: its head, then its body by its length, in
-//! chunks decoded as they come, or to the connection's end. podssh writes
+//! chunks decoded as they come, or to the connection's end. this client writes
 //! and reads the heads alone; each body passes as bytes.
 
 use std::io;
@@ -10,11 +10,12 @@ use std::time::Duration;
 
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 
+use pod_tls::Trust;
+use pod_ws::Way;
+
 use super::VlessError;
 use super::link::Server;
-use crate::dial::ProxyChoice;
-use crate::tls::Trust;
-use crate::via::Duplex;
+use crate::Duplex;
 
 /// The longest response head read: a server's head is a few hundred bytes.
 const HEAD_MAX: usize = 64 * 1024;
@@ -29,27 +30,27 @@ pub(super) type Conn = BufReader<Box<dyn Duplex>>;
 #[derive(Clone)]
 pub(super) struct Again {
     pub server: Server,
+    pub way: Way,
     pub trust: Trust,
-    pub proxy: ProxyChoice,
     pub timeout: Duration,
 }
 
 impl Again {
     /// What `dial` holds for `server`, owned.
-    pub fn of(server: &Server, dial: &super::Dial<'_>) -> Again {
-        Again { server: server.clone(), trust: dial.trust.clone(), proxy: dial.proxy.clone(), timeout: dial.timeout }
+    pub fn of(server: &Server, dial: &super::Dial) -> Again {
+        Again { server: server.clone(), way: dial.way.clone(), trust: dial.trust.clone(), timeout: dial.timeout }
     }
 
     /// A connection to the same server, dialed as the first: TCP through
     /// the host's proxy, and TLS that offers `http/1.1` alone, as the server
     /// refused HTTP/2 already.
     pub async fn connect(&self) -> Result<Conn, VlessError> {
-        let Again { server, trust, proxy, timeout } = self;
-        let tcp = crate::dial::dial(&server.host, server.port, proxy, *timeout).await.map_err(VlessError::Dial)?;
+        let Again { server, way, trust, timeout } = self;
+        let tcp = way.tcp(&server.host, server.port, *timeout).await.map_err(VlessError::Dial)?.io;
         if !server.tls {
             return Ok(BufReader::new(Box::new(tcp)));
         }
-        let tls = super::xhttp::tls(server, trust, *timeout, vec![b"http/1.1".to_vec()], tcp).await?;
+        let tls = super::xhttp::tls(server, way, trust, *timeout, vec![b"http/1.1".to_vec()], tcp).await?;
         Ok(BufReader::new(Box::new(tls)))
     }
 }
@@ -65,11 +66,12 @@ pub(super) enum Framing {
     ToEnd,
 }
 
-/// A request's head: its line, `Host`, the headers of XHTTP's request, and
-/// the body's framing.
-pub(super) fn head(server: &Server, method: http::Method, path: &str, body: Framing) -> Result<Vec<u8>, VlessError> {
+/// A request's head to the server of `again`: its line, `Host`, the headers
+/// of XHTTP's request, and the body's framing.
+pub(super) fn head(again: &Again, method: http::Method, path: &str, body: Framing) -> Result<Vec<u8>, VlessError> {
     let streamed = body == Framing::Chunked;
-    let request = super::xhttp::request(server, method.clone(), path, streamed)?;
+    let server = &again.server;
+    let request = super::xhttp::request(server, method.clone(), path, streamed, &again.way.user_agent)?;
     let target = request.uri().path_and_query().map_or("/", |p| p.as_str());
     let mut text = format!("{method} {target} HTTP/1.1\r\nHost: {}\r\n", server.authority);
     for (name, value) in request.headers() {

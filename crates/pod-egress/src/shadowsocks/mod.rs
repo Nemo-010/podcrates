@@ -1,4 +1,4 @@
-//! Shadowsocks in its AEAD form (T-373, GitHub #62): a server that takes a
+//! Shadowsocks in its AEAD form: a server that takes a
 //! target in an address header and dials it, as the relay's forward path
 //! does, with a key in place of a token. The stream is the one of
 //! shadowsocks.org's `aead.html`: a salt, then chunks, each the payload's
@@ -8,16 +8,16 @@
 //! HKDF-SHA1 with the info `ss-subkey`.
 //!
 //! Three methods: `chacha20-ietf-poly1305`, `aes-256-gcm` and `aes-128-gcm`,
-//! with the ciphers of podssh's own TLS (`crypto/aead.rs`); and the three of
-//! Shadowsocks 2022 (SIP022, T-492, [`sip022`]): `2022-blake3-aes-128-gcm`,
+//! with the ciphers of pod-tls's pure provider (`pod_tls::crypto::aead`); and the three of
+//! Shadowsocks 2022 (SIP022, [`sip022`]): `2022-blake3-aes-128-gcm`,
 //! `2022-blake3-aes-256-gcm` and `2022-blake3-chacha20-poly1305`, whose key
 //! is a pre-shared key in base64, each stream's key BLAKE3's `derive_key` of
 //! it and the salt, and whose request and response open with a header that
 //! holds a timestamp. A key of several users (SIP023's `iPSK:uPSK`) is
-//! refused by its name, and so is a plugin, another program that podssh does
+//! refused by its name, and so is a plugin, another program that this client does
 //! not start. The server is reached as each road reaches its first host: TCP
 //! through the proxy of the environment ([`open`]), or, for a server of an
-//! Outline access key that names one, a WebSocket over TLS (T-493, [`ws`],
+//! Outline access key that names one, a WebSocket over TLS ([`ws`],
 //! [`key`]).
 //!
 //! The password goes into the master key and nowhere else: no message, no
@@ -37,15 +37,15 @@ pub use carry::{Carried, Ended, Status};
 pub use codec::{ChunkError, Decoder, Encoder, MAX_PAYLOAD, address, parse_address};
 pub use key::access_key;
 pub use list::{Listed, subscription};
-pub use open::{ANSWER_WAIT, Dial, OpenError, Opened, open};
+pub use open::{ANSWER_WAIT, Dial, OpenError, Opened, Road, open};
 pub use uri::Node;
 
 use zeroize::Zeroizing;
 
-use crate::crypto::aead::AeadId;
+use pod_tls::crypto::aead::AeadId;
 
 /// The tag of each sealed piece: 16 bytes in each method here.
-pub const TAG_LEN: usize = crate::crypto::aead::TAG_LEN;
+pub const TAG_LEN: usize = pod_tls::crypto::aead::TAG_LEN;
 
 /// HKDF's info for each stream's key, as the specification fixes it.
 const SUBKEY_INFO: &[u8] = b"ss-subkey";
@@ -56,7 +56,7 @@ pub enum Method {
     Chacha20IetfPoly1305,
     Aes256Gcm,
     Aes128Gcm,
-    /// SIP022's methods (T-492).
+    /// SIP022's methods.
     Blake3Aes128Gcm,
     Blake3Aes256Gcm,
     Blake3Chacha20Poly1305,
@@ -122,7 +122,7 @@ impl Method {
         }
     }
 
-    /// The methods that podssh speaks, for a message.
+    /// The methods that this client speaks, for a message.
     pub fn names() -> &'static str {
         "chacha20-ietf-poly1305, aes-256-gcm, aes-128-gcm, 2022-blake3-aes-128-gcm, 2022-blake3-aes-256-gcm or \
          2022-blake3-chacha20-poly1305"
@@ -144,8 +144,8 @@ impl Method {
         let shaped = (1..=40).contains(&lower.len())
             && lower.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
         match shaped {
-            true => Err(format!("the method {lower} is not one that podssh speaks: {names}")),
-            false => Err(format!("the method is not one that podssh speaks: {names}")),
+            true => Err(format!("the method {lower} is not one that this client speaks: {names}")),
+            false => Err(format!("the method is not one that this client speaks: {names}")),
         }
     }
 }

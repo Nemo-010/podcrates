@@ -1,4 +1,4 @@
-//! The XHTTP stand-in of HTTP/1.1 (T-456), as Xray-core's `hub.go` routes
+//! The XHTTP stand-in of HTTP/1.1, as Xray-core's `hub.go` routes
 //! the same requests when its server speaks HTTP/1.1: the GET of
 //! `PATH/SESSION` holds its connection and streams the download in chunks;
 //! a POST of `PATH/SESSION/SEQ` with its length is a packet, answered with an

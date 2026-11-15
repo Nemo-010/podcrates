@@ -7,9 +7,8 @@ repo PodUtils/podssh 2ffb7cd77731e24a98e93c106ca7db7c5c4bd472
 # podssh froze these roads of podssh-ws at this commit for the move
 # (PodUtils/podssh@T-684, PodUtils/podssh#248): a fix there until podssh
 # takes the crate is ported here. forwarder/carry.rs and forwarder/end.rs
-# are the shared parts of each road here (src/carry.rs, src/end.rs). The
-# other roads of the directories of podssh-ws (vless/, vmess/, trojan/,
-# shadowsocks/, eice/, iap/) join the crate in later parts of T-035.
+# are the shared parts of each road here (src/carry.rs, src/end.rs). eice/
+# and iap/ of podssh-ws join the crate in part 3 of T-035.
 dir crates/podssh-ws/src/via
 dir crates/podssh-ws/src/forwarder
 dir crates/podssh-ws/src/wstunnel
@@ -55,7 +54,9 @@ file 5f734d4e109c1a047c5b839f0bd3e872d67b8c61 crates/podssh-ws/tests/cloudflare_
 file 7d92c5b2c7ca2ee3b143b069181337de135dc54f crates/podssh-ws/tests/common/talker.rs -> crates/pod-egress/tests/common/talker.rs
 
 # Part 2 of T-035: VLESS, VMess's AEAD form, Trojan and Shadowsocks (the
-# AEAD form and SIP022).
+# AEAD form and SIP022). podssh keeps a copy of tests/vless_support/ and
+# tests/trojan_support/ for its tests of the public proxy nodes, Hysteria and
+# TUIC.
 dir crates/podssh-ws/src/vless
 dir crates/podssh-ws/src/vmess
 dir crates/podssh-ws/src/trojan

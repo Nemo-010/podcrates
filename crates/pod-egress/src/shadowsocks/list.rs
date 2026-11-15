@@ -1,7 +1,7 @@
 //! A subscription's list, as a provider serves it at its URL: lines of
 //! `ss://` URIs, the same lines in base64 (as most lists are served), or
 //! SIP008's JSON (`{"version":1,"servers":[...]}`). Lines of other schemes
-//! (`vmess://`, `trojan://`) are counted and passed over, as podssh speaks
+//! (`vmess://`, `trojan://`) are counted and passed over, as this client speaks
 //! none of them; an `ss://` line that cannot go is refused with its number,
 //! never its text.
 

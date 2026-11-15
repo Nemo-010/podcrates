@@ -14,7 +14,12 @@
 //!   pluggable transports meek_lite and WebTunnel, with what they share
 //!   ([`pt`]);
 //! * `cloudflare` ([`cloudflare`]): the road of `cloudflared access tcp`,
-//!   with the credentials of Cloudflare Access.
+//!   with the credentials of Cloudflare Access;
+//! * `vless` ([`vless`]), `vmess` ([`vmess`]) and `trojan` ([`trojan`]): a
+//!   server of Xray-core's protocols that the user runs, over a WebSocket,
+//!   XHTTP or TLS;
+//! * `shadowsocks` ([`shadowsocks`]): a Shadowsocks server, in the AEAD
+//!   form or Shadowsocks 2022, over TCP or a WebSocket.
 //!
 //! **Shared parts.** [`carry`] makes a WebSocket session a byte stream,
 //! [`end`] says what the end of this side's input does, [`Note`] takes a
@@ -30,7 +35,8 @@
 //!
 //! **Each road that takes its target from the client is a
 //! [`pod_core::Dial`]**: [`via::Client`], [`forwarder::Forwarder`],
-//! [`wisp::Road`] and [`wstunnel::Tunnel`]. Its failure is a
+//! [`wisp::Road`], [`wstunnel::Tunnel`], and `vless::Road`, `vmess::Road`,
+//! `trojan::Road` and `shadowsocks::Road` (each with its feature). Its failure is a
 //! [`pod_core::Failure`] with its stage and its class. meek_lite, WebTunnel
 //! and the Access client reach one far end that the bridge or the tunnel
 //! names, and are not dialers.
@@ -53,8 +59,16 @@ pub mod fuzzing;
 pub mod meek;
 #[cfg(any(feature = "meek", feature = "webtunnel"))]
 pub mod pt;
+#[cfg(feature = "shadowsocks")]
+pub mod shadowsocks;
+#[cfg(feature = "trojan")]
+pub mod trojan;
 #[cfg(feature = "via")]
 pub mod via;
+#[cfg(feature = "vless")]
+pub mod vless;
+#[cfg(feature = "vmess")]
+pub mod vmess;
 #[cfg(feature = "webtunnel")]
 pub mod webtunnel;
 #[cfg(feature = "wisp")]

@@ -21,7 +21,7 @@ use super::VlessError;
 use super::link::Server;
 use super::split::{Failed, Halves};
 use super::xhttp::{answer, at, request, send, send_all, session_id};
-use crate::via::Stream;
+use pod_ws::h2_road::Stream;
 
 /// The pipe in memory to the task of the POSTs: a write waits while a POST
 /// of this much waits for its 200.
@@ -32,29 +32,32 @@ pub(super) async fn open(
     sender: SendRequest<Bytes>,
     first: Vec<u8>,
     limit: Duration,
+    agent: &str,
 ) -> Result<Halves<Stream, DuplexStream>, VlessError> {
     let id = session_id()?;
-    let get = request(server, http::Method::GET, &at(server, &id), false)?;
+    let get = request(server, http::Method::GET, &at(server, &id), false, agent)?;
     let (down, closed) = send(&sender, get, true, limit).await?;
     let down = answer(down, limit, "the GET of packet-up").await?;
-    let read = Stream::from_parts(closed, down.into_body());
-    post(server, &sender, &id, 0, Bytes::from(first), limit).await?;
+    let read = pod_ws::h2_road::duplex(closed, down.into_body());
+    let at_server = At { server: server.clone(), agent: agent.to_string(), limit };
+    post(&at_server, &sender, &id, 0, Bytes::from(first)).await?;
     let (ours, theirs) = tokio::io::duplex(PIPE);
     let failed = Failed::default();
-    tokio::spawn(uploads(server.clone(), sender, id, theirs, limit, failed.clone()));
+    tokio::spawn(uploads(at_server, sender, id, theirs, failed.clone()));
     Ok(Halves { read, write: ours, failed })
 }
 
-/// One POST of packet-up, its body whole, and its 200.
-async fn post(
-    server: &Server,
-    sender: &SendRequest<Bytes>,
-    id: &str,
-    seq: u64,
-    body: Bytes,
+/// The server of the POSTs, the user agent of each, and the bound of each.
+struct At {
+    server: Server,
+    agent: String,
     limit: Duration,
-) -> Result<(), VlessError> {
-    let mut post = request(server, http::Method::POST, &at(server, &format!("{id}/{seq}")), false)?;
+}
+
+/// One POST of packet-up, its body whole, and its 200.
+async fn post(to: &At, sender: &SendRequest<Bytes>, id: &str, seq: u64, body: Bytes) -> Result<(), VlessError> {
+    let (server, limit) = (&to.server, to.limit);
+    let mut post = request(server, http::Method::POST, &at(server, &format!("{id}/{seq}")), false, &to.agent)?;
     post.headers_mut().insert(http::header::CONTENT_LENGTH, http::HeaderValue::from(body.len()));
     let (answered, mut up) = send(sender, post, false, limit).await?;
     send_all(&mut up, body, true).await.map_err(VlessError::Carry)?;
@@ -63,22 +66,15 @@ async fn post(
 
 /// The POSTs after the first, until this side's bytes end or one fails;
 /// a failure is kept, so that the next write says it.
-async fn uploads(
-    server: Server,
-    sender: SendRequest<Bytes>,
-    id: String,
-    mut from: DuplexStream,
-    limit: Duration,
-    failed: Failed,
-) {
-    let mut buf = vec![0u8; server.extra.max_post];
+async fn uploads(to: At, sender: SendRequest<Bytes>, id: String, mut from: DuplexStream, failed: Failed) {
+    let mut buf = vec![0u8; to.server.extra.max_post];
     for seq in 1u64.. {
         let n = match from.read(&mut buf).await {
             Ok(0) | Err(_) => return,
             Ok(n) => n,
         };
-        if let Err(e) = post(&server, &sender, &id, seq, Bytes::copy_from_slice(&buf[..n]), limit).await {
-            let shown = server.shown();
+        if let Err(e) = post(&to, &sender, &id, seq, Bytes::copy_from_slice(&buf[..n])).await {
+            let shown = to.server.shown();
             *failed.lock().unwrap_or_else(|p| p.into_inner()) = Some(e.line(&shown, "the target"));
             return;
         }

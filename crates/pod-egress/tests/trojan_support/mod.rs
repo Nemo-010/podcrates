@@ -3,14 +3,14 @@
 //! compares the 56 bytes of the hash, and on a match dials the target and
 //! relays; on another hash it hands the bytes to its fallback, an HTTP server
 //! that answers `400`. In TLS alone and in a WebSocket at `/tr`. Shared by
-//! `trojan.rs` and the round of `proxy_nodes.rs` (T-574).
+//! `trojan.rs`.
 
 #![allow(dead_code)]
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use podssh_ws::session::RelaySession;
+use pod_ws::session::RelaySession;
 use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -140,7 +140,7 @@ pub async fn serve_ws<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(mut tl
         .find(|(n, _)| n.trim().eq_ignore_ascii_case("sec-websocket-key"))
         .map(|(_, v)| v.trim().to_string())
         .unwrap_or_default();
-    let accept = podssh_ws::handshake::accept_key(&key);
+    let accept = pod_ws::handshake::accept_key(&key);
     let answer = format!(
         "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: \
          {accept}\r\n\r\n"
@@ -167,7 +167,7 @@ pub async fn serve_ws<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(mut tl
     let up_session = session.clone();
     let up = async move {
         while let Ok(frame) = up_session.read_frame().await {
-            if frame.opcode == podssh_ws::frame::OPCODE_CLOSE || wr.write_all(&frame.payload).await.is_err() {
+            if frame.opcode == pod_ws::frame::OPCODE_CLOSE || wr.write_all(&frame.payload).await.is_err() {
                 break;
             }
         }

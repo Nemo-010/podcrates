@@ -1,25 +1,26 @@
-//! VLESS (T-440) against stand-ins on the loopback (`vless_support/`): over
+//! VLESS against stand-ins on the loopback (`vless_support/`): over
 //! a WebSocket, and over XHTTP's three modes on h2's own HTTP/2 server. A
 //! session carries the target's version line and an echo; another ID is said
 //! as the server's refusal; a refused upgrade names XHTTP as the way past it;
 //! a server of HTTP/1.1 alone carries packet-up and stream-up on two
-//! connections and refuses stream-one (T-456, Q67); a pipe takes a stream
+//! connections and refuses stream-one; a pipe takes a stream
 //! whose target waits for its client; and the host's own proxy carries the
 //! TCP. A pipe's end of input over a WebSocket sends no Close until the
-//! server's end, so that 1 MiB still on its way comes whole (T-699). The runs
-//! against Xray-core and shoes are `scripts/interop-vless.sh`.
+//! server's end, so that 1 MiB still on its way comes whole. A [`vless::Road`]
+//! is a dialer, and a wrong ID is a typed failure.
 
 mod vless_support;
 
 use std::path::Path;
 use std::time::Duration;
 
-use podssh_ws::vless::{self, AtEnd, Dial, Mode, Opened, Server, Transport, VlessError};
-use podssh_ws::{Proxy, ProxyChoice, Trust};
+use pod_egress::vless::{self, AtEnd, Dial, Mode, Opened, Server, Transport, VlessError};
+use pod_proxy::{Proxy, ProxyChoice};
+use pod_tls::Trust;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use vless_support::{BANNER, CLOSE_AFTER, ID, NAME};
-use vless_support::{pins, root_file, talker, target, ws_server, xhttp_server, xhttp1_server};
+use vless_support::{root_file, talker, target, way, ws_server, xhttp_server, xhttp1_server};
 
 const LIMIT: Duration = Duration::from_secs(20);
 
@@ -27,15 +28,14 @@ fn server(port: u16, query: &str, id: &str) -> Server {
     Server::parse(&format!("vless://{id}@{NAME}:{port}?security=tls&{query}")).unwrap()
 }
 
-fn dial<'a>(trust: &'a Trust, proxy: &'a ProxyChoice, pipe: bool) -> Dial<'a> {
+fn dial(trust: Trust, proxy: ProxyChoice, pipe: bool) -> Dial {
     let answer = if pipe { vless::EARLY_WAIT } else { vless::ANSWER_WAIT };
     let at_end = if pipe { AtEnd::AfterPeer } else { AtEnd::Now };
-    Dial { trust, proxy, timeout: LIMIT, answer, silence_is_ready: pipe, at_end }
+    Dial { way: way(proxy), trust, timeout: LIMIT, answer, silence_is_ready: pipe, at_end }
 }
 
 async fn open(server: &Server, port: u16, root: &Path, proxy: ProxyChoice, pipe: bool) -> Result<Opened, VlessError> {
-    let trust = Trust::File(root.to_path_buf());
-    let dial = dial(&trust, &proxy, pipe);
+    let dial = dial(Trust::File(root.to_path_buf()), proxy, pipe);
     tokio::time::timeout(LIMIT * 2, vless::open(server, "127.0.0.1", port, &dial)).await.expect("within the limit")
 }
 
@@ -64,7 +64,6 @@ async fn carries(opened: &mut Opened, sent: &[u8]) {
 /// whole (several POSTs on packet-up, as one waits while the next fills).
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_session_goes_over_a_websocket_and_each_mode_of_xhttp() {
-    pins();
     let (root, aim) = (root_file("modes"), target(true).await);
     let (ws, ws_seen) = ws_server().await;
     let link = server(ws, &format!("type=ws&path=%2Fws&host=front.vless.test&sni={NAME}"), ID);
@@ -103,7 +102,6 @@ async fn a_session_goes_over_a_websocket_and_each_mode_of_xhttp() {
 /// VLESS's answer, and the line says that the server refused the ID.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_wrong_id_is_said_as_the_server_s_refusal() {
-    pins();
     let (root, aim) = (root_file("refusal"), target(true).await);
     let (ws, _) = ws_server().await;
     let (xh, _) = xhttp_server(&[b"h2"]).await;
@@ -125,7 +123,6 @@ async fn a_wrong_id_is_said_as_the_server_s_refusal() {
 /// of HTTP/1.1 alone are said too.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_refused_upgrade_a_wrong_path_and_http1_are_said() {
-    pins();
     let (root, aim) = (root_file("refused"), target(true).await);
     let (ws, _) = ws_server().await;
     let direct = ProxyChoice::Direct;
@@ -135,7 +132,7 @@ async fn a_refused_upgrade_a_wrong_path_and_http1_are_said() {
     let (xh, _) = xhttp_server(&[b"h2"]).await;
     let e = open(&server(xh, "type=xhttp&path=%2Fother", ID), aim, &root, direct.clone(), false).await.err();
     assert!(matches!(e, Some(VlessError::Refused { status: 404, .. })), "{:?}", e.map(|e| e.line("x", "y")));
-    // stream-one alone stays refused on HTTP/1.1 (Q67): its body never ends.
+    // stream-one alone stays refused on HTTP/1.1: its body never ends.
     let (h1, _) = xhttp1_server(true).await;
     let link = server(h1, "type=xhttp&path=%2Fxh&mode=stream-one", ID);
     let e = open(&link, aim, &root, direct, false).await.err().unwrap();
@@ -144,7 +141,7 @@ async fn a_refused_upgrade_a_wrong_path_and_http1_are_said() {
     let _ = std::fs::remove_dir_all(root.parent().unwrap());
 }
 
-/// A server of HTTP/1.1 alone (Q67, T-456): packet-up and stream-up carry the
+/// A server of HTTP/1.1 alone: packet-up and stream-up carry the
 /// session on two connections, the GET's and the upload's, over TLS that
 /// chose `http/1.1` and over HTTP/2 with prior knowledge that the server
 /// refused, with no TLS; a kept connection that the server closes after
@@ -153,7 +150,6 @@ async fn a_refused_upgrade_a_wrong_path_and_http1_are_said() {
 /// no packet is answered.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn http1_alone_carries_packet_up_and_stream_up_on_two_connections() {
-    pins();
     let (root, aim) = (root_file("http1"), target(true).await);
     for tls in [true, false] {
         let (h1, seen) = xhttp1_server(tls).await;
@@ -187,7 +183,6 @@ async fn http1_alone_carries_packet_up_and_stream_up_on_two_connections() {
 /// short wait with no answer, and the answer comes with the echo.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_pipe_takes_the_stream_of_a_target_that_waits_for_its_client() {
-    pins();
     let (root, aim) = (root_file("pipe"), target(false).await);
     let (xh, _) = xhttp_server(&[b"h2"]).await;
     let link = server(xh, "type=xhttp&path=%2Fxh&mode=stream-one", ID);
@@ -202,7 +197,7 @@ async fn a_pipe_takes_the_stream_of_a_target_that_waits_for_its_client() {
     let _ = std::fs::remove_dir_all(root.parent().unwrap());
 }
 
-/// A pipe's end of input over a WebSocket (T-699): this side's input ends at
+/// A pipe's end of input over a WebSocket: this side's input ends at
 /// once, while the target's 1 MiB is still on its way. A WebSocket has no
 /// half-close, and the stand-in answers a Close at once and sends nothing
 /// after it, as RFC 6455 allows; so the pipe sends its Close
@@ -210,7 +205,6 @@ async fn a_pipe_takes_the_stream_of_a_target_that_waits_for_its_client() {
 /// first end, the rest is lost.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_pipe_s_end_of_input_over_a_websocket_waits_for_the_server_and_loses_no_byte() {
-    pins();
     let (root, aim) = (root_file("end"), talker::talker().await);
     let (ws, _) = ws_server().await;
     let mut opened = open(&server(ws, "type=ws&path=%2Fws", ID), aim, &root, ProxyChoice::Direct, true)
@@ -227,7 +221,6 @@ async fn a_pipe_s_end_of_input_over_a_websocket_waits_for_the_server_and_loses_n
 /// its name, and packet-up runs inside it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_host_s_proxy_carries_the_tcp_to_the_server() {
-    pins();
     let (root, aim) = (root_file("hop"), target(true).await);
     let (xh, _) = xhttp_server(&[b"h2", b"http/1.1"]).await;
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -264,4 +257,38 @@ fn doctor_tries_each_mode_of_an_auto_link() {
     let link = server(443, "type=xhttp", ID);
     assert_eq!(vless::modes(link.transport).len(), 3);
     assert_eq!(link.transport, Transport::Xhttp(Mode::Auto));
+}
+
+/// A [`vless::Road`] is a dialer: a dial of the target carries its version
+/// line and an echo. Another ID is a failure of the relay's stage, of the
+/// class refused, in the line that names the server and the target, with no
+/// ID in it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_vless_road_is_a_dialer_and_a_wrong_id_is_a_typed_failure() {
+    let (root, aim) = (root_file("road"), target(true).await);
+    let (ws, _) = ws_server().await;
+    let road = vless::Road {
+        server: server(ws, "type=ws&path=%2Fws", ID),
+        dial: dial(Trust::File(root.to_path_buf()), ProxyChoice::Direct, false),
+    };
+    let dialer: &dyn pod_core::Dial = &road;
+    assert!(dialer.names_inside());
+    let deadline = tokio::time::Instant::now() + LIMIT;
+    let target = pod_core::Target::new("127.0.0.1", aim);
+    let mut io = dialer.dial(&target, deadline).await.unwrap_or_else(|e| panic!("{e}")).io;
+    let mut banner = vec![0u8; BANNER.len()];
+    let mut back = [0u8; 9];
+    let both = async {
+        io.read_exact(&mut banner).await.unwrap();
+        io.write_all(b"a dialer!").await.unwrap();
+        io.read_exact(&mut back).await.unwrap();
+    };
+    tokio::time::timeout(LIMIT, both).await.expect("the bytes within the limit");
+    assert_eq!((banner.as_slice(), &back), (BANNER, b"a dialer!"));
+    let other = "00000000-0000-4000-8000-000000000001";
+    let wrong = vless::Road { server: server(ws, "type=ws&path=%2Fws", other), ..road.clone() };
+    let failure = (&wrong as &dyn pod_core::Dial).dial(&target, deadline).await.expect_err("a refusal");
+    assert_eq!((failure.stage, failure.class), (pod_core::Stage::Relay, pod_core::Class::Refused), "{failure}");
+    let words = format!("the VLESS server vless://{NAME}:{ws}/ws, for 127.0.0.1:{aim}: ");
+    assert!(failure.text().starts_with(&words) && !failure.text().contains(other), "{failure}");
 }

@@ -1,7 +1,17 @@
 //! What each road that is a dialer shares: the time left before the
 //! deadline of a dial, as a road bounds each of its steps by a duration.
 
-#![cfg_attr(not(any(feature = "via", feature = "forwarder", feature = "wisp", feature = "wstunnel")), allow(dead_code))]
+#![cfg_attr(
+    not(any(
+        feature = "via",
+        feature = "forwarder",
+        feature = "wisp",
+        feature = "wstunnel",
+        feature = "vless",
+        feature = "shadowsocks"
+    )),
+    allow(dead_code)
+)]
 
 use std::time::Duration;
 

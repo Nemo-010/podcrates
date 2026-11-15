@@ -1,4 +1,4 @@
-//! XHTTP over HTTP/1.1, on two connections (Q67): where the server, or a
+//! XHTTP over HTTP/1.1, on two connections: where the server, or a
 //! front end that ends TLS on the way, refused HTTP/2. HTTP/1.1 carries one
 //! request at a time on a connection, so the download and the upload of a
 //! session need one each, as Xray-core's client opens them: the GET of
@@ -21,7 +21,7 @@ use super::link::{Mode, Server};
 use super::split::{Failed, Halves};
 use super::xhttp::{at, session_id};
 use super::{Dial, VlessError};
-use crate::via::Duplex;
+use crate::Duplex;
 
 /// The pipe in memory to each task: a write waits while this much waits.
 const PIPE: usize = 1 << 20;
@@ -37,7 +37,7 @@ pub(super) async fn open(
     server: &Server,
     mode: Mode,
     first: Vec<u8>,
-    dial: &Dial<'_>,
+    dial: &Dial,
     conn: Conn,
 ) -> Result<(Box<dyn Duplex>, String), VlessError> {
     let again = Again::of(server, dial);
@@ -66,7 +66,7 @@ async fn send_head(conn: &mut Conn, head: &[u8], limit: Duration, what: &str) ->
 /// they come, from the other end of the pipe that this returns.
 async fn download(again: &Again, mut conn: Conn, id: &str, what: &'static str) -> Result<DuplexStream, VlessError> {
     let (server, limit) = (&again.server, again.timeout);
-    let head = h1::head(server, http::Method::GET, &at(server, id), Framing::None)?;
+    let head = h1::head(again, http::Method::GET, &at(server, id), Framing::None)?;
     send_head(&mut conn, &head, limit, what).await?;
     let answer = h1::answer(&mut conn, limit, what).await?;
     let (ours, mut theirs) = tokio::io::duplex(PIPE);
@@ -97,7 +97,7 @@ async fn packet_up(again: Again, conn: Conn, first: Vec<u8>) -> Result<Halves<Du
 async fn post(again: &Again, up: &mut Option<Conn>, id: &str, seq: u64, body: &[u8]) -> Result<(), VlessError> {
     let server = &again.server;
     let path = at(server, &format!("{id}/{seq}"));
-    let head = h1::head(server, http::Method::POST, &path, Framing::Length(body.len() as u64))?;
+    let head = h1::head(again, http::Method::POST, &path, Framing::Length(body.len() as u64))?;
     let what = "a POST of packet-up";
     for attempt in 0..2 {
         let mut conn = match up.take() {
@@ -157,7 +157,7 @@ async fn stream_up(again: Again, conn: Conn, first: Vec<u8>) -> Result<Halves<Du
     let read = download(&again, conn, &id, "the GET of stream-up").await?;
     let mut up = again.connect().await?;
     let what = "the POST of stream-up";
-    let head = h1::head(&again.server, http::Method::POST, &at(&again.server, &id), Framing::Chunked)?;
+    let head = h1::head(&again, http::Method::POST, &at(&again.server, &id), Framing::Chunked)?;
     send_head(&mut up, &head, again.timeout, what).await?;
     h1::chunk(up.get_mut(), &first).await.map_err(|e| VlessError::Carry(format!("{what}: HTTP/1.1: {e}")))?;
     let (ours, theirs) = tokio::io::duplex(PIPE);

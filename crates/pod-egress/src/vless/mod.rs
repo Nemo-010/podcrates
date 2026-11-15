@@ -1,17 +1,19 @@
-//! VLESS (T-440, the operator's ruling Q66): a server that the user runs,
-//! Xray-core's or another that speaks its protocol (shoes, sing-box), takes
-//! the target from a short header and dials it, so that it is a road in place
-//! of the relay. The stream goes over a WebSocket (`ws`), or over XHTTP's
-//! plain HTTP requests on HTTP/2 (`xhttp`), or on HTTP/1.1 and two
-//! connections where HTTP/2 is refused (`h1_modes`, Q67), which pass where a
-//! proxy or a front end refuses the WebSocket upgrade. TLS is podssh's, checked for the
-//! link's name, through `HTTPS_PROXY` when it is set, as each road dials.
+//! VLESS: a server that the user runs, Xray-core's or another that speaks
+//! its protocol (shoes, sing-box), takes the target from a short header and
+//! dials it, so that it is a road in place of the relay. The stream goes
+//! over a WebSocket (`ws`), or over XHTTP's plain HTTP requests on HTTP/2
+//! (`xhttp`), or on HTTP/1.1 and two connections where HTTP/2 is refused
+//! (`h1_modes`), which pass where a proxy or a front end refuses the
+//! WebSocket upgrade. Each connection goes through the caller's way out
+//! ([`Dial::way`]), its TLS checked for the link's name.
 //!
 //! The link and its ID come from a private file ([`link`]); the request and
-//! the answer are [`header`]'s. The server answers with the target's first
+//! the answer are `header`'s. The server answers with the target's first
 //! bytes, so a session whose server speaks first (SSH) waits for that answer,
 //! and one whose client may speak first (a pipe) takes the stream after a
-//! short silence, as `--shadowsocks` does.
+//! short silence.
+//!
+//! A [`Road`] is a [`pod_core::Dial`]: a dial of a target is a session to it.
 
 mod extra;
 mod h1;
@@ -20,17 +22,21 @@ mod header;
 pub mod link;
 mod packet;
 mod split;
-// Its pump of binary messages serves the Trojan road too (T-491).
+// Its pump of binary messages serves the Trojan and VMess roads too.
 pub(crate) mod ws;
 mod xhttp;
 
 use std::time::Duration;
 
-use crate::dial::{DialError, ProxyChoice};
-use crate::tls::Trust;
-use crate::via::Duplex;
+use pod_core::{BoxFuture, Class, Connected, Failure, Stage, Target};
+use pod_proxy::DialError;
+use pod_tls::Trust;
+use pod_ws::Way;
+use tokio::time::Instant;
 
-pub use crate::forwarder::AtEnd;
+use crate::Duplex;
+
+pub use crate::end::AtEnd;
 pub use extra::Extra;
 pub use header::{ENDED, not_vless};
 pub use link::{Id, Mode, Server, Transport};
@@ -42,10 +48,14 @@ pub const ANSWER_WAIT: Duration = Duration::from_secs(10);
 /// ID ends the session at once.
 pub const EARLY_WAIT: Duration = Duration::from_secs(3);
 
-/// What a VLESS road needs beside its server and its target.
-pub struct Dial<'a> {
-    pub trust: &'a Trust,
-    pub proxy: &'a ProxyChoice,
+/// What a VLESS road needs beside its server and its target. The Trojan and
+/// VMess roads take the same.
+#[derive(Debug, Clone)]
+pub struct Dial {
+    /// The way out: the dialer, the TLS context, the user agent.
+    pub way: Way,
+    /// The trust of the server's certificate.
+    pub trust: Trust,
     /// The bound of each step: TCP, TLS, the upgrade, each HTTP answer.
     pub timeout: Duration,
     /// How long to wait for VLESS's answer.
@@ -80,7 +90,44 @@ pub enum VlessError {
     Silent(Duration),
 }
 
+impl std::fmt::Display for VlessError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VlessError::Target(why) | VlessError::Carry(why) | VlessError::Http1(why) => f.write_str(why),
+            VlessError::Dial(e) => write!(f, "{e}"),
+            VlessError::Refused { status, why } => write!(f, "the VLESS server refused {why}: HTTP {status}"),
+            VlessError::Ended => f.write_str(ENDED),
+            VlessError::NotVless(v) => f.write_str(&not_vless(*v)),
+            VlessError::Silent(after) => write!(f, "no answer of the VLESS server within {} s", after.as_secs()),
+        }
+    }
+}
+
+impl std::error::Error for VlessError {}
+
+impl From<VlessError> for Failure {
+    fn from(e: VlessError) -> Failure {
+        let (stage, class) = e.stage_and_class();
+        Failure::caused(stage, class, e.to_string(), e)
+    }
+}
+
 impl VlessError {
+    /// The stage and the class of the failure. The server is the relay of
+    /// the road: an end before its answer is its refusal of the ID.
+    pub fn stage_and_class(&self) -> (Stage, Class) {
+        match self {
+            VlessError::Target(_) => (Stage::Connect, Class::Usage),
+            VlessError::Dial(e) => e.stage_and_class(),
+            VlessError::Carry(_) => (Stage::WebSocket, Class::Unavailable),
+            VlessError::Refused { .. } => (Stage::WebSocket, Class::Refused),
+            VlessError::Http1(_) => (Stage::WebSocket, Class::Unsupported),
+            VlessError::Ended => (Stage::Relay, Class::Refused),
+            VlessError::NotVless(_) => (Stage::Relay, Class::Protocol),
+            VlessError::Silent(_) => (Stage::Relay, Class::Timeout),
+        }
+    }
+
     /// The line that says it, for the server `shown` and the target.
     pub fn line(&self, shown: &str, target: &str) -> String {
         match self {
@@ -121,7 +168,7 @@ pub struct Opened {
 }
 
 /// A session to `host:port` through `server`, on the link's transport.
-pub async fn open(server: &Server, host: &str, port: u16, dial: &Dial<'_>) -> Result<Opened, VlessError> {
+pub async fn open(server: &Server, host: &str, port: u16, dial: &Dial) -> Result<Opened, VlessError> {
     open_as(server, server.transport, host, port, dial).await
 }
 
@@ -131,7 +178,7 @@ pub async fn open_as(
     transport: Transport,
     host: &str,
     port: u16,
-    dial: &Dial<'_>,
+    dial: &Dial,
 ) -> Result<Opened, VlessError> {
     let request = header::request(&server.id, host, port).map_err(VlessError::Target)?;
     let (stream, how): (Box<dyn Duplex>, String) = match transport {
@@ -156,6 +203,46 @@ pub fn modes(transport: Transport) -> Vec<Transport> {
             [Mode::PacketUp, Mode::StreamUp, Mode::StreamOne].into_iter().map(Transport::Xhttp).collect()
         }
         other => vec![other],
+    }
+}
+
+/// A VLESS server as a dialer: each dial is a session to its target.
+#[derive(Debug, Clone)]
+pub struct Road {
+    pub server: Server,
+    pub dial: Dial,
+}
+
+impl pod_core::Dial for Road {
+    fn label(&self) -> String {
+        format!("VLESS {}", self.server.shown())
+    }
+
+    fn proxy_label(&self, _target: &Target) -> Option<String> {
+        Some(self.server.shown())
+    }
+
+    /// A session to `target`, open before `deadline`.
+    fn dial<'a>(&'a self, target: &'a Target, deadline: Instant) -> BoxFuture<'a, Result<Connected, Failure>> {
+        Box::pin(async move {
+            let left = crate::road::left(deadline, target)?;
+            let dial = Dial { timeout: self.dial.timeout.min(left), ..self.dial.clone() };
+            let shown = self.server.shown();
+            let host = target.host();
+            let opening = open(&self.server, &host, target.port(), &dial);
+            let opened = tokio::time::timeout_at(deadline, opening)
+                .await
+                .map_err(|_| crate::road::late(target, &shown))?
+                .map_err(|e| {
+                    let (stage, class) = e.stage_and_class();
+                    Failure::caused(stage, class, e.line(&shown, &target.to_string()), e)
+                })?;
+            Ok(Connected::new(Box::new(opened.stream)))
+        })
+    }
+
+    fn names_inside(&self) -> bool {
+        true
     }
 }
 

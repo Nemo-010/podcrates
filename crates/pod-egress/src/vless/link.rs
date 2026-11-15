@@ -2,8 +2,8 @@
 //! clients and panels give out (XTLS/Xray-core discussion 716):
 //! `vless://ID@HOST:PORT?type=ws|xhttp&security=tls|none&sni=&host=&path=&mode=#NAME`.
 //! The ID is the credential: the link is read from a private file, and
-//! nothing that podssh shows holds it. A setting that changes the bytes in
-//! a way that podssh does not follow (a flow, REALITY, VLESS's encryption, an
+//! nothing that this client shows holds it. A setting that changes the bytes in
+//! a way that this client does not follow (a flow, REALITY, VLESS's encryption, an
 //! XHTTP placement) is refused by its name, never ignored.
 
 use std::fmt;
@@ -70,7 +70,7 @@ impl Id {
 /// XHTTP's modes (`transport/internet/splithttp/dialer.go`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Mode {
-    /// Xray-core's client takes packet-up for TLS with no REALITY; podssh
+    /// Xray-core's client takes packet-up for TLS with no REALITY; this client
     /// does too, and `doctor` tries each.
     Auto,
     /// One streamed GET down, and a numbered POST for each chunk up.
@@ -144,7 +144,7 @@ impl Server {
     /// `vless://HOST:PORT/PATH`, with no ID and no query.
     pub fn shown(&self) -> String {
         let path = self.path.split('?').next().unwrap_or("/");
-        format!("vless://{}{path}", crate::dial::authority(&self.host, self.port))
+        format!("vless://{}{path}", pod_proxy::host::authority(&self.host, self.port))
     }
 
     /// A share link. A refusal names the setting, never the ID.
@@ -155,19 +155,21 @@ impl Server {
             _ => return Err("a line is vless://ID@HOST:PORT?type=ws|xhttp&...".into()),
         };
         let (rest, name) = match rest.split_once('#') {
-            Some((rest, name)) => (rest, crate::proxy::percent_decode(name).ok().map(|n| crate::text::one_line(&n))),
+            Some((rest, name)) => {
+                (rest, pod_proxy::proxy::percent_decode(name).ok().map(|n| pod_core::text::one_line(&n)))
+            }
             None => (rest, None),
         };
         let (before, query) = rest.split_once('?').unwrap_or((rest, ""));
         let before = before.trim_end_matches('/');
         let (id, hostport) = before.rsplit_once('@').ok_or("the link has no ID@ before its host")?;
-        let id = crate::proxy::percent_decode(id).map_err(|_| "the ID is not percent-encoded".to_string())?;
+        let id = pod_proxy::proxy::percent_decode(id).map_err(|_| "the ID is not percent-encoded".to_string())?;
         let id = Id::parse(&id)?;
-        let (host, port) = crate::dial::split_host_port(hostport)?;
+        let (host, port) = pod_proxy::host::split_host_port(hostport)?;
         if host.is_empty() {
             return Err("the link names no host".into());
         }
-        crate::dial::check_name(&host).map_err(|e| e.to_string())?;
+        pod_proxy::host::check_name(&host).map_err(|e| e.to_string())?;
         let port = port.ok_or("the link names no port")?;
         if port == 0 {
             return Err("port 0 is no port".into());
@@ -179,7 +181,7 @@ impl Server {
             "xhttp" | "splithttp" => Transport::Xhttp(mode_of(params.get("mode").unwrap_or("auto"))?),
             other => {
                 return Err(format!(
-                    "type={other} is not spoken: podssh carries VLESS over type=ws and type=xhttp, which pass where \
+                    "type={other} is not spoken: this client carries VLESS over type=ws and type=xhttp, which pass where \
                      HTTPS does"
                 ));
             }
@@ -197,10 +199,10 @@ impl Server {
             Some(name) => name.to_string(),
             None if port == own_port && host.contains(':') => format!("[{host}]"),
             None if port == own_port => host.clone(),
-            None => crate::dial::authority(&host, port),
+            None => pod_proxy::host::authority(&host, port),
         };
         // A header's value: no CR, LF or space may break the request.
-        crate::dial::check_name(&authority).map_err(|e| format!("host: {e}"))?;
+        pod_proxy::host::check_name(&authority).map_err(|e| format!("host: {e}"))?;
         let path = path(params.get("path").unwrap_or("/"), transport)?;
         let alpn = match params.get("alpn") {
             Some(list) => list.split(',').map(|p| p.trim().as_bytes().to_vec()).filter(|p| !p.is_empty()).collect(),
@@ -240,7 +242,7 @@ fn path(path: &str, transport: Transport) -> Result<String, String> {
         _ => path.to_string(),
     };
     let full = if query.is_empty() { path } else { format!("{path}?{}", query.join("&")) };
-    crate::url::request_target(&full).map_err(|why| format!("path: {why}"))
+    pod_ws::url::request_target(&full).map_err(|why| format!("path: {why}"))
 }
 
 /// The link's query, each value percent-decoded.
@@ -251,7 +253,7 @@ impl Params {
         let mut out = Vec::new();
         for pair in query.split('&').filter(|p| !p.is_empty()) {
             let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
-            let value = crate::proxy::percent_decode(&value.replace('+', " "))
+            let value = pod_proxy::proxy::percent_decode(&value.replace('+', " "))
                 .map_err(|_| format!("the value of {key} is not percent-encoded"))?;
             out.push((key.to_ascii_lowercase(), value));
         }
@@ -262,13 +264,13 @@ impl Params {
         self.0.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
     }
 
-    /// The settings whose bytes podssh does not make.
+    /// The settings whose bytes this client does not make.
     fn refuse_unspoken(&self) -> Result<(), String> {
         if let Some(flow) = self.get("flow").filter(|f| !f.is_empty()) {
-            return Err(format!("flow={flow} is not spoken: podssh's VLESS has no flow"));
+            return Err(format!("flow={flow} is not spoken: this client's VLESS has no flow"));
         }
         if self.get("encryption").is_some_and(|e| !e.is_empty() && !e.eq_ignore_ascii_case("none")) {
-            return Err("encryption is not spoken: podssh's VLESS takes encryption=none".into());
+            return Err("encryption is not spoken: this client's VLESS takes encryption=none".into());
         }
         if self.get("pbk").is_some() {
             return Err("pbk names REALITY, which is not spoken".into());

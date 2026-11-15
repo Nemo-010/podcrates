@@ -1,9 +1,9 @@
 //! The `extra` of an XHTTP link: JSON of Xray-core's `xhttpSettings`. The
-//! keys that podssh follows are taken, the ones that only pace or pool
+//! keys that this client follows are taken, the ones that only pace or pool
 //! Xray-core's own client or tune the server are passed over, and each other
 //! key (a placement of the padding, the session or the data, another method,
 //! separate downloads) is refused by its name unless it holds its default, as
-//! the server would wait for bytes where podssh does not put them.
+//! the server would wait for bytes where this client does not put them.
 
 use serde_json::Value;
 
@@ -16,7 +16,7 @@ pub const PADDING: (u32, u32) = (100, 1000);
 /// `GetNormalizedScMaxEachPostBytes`).
 pub const MAX_POST: usize = 1_000_000;
 
-/// The keys that change nothing that podssh sends.
+/// The keys that change nothing that this client sends.
 const PASSED_OVER: &[&str] = &[
     "scMinPostsIntervalMs",
     "scMaxBufferedPosts",
@@ -26,7 +26,7 @@ const PASSED_OVER: &[&str] = &[
     "serverMaxHeaderBytes",
 ];
 
-/// What podssh takes from `extra`.
+/// What this client takes from `extra`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Extra {
     /// Headers that each request carries.
@@ -66,7 +66,9 @@ impl Extra {
                 "host" | "path" => {}
                 passed if PASSED_OVER.contains(&passed) => {}
                 other if is_default(other, value) => {}
-                other => return Err(format!("extra's {other} is not followed: podssh speaks XHTTP's defaults there")),
+                other => {
+                    return Err(format!("extra's {other} is not followed: this client speaks XHTTP's defaults there"));
+                }
             }
         }
         if extra.padding.0 == 0 || extra.padding.0 > extra.padding.1 || extra.padding.1 > 8000 {

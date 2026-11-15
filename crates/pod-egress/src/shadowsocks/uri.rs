@@ -13,7 +13,7 @@ use zeroize::Zeroizing;
 
 use super::Method;
 
-/// The most characters of a tag that podssh keeps: a name in its lines.
+/// The most characters of a tag that this client keeps: a name in its lines.
 const TAG_CHARS: usize = 64;
 
 /// A Shadowsocks server, its method and its password.
@@ -27,9 +27,9 @@ pub struct Node {
     /// The key's own name for the server, after `#`.
     pub tag: Option<String>,
     /// The `wss://` URL of a WebSocket that carries the stream, as Outline's
-    /// servers serve it (T-493); `None` for raw TCP to `host:port`. Its path
+    /// servers serve it; `None` for raw TCP to `host:port`. Its path
     /// is often the server's secret: no line shows it.
-    pub ws: Option<crate::url::WsUrl>,
+    pub ws: Option<pod_ws::url::WsUrl>,
 }
 
 impl fmt::Debug for Node {
@@ -52,7 +52,7 @@ impl Node {
             return Err("its password is empty".into());
         }
         let host = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')).unwrap_or(host);
-        crate::names::check_target(host)?;
+        pod_core::names::check_target(host)?;
         if port == 0 {
             return Err("its port is 0".into());
         }
@@ -66,7 +66,7 @@ impl Node {
     }
 
     /// An `ss://` URI. A plugin is refused, as it is another program that
-    /// podssh does not start, and so is a key of several users of
+    /// this client does not start, and so is a key of several users of
     /// Shadowsocks 2022.
     pub fn parse(text: &str) -> Result<Node, String> {
         let text = text.trim();
@@ -102,17 +102,17 @@ impl Node {
     /// A server whose stream goes in the WebSocket at `url`: its host and
     /// port are the URL's. `ws://` goes to this host alone, as the path would
     /// cross in the clear.
-    pub fn over_websocket(method: Method, password: &str, url: crate::url::WsUrl) -> Result<Node, String> {
+    pub fn over_websocket(method: Method, password: &str, url: pod_ws::url::WsUrl) -> Result<Node, String> {
         Node::new(method, password, &url.host, url.port)?.with_websocket(url)
     }
 
     /// This server's key in the WebSocket at `url`, as [`Node::over_websocket`]
     /// takes it: for a node read back from a kept list.
-    pub fn with_websocket(mut self, url: crate::url::WsUrl) -> Result<Node, String> {
+    pub fn with_websocket(mut self, url: pod_ws::url::WsUrl) -> Result<Node, String> {
         if !url.tls && !is_loopback(&url.host) {
             return Err("its WebSocket is ws://, which goes to this host alone; give its wss:// URL".into());
         }
-        crate::names::check_target(&url.host)?;
+        pod_core::names::check_target(&url.host)?;
         (self.host, self.port) = (url.host.clone(), url.port);
         self.ws = Some(url);
         Ok(self)
@@ -132,7 +132,7 @@ impl Node {
     pub fn shown(&self) -> String {
         let at = match &self.ws {
             Some(ws) => format!("{}://{}/...", if ws.tls { "wss" } else { "ws" }, ws.host_header()),
-            None => format!("ss://{}", crate::dial::authority(&self.host, self.port)),
+            None => format!("ss://{}", pod_proxy::host::authority(&self.host, self.port)),
         };
         match &self.tag {
             Some(tag) => format!("{at} ({tag})"),
@@ -168,7 +168,7 @@ impl Node {
             false => Zeroizing::new(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(userinfo.as_bytes())),
         };
         let tag = self.tag.as_deref().map(|t| format!("#{}", percent_encode(t))).unwrap_or_default();
-        let at = crate::dial::authority(&self.host, self.port);
+        let at = pod_proxy::host::authority(&self.host, self.port);
         Zeroizing::new(format!("ss://{}@{at}{tag}", encoded.as_str()))
     }
 }
@@ -255,7 +255,7 @@ pub(super) fn plugin_name(value: &str) -> String {
 pub(super) fn plugin_refusal(name: &str) -> String {
     let named = if name.is_empty() { "a plugin".to_string() } else { format!("the plugin {name}") };
     format!(
-        "it names {named}, another program, which podssh does not start: ask the server's operator for a key with \
+        "it names {named}, another program, which this client does not start: ask the server's operator for a key with \
          no plugin"
     )
 }
@@ -263,7 +263,7 @@ pub(super) fn plugin_refusal(name: &str) -> String {
 /// A tag as a line can show it: decoded, on one line, and short.
 pub(super) fn tag_of(raw: &str) -> String {
     let decoded = percent_decode(raw).unwrap_or_else(|| raw.to_string());
-    let line = crate::text::one_line(&decoded);
+    let line = pod_core::text::one_line(&decoded);
     match line.char_indices().nth(TAG_CHARS) {
         Some((at, _)) => line[..at].trim().to_string(),
         None => line.trim().to_string(),

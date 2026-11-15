@@ -9,7 +9,7 @@ use sha2::{Digest, Sha256};
 
 use super::body::Cipher;
 use super::kdf::{self, kdf12, kdf16};
-use crate::crypto::aead::{Aead, AeadId};
+use pod_tls::crypto::aead::{Aead, AeadId};
 
 const VERSION: u8 = 1;
 /// The option S: the body in chunks, each with its length in clear. No M

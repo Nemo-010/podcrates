@@ -1,4 +1,4 @@
-//! Shadowsocks 2022 (SIP022, shadowsocks.org's `sip022.html`; T-492): what
+//! Shadowsocks 2022 (SIP022, shadowsocks.org's `sip022.html`): what
 //! its streams carry beside the AEAD form's chunks. The key is a pre-shared
 //! key of the method's length in base64; each stream's key is BLAKE3's
 //! `derive_key` with the context "shadowsocks 2022 session subkey" over the
@@ -52,7 +52,7 @@ pub fn psk(text: &str, method: Method) -> Result<Zeroizing<Vec<u8>>, String> {
     let name = method.name();
     if text.contains(':') {
         return Err(format!(
-            "its key is one of several users (iPSK:uPSK, SIP023), which podssh does not speak; ask the server's \
+            "its key is one of several users (iPSK:uPSK, SIP023), which this client does not speak; ask the server's \
              operator for a key of one user of {name}"
         ));
     }
@@ -103,12 +103,12 @@ pub fn request_variable(address: &[u8], padding: &[u8]) -> Vec<u8> {
 /// Random padding of 1 to [`MAX_PADDING`] bytes, so that the length of a
 /// request's first bytes tells nothing of its target.
 pub fn padding() -> Result<Vec<u8>, ChunkError> {
-    use rustls::crypto::SecureRandom as _;
+    use pod_core::entropy::Entropy as _;
     let mut len = [0u8; 2];
-    crate::crypto::random::OsRandom.fill(&mut len).map_err(|_| ChunkError::Random)?;
+    pod_core::entropy::OsEntropy.fill(&mut len).map_err(|_| ChunkError::Random)?;
     let n = 1 + usize::from(u16::from_be_bytes(len)) % MAX_PADDING;
     let mut out = vec![0u8; n];
-    crate::crypto::random::OsRandom.fill(&mut out).map_err(|_| ChunkError::Random)?;
+    pod_core::entropy::OsEntropy.fill(&mut out).map_err(|_| ChunkError::Random)?;
     Ok(out)
 }
 

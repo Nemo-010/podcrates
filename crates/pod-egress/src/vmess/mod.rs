@@ -1,14 +1,16 @@
-//! VMess in its AEAD form (T-739, the operator's ruling Q78): the third line
-//! form of the public proxy nodes (T-574), as most nodes of the lists on 443
-//! over a WebSocket and TLS speak it. The server takes the target from a
-//! header sealed under keys from the user's ID and the time ([`header`],
-//! [`kdf`]), dials it, and carries the bytes in sealed chunks ([`body`]). The
-//! MD5 form (`aid` above 0) and a body in clear are never sent ([`link`]).
+//! VMess in its AEAD form: a line form of the public proxy nodes, as most
+//! nodes of the lists on 443 over a WebSocket and TLS speak it. The server
+//! takes the target from a header sealed under keys from the user's ID and
+//! the time (`header`, `kdf`), dials it, and carries the bytes in sealed
+//! chunks (`body`). The MD5 form (`aid` above 0) and a body in clear are
+//! never sent ([`link`]).
 //!
 //! The auth ID holds this host's clock: a server takes it within 120 s of
 //! its own, so a node that ends the session at once may hold a clock that
 //! differs, which the failure's line says. The settings of a dial are
 //! VLESS's ([`crate::vless::Dial`]), as each road of the nodes dials alike.
+//!
+//! A [`Road`] is a [`pod_core::Dial`]: a dial of a target is a session to it.
 
 mod body;
 mod header;
@@ -18,8 +20,11 @@ mod ws;
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use crate::dial::DialError;
-use crate::via::Duplex;
+use pod_core::{BoxFuture, Class, Connected, Failure, Stage, Target};
+use pod_proxy::DialError;
+use tokio::time::Instant;
+
+use crate::Duplex;
 
 pub use crate::vless::{AtEnd, Dial};
 pub use body::Cipher;
@@ -54,7 +59,44 @@ pub enum VmessError {
 const CLOCK: &str = "the link's ID is not the server's, or this host's clock is more than 2 minutes off the \
                      server's (VMess's request holds the time)";
 
+impl std::fmt::Display for VmessError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            VmessError::Target(why) | VmessError::Carry(why) => f.write_str(why),
+            VmessError::Dial(e) => write!(f, "{e}"),
+            VmessError::Refused { status, why } => write!(f, "the VMess server refused {why}: HTTP {status}"),
+            VmessError::Ended => f.write_str("the VMess server ended the session before its answer"),
+            VmessError::Wrong(why) => write!(f, "the answer of the VMess server was not this session's ({why})"),
+            VmessError::Silent(after) => write!(f, "nothing of the VMess server within {} s", after.as_secs()),
+        }
+    }
+}
+
+impl std::error::Error for VmessError {}
+
+impl From<VmessError> for Failure {
+    fn from(e: VmessError) -> Failure {
+        let (stage, class) = e.stage_and_class();
+        Failure::caused(stage, class, e.to_string(), e)
+    }
+}
+
 impl VmessError {
+    /// The stage and the class of the failure. The server is the relay of
+    /// the road: an end before its answer is its refusal of the ID or of
+    /// the clock.
+    pub fn stage_and_class(&self) -> (Stage, Class) {
+        match self {
+            VmessError::Target(_) => (Stage::Connect, Class::Usage),
+            VmessError::Dial(e) => e.stage_and_class(),
+            VmessError::Carry(_) => (Stage::WebSocket, Class::Unavailable),
+            VmessError::Refused { .. } => (Stage::WebSocket, Class::Refused),
+            VmessError::Ended => (Stage::Relay, Class::Refused),
+            VmessError::Wrong(_) => (Stage::Relay, Class::Protocol),
+            VmessError::Silent(_) => (Stage::Relay, Class::Timeout),
+        }
+    }
+
     /// The line that says it, for the server `shown` and the target. No line
     /// holds the ID.
     pub fn line(&self, shown: &str, target: &str) -> String {
@@ -90,13 +132,13 @@ pub struct Opened {
 }
 
 /// A session to `host:port` through `server`, at this host's clock.
-pub async fn open(server: &Server, host: &str, port: u16, dial: &Dial<'_>) -> Result<Opened, VmessError> {
+pub async fn open(server: &Server, host: &str, port: u16, dial: &Dial) -> Result<Opened, VmessError> {
     let unix = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     open_at(server, host, port, dial, unix).await
 }
 
 /// [`open`] with the time that the auth ID holds: the tests set a clock off.
-pub async fn open_at(server: &Server, host: &str, port: u16, dial: &Dial<'_>, unix: u64) -> Result<Opened, VmessError> {
+pub async fn open_at(server: &Server, host: &str, port: u16, dial: &Dial, unix: u64) -> Result<Opened, VmessError> {
     // 33 bytes of the body's keys and the answer's byte, 4 of the auth ID,
     // 8 of the connection's nonce, 1 of the padding's length, 15 of padding.
     let mut random = [0u8; 61];
@@ -127,8 +169,48 @@ pub async fn open_at(server: &Server, host: &str, port: u16, dial: &Dial<'_>, un
 
 /// Random bytes from the system's source.
 fn fill(out: &mut [u8]) -> Result<(), VmessError> {
-    use rustls::crypto::SecureRandom as _;
-    crate::crypto::random::OsRandom.fill(out).map_err(|_| VmessError::Carry("no random bytes".into()))
+    use pod_core::entropy::Entropy as _;
+    pod_core::entropy::OsEntropy.fill(out).map_err(|_| VmessError::Carry("no random bytes".into()))
+}
+
+/// A VMess server as a dialer: each dial is a session to its target.
+#[derive(Debug, Clone)]
+pub struct Road {
+    pub server: Server,
+    pub dial: Dial,
+}
+
+impl pod_core::Dial for Road {
+    fn label(&self) -> String {
+        format!("VMess {}", self.server.shown())
+    }
+
+    fn proxy_label(&self, _target: &Target) -> Option<String> {
+        Some(self.server.shown())
+    }
+
+    /// A session to `target`, open before `deadline`.
+    fn dial<'a>(&'a self, target: &'a Target, deadline: Instant) -> BoxFuture<'a, Result<Connected, Failure>> {
+        Box::pin(async move {
+            let left = crate::road::left(deadline, target)?;
+            let dial = Dial { timeout: self.dial.timeout.min(left), ..self.dial.clone() };
+            let shown = self.server.shown();
+            let host = target.host();
+            let opening = open(&self.server, &host, target.port(), &dial);
+            let opened = tokio::time::timeout_at(deadline, opening)
+                .await
+                .map_err(|_| crate::road::late(target, &shown))?
+                .map_err(|e| {
+                    let (stage, class) = e.stage_and_class();
+                    Failure::caused(stage, class, e.line(&shown, &target.to_string()), e)
+                })?;
+            Ok(Connected::new(Box::new(opened.stream)))
+        })
+    }
+
+    fn names_inside(&self) -> bool {
+        true
+    }
 }
 
 #[cfg(test)]
@@ -148,5 +230,18 @@ mod tests {
             refused.line(shown, "h:22"),
             "the VMess server vmess://v.example:443/vm refused the WebSocket upgrade at /vm: HTTP 404"
         );
+    }
+
+    /// An end before the answer is the server's refusal of the ID or of the
+    /// clock, and an answer of another session a fault of its protocol.
+    #[test]
+    fn each_failure_has_its_stage_and_class() {
+        assert_eq!(VmessError::Ended.stage_and_class(), (Stage::Relay, Class::Refused));
+        assert_eq!(VmessError::Wrong("x").stage_and_class(), (Stage::Relay, Class::Protocol));
+        assert_eq!(VmessError::Silent(ANSWER_WAIT).stage_and_class(), (Stage::Relay, Class::Timeout));
+        let refused = VmessError::Refused { status: 404, why: "the WebSocket upgrade at /vm".into() };
+        let failure = Failure::from(refused);
+        assert_eq!((failure.stage, failure.class), (Stage::WebSocket, Class::Refused));
+        assert!(failure.text().contains("HTTP 404"), "{failure}");
     }
 }

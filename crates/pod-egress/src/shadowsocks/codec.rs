@@ -3,7 +3,7 @@
 //! payload's length, two bytes big-endian sealed on their own, then the
 //! sealed payload. The nonce is a counter of 12 bytes, little-endian, from
 //! zero, and each seal and each open takes one: a chunk takes two. A stream
-//! of Shadowsocks 2022 (T-492, [`super::sip022`]) opens with its headers,
+//! of Shadowsocks 2022 ([`super::sip022`]) opens with its headers,
 //! each one seal of the same counter, before its chunks.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
@@ -11,9 +11,9 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use zeroize::Zeroizing;
 
 use super::{Method, TAG_LEN, sip022, stream_key};
-use crate::crypto::aead::{Aead, NONCE_LEN};
+use pod_tls::crypto::aead::{Aead, NONCE_LEN};
 
-/// The largest payload of a chunk that podssh sends: the AEAD form's
+/// The largest payload of a chunk that this client sends: the AEAD form's
 /// length has its two high bits reserved and zero, and a chunk of SIP022,
 /// whose limit is 0xFFFF, may be smaller.
 pub const MAX_PAYLOAD: usize = 0x3FFF;
@@ -70,7 +70,7 @@ impl std::fmt::Display for ChunkError {
                 f,
                 "its timestamp is {skew} s from this host's clock, which reads {}, and SIP022 takes {} s at most \
                  either way: one of the two clocks is wrong",
-                crate::clock::http_date(*now),
+                pod_core::clock::http_date(*now),
                 sip022::WINDOW_SECS
             ),
             ChunkError::Salt => write!(f, "its header names another request's salt: a replay, not this answer"),
@@ -136,8 +136,8 @@ impl Encoder {
     /// never used twice with one key.
     pub fn new(method: Method, master: &[u8]) -> Result<Encoder, ChunkError> {
         let mut salt = vec![0u8; method.salt_len()];
-        use rustls::crypto::SecureRandom as _;
-        crate::crypto::random::OsRandom.fill(&mut salt).map_err(|_| ChunkError::Random)?;
+        use pod_core::entropy::Entropy as _;
+        pod_core::entropy::OsEntropy.fill(&mut salt).map_err(|_| ChunkError::Random)?;
         Encoder::with_salt(method, master, &salt)
     }
 
@@ -340,7 +340,7 @@ pub fn address(host: &str, port: u16) -> Result<Vec<u8>, String> {
         }
         Err(_) => {
             // At most 253 bytes, so its length fits the one byte.
-            crate::names::check_host(bare)?;
+            pod_core::names::check_host(bare)?;
             out.push(3);
             out.push(bare.len() as u8);
             out.extend_from_slice(bare.as_bytes());

@@ -15,10 +15,10 @@ use tokio::sync::Notify;
 
 use super::link::Server;
 use super::{Dial, VlessError};
-use crate::client::{self, ConnectError};
-use crate::forwarder::end::{AtEnd, end_of_input};
-use crate::session::RelaySession;
-use crate::{frame, handshake, url};
+use crate::end::{AtEnd, end_of_input};
+use pod_ws::client::{self, ConnectError};
+use pod_ws::session::RelaySession;
+use pod_ws::{frame, handshake, url};
 
 /// The pipe in memory, each way.
 const PIPE: usize = 256 * 1024;
@@ -30,38 +30,47 @@ const RECEIVE_CAP: usize = 1024 * 1024;
 
 /// The upgrade, then VLESS's request in the first binary message; the
 /// stream is one end of a pipe that two tasks copy to and from the session.
-pub(super) async fn open(server: &Server, first: Vec<u8>, dial: &Dial<'_>) -> Result<DuplexStream, VlessError> {
+pub(super) async fn open(server: &Server, first: Vec<u8>, dial: &Dial) -> Result<DuplexStream, VlessError> {
     let key = handshake::generate_key().map_err(|e| VlessError::Carry(e.to_string()))?;
-    let request = request(server, &key);
-    let stream = if server.tls {
-        let tls = client::open_tls(&server.host, server.port, &server.sni, dial.trust, dial.proxy, dial.timeout)
-            .await
-            .map_err(|e| failed(e, &server.path))?;
-        url::Stream::Tls(Box::new(tls))
-    } else {
-        let tcp = crate::dial::dial(&server.host, server.port, dial.proxy, dial.timeout).await;
-        url::Stream::Plain(Box::new(tcp.map_err(VlessError::Dial)?))
-    };
+    let request = request(server, &key, &dial.way.user_agent);
+    let stream =
+        connect(&server.host, server.port, &server.sni, server.tls, dial).await.map_err(|e| failed(e, &server.path))?;
     let upgraded = tokio::time::timeout(dial.timeout, client::upgrade_with(stream, &request, &key))
         .await
         .map_err(|_| VlessError::Carry(format!("no answer to the upgrade within {} s", dial.timeout.as_secs())))?;
     let (stream, pending) = upgraded.map_err(|e| failed(e, &server.path))?;
-    let idle = Some(client::DEFAULT_IDLE_TIMEOUT);
+    let idle = Some(pod_ws::DEFAULT_IDLE_TIMEOUT);
     let session = RelaySession::new(stream, pending, idle, client::WRITE_TIMEOUT).naming("the VLESS server");
     session.set_receive_cap(RECEIVE_CAP);
     session.send_binary(&first).await.map_err(|e| VlessError::Carry(format!("sending VLESS's request failed: {e}")))?;
     Ok(spawn(session, dial.at_end))
 }
 
+/// TCP to `host:port` through the way out of `dial`, and TLS for `sni` where
+/// `tls` says so: the stream of an upgrade of the VLESS, Trojan and VMess
+/// roads.
+pub(crate) async fn connect(
+    host: &str,
+    port: u16,
+    sni: &str,
+    tls: bool,
+    dial: &Dial,
+) -> Result<url::Stream, ConnectError> {
+    let way = &dial.way;
+    if tls {
+        let (tls, _) = way.open_tls(host, port, sni, &dial.trust, dial.timeout, &[]).await?;
+        return Ok(url::Stream::Tls(Box::new(tls)));
+    }
+    Ok(url::Stream::Plain(way.tcp(host, port, dial.timeout).await.map_err(ConnectError::Dial)?.io))
+}
+
 /// The upgrade request: the link's path and `Host`, no subprotocol, no
 /// extension and no `Origin`, as Xray-core's client sends it.
-fn request(server: &Server, key: &str) -> Vec<u8> {
+fn request(server: &Server, key: &str, user_agent: &str) -> Vec<u8> {
     format!(
         "GET {} HTTP/1.1\r\nHost: {}\r\nUser-Agent: {}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
          Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n",
-        server.path,
-        server.authority,
-        url::USER_AGENT
+        server.path, server.authority, user_agent
     )
     .into_bytes()
 }
@@ -128,7 +137,7 @@ where
         }
     });
     tokio::spawn(async move {
-        let liveness = session.watch_liveness(crate::LIVENESS_EVERY, crate::LIVENESS_ALLOWED);
+        let liveness = session.watch_liveness(pod_ws::client::LIVENESS_EVERY, pod_ws::client::LIVENESS_ALLOWED);
         tokio::pin!(liveness);
         loop {
             let read = tokio::select! {
@@ -165,7 +174,7 @@ mod tests {
     fn the_upgrade_names_the_link_s_path_and_host_and_no_subprotocol() {
         let link = ["vless://550e8400-e29b-41d4-a716-446655440000", "@203.0.113.9:443?type=ws&security=tls"].concat();
         let server = Server::parse(&format!("{link}&sni=v.example&host=cdn.example&path=%2Fws%3Fed%3D2048")).unwrap();
-        let text = String::from_utf8(request(&server, "dGhlIHNhbXBsZSBub25jZQ==")).unwrap();
+        let text = String::from_utf8(request(&server, "dGhlIHNhbXBsZSBub25jZQ==", "pod-egress/test")).unwrap();
         assert!(text.starts_with("GET /ws HTTP/1.1\r\nHost: cdn.example\r\n"), "{text}");
         assert!(!text.to_ascii_lowercase().contains("sec-websocket-protocol"), "{text}");
         let refused = failed(ConnectError::Refused { status: 404, body: String::new() }, "/ws?x=1");

@@ -1,34 +1,37 @@
 //! A stream to a target through a Shadowsocks server: TCP to the server,
-//! through the proxy of the environment as each road dials; the salt and
+//! through the caller's way out as each road dials; the salt and
 //! the target's address in the first chunk; then, where the target speaks
 //! first (an SSH server), the server's salt and its first chunk within a
 //! limit. That answer tells a server that took the key from one that did
 //! not: a server is silent to a stream that it cannot open, and a proxy
-//! that waits for TLS on port 443 carries nothing and says nothing either
-//! (T-317), so silence names both. A server of a key that names a
-//! WebSocket (T-493) is reached in it ([`super::ws`]), and the stream is the
-//! same inside.
+//! that waits for TLS on port 443 carries nothing and says nothing either,
+//! so silence names both. A server of a key that names a WebSocket is
+//! reached in it (`super::ws`), and the stream is the same inside.
 
 use std::time::Duration;
 
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::time::Instant;
 
+use pod_core::{BoxFuture, Class, Connected, Failure, Stage, Target};
+use pod_proxy::DialError;
+use pod_tls::Trust;
+use pod_ws::Way;
+
 use super::codec::{self, ChunkError, Decoder, Encoder};
 use super::{Carried, Node, carry};
-use crate::dial::{DialError, ProxyChoice};
-use crate::tls::Trust;
 
 /// How long the server's first chunk may take, after the salt and the
-/// target went: the SSH server behind it speaks at once, as T-363's road
-/// waits for its version line.
+/// target went: the SSH server behind it speaks at once.
 pub const ANSWER_WAIT: Duration = Duration::from_secs(10);
 
 /// What the dial of a server needs, beside the server and the target.
-pub struct Dial<'a> {
-    pub proxy: &'a ProxyChoice,
-    /// The trust of a WebSocket's TLS, for a server in one (T-493).
-    pub trust: &'a Trust,
+#[derive(Debug, Clone)]
+pub struct Dial {
+    /// The way out: the dialer, the TLS context, the user agent.
+    pub way: Way,
+    /// The trust of a WebSocket's TLS, for a server in one.
+    pub trust: Trust,
     /// Bound on the TCP dial, and on the send of the first chunk.
     pub timeout: Duration,
     /// How long to wait for the server's first chunk; `None` waits for
@@ -58,7 +61,7 @@ pub enum OpenError {
     /// The TCP connection to the server, directly or through the proxy.
     Dial(DialError),
     /// The WebSocket to a server in one: TLS, a refused upgrade or a wrong
-    /// path, in its words, which show no path (T-493).
+    /// path, in its words, which show no path.
     WebSocket(String),
     /// Sending the salt and the target failed.
     Send(String),
@@ -72,7 +75,37 @@ pub enum OpenError {
     Cut(String),
 }
 
+impl std::fmt::Display for OpenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.line("the Shadowsocks server", "the target"))
+    }
+}
+
+impl std::error::Error for OpenError {}
+
+impl From<OpenError> for Failure {
+    fn from(e: OpenError) -> Failure {
+        let (stage, class) = e.stage_and_class();
+        Failure::caused(stage, class, e.to_string(), e)
+    }
+}
+
 impl OpenError {
+    /// The stage and the class of the failure. The server is the relay of
+    /// the road: it is silent to a stream that it cannot open, and an end
+    /// with no answer is its refusal of the key.
+    pub fn stage_and_class(&self) -> (Stage, Class) {
+        match self {
+            OpenError::Target(_) => (Stage::Connect, Class::Usage),
+            OpenError::Dial(e) => e.stage_and_class(),
+            OpenError::WebSocket(_) => (Stage::WebSocket, Class::Unavailable),
+            OpenError::Send(_) | OpenError::Cut(_) => (Stage::Relay, Class::Unavailable),
+            OpenError::Silent { ended: None, .. } => (Stage::Relay, Class::Timeout),
+            OpenError::Silent { ended: Some(_), .. } => (Stage::Relay, Class::Refused),
+            OpenError::Chunk(_) => (Stage::Relay, Class::Protocol),
+        }
+    }
+
     /// The line that says it, the server named as `shown` and the target as
     /// `target`. Never a password.
     pub fn line(&self, shown: &str, target: &str) -> String {
@@ -119,26 +152,21 @@ fn seconds(wait: Duration) -> String {
 }
 
 /// A stream to `host:port` through `node`.
-pub async fn open(node: &Node, host: &str, port: u16, dial: &Dial<'_>) -> Result<Opened, OpenError> {
+pub async fn open(node: &Node, host: &str, port: u16, dial: &Dial) -> Result<Opened, OpenError> {
     let header = codec::address(host, port).map_err(OpenError::Target)?;
     // A proxy is named in a silence's words only for raw TCP: a WebSocket's
-    // upgrade proved that the bytes pass.
-    let proxy = match (dial.proxy, &node.ws) {
-        (_, Some(_)) | (ProxyChoice::Direct, None) => None,
-        (ProxyChoice::Via(proxy), None) => Some(proxy.to_string()),
-        (ProxyChoice::FromEnvironment, None) => {
-            crate::dial::proxy_from_env(&node.host).ok().flatten().map(|p| p.to_string())
-        }
+    // upgrade proved that the bytes pass. The way's dialer names it.
+    let proxy = match &node.ws {
+        Some(_) => None,
+        None => dial.way.dial.proxy_label(&Target::new(&node.host, node.port)),
     };
     let started = Instant::now();
     let mut tcp: Box<dyn Io> = match &node.ws {
         Some(url) => {
-            let carried = super::ws::open(url, dial.trust, dial.proxy, dial.timeout).await;
+            let carried = super::ws::open(url, &dial.way, &dial.trust, dial.timeout).await;
             Box::new(carried.map_err(OpenError::WebSocket)?)
         }
-        None => {
-            Box::new(crate::dial::dial(&node.host, node.port, dial.proxy, dial.timeout).await.map_err(OpenError::Dial)?)
-        }
+        None => Box::new(dial.way.tcp(&node.host, node.port, dial.timeout).await.map_err(OpenError::Dial)?.io),
     };
     let master = node.master_key();
     let mut encoder = Encoder::new(node.method, &master).map_err(|e| OpenError::Send(e.to_string()))?;
@@ -167,6 +195,46 @@ pub async fn open(node: &Node, host: &str, port: u16, dial: &Dial<'_>) -> Result
         None => (Vec::new(), None),
     };
     Ok(Opened { carried: carry::spawn(tcp, encoder, decoder, early), answered_in })
+}
+
+/// A Shadowsocks server as a dialer: each dial is a stream to its target.
+#[derive(Debug, Clone)]
+pub struct Road {
+    pub node: Node,
+    pub dial: Dial,
+}
+
+impl pod_core::Dial for Road {
+    fn label(&self) -> String {
+        format!("Shadowsocks {}", self.node.shown())
+    }
+
+    fn proxy_label(&self, _target: &Target) -> Option<String> {
+        Some(self.node.shown())
+    }
+
+    /// A stream to `target`, open before `deadline`.
+    fn dial<'a>(&'a self, target: &'a Target, deadline: Instant) -> BoxFuture<'a, Result<Connected, Failure>> {
+        Box::pin(async move {
+            let left = crate::road::left(deadline, target)?;
+            let dial = Dial { timeout: self.dial.timeout.min(left), ..self.dial.clone() };
+            let shown = self.node.shown();
+            let host = target.host();
+            let opening = open(&self.node, &host, target.port(), &dial);
+            let opened = tokio::time::timeout_at(deadline, opening)
+                .await
+                .map_err(|_| crate::road::late(target, &shown))?
+                .map_err(|e| {
+                    let (stage, class) = e.stage_and_class();
+                    Failure::caused(stage, class, e.line(&shown, &target.to_string()), e)
+                })?;
+            Ok(Connected::new(Box::new(opened.carried.stream)))
+        })
+    }
+
+    fn names_inside(&self) -> bool {
+        true
+    }
 }
 
 /// The server's connection: TCP, or the bytes of a WebSocket.

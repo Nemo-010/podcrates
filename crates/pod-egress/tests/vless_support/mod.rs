@@ -1,13 +1,12 @@
 //! Stand-ins of a VLESS server on the loopback, as Xray-core's behave
 //! (`proxy/vless/inbound/inbound.go`, `transport/internet/websocket/hub.go`,
 //! `transport/internet/splithttp/hub.go`): over a WebSocket at `/ws`, and over
-//! XHTTP at `/xh/` on h2's own HTTP/2 server, which podssh did not write. Each
+//! XHTTP at `/xh/` on h2's own HTTP/2 server, which this crate did not write. Each
 //! reads VLESS's request, ends the session with no answer for another ID (a
 //! Close of 1000, or the end of the GET's body), and otherwise dials the target
 //! and sends the answer with the target's first bytes. The XHTTP one answers
 //! 400 to a padding out of 100 to 1000 and 404 to another path, and puts
-//! packet-up's POSTs in order by their numbers. Xray-core itself runs in
-//! `scripts/interop-vless.sh`.
+//! packet-up's POSTs in order by their numbers.
 
 #![allow(dead_code)]
 
@@ -16,20 +15,25 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use podssh_ws::session::RelaySession;
+use pod_proxy::ProxyChoice;
+use pod_ws::Way;
+use pod_ws::session::RelaySession;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
 pub mod cert {
-    include!("../common/cert_for_test.rs");
+    include!("../../../pod-tls/tests/common/cert_for_test.rs");
 }
 
-// The target of the tests of a pipe's end of input (T-699).
+// The target of the tests of a pipe's end of input.
 #[path = "../common/talker.rs"]
 pub mod talker;
+// The way out of the tests.
+#[path = "../common/way.rs"]
+mod way_of;
 // The XHTTP stand-in's handler of each request.
 mod xhttp;
-// The XHTTP stand-in of HTTP/1.1, on the same table of sessions (T-456).
+// The XHTTP stand-in of HTTP/1.1, on the same table of sessions.
 mod xhttp1;
 
 // Each test binary that takes this module uses a part of it.
@@ -52,13 +56,15 @@ pub struct Seen {
     pub connections: std::sync::atomic::AtomicUsize,
 }
 
-pub fn pins() {
+/// The way out of the tests through `proxy`, with [`NAME`] at the
+/// loopback.
+pub fn way(proxy: ProxyChoice) -> Way {
     let lo: IpAddr = "127.0.0.1".parse().unwrap();
-    podssh_ws::resolve::set_pins(vec![(NAME.into(), lo)]);
+    way_of::through(proxy, &[(NAME, lo)])
 }
 
 pub fn root_file(tag: &str) -> Root {
-    let dir = std::env::temp_dir().join(format!("podssh-vless-{}-{tag}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("pod-egress-vless-{}-{tag}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("root.pem");
     let der = cert::encoding::self_signed_inner(&cert::encoding::anchor_name(NAME), true).der;
@@ -167,7 +173,7 @@ async fn serve_ws<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(mut tls: S
         let _ = tls.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n").await;
         return;
     }
-    let accept = podssh_ws::handshake::accept_key(&field("sec-websocket-key").unwrap_or_default());
+    let accept = pod_ws::handshake::accept_key(&field("sec-websocket-key").unwrap_or_default());
     let answer = format!(
         "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: \
          {accept}\r\n\r\n"
@@ -194,7 +200,7 @@ async fn serve_ws<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(mut tls: S
     let up_session = session.clone();
     let up = async move {
         while let Ok(frame) = up_session.read_frame().await {
-            if frame.opcode == podssh_ws::frame::OPCODE_CLOSE || wr.write_all(&frame.payload).await.is_err() {
+            if frame.opcode == pod_ws::frame::OPCODE_CLOSE || wr.write_all(&frame.payload).await.is_err() {
                 break;
             }
         }

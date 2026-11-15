@@ -1,10 +1,10 @@
-//! Shadowsocks in a WebSocket (T-493), as Outline's servers serve it:
+//! Shadowsocks in a WebSocket, as Outline's servers serve it:
 //! outline-ss-server's listener `websocket-stream` (since 1.9.0) on a path
 //! of a web server that a TLS front covers, and the Outline SDK's client,
 //! which writes the AEAD stream in binary messages and reads only binary
 //! ones back (`x/websocket/endpoint.go`, `gorillaConn`). The WebSocket
-//! here is podssh's own, dialed as each road dials (TLS checked for the
-//! URL's host, through the proxy of the environment), and its messages are
+//! here is pod-ws's, dialed as each road dials (TLS checked for the URL's
+//! host, through the caller's way out), and its messages are
 //! the stream's bytes; the Shadowsocks stream above it is the one of raw
 //! TCP, byte for byte.
 
@@ -12,11 +12,13 @@ use std::time::Duration;
 
 use tokio::io::DuplexStream;
 
-use crate::client::ConnectError;
-use crate::dial::ProxyChoice;
-use crate::forwarder::{Form, Note, carry};
-use crate::tls::Trust;
-use crate::url::WsUrl;
+use pod_tls::Trust;
+use pod_ws::Way;
+use pod_ws::client::ConnectError;
+use pod_ws::url::WsUrl;
+
+use crate::carry::{self, Form};
+use crate::end::AtEnd;
 
 /// The largest message taken from the server: outline-ss-server writes
 /// what a read of its target gave, far under it.
@@ -48,13 +50,13 @@ pub fn failure(url: &WsUrl, e: &ConnectError) -> String {
 /// The WebSocket at `url` as a stream of bytes: each write a binary message,
 /// each binary message read back as bytes. The end of this side's bytes
 /// waits for the server's end, as the target may still answer (a pipe's).
-pub async fn open(url: &WsUrl, trust: &Trust, proxy: &ProxyChoice, timeout: Duration) -> Result<DuplexStream, String> {
-    let session = crate::url::dial(url, trust, proxy, timeout, None).await.map_err(|e| failure(url, &e))?;
+pub async fn open(url: &WsUrl, way: &Way, trust: &Trust, timeout: Duration) -> Result<DuplexStream, String> {
+    let session = pod_ws::url::dial(url, way, trust, timeout, None).await.map_err(|e| failure(url, &e))?;
     let session = session.naming(PEER);
     session.set_receive_cap(RECEIVE_CAP);
     // A text message is no part of the stream: Outline's server sends none.
-    let note: Note = std::sync::Arc::new(|_: &str| {});
-    let (carried, _first) = carry::spawn(session, Form::Query, crate::forwarder::AtEnd::AfterPeer, note, PEER);
+    let note: crate::Note = std::sync::Arc::new(pod_core::NoEvents);
+    let (carried, _first) = carry::spawn(session, Form::Query, AtEnd::AfterPeer, note, PEER);
     // The copying tasks run on when the handle goes; the stream's end is
     // theirs, and the Shadowsocks stream above it reads it.
     Ok(carried.stream)

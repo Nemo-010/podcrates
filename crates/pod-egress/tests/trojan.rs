@@ -1,4 +1,4 @@
-//! Trojan (T-491) against stand-ins on the loopback, as trojan-gfw's server
+//! Trojan against stand-ins on the loopback, as trojan-gfw's server
 //! behaves (`src/session/serversession.cpp`): after TLS it reads the request,
 //! compares the 56 bytes of the hash as they come, and on a match dials the
 //! target and relays; on another hash, or a request that it cannot read, it
@@ -8,20 +8,20 @@
 //! wrong password is said as the fallback's answer; a wrong path is a 404; a
 //! pipe takes a stream whose target waits for its client. A pipe's end of
 //! input loses no byte of 1 MiB still on its way: TLS alone carries it as a
-//! half-close, and the WebSocket sends no Close until the server's end
-//! (T-699). The runs against trojan-gfw, trojan-go and Xray-core are
-//! `scripts/interop-trojan.sh`.
+//! half-close, and the WebSocket sends no Close until the server's end. A
+//! [`trojan::Road`] is a dialer, and a wrong password is a typed failure.
 
 mod trojan_support;
 mod vless_support;
 
 use std::time::Duration;
 
-use podssh_ws::trojan::{self, AtEnd, Dial, Opened, Server, TrojanError};
-use podssh_ws::{ProxyChoice, Trust};
+use pod_egress::trojan::{self, AtEnd, Dial, Opened, Server, TrojanError};
+use pod_proxy::ProxyChoice;
+use pod_tls::Trust;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use trojan_support::{PASSWORD, listen, serve_tls, serve_ws};
-use vless_support::{BANNER, NAME, pins, root_file, talker, target};
+use vless_support::{BANNER, NAME, root_file, talker, target, way};
 
 const LIMIT: Duration = Duration::from_secs(20);
 
@@ -33,9 +33,8 @@ fn server(port: u16, query: &str, password: &str) -> Server {
 async fn open(server: &Server, port: u16, root: &std::path::Path, pipe: bool) -> Result<Opened, TrojanError> {
     let trust = Trust::File(root.to_path_buf());
     let answer = if pipe { trojan::EARLY_WAIT } else { trojan::ANSWER_WAIT };
-    let proxy = ProxyChoice::Direct;
     let at_end = if pipe { AtEnd::AfterPeer } else { AtEnd::Now };
-    let dial = Dial { trust: &trust, proxy: &proxy, timeout: LIMIT, answer, silence_is_ready: pipe, at_end };
+    let dial = Dial { way: way(ProxyChoice::Direct), trust, timeout: LIMIT, answer, silence_is_ready: pipe, at_end };
     tokio::time::timeout(LIMIT * 2, trojan::open(server, "127.0.0.1", port, &dial)).await.expect("within the limit")
 }
 
@@ -46,8 +45,7 @@ async fn carries(opened: &mut Opened, sent: &[u8]) {
     let both = async {
         opened.stream.read_exact(&mut banner).await.unwrap();
         // The echo is read while the bytes go: written whole first, they
-        // filled each buffer on the way and both ends waited (seen once in
-        // the crate's whole run).
+        // could fill each buffer on the way and leave both ends waiting.
         let (mut read, mut write) = tokio::io::split(&mut opened.stream);
         let up = async {
             write.write_all(sent).await.unwrap();
@@ -65,7 +63,6 @@ async fn carries(opened: &mut Opened, sent: &[u8]) {
 /// The planted hash in upper case fails both: the stand-in compares bytes.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_session_goes_in_tls_alone_and_in_a_websocket() {
-    pins();
     let (root, aim) = (root_file("trojan-each"), target(true).await);
     let big = vec![7u8; 300_000];
     let (tls_port, tls_seen) = listen(serve_tls).await;
@@ -87,7 +84,6 @@ async fn a_session_goes_in_tls_alone_and_in_a_websocket() {
 /// never the password; a wrong path is the upgrade's 404.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_wrong_password_is_the_fallback_s_answer_and_a_wrong_path_a_404() {
-    pins();
     let (root, aim) = (root_file("trojan-wrong"), target(true).await);
     let (tls_port, tls_seen) = listen(serve_tls).await;
     let (ws_port, _) = listen(serve_ws).await;
@@ -110,7 +106,7 @@ async fn a_wrong_password_is_the_fallback_s_answer_and_a_wrong_path_a_404() {
     }
 }
 
-/// A pipe's end of input (T-699): this side's input ends at once, while the
+/// A pipe's end of input: this side's input ends at once, while the
 /// target's 1 MiB is still on its way. In TLS alone the end is TCP's
 /// half-close, which the stand-in passes to the target; over a WebSocket,
 /// which has none, the stand-in answers a Close at once and sends nothing
@@ -119,7 +115,6 @@ async fn a_wrong_password_is_the_fallback_s_answer_and_a_wrong_path_a_404() {
 /// lost.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_pipe_s_end_of_input_loses_no_byte_in_tls_alone_or_in_a_websocket() {
-    pins();
     let (root, aim) = (root_file("trojan-end"), talker::talker().await);
     let (tls_port, _) = listen(serve_tls).await;
     let (ws_port, _) = listen(serve_ws).await;
@@ -136,7 +131,6 @@ async fn a_pipe_s_end_of_input_loses_no_byte_in_tls_alone_or_in_a_websocket() {
 /// taken, and the echo comes back; the request's address is the target's.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_pipe_takes_a_stream_whose_target_waits_for_its_client() {
-    pins();
     let (root, aim) = (root_file("trojan-pipe"), target(false).await);
     let (tls_port, seen) = listen(serve_tls).await;
     let mut opened = open(&server(tls_port, "", PASSWORD), aim, &root, true)
@@ -148,4 +142,37 @@ async fn a_pipe_takes_a_stream_whose_target_waits_for_its_client() {
     tokio::time::timeout(LIMIT, opened.stream.read_exact(&mut back)).await.expect("the echo in time").unwrap();
     assert_eq!(&back, b"ping\n");
     assert_eq!(seen.targets.lock().unwrap().len(), 1);
+}
+
+/// A [`trojan::Road`] is a dialer: a dial of the target carries its version
+/// line and an echo. A wrong password, which the fallback answers, is a
+/// failure of the relay's stage, of the class refused, in the line that
+/// names the server, with no password in it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_trojan_road_is_a_dialer_and_a_wrong_password_is_a_typed_failure() {
+    let (root, aim) = (root_file("trojan-road"), target(true).await);
+    let (port, _) = listen(serve_tls).await;
+    let trust = Trust::File(root.to_path_buf());
+    let (answer, at_end) = (trojan::ANSWER_WAIT, AtEnd::Now);
+    let dial = Dial { way: way(ProxyChoice::Direct), trust, timeout: LIMIT, answer, silence_is_ready: false, at_end };
+    let road = trojan::Road { server: server(port, "type=tcp", PASSWORD), dial };
+    let dialer: &dyn pod_core::Dial = &road;
+    assert!(dialer.names_inside());
+    let deadline = tokio::time::Instant::now() + LIMIT;
+    let target = pod_core::Target::new("127.0.0.1", aim);
+    let mut io = dialer.dial(&target, deadline).await.unwrap_or_else(|e| panic!("{e}")).io;
+    let mut banner = vec![0u8; BANNER.len()];
+    let mut back = [0u8; 9];
+    let both = async {
+        io.read_exact(&mut banner).await.unwrap();
+        io.write_all(b"a dialer!").await.unwrap();
+        io.read_exact(&mut back).await.unwrap();
+    };
+    tokio::time::timeout(LIMIT, both).await.expect("the bytes within the limit");
+    assert_eq!((banner.as_slice(), &back), (BANNER, b"a dialer!"));
+    let wrong = trojan::Road { server: server(port, "type=tcp", "not-the-password"), ..road.clone() };
+    let failure = (&wrong as &dyn pod_core::Dial).dial(&target, deadline).await.expect_err("a refusal");
+    assert_eq!((failure.stage, failure.class), (pod_core::Stage::Relay, pod_core::Class::Refused), "{failure}");
+    let words = format!("the Trojan server trojan://{NAME}:{port} handed the session to its fallback");
+    assert!(failure.text().starts_with(&words) && !failure.text().contains("not-the-password"), "{failure}");
 }

@@ -5,7 +5,7 @@
 //! request's bytes with an `HTTP/` line, or the server closes. A fallback
 //! that reads the request as HTTP/0.9 (Python 3.12's `http.server`, for a
 //! line it cannot parse) answers with its page alone, with no status line:
-//! an HTML page is a fallback's too (T-693). So the first bytes tell them
+//! an HTML page is a fallback's too. So the first bytes tell them
 //! apart for a target that speaks first (SSH), and a target that waits for
 //! its client gives silence, which a pipe takes as a stream. No target
 //! speaks `HTTP/` or HTML first: a server of HTTP waits for its request.
@@ -85,7 +85,7 @@ fn starts(bytes: &[u8], start: &[u8]) -> bool {
 /// the request it could not read (Python's `http.server` says "Bad request
 /// syntax ('...')"), and the request begins with the hash of the link's
 /// password. So the line ends before a quote or a bracket, and a long run
-/// of hex digits is left out (T-693).
+/// of hex digits is left out.
 fn status_of(line: &str) -> String {
     let line = line.trim();
     let cut = line.find(['\'', '"', '(', '[', '{', '<']).unwrap_or(line.len());
@@ -164,7 +164,7 @@ mod tests {
     /// Python 3.12's `http.server`, the fallback of the interop run on a
     /// runner, reads a line that it cannot parse as HTTP/0.9 and answers with
     /// its page alone: the fallback is named, and the page, which quotes the
-    /// request and so the password's hash, is not shown (T-693).
+    /// request and so the password's hash, is not shown.
     #[tokio::test]
     async fn a_fallback_s_page_with_no_status_line_is_named_and_not_shown() {
         let page: &[u8] =
@@ -181,7 +181,7 @@ mod tests {
 
     /// trojan-gfw's and trojan-go's fallback, Python's `http.server` here,
     /// quotes the request, whose first bytes are the hash of the password:
-    /// the line keeps the status and leaves the hash out (T-693).
+    /// the line keeps the status and leaves the hash out.
     #[tokio::test]
     async fn a_fallback_that_quotes_the_request_shows_no_hash() {
         let hash = "eee932074e9cd0e99fecc0017f0e1974863359ea66c840aabbccdd";

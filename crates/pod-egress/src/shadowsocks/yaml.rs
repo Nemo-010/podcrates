@@ -1,4 +1,4 @@
-//! The part of YAML that an Outline access key uses (T-493): block mappings
+//! The part of YAML that an Outline access key uses: block mappings
 //! and sequences by their indentation, plain and quoted scalars, comments,
 //! a document's `---`, and anchors with their aliases, as the examples of
 //! Outline's configuration share one transport between `tcp` and `udp`
@@ -98,7 +98,7 @@ impl Reader {
             };
             let key = unquote(&key, no)?;
             if key == "<<" {
-                return Err(format!("line {no}: a merge key (<<), which podssh's reader of YAML does not take"));
+                return Err(format!("line {no}: a merge key (<<), which this reader of YAML does not take"));
             }
             self.at += 1;
             let (anchor, rest) = anchor_of(&rest);
@@ -143,7 +143,7 @@ impl Reader {
             _ => None,
         };
         if let Some(what) = refused {
-            return Err(format!("line {no}: {what}, which podssh's reader of YAML does not take"));
+            return Err(format!("line {no}: {what}, which this reader of YAML does not take"));
         }
         let value = match text {
             "~" | "null" | "Null" | "NULL" => Value::Null,
@@ -227,7 +227,7 @@ fn unquote(text: &str, no: usize) -> Result<String, String> {
                 let c = u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32);
                 out.push(c.ok_or(format!("line {no}: an escape \\u that is not four hex digits"))?);
             }
-            _ => return Err(format!("line {no}: an escape that podssh's reader of YAML does not take")),
+            _ => return Err(format!("line {no}: an escape that this reader of YAML does not take")),
         }
     }
     Ok(out)

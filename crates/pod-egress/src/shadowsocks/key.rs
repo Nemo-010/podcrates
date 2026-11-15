@@ -1,6 +1,6 @@
-//! An Outline access key's body (T-493): what an `ssconf://` URL serves, read
+//! An Outline access key's body: what an `ssconf://` URL serves, read
 //! as Outline's client reads it (developer.getoutline.org, "Dynamic Access
-//! Keys" and "Access Key Configuration", read on 2026-11-06):
+//! Keys" and "Access Key Configuration"):
 //!
 //! - an `ss://` link, one line;
 //! - JSON with `server`, `server_port`, `password` and `method`, as SIP008's
@@ -9,10 +9,10 @@
 //!   the part itself, `$type: shadowsocks` with `endpoint`, `cipher` and
 //!   `secret`. The endpoint is `HOST:PORT` (raw TCP), `$type: websocket`
 //!   with a `wss://` URL (Shadowsocks in a WebSocket), or
-//!   `$type: first-supported` with its `options`, of which podssh takes the
+//!   `$type: first-supported` with its `options`, of which this client takes the
 //!   first that it reads.
 //!
-//! The UDP part is not read: podssh carries TCP. A salt's `prefix`, a
+//! The UDP part is not read: this client carries TCP. A salt's `prefix`, a
 //! WebSocket's own `endpoint` (a dial to another address than its URL's)
 //! and the other types of Outline's configuration are refused by name. A
 //! key holds a password: no message here quotes it.
@@ -57,12 +57,12 @@ fn transport(transport: &Value) -> Result<Node, String> {
     let tcp = match kind(transport) {
         Some("tcpudp") => transport.get("tcp").ok_or("its transport tcpudp has no tcp part")?,
         Some("shadowsocks") => transport,
-        Some(other) => return Err(format!("its transport is of the type {other}, which podssh does not speak")),
+        Some(other) => return Err(format!("its transport is of the type {other}, which this client does not speak")),
         None => return Err("its transport has no $type".into()),
     };
     match kind(tcp) {
         Some("shadowsocks") => {}
-        Some(other) => return Err(format!("its TCP part is of the type {other}, which podssh does not speak")),
+        Some(other) => return Err(format!("its TCP part is of the type {other}, which this client does not speak")),
         None => return Err("its TCP part has no $type".into()),
     }
     refuse_prefix(tcp)?;
@@ -83,13 +83,13 @@ fn endpoint(endpoint: &Value, method: Method, secret: &str) -> Result<Node, Stri
             if endpoint.get("endpoint").is_some() {
                 return Err(
                     "its WebSocket names an endpoint of its own (a dial to another address than its URL's), which \
-                     podssh does not take"
+                     this client does not take"
                         .into(),
                 );
             }
             let url = endpoint.get("url").and_then(Value::as_str).ok_or("its WebSocket endpoint has no url")?;
             // The URL's path is often the server's secret: never quoted.
-            let url = crate::url::WsUrl::parse(url).map_err(|_| "its WebSocket's url is not a ws:// or wss:// URL")?;
+            let url = pod_ws::url::WsUrl::parse(url).map_err(|_| "its WebSocket's url is not a ws:// or wss:// URL")?;
             Node::over_websocket(method, secret, url)
         }
         Some("first-supported") => {
@@ -102,19 +102,19 @@ fn endpoint(endpoint: &Value, method: Method, secret: &str) -> Result<Node, Stri
                     Err(why) => whys.push(format!("option {}: {why}", i + 1)),
                 }
             }
-            Err(format!("no option of its first-supported is one that podssh takes ({})", whys.join("; ")))
+            Err(format!("no option of its first-supported is one that this client takes ({})", whys.join("; ")))
         }
-        Some(other) => Err(format!("its endpoint is of the type {other}, which podssh does not speak")),
+        Some(other) => Err(format!("its endpoint is of the type {other}, which this client does not speak")),
         None => Err("its endpoint is neither HOST:PORT nor a part with a $type".into()),
     }
 }
 
 /// A salt's prefix makes the stream's first bytes look like another
-/// protocol's; podssh sends none, so a key that asks for one is refused.
+/// protocol's; this client sends none, so a key that asks for one is refused.
 fn refuse_prefix(part: &Value) -> Result<(), String> {
     match part.get("prefix") {
         Some(Value::String(p)) if !p.is_empty() => {
-            Err("it asks for a salt prefix, which podssh does not send; ask for a key without one".into())
+            Err("it asks for a salt prefix, which this client does not send; ask for a key without one".into())
         }
         _ => Ok(()),
     }
@@ -144,7 +144,7 @@ mod tests {
         let first = "transport:\n  $type: shadowsocks\n  endpoint:\n    $type: first-supported\n    options:\n      \
                      - $type: shadowsocks-over-quic\n      - $type: websocket\n        url: wss://b.example/p\n      \
                      - ss.example:4321\n  cipher: aes-128-gcm\n  secret: pw\n";
-        assert_eq!(access_key(first.as_bytes()).unwrap().host, "b.example", "the first option that podssh takes");
+        assert_eq!(access_key(first.as_bytes()).unwrap().host, "b.example", "the first option that this client takes");
         let link = access_key(b"ss://YWVzLTEyOC1nY206dGVzdA@192.168.100.1:8888/?outline=1\n").unwrap();
         assert_eq!(link.port, 8888);
     }

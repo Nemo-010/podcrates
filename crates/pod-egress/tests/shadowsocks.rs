@@ -1,10 +1,10 @@
-//! Shadowsocks' AEAD form (T-373), checked three ways. Known answers that
+//! Shadowsocks' AEAD form, checked three ways. Known answers that
 //! Python's `hashlib` and the `cryptography` package (OpenSSL) computed:
 //! the master key of a password, a stream's key, and a whole first chunk
 //! for each method. A codec written here from the specification
 //! (shadowsocks.org's `aead.html`), with the AEAD crates themselves and not
-//! podssh's wrapper of them: it opens podssh's stream, and podssh opens its
-//! own. And `open` against a stand-in server of that codec on the loopback,
+//! this crate's wrapper of them: it opens this crate's stream, and this
+//! crate opens its own. And `open` against a stand-in server of that codec on the loopback,
 //! where a wrong password ends in silence that names the server. Then the
 //! `ss://` URIs of SIP002, and the forms of a subscription's list.
 
@@ -13,9 +13,11 @@ use std::time::Duration;
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes128Gcm, Aes256Gcm};
 use chacha20poly1305::ChaCha20Poly1305;
-use podssh_ws::ProxyChoice;
-use podssh_ws::shadowsocks::{self, Decoder, Encoder, Method, Node, OpenError};
+use pod_egress::shadowsocks::{self, Decoder, Encoder, Method, Node, OpenError};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+#[path = "common/way.rs"]
+mod way;
 
 /// EVP_BytesToKey with MD5 from its definition: D1 = MD5(password),
 /// Dn = MD5(Dn-1 || password), the key the first bytes of D1 || D2 ...
@@ -188,8 +190,8 @@ fn each_method_s_first_chunk_is_the_one_that_openssl_seals() {
     }
 }
 
-/// podssh's stream opens with the specification's reading, chunk by
-/// chunk, and the specification's stream opens with podssh's, across
+/// This crate's stream (podssh's codec) opens with the specification's
+/// reading, chunk by chunk, and the specification's stream opens with it, across
 /// several chunks of the largest size.
 #[test]
 fn podssh_and_the_specification_read_each_other_s_streams() {
@@ -200,7 +202,7 @@ fn podssh_and_the_specification_read_each_other_s_streams() {
         let mut encoder = Encoder::new(method, &master).unwrap();
         encoder.seal(&sent[..5000], &mut wire).unwrap();
         encoder.seal(&sent[5000..], &mut wire).unwrap();
-        assert_eq!(spec_read(method, &master, &wire).as_deref(), Some(&sent[..]), "{method:?}: the spec reads podssh");
+        assert_eq!(spec_read(method, &master, &wire).as_deref(), Some(&sent[..]), "{method:?}: the spec reads ours");
         let salt = vec![0x42u8; method.salt_len()];
         let theirs = spec_stream(method, &master, &salt, &sent);
         let mut decoder = Decoder::new(method, &master);
@@ -211,7 +213,7 @@ fn podssh_and_the_specification_read_each_other_s_streams() {
                 back.extend_from_slice(&plain);
             }
         }
-        assert_eq!(back, sent, "{method:?}: podssh reads the spec");
+        assert_eq!(back, sent, "{method:?}: ours reads the spec");
         // The nonce of the length and of the payload are two: one stream
         // with one count for both does not open.
         let skewed = Spec::new(method, &master, &salt);
@@ -301,11 +303,10 @@ async fn stand_in(method: Method, password: &[u8], banner: &'static [u8]) -> (u1
     (port, task)
 }
 
-fn dial(answer: Duration) -> shadowsocks::Dial<'static> {
-    static DIRECT: ProxyChoice = ProxyChoice::Direct;
-    static TRUST: podssh_ws::Trust = podssh_ws::Trust::Default;
+fn dial(answer: Duration) -> shadowsocks::Dial {
+    let (way, trust) = (way::direct(), pod_tls::Trust::Default);
     let timeout = Duration::from_secs(10);
-    shadowsocks::Dial { proxy: &DIRECT, trust: &TRUST, timeout, answer: Some(answer), silence_is_ready: false }
+    shadowsocks::Dial { way, trust, timeout, answer: Some(answer), silence_is_ready: false }
 }
 
 #[tokio::test]
@@ -338,7 +339,7 @@ async fn open_names_the_target_reads_the_answer_and_carries_bytes_each_way() {
     }
 }
 
-/// The end of this side's input is TCP's half-close (T-699): 1 MiB goes and
+/// The end of this side's input is TCP's half-close: 1 MiB goes and
 /// this side's input ends at once, while the echo is still on its way; the
 /// server reads to the end of its input and the echo comes whole.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

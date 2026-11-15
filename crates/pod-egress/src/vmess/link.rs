@@ -1,10 +1,10 @@
 //! A VMess server as its share link names it: `vmess://` and the base64 of
 //! a JSON object (v2rayN's form, which the public lists carry): `add`,
 //! `port`, `id`, `aid`, `scy`, `net`, `type`, `host`, `path`, `tls`, `sni`,
-//! `ps`. Numbers may come as strings. podssh takes the AEAD form over a
+//! `ps`. Numbers may come as strings. this client takes the AEAD form over a
 //! WebSocket: `aid` above 0 is the MD5 form, and another `net` another
 //! transport, each refused by its name. The ID is the credential, and no
-//! line that podssh shows holds it.
+//! line that this client shows holds it.
 
 use base64::Engine as _;
 use serde_json::Value;
@@ -35,7 +35,7 @@ impl Server {
     /// `vmess://HOST:PORT/PATH`: no ID.
     pub fn shown(&self) -> String {
         let path = self.path.split('?').next().unwrap_or("/");
-        format!("vmess://{}{path}", crate::dial::authority(&self.host, self.port))
+        format!("vmess://{}{path}", pod_proxy::host::authority(&self.host, self.port))
     }
 
     /// A share link. A refusal names the setting, never the ID.
@@ -63,21 +63,21 @@ impl Server {
         let id = Id::parse(&text("id"))?;
         match text("aid").as_str() {
             "" | "0" => {}
-            other => return Err(format!("aid={other}: the MD5 form of VMess, which podssh does not speak")),
+            other => return Err(format!("aid={other}: the MD5 form of VMess, which this client does not speak")),
         }
         let net = text("net").to_ascii_lowercase();
         if net != "ws" {
             let net = if net.is_empty() { "tcp".to_string() } else { net };
-            return Err(format!("net={net}: podssh takes VMess over a WebSocket alone"));
+            return Err(format!("net={net}: this client takes VMess over a WebSocket alone"));
         }
         match text("type").to_ascii_lowercase().as_str() {
             "" | "none" => {}
-            other => return Err(format!("type={other}: a disguise of the header that podssh does not send")),
+            other => return Err(format!("type={other}: a disguise of the header that this client does not send")),
         }
         let tls = match text("tls").to_ascii_lowercase().as_str() {
             "tls" => true,
             "" | "none" => false,
-            other => return Err(format!("tls={other}: a security that podssh does not speak")),
+            other => return Err(format!("tls={other}: a security that this client does not speak")),
         };
         let cipher = Cipher::parse(&text("scy"))?;
         let (sni_field, host_field) = (text("sni"), text("host"));
@@ -95,7 +95,7 @@ impl Server {
             p if p.starts_with('/') => p,
             p => format!("/{p}"),
         };
-        let name = Some(text("ps")).filter(|n| !n.is_empty()).map(|n| crate::text::one_line(&n));
+        let name = Some(text("ps")).filter(|n| !n.is_empty()).map(|n| pod_core::text::one_line(&n));
         Ok(Server {
             id,
             sni: pick(&sni_field, &host_field),

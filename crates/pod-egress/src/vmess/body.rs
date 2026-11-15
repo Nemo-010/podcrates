@@ -9,11 +9,11 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
 use tokio::sync::oneshot;
 
 use super::header::{self, ANSWER_LEN, Keys};
-use crate::crypto::aead::{Aead, AeadId, NONCE_LEN};
+use pod_tls::crypto::aead::{Aead, AeadId, NONCE_LEN};
 
 /// The tag of each sealed chunk.
 pub const TAG: usize = 16;
-/// The largest payload of a chunk that podssh sends: Xray-core's own bound
+/// The largest payload of a chunk that this client sends: Xray-core's own bound
 /// (a buffer of 8 KiB less the length and the tag).
 pub const MAX_PLAIN: usize = 8192 - 2 - TAG;
 /// The largest answer's header taken.
@@ -50,7 +50,7 @@ impl Cipher {
         match scy.trim().to_ascii_lowercase().as_str() {
             "" | "auto" | "aes-128-gcm" => Ok(Cipher::Aes128Gcm),
             "chacha20-poly1305" => Ok(Cipher::ChaCha20Poly1305),
-            "none" | "zero" => Err(format!("scy={scy}: a body in clear, which podssh does not send")),
+            "none" | "zero" => Err(format!("scy={scy}: a body in clear, which this client does not send")),
             other => Err(format!("scy={other}: a cipher that VMess's AEAD form does not name")),
         }
     }
