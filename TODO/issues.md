@@ -191,7 +191,7 @@ kinds and the rules.
 | #184 | request | [gh action] requested: the gates of main at d0f38a6 and the release v0.53.0 | closed (ci 43757793413, adoption 43757796978, release 43759694248, publish 43759720189) | T-686, T-687, T-688, T-691, T-684, T-713 |
 | #185 | coord | COORD-111: v0.53.0: the fix of PodUtils/podssh#262, the device nodes and the passed descriptors of pod-enter (PodUtils/podvm#414, #422) (to all) | open | T-686, T-687, T-688, T-691, T-684 |
 | #186 | coord | COORD-112: the owner's rulings "Watcher" and "Strangers": one watcher of the organization for each session, scripts/agent/watch.py at f76099d; replace your own (to all) | open | T-710, T-711, T-712 |
-| #187 | request | [gh action] requested: the gates of main at 32f7a72 and the release v0.54.0 | open | T-692, T-700, T-710, T-711, T-712 |
+| #187 | request | [gh action] requested: the gates of main at 32f7a72 and the release v0.54.0 | closed (ci 43760037975, adoption 43760041298, release 43761945030, publish 43761963516) | T-692, T-700, T-710, T-711, T-712 |
 | #188 | coord | COORD-113: v0.54.0: pod-lab and pod-manual part 1; run your release in the labs, and take your help and manual from pod-manual (to all) | open | T-692, T-700 |
 | #189 | request | [gh action] requested: the checks of main at aec056d and a dry run of issue-sync.yml | closed (its SHA moved before it ran; replaced by #190) | T-703 |
 | #190 | request | [gh action] requested: the checks of main at bf13591 and a dry run of issue-sync.yml | closed (deny 43762144799 and secrets 43762148637 passed; adoption 43762137913 failed: T-703; issue-sync dry run 43762153730: one fault, #190 unmapped; ci and plants cancelled by #191) | T-703 |

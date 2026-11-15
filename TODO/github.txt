@@ -191,7 +191,7 @@
 184 issue closed
 185 issue open
 186 issue open
-187 issue open
+187 issue closed
 188 issue open
 189 issue closed
 190 issue closed
