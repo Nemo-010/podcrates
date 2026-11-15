@@ -182,5 +182,6 @@ numbers. `TODO/RULES.md` gives the rules.
 | #177 | [gh action] requested: ci, adoption, plants, secrets and deny on main at 3ee1988 | closed (ci, adoption, secrets, deny passed; plants missed two plants: T-689, T-557) | T-686, T-687, T-684 |
 | #178 | [gh action] requested: the gates of main at 44e9538 and the release v0.53.0 | closed (ci 43727040716 and adoption 43727043848 passed; release.yml 43729336616 refused a later head; replaced by #179) | T-686, T-687, T-688, T-684 |
 | #179 | [gh action] requested: the gates of main at 7ef7aab and the release v0.53.0 | open | T-686, T-687, T-688, T-691, T-684 |
+| #180 | COORD-107: the answer to PodUtils/podrunner#180: podcrates takes pod-lab (T-692) (to podrunner) (to podvm) (to podnet) | open | T-692 |
 
 #79 to #81 are pull requests.
