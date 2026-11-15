@@ -1911,7 +1911,7 @@ sh scripts/plant-each.sh extract-t597-pass-only-widens extract-t598-existing-dir
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1936,6 +1936,10 @@ sh scripts/agent/check-windows.sh
 
 The next nightly proves the two Windows jobs.
 
+## Done
+
+2026-11-15, commit `15e770ac`. The test reads each key of `Command::get_envs` in upper case on Windows; the code of `Git::command` stays. `cargo test -p pod-actions-store --all-features`: 25 passed. `sh scripts/agent/check-windows.sh`: 0 faults. No test fails here without the fix: Linux keeps each spelling. The next nightly proves the two Windows jobs.
+
 # T-680: The nightly at `98017c3` is red on macOS: a port that a socket holds with no listen does not refuse there
 
 **Source:** `nightly.yml` run 43699451813 at `98017c3` (jobs `test (macos-15)` 132767155119 and `test (macos-15-intel)` 132767154999).
@@ -1943,7 +1947,7 @@ The next nightly proves the two Windows jobs.
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1969,6 +1973,10 @@ sh scripts/agent/check-macos.sh
 
 The next nightly proves the two macOS jobs.
 
+## Done
+
+2026-11-15, commit `15e770ac`; call C656. `common::dead()` gives a freed port on macOS and the held socket elsewhere. `cargo test -p pod-warp --all-features`: 209 passed (`tests/net.rs` in 2.1 s). `sh scripts/agent/check-macos.sh`: 0 faults. No test fails here without the fix: Linux refuses the held port. The next nightly proves the two macOS jobs.
+
 # T-681: The nightly at `98017c3` is red on windows-2025: a test of `pod-link` reads the answer of a POST before the rest of its body in the link
 
 **Source:** `nightly.yml` run 43699451813 at `98017c3` (job `test (windows-2025)` 132767155063).
@@ -1976,7 +1984,7 @@ The next nightly proves the two macOS jobs.
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2001,6 +2009,10 @@ cargo test -p pod-link --all-features --test poll_lanes
 
 The next nightly proves windows-2025.
 
+## Done
+
+2026-11-15, commit `15e770ac`. The test reads the answer and the rest at the far end with `tokio::join!`; the assertions stay. `cargo test -p pod-link --all-features`: 219 passed, `--test poll_lanes` 9. No test fails here without the fix: the link on Linux holds the rest. The next nightly proves windows-2025.
+
 # T-682: The nightly at `98017c3` is red on riscv64 and ppc64le: the upper bound of the split form of `pod-relay` over HTTP/2 is not scaled under an emulator
 
 **Source:** `nightly.yml` run 43699451813 at `98017c3` (jobs `cross (riscv64gc-unknown-linux-musl, riscv64)` 132767155083 and `cross (powerpc64le-unknown-linux-musl, ppc64le)` 132767155158).
@@ -2008,7 +2020,7 @@ The next nightly proves windows-2025.
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2032,6 +2044,10 @@ cargo test -p pod-relay --all-features --test http_road_one_h2
 
 The next nightly proves riscv64 and ppc64le.
 
+## Done
+
+2026-11-15, commit `15e770ac`. The upper bound is 2 s and `pod_testkit::host::scaled(2 s)`; the lower bound stays 2 s. `cargo test -p pod-relay --all-features`: 430 passed. The next nightly proves riscv64 and ppc64le.
+
 # T-683: The nightly at `98017c3` is red on ppc64le: the kernel test of `pod-term` gives the numbers of `asm-generic` to a powerpc kernel
 
 **Source:** `nightly.yml` run 43699451813 at `98017c3` (job `cross (powerpc64le-unknown-linux-musl, ppc64le)` 132767155158).
@@ -2039,7 +2055,7 @@ The next nightly proves riscv64 and ppc64le.
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2063,6 +2079,10 @@ cargo check -p pod-term --tests --all-features --target powerpc64le-unknown-linu
 ```
 
 The next nightly proves ppc64le.
+
+## Done
+
+2026-11-15, commit `15e770ac`; call C657. `Pty::set` gives the kernel each field and each index of `c_cc` in the numbers of `libc` for the target; a bit with no row fails. New test `each_flag_of_termios_has_a_value_of_this_target`. `cargo test -p pod-term --all-features`: 233 passed (`--test termios_kernel` 2, in 2.3 s). `cargo check -p pod-term --tests --all-features --target powerpc64le-unknown-linux-musl`: clean. No qemu here: the next nightly proves ppc64le.
 
 # T-684: `services.yml` at `98017c3`: the Trojan node `node-trojan-149-28-130-108` ends the TLS handshake
 
