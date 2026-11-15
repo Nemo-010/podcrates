@@ -2516,6 +2516,26 @@ name = "pod-todo"
 version = "0.48.0"
 
 [[package]]
+name = "pod-transit"
+version = "0.48.0"
+dependencies = [
+ "hkdf 0.13.0",
+ "hmac 0.13.0",
+ "pod-core",
+ "pod-proxy",
+ "pod-services",
+ "pod-session",
+ "pod-testkit",
+ "pod-tls",
+ "pod-ws",
+ "rand 0.10.3",
+ "rustls",
+ "sha2 0.11.1",
+ "tokio",
+ "zeroize",
+]
+
+[[package]]
 name = "pod-turn"
 version = "0.48.0"
 dependencies = [
@@ -3596,6 +3616,7 @@ dependencies = [
  "pod-supervise",
  "pod-term",
  "pod-tls",
+ "pod-transit",
  "pod-turn",
  "pod-udf",
  "pod-warp",
