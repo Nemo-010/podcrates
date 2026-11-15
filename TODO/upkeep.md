@@ -2233,3 +2233,31 @@ scripts/ci/userns-tests.sh` passes as root; the binary of
 on a runner) passes 3 of 3 on both procs. `cargo test -p pod-enter
 --all-features`: 220 passed. The run on a runner is the next run of
 `plants.yml` (shard of the group `enter`).
+
+# T-736: the plant `enter-userns-dev-no-remount` misses where the host's `/dev` has `nosuid` and `noexec` already
+
+**Source:** `plants.yml` run 43771492486 at `0d6421c` (shard 2 of 6): "MISSED enter-userns-dev-no-remount (T-688): exit 0".
+**Category:** defect
+**Milestone:** M5
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The test `devices_of_the_host` of `crates/pod-enter/tests/userns.rs` checks that the bind of `/dev/urandom` in the payload is `nosuid` and `noexec` (exit 8 of its script). A bind keeps the flags of its source mount. Where the `/dev` of the host has `nosuid` and `noexec` already, the check passes without the remount of T-688, so the plant that drops the remount is not caught. The plant was caught at `7ef7aab` (`plants.yml` 43730541043). T-689 had the same defect for `/proc`, and its fix ran the check over a fresh `proc`. A device node cannot be mounted fresh by a user with no root, and a user namespace locks the flags of the host's mounts.
+
+## Premise
+
+- Not read: the mount options of `/dev` on the runner at each run (the job does not print them).
+
+## Approach
+
+Print the options of the host's `/dev` in the step of `scripts/ci/userns-tests.sh`. Where the script has root (it uses `sudo` already), run the test of the devices again as uid 65534 from a root parent in a private mount namespace where `/dev` is remounted with no `nosuid` and no `noexec`, so the check of the flags sees the work of the remount alone (as `nobody::again_over_a_bare_proc` does for `/proc`). Where the host's `/dev` holds the flags and no root is there, the test says that the check is not seen here, and the plant runs only where it is seen.
+
+## Prove
+
+```sh
+sh scripts/ci/userns-tests.sh
+sh scripts/plant-each.sh enter-userns-dev-no-remount
+```

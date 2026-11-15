@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**580 entries: 119 open, 11 partial, 6 blocked, 444 done.**
+**581 entries: 120 open, 11 partial, 6 blocked, 444 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 13 | 6 | 0 | 126 | 145 |
-| P2 | 55 | 2 | 4 | 230 | 291 |
+| P2 | 56 | 2 | 4 | 230 | 292 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 119 | 11 | 6 | 444 | 580 |
+| **All** | 120 | 11 | 6 | 444 | 581 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -627,3 +627,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-725](fleet.md) | P1 | M | M8 | defect | done | `pod-manual`: four gaps that podnet's take found, and false positives of `check-man.sh` and `check-strings.py` (PodUtils/podnet#589) |
 | [T-726](fleet.md) | P2 | S | M8 | defect | open | `pod-manual`: the reader of clap gives no `Rule::Needs` (clap's `requires`) |
 | [T-731](relay.md) | P1 | S | M2 | defect | open | `pod-transit`: `two_ends_meet_and_carry_one_mib_each_way` failed once in CI: the client paired with a node connection that the relay stub closed |
+| [T-736](upkeep.md) | P2 | S | M5 | defect | open | the plant `enter-userns-dev-no-remount` misses where the host's `/dev` has `nosuid` and `noexec` already |
