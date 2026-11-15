@@ -3608,3 +3608,40 @@ python3 scripts/check-workflows.py
 ## Done
 
 2026-11-16. The script of the step, run here under a workspace with a bogus target in `.cargo/config.toml` and in `CARGO_BUILD_TARGET`, built `pod-todo` at `$RUNNER_TEMP/pod-todo/release/pod-todo`.
+
+# T-725: `pod-manual`: four gaps that podnet's take found, and false positives of `check-man.sh` and `check-strings.py` (PodUtils/podnet#589)
+
+**Source:** PodUtils/podnet#589 (COORD-094 of podnet: its take of `pod-manual`, podnet T-359).
+**Category:** defect
+**Milestone:** M8
+**Priority:** P1
+**Effort:** M
+**Status:** open
+
+## Problem
+
+podnet moved its help and its manual onto `pod-manual` and keeps a workaround in its glue for each gap:
+
+1. `pod_manual::clap::read` leaves the variable of each flag empty (clap's `env = ...`).
+2. `clap::read` makes rules that name a positional argument, and `check::model` refuses them (7 rules in podnet).
+3. The help of the crate has no command groups and no "start here" block, so podnet's plain `--help` stays clap's.
+4. The variable scanner takes any quoted word in the form of a variable (a C constant, a crate name, a hash name): podnet's test needs an exempt list of 7 words.
+5. The plant of `scripts/check-man.sh` is vacuous where the planted flag (`--add-door`) is also named in the help of other flags.
+6. `scripts/check-strings.py` on podnet's release build fails on 84 runs of the data of `pod-services`, 12 strings "PKCS #9" and "PKCS #12" of libraries, and one run of binary bytes.
+
+The text split of podnet's frozen `src/warp/export/command.rs` needs no port: `pod-warp` did not import that file (`crates/pod-warp/SOURCES`).
+
+## Premise
+
+- Read: PodUtils/podnet#589. Not read: podnet's glue at `9217b0b`, `13b1514`, `36f9621`.
+
+## Approach
+
+Fix each in the crate, with a test that fails before the fix and a plant: the reader takes `env`; a rule that names a positional argument is either kept with the argument in the model or left out with a reason; command groups and a lead block in the model and the help writer; the scanner reads only the calls that read the environment (`env::var`, `var_os`, `getenv`, clap's `env`), not each quoted word; the plant of `check-man.sh` uses a flag name that no text names; `check-strings.py` reads prose only (a work id needs a word around it, `#` after `PKCS` is no issue number) and skips the data that `pod-services` embeds, by a rule that a test proves. podnet drops its workarounds after the tag.
+
+## Prove
+
+```sh
+cargo test -p pod-manual -p pod-lab --all-features
+sh scripts/check-man.sh
+```
