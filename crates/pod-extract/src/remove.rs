@@ -85,7 +85,9 @@ pub fn apply(root: &Dir, ops: &[Op]) -> Result<u64> {
                 let Ok(Ok((parent, last))) = safety::open_parent(root, &parts, false) else {
                     continue;
                 };
-                // A tree of an earlier extraction can have closed directories.
+                // A tree of an earlier extraction can have closed
+                // directories, when the caller did not run
+                // `modes::open_tree` first (call C646).
                 open_for_write(parent.fd());
                 if remove_at(parent.fd(), &last)? {
                     removed += 1;

@@ -5,5 +5,5 @@
 ENTRY=T-581
 GROUP=extract
 EXPECT='the sidecar does not record the mode that stayed'
-RUN='cargo test -p pod-extract --all-features --lib drive::setid'
+RUN='sh scripts/ci/root-uid1000-tests.sh'
 LIMIT=1800

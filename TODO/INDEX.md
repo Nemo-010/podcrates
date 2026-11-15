@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**543 entries: 107 open, 9 partial, 6 blocked, 421 done.**
+**545 entries: 107 open, 9 partial, 6 blocked, 423 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 3 | 0 | 110 | 124 |
+| P1 | 11 | 3 | 0 | 112 | 126 |
 | P2 | 45 | 3 | 4 | 223 | 275 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 107 | 9 | 6 | 421 | 543 |
+| **All** | 107 | 9 | 6 | 423 | 545 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -590,3 +590,5 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-672](podvm.md) | P3 | S | M6 | feature | done | `pod-enter`: a `/proc` for the namespace rung through a user namespace |
 | [T-673](roads.md) | P1 | S | M1 | defect | done | `pod-egress`: the features `vless`, `vmess`, `trojan` and `shadowsocks` are in no static probe |
 | [T-676](podvm.md) | P2 | S | M6 | defect | done | `pod-hostprobe`: the KVM leg is a yes only for a device that runs a guest of the build's architecture (PodUtils/podvm#407) |
+| [T-677](upkeep.md) | P1 | S | M5 | defect | done | `plants.yml` passes its limit of 60 minutes: the plants run in shards |
+| [T-678](upkeep.md) | P1 | S | M5 | defect | done | three plants of `pod-extract` no longer catch: a second guard holds their check |

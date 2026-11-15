@@ -13,7 +13,8 @@ const WORKER: &str = "POD_EXTRACT_TEST_UMASK_WORKER";
 /// Each path of the layer below, and the mode of the image.
 const MODES: [(&str, u32); 5] = [("d", 0o755), ("d/x", 0o755), ("d/y", 0o644), ("g", 0o775), ("g/z", 0o664)];
 
-/// 0755, 0644, 0775 and 0664 stay under a umask of 027.
+/// 0755, 0644, 0775 and 0664 stay under a umask of 027, after the last
+/// layer and between two layers.
 #[test]
 fn the_modes_of_the_image_stay_under_a_umask_of_027() {
     let out = std::process::Command::new(std::env::current_exe().unwrap())
@@ -44,7 +45,6 @@ fn worker_extracts_under_a_umask_of_027() {
         return;
     }
     pod_hostprobe::sys::umask(0o027);
-    let s = Scratch::new("umask");
     let l = layer(&[
         E::Dir("d/", 0o755),
         E::File("d/x", b"x", 0o755),
@@ -52,6 +52,19 @@ fn worker_extracts_under_a_umask_of_027() {
         E::Dir("g/", 0o775),
         E::File("g/z", b"z", 0o664),
     ]);
+
+    // The tree between two layers: the pass after the last layer has not
+    // run, so the permission pass of the layer alone sets the group and
+    // other bits of each directory.
+    let open = Scratch::new("umask-open");
+    run_open(open.path(), std::slice::from_ref(&l)).unwrap();
+    for (p, mode) in [("d", 0o755), ("g", 0o775)] {
+        let disk = kept(open.path(), &[p])[0].1;
+        let want = mode | 0o700;
+        assert_eq!(disk, want, "the umask changed the mode of {p}: {disk:04o}, not {want:04o}, between two layers");
+    }
+
+    let s = Scratch::new("umask");
     run(s.path(), &[l]).unwrap();
     let paths: Vec<&str> = MODES.iter().map(|(p, _)| *p).collect();
     for ((p, disk, applied), (_, mode)) in kept(s.path(), &paths).iter().zip(MODES) {
