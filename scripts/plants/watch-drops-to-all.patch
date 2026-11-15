@@ -1,6 +1,6 @@
 --- a/scripts/agent/watch.py
 +++ b/scripts/agent/watch.py
-@@ -86,7 +86,7 @@
+@@ -95,7 +95,7 @@
          return True
      title = item.get("title") or ""
      labels = [label.get("name") for label in item.get("labels") or []]

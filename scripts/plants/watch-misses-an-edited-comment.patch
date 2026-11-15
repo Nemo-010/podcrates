@@ -1,6 +1,6 @@
 --- a/scripts/agent/watch.py
 +++ b/scripts/agent/watch.py
-@@ -212,7 +212,7 @@
+@@ -216,7 +216,7 @@
          stamp = c.get("updated_at") or ""
          before = seen.get(key)
          seen[key] = stamp

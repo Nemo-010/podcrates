@@ -4,7 +4,7 @@ Actions runs, for each repository of the organization.
 
     python3 -I watch.py ME [--state DIR] [--every SECONDS] [--runs REPO]...
                            [--org ORG]
-    python3 -I watch.py --self-test
+    python3 -I watch.py --self-test     (needs watch_test.py beside it)
 
 ME is the name of the reader's repository (podcrates, podssh, podnet,
 podvm, podrunner, ...). Each poll prints one line for each event:
@@ -15,10 +15,10 @@ podvm, podrunner, ...). Each poll prints one line for each event:
   for ME: its title holds `(to ME)` or `(to all)`, or it has the label ME.
   A COORD message (its title starts with `COORD-` or holds `(to `) is also
   reported when its writer amends its body;
-* each comment of such an item that is new or edited (an edit of a
-  comment changes no count of the issue, so the watcher reads the comment
-  list of each repository, and the review comments of the pull requests of
-  ORG/ME);
+* each comment of such an item that is new or edited, and each review
+  comment of a pull request of ORG/ME. An edit of a comment changes the
+  `updated_at` of its item, so the watcher reads the comments of each item
+  that changed, since the last poll;
 * the trust of each item (the owner's ruling "Strangers"): an author whose
   `author_association` is OWNER, MEMBER or COLLABORATOR is of the team.
   An item of ORG/ME by another author has the tag `[outside: verify, then
@@ -38,27 +38,31 @@ suspended account. Run it under the Monitor tool of the session and start
 it again when the monitor ends.
 
 The reads go through forge.web.pkgforge.dev/github, a keyless read-only
-mirror of GitHub's REST API (https://forge.web.pkgforge.dev/llms.txt). Its
+mirror of GitHub's REST API (https://forge.web.pkgforge.dev/llms.txt). One
+search finds the issues and one the pull requests of the organization that
+changed since the last poll, with a margin for the lag of the index. The
 quota is shared, so the watcher polls each SECONDS (default 120) with
-jitter, and backs off on 403, 429 and 5xx. A changing query value defeats
-the cache of the mirror. Python's standard library only.
+jitter. A read that fails gets one more short try, then the poll goes on:
+a long back-off misses the end of a run. A silence of SILENCE seconds is
+said once, and its end too. Python's standard library only.
 """
 
+import hashlib
 import json
 import os
 import random
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 MIRROR = "https://forge.web.pkgforge.dev/github"
 TEAM = ("OWNER", "MEMBER", "COLLABORATOR")
 CONFIRMED = "confirmed"
 TRANSIENT = (403, 429, 500, 502, 503, 504)
-TRIES = 4
-LONGEST = 600
-REPOS_EVERY = 30
+TRIES = 2
+SILENCE = 600
 KEEP_RUNS = 200
 KEEP_COMMENTS = 2000
 TEAM_TAG = " [outside: verify, then confirm or edit]"
@@ -67,8 +71,8 @@ TEAM_TAG = " [outside: verify, then confirm or edit]"
 def get(path, opener=None):
     """The JSON of `path` from the mirror, or None after TRIES failures."""
     sep = "&" if "?" in path else "?"
-    wait = 15
-    for _ in range(TRIES):
+    for attempt in range(TRIES):
+        time.sleep(attempt * (5 + random.uniform(0, 5)))
         url = f"{MIRROR}/{path}{sep}n={random.randint(0, 1 << 40)}"
         req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "podutils-watch"})
         try:
@@ -77,11 +81,8 @@ def get(path, opener=None):
         except urllib.error.HTTPError as e:
             if e.code not in TRANSIENT:
                 return None
-            after = e.headers.get("Retry-After") if e.headers else None
-            time.sleep(int(after) if after and after.isdigit() else wait + random.uniform(0, 5))
         except (urllib.error.URLError, TimeoutError, ValueError, OSError):
-            time.sleep(wait + random.uniform(0, 5))
-        wait = min(wait * 2, LONGEST)
+            pass
     return None
 
 
@@ -117,15 +118,18 @@ def facts(item):
         "comments": int(item.get("comments") or 0),
         "state": item.get("state") or "",
         "merged": bool(pr and pr.get("merged_at")),
+        "body": hashlib.sha256(((item.get("title") or "") + "\n" + (item.get("body") or "")).encode()).hexdigest()[:16],
     }
 
 
 def words(before, now, item, own):
     """The event words of one item between two polls: NEW, CLOSED,
-    MERGED, REOPENED, AMENDED, CHANGED. A comment is a line of its own
-    (`comments_step`), new or edited. An edit of the body of an
-    issue that is not a COORD message is no event (a writer keeps tables
-    there); a change of a pull request of ORG/ME is (a new commit)."""
+    MERGED, REOPENED, AMENDED (the title or the body of a COORD message
+    changed), CHANGED (the same, of a pull request of ORG/ME). A comment is
+    a line of its own (`comments_step`); a comment moves the `updated_at`
+    of its item, so the text of an item is compared by its hash. An edit of
+    an issue that is not a COORD message is no event (a writer keeps tables
+    there)."""
     if before is None:
         return ["NEW"]
     out = []
@@ -134,7 +138,7 @@ def words(before, now, item, own):
             out.append("MERGED" if now["merged"] else "CLOSED")
         else:
             out.append("REOPENED")
-    if not out and before["updated"] != now["updated"] and now["comments"] == before["comments"]:
+    if before.get("body") not in (None, now["body"]):
         if coord(item):
             out.append("AMENDED")
         elif "pull_request" in item and own:
@@ -289,11 +293,24 @@ def save(path, data):
     os.replace(tmp, path)
 
 
-def repos_of(org, fetch=get):
-    doc = fetch(f"orgs/{org}/repos?per_page=100")
-    if not isinstance(doc, list):
-        return None
-    return sorted(r["full_name"] for r in doc if not r.get("archived"))
+def search(org, kind, since, pages, fetch=get):
+    """The issues (kind `issue`) or pull requests (`pr`) of ORG updated at
+    or after SINCE, newest first: one search for the whole organization,
+    in place of a list for each repository. None when a read failed."""
+    q = urllib.parse.quote(f"org:{org} is:{kind} updated:>={since}")
+    out = []
+    for page in range(1, pages + 1):
+        doc = fetch(f"search/issues?q={q}&sort=updated&order=desc&per_page=100&page={page}")
+        if not isinstance(doc, dict):
+            return None
+        out += doc.get("items") or []
+        if len(doc.get("items") or []) < 100:
+            break
+    return out
+
+
+def stamp(t):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(t))
 
 
 def options(argv):
@@ -327,174 +344,63 @@ def main(argv):
     state = load(path)
     announce = state is not None
     state = state or {"issues": {}, "runs": {}}
-    repos, n, down = None, 0, False
+    cmts = state.setdefault("comments", {})
+    last, said = time.monotonic(), False
     while True:
-        if repos is None or n % REPOS_EVERY == 0:
-            repos = repos_of(org) or repos or [f"{org}/{me}"]
-        n += 1
-        answered = 0
-        for repo in repos:
-            items = get(f"repos/{repo}/issues?state=all&sort=updated&direction=desc&per_page=50")
-            if isinstance(items, list):
-                answered += 1
-                for text in issues_step(me, org, repo, items, state["issues"], announce, state_dir):
+        # A margin of 10 min: the search index lags behind a change.
+        start = time.time() - 600
+        since = state.get("since") if isinstance(state.get("since"), str) else stamp(time.time() - 30 * 86400)
+        pages = 1 if isinstance(state.get("since"), str) else 5
+        answered, found = 0, []
+        for kind in ("issue", "pr"):
+            got = search(org, kind, since, pages)
+            answered += got is not None
+            found += got or []
+        searched = answered == 2
+        changed = []
+        for repo in sorted({(i.get("repository_url") or "").split("/repos/")[-1] for i in found}):
+            items = [i for i in found if (i.get("repository_url") or "").endswith(f"/repos/{repo}")]
+            before = {k: dict(v) for k, v in state["issues"].items() if k.startswith(f"{repo}#")}
+            for text in issues_step(me, org, repo, items, state["issues"], announce, state_dir):
+                print(text, flush=True)
+            changed += [(repo, i) for i in items if f"{repo}#{i.get('number')}" in state["issues"]
+                        and before.get(f"{repo}#{i.get('number')}") != state["issues"][f"{repo}#{i.get('number')}"]]
+        for repo, item in changed if announce else []:
+            if not item.get("comments") and not ("pull_request" in item and repo == f"{org}/{me}"):
+                continue
+            lists = [f"repos/{repo}/issues/{item['number']}/comments?since={since}&per_page=100"]
+            if "pull_request" in item and repo == f"{org}/{me}":
+                lists.append(f"repos/{repo}/pulls/{item['number']}/comments?since={since}&per_page=100")
+            for one in lists:
+                got = get(one)
+                answered += isinstance(got, list)
+                for text in comments_step(me, org, repo, got or [], state["issues"], cmts, True):
                     print(text, flush=True)
-        heard, comments_heard = state.setdefault("comments", {}), False
-        speak = announce and "comments" in state.get("since", {})
-        for repo in repos:
-            lists = [f"repos/{repo}/issues/comments?sort=updated&direction=desc&per_page=50"]
-            if repo == f"{org}/{me}":
-                lists.append(f"repos/{repo}/pulls/comments?sort=updated&direction=desc&per_page=50")
-            for path_ in lists:
-                got = get(path_)
-                if isinstance(got, list):
-                    answered += 1
-                    comments_heard = True
-                    for text in comments_step(me, org, repo, got, state["issues"], heard, speak):
-                        print(text, flush=True)
-        if comments_heard:
-            state.setdefault("since", {})["comments"] = True
+        if searched:
+            state["since"] = stamp(start)
         for repo in runs:
             doc = get(f"repos/{repo}/actions/runs?per_page=30")
             if isinstance(doc, dict):
                 answered += 1
                 for text in runs_step(repo, doc.get("workflow_runs", []), state["runs"], announce):
                     print(text, flush=True)
-        if answered == 0 and not down:
-            print("WATCH: the mirror does not answer; the watcher goes on trying", flush=True)
-        down = answered == 0
+        if answered and said:
+            print("WATCH: the mirror answers again", flush=True)
+        elif not answered and not said and time.monotonic() - last > SILENCE:
+            print(f"WATCH: no answer from the mirror for {SILENCE // 60} min; the watcher goes on trying", flush=True)
+        said = not answered and (said or time.monotonic() - last > SILENCE)
         if answered:
+            last = time.monotonic()
             save(path, state)
             announce = True
         time.sleep(opts["every"] + random.uniform(0, 10))
 
 
-def self_test():
-    ok = True
-
-    def check(what, got, want):
-        nonlocal ok
-        good = got == want
-        ok &= good
-        print(f"{'ok  ' if good else 'FAIL'} {what}" + ("" if good else f": {got!r}, not {want!r}"))
-
-    def item(n, title="a report", state="open", comments=0, updated="t1", pr=None, labels=(), user="tester",
-             assoc="MEMBER"):
-        i = {"number": n, "title": title, "state": state, "comments": comments, "updated_at": updated,
-             "user": {"login": user}, "labels": [{"name": x} for x in labels], "author_association": assoc}
-        if pr is not None:
-            i["pull_request"] = {"merged_at": pr}
-        return i
-
-    org, me = "O", "me"
-    seen = {}
-    check("the first poll says nothing", issues_step(me, org, "O/me", [item(1)], seen, False), [])
-    check("a new issue of ORG/ME", issues_step(me, org, "O/me", [item(2), item(1)], seen, True),
-          ["NEW issue O/me#2 [open] by tester: a report"])
-    check("a comment is no event of the item", issues_step(me, org, "O/me", [item(2, comments=1, updated="t2")],
-                                                             seen, True), [])
-    check("an edit of the body of a report is no event",
-          issues_step(me, org, "O/me", [item(2, comments=1, updated="t3")], seen, True), [])
-    check("a close", issues_step(me, org, "O/me", [item(2, "a report", "closed", 1, "t4")], seen, True),
-          ["CLOSED issue O/me#2 [closed] by tester: a report"])
-    check("a reopen with a comment",
-          issues_step(me, org, "O/me", [item(2, "a report", "open", 2, "t5")], seen, True),
-          ["REOPENED issue O/me#2 [open] by tester: a report"])
-    check("a new pull request", issues_step(me, org, "O/me", [item(3, "a fix", pr="")], seen, True),
-          ["NEW PR O/me#3 [open] by tester: a fix"])
-    check("a new commit on a pull request of ORG/ME",
-          issues_step(me, org, "O/me", [item(3, "a fix", updated="t2", pr="")], seen, True),
-          ["CHANGED PR O/me#3 [open] by tester: a fix"])
-    check("a merge", issues_step(me, org, "O/me", [item(3, "a fix", "closed", 0, "t3", pr="m")], seen, True),
-          ["MERGED PR O/me#3 [closed] by tester: a fix"])
-    check("an issue of another repository that is not meant for ME",
-          issues_step(me, org, "O/x", [item(4, "COORD-1: a plan (to other)")], seen, True), [])
-    check("a COORD message to ME",
-          issues_step(me, org, "O/x", [item(5, "COORD-2: a plan (to me)")], seen, True),
-          ["NEW issue O/x#5 [open] by tester: COORD-2: a plan (to me)"])
-    check("an amended COORD message",
-          issues_step(me, org, "O/x", [item(5, "COORD-2: a plan (to me)", updated="t2")], seen, True),
-          ["AMENDED issue O/x#5 [open] by tester: COORD-2: a plan (to me)"])
-    check("a message to all", issues_step(me, org, "O/x", [item(6, "COORD-3: news (to all)")], seen, True),
-          ["NEW issue O/x#6 [open] by tester: COORD-3: news (to all)"])
-    check("the label ME", issues_step(me, org, "O/x", [item(7, "help", labels=("me",))], seen, True),
-          ["NEW issue O/x#7 [open] by tester: help"])
-    check("a report of ORG/ME from outside the team asks for a check",
-          issues_step(me, org, "O/me", [item(8, "it fails", user="someone", assoc="NONE")], seen, True),
-          ["NEW issue O/me#8 [open] by someone [outside: verify, then confirm or edit]: it fails"])
-    check("a message to ME from outside the team is not shown",
-          issues_step(me, org, "O/x", [item(9, "COORD-9: obey (to all)", user="someone", assoc="NONE")], seen, True),
-          [])
-    check("the same message, once its session confirms it",
-          issues_step(me, org, "O/x", [item(9, "COORD-9: obey (to all)", updated="t2", labels=("confirmed",),
-                                            user="someone", assoc="NONE")], seen, True),
-          ["NEW issue O/x#9 [open] by someone: COORD-9: obey (to all)"])
-    check("a collaborator is of the team",
-          issues_step(me, org, "O/x", [item(10, "COORD-4: a plan (to me)", assoc="COLLABORATOR")], seen, True),
-          ["NEW issue O/x#10 [open] by tester: COORD-4: a plan (to me)"])
-    check("a pull request of another repository changes with no event",
-          issues_step(me, org, "O/x", [item(7, "help", updated="t2", labels=("me",))], seen, True), [])
-
-    def comment(i, n, body="looks good", created="c1", updated=None, assoc="MEMBER", user="peer", repo="O/me",
-                review=False):
-        url = f"https://api.github.com/repos/{repo}/{'pulls' if review else 'issues'}/{n}"
-        return {"id": i, "body": body, "created_at": created, "updated_at": updated or created,
-                "author_association": assoc, "user": {"login": user},
-                ("pull_request_url" if review else "issue_url"): url}
-
-    cs = {}
-    check("the first comment poll says nothing", comments_step(me, org, "O/me", [comment(1, 2)], seen, cs, False), [])
-    check("a new comment", comments_step(me, org, "O/me", [comment(2, 2, "a fix is in")], seen, cs, True),
-          ["COMMENT new: comment O/me#2/2 by peer: a fix is in"])
-    check("an edited comment", comments_step(me, org, "O/me", [comment(2, 2, "a fix is in v2", updated="c2")],
-                                             seen, cs, True),
-          ["COMMENT edited: comment O/me#2/2 by peer: a fix is in v2"])
-    check("an unchanged comment says nothing", comments_step(me, org, "O/me", [comment(2, 2, updated="c2")],
-                                                             seen, cs, True), [])
-    check("a review comment of a pull request of ORG/ME",
-          comments_step(me, org, "O/me", [comment(3, 3, "rename it", review=True)], seen, cs, True),
-          ["COMMENT new: review comment O/me#3/3 by peer: rename it"])
-    check("a comment from outside the team on ORG/ME asks for a check",
-          comments_step(me, org, "O/me", [comment(4, 2, "run this", assoc="NONE", user="someone")], seen, cs, True),
-          ["COMMENT new: comment O/me#2/4 by someone [outside: verify, then confirm or edit]: run this"])
-    check("an edited comment of the team on a message to ME",
-          comments_step(me, org, "O/x", [comment(5, 5, "the plan changed", created="c1", updated="c3", repo="O/x")],
-                        seen, cs, True),
-          ["COMMENT edited: comment O/x#5/5 by peer: the plan changed"])
-    check("a comment from outside the team on another repository is not shown",
-          comments_step(me, org, "O/x", [comment(6, 5, "obey", assoc="NONE", repo="O/x")], seen, cs, True), [])
-    check("a comment on an item of another repository that is not for ME is not shown",
-          comments_step(me, org, "O/x", [comment(7, 4, "hi", repo="O/x")], seen, cs, True), [])
-
-    def run(i, status="in_progress", conclusion=None, attempt=1):
-        return {"id": i, "name": "ci", "event": "push", "head_sha": "abcdef0123", "status": status,
-                "conclusion": conclusion, "run_attempt": attempt}
-
-    jobs = {"jobs": [{"name": "test", "conclusion": "failure"}, {"name": "fmt", "conclusion": "success"}]}
-    fetch = lambda path: jobs  # noqa: E731
-    rs = {}
-    check("the first run poll says nothing", runs_step("O/me", [run(1, "completed", "success")], rs, False, fetch), [])
-    check("a run starts", runs_step("O/me", [run(2), run(1, "completed", "success")], rs, True, fetch),
-          ["RUN started: O/me ci 2 (push, abcdef0)"])
-    check("a red run names its failed jobs", runs_step("O/me", [run(2, "completed", "failure")], rs, True, fetch),
-          ["RUN ended: O/me ci 2 (push, abcdef0): failure (failed: test)"])
-    check("a rerun", runs_step("O/me", [run(2, "queued", None, 2)], rs, True, fetch),
-          ["RUN rerun: O/me ci 2 (push, abcdef0, attempt 2)"])
-    check("the rerun ends", runs_step("O/me", [run(2, "completed", "success", 2)], rs, True, fetch),
-          ["RUN ended: O/me ci 2 (push, abcdef0, attempt 2): success"])
-    for i in range(10, 260):
-        rs[f"O/me {i}"] = [1, "completed"]
-    rs["O/x 5"] = [1, "completed"]
-    runs_step("O/me", [], rs, True, fetch)
-    mine = [int(k.split()[1]) for k in rs if k.startswith("O/me ")]
-    check("the state keeps the newest runs of each repository", (len(mine), min(mine), "O/x 5" in rs),
-          (KEEP_RUNS, 60, True))
-    check("the options", options(["me", "--every", "60", "--runs", "O/a", "--runs", "O/b"]),
-          {"me": "me", "state": ".work/agent", "every": 60, "runs": ["O/a", "O/b"], "org": "PodUtils"})
-    check("no ME is an error", options(["--every", "60"]), None)
-    print("watch self-test:", "passed" if ok else "FAILED")
-    return 0 if ok else 1
-
-
 if __name__ == "__main__":
-    sys.exit(self_test() if sys.argv[1:] == ["--self-test"] else main(sys.argv))
+    if sys.argv[1:] == ["--self-test"]:
+        # The checks are in watch_test.py beside this file.
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from watch_test import self_test
+
+        sys.exit(self_test())
+    sys.exit(main(sys.argv))

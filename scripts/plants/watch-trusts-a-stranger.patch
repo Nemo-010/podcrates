@@ -1,6 +1,6 @@
 --- a/scripts/agent/watch.py
 +++ b/scripts/agent/watch.py
-@@ -93,7 +93,7 @@
+@@ -102,7 +102,7 @@
      """True when the author is of the team, or the session of the item's
      repository confirmed it with the label CONFIRMED."""
      labels = [label.get("name") for label in item.get("labels") or []]

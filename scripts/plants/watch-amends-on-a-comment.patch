@@ -1,0 +1,11 @@
+--- a/scripts/agent/watch.py
++++ b/scripts/agent/watch.py
+@@ -138,7 +138,7 @@
+             out.append("MERGED" if now["merged"] else "CLOSED")
+         else:
+             out.append("REOPENED")
+-    if before.get("body") not in (None, now["body"]):
++    if before["updated"] != now["updated"]:
+         if coord(item):
+             out.append("AMENDED")
+         elif "pull_request" in item and own:

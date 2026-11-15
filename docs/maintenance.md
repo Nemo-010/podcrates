@@ -63,7 +63,11 @@ the tools.
     pull request of PodUtils/ME); each Actions run
     of each REPO (default PodUtils/ME) that starts, ends with its failed
     jobs, or runs again. It keeps a copy of each message in
-    `DIR/issues/`. `--self-test` checks it. Each project runs this one
+    `DIR/issues/`. `--self-test` runs the checks of `watch_test.py`. Two
+    searches of the organization (issues, pull requests) find what changed
+    since the last poll; the watcher then reads the comments of each item
+    that changed. A failed read gets one more short try; a silence of
+    10 min is said once. Each project runs this one
     file from podcrates at a pinned commit (`docs/session-protocol.md`).
   * `watch-runs.sh FULL_SHA [MIN_RUNS]`: each run of a commit when it
     ends, with the failed jobs and steps (`runs.py` reads the run list),

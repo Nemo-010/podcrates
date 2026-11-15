@@ -24,8 +24,10 @@ watches them.
 
    ```sh
    mkdir -p .work/podcrates-agent
-   curl -qfsSL -o .work/podcrates-agent/watch.py \
-     "https://raw.githubusercontent.com/PodUtils/podcrates/COMMIT/scripts/agent/watch.py"
+   for f in watch.py watch_test.py; do
+     curl -qfsSL -o ".work/podcrates-agent/$f" \
+       "https://raw.githubusercontent.com/PodUtils/podcrates/COMMIT/scripts/agent/$f"
+   done
    python3 -I .work/podcrates-agent/watch.py --self-test
    python3 -I .work/podcrates-agent/watch.py ME --state .work/agent
    ```
