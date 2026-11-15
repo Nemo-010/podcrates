@@ -7946,7 +7946,7 @@ cargo test -p pod-quic --all-features
 **Milestone:** M2
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7966,4 +7966,36 @@ The open of a new link of the resumable layer asks the pool for a connection oth
 ```sh
 cargo test -p pod-relay --all-features
 cargo test -p pod-session --all-features
+```
+
+## Done
+
+2026-11-15, the commit of the fix. The cause: `forward_layer::carry` opens each next link with `Dialer::link`, which goes through `open::open` and `h2_road::connect` to `pod_ws::h2_road::connect` on `ctx.h2_pool()`. `Pool::place` gave the first connection of the host with room, so the spare's CONNECT went on the TCP connection of the silent link. The fix (call C666): each connection of the pool has a serial number; `pod_ws::h2_road::Links` records the newest one that a link of a session rode, and `connect_link` takes only a newer one, or dials one. `Dialer::new` gives its context its own `Links` (`Context::for_one_session`): the first link shares a kept connection, each spare, resume or move takes another. `tests/layer_h2_spare.rs`: a session of the layer over HTTP/2 to a stand-in of TLS with h2's server and a far end that keeps its sessions, through a stand-in proxy that holds each byte of its first connection. With the fix: a second TCP connection, and the whole test ran in 3.2 s (bound of the echo after the cut: `SPARE_AFTER` and 4 s of scaled work). Without the filter of the pool: no echo within 7 s, notes `[Spare { quiet: 3.0 s }]`, one connection. The plant `relay-t686-spare-on-pooled-connection`. The node roads (`reverse::wire::open`) take the upgrade of HTTP/1.1 (`pod_ws::connect`) on a new connection for each socket, and the QUIC road dials a connection for each session: neither rides the pool. A silent connection that still takes the first link of a new session is T-687. `cargo test -p pod-relay --all-features`, `cargo test -p pod-session --all-features` and `cargo test -p pod-ws --all-features` passed.
+
+# T-687: `pod-ws`: a silent connection of the HTTP/2 pool takes the first link of each new session until its TCP fails
+
+**Source:** T-686 (a finding of its work).
+**Category:** defect
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`Pool::place` gives a new session the first kept connection of its host with room. A connection whose TCP went silent stays in the pool, not retired, until its TCP fails or it idles out. A CONNECT on it gets no answer: `open_on` ends with `ConnectError::Timeout` after `WsClientConfig::timeout` and returns it as the session's end (`Carry::Answer`), with no retire of the connection and no try on a new one. Each new session of the process to that host thus waits for the whole timeout and fails, while a new TCP connection would pass. T-686 keeps the replacing links of the resumable layer off such a connection, not the first link of another session.
+
+## Premise
+
+- Read: `crates/pod-ws/src/h2_road/mod.rs` (`connect_link`, `open_on`, `Carry`), `crates/pod-ws/src/h2_road/pool.rs` (`Pool::place`, `Conn::retire`).
+- Not measured: the wait of a new session on a silent connection; the read of the code above gives it.
+
+## Approach
+
+A CONNECT whose answer did not come within a bound well under the timeout (for example the larger of 2 s and three round trips of the connection's PING) retires the connection and goes once to a new one, as a connection that ended under the CONNECT does (`Carry::Connection`). Or the pool sends a PING on a connection that heard nothing for some seconds before it gives a place on it, and retires it when no answer comes within the bound. A test: a stand-in proxy that holds the bytes of the first connection; a second session opens on a new connection within the bound.
+
+## Prove
+
+```sh
+cargo test -p pod-ws --all-features
 ```

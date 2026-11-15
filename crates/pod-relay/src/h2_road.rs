@@ -5,7 +5,9 @@
 //! with no extended CONNECT, so that a run there pays no second connection;
 //! `yes`, each session; `no`, none, the upgrade of HTTP/1.1 alone. Another
 //! word takes the upgrade alone. The connections are the pool of the
-//! caller's `Context`.
+//! caller's `Context`; a context of one session of the resumable layer
+//! gives each new link a connection that no link of the session rode
+//! (`pod_ws::h2_road::Links`).
 
 use pod_ws::{ConnectError, RelaySession, WsClientConfig};
 
@@ -64,7 +66,10 @@ pub async fn connect(
     if !Choice::of(ctx).is_ok_and(|choice| choice.offers(explicit)) {
         return pod_ws::connect(config, token).await;
     }
-    let (session, road) = pod_ws::h2_road::connect(ctx.h2_pool(), config, token).await?;
+    let (session, road) = match ctx.links() {
+        Some(links) => pod_ws::h2_road::connect_link(ctx.h2_pool(), links, config, token).await?,
+        None => pod_ws::h2_road::connect(ctx.h2_pool(), config, token).await?,
+    };
     Ok(match road.words() {
         Some(words) => session.with_road(words),
         None => session,

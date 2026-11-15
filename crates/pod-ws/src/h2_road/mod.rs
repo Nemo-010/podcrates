@@ -17,7 +17,10 @@
 //! SETTINGS offered no extended CONNECT, or HTTP/2 did not carry the
 //! CONNECT, the connection is closed first and the upgrade goes on a new
 //! one, so that a session holds one connection at a time; the [`Pool`] then
-//! takes HTTP/1.1 to that host for [`REMEMBERED`]. A caller's own TLS
+//! takes HTTP/1.1 to that host for [`REMEMBERED`]. A link that replaces
+//! another link of its session ([`connect_link`]) takes no connection that a
+//! link of the session rode: a connection that went silent holds a new
+//! stream as it holds the old one, until its TCP recovers. A caller's own TLS
 //! configuration is used as it is, with no ALPN (`Trust::caller`), so it
 //! takes the upgrade alone. The caller owns the pool: one for each process,
 //! or one for each test.
@@ -27,6 +30,7 @@ mod duplex;
 mod pool;
 
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::task::{Context, Poll};
 use std::time::Duration;
 
@@ -184,11 +188,41 @@ impl Carry {
     }
 }
 
+/// The connections of [`Pool`] that the links of one session rode: a link
+/// of [`connect_link`] takes only a connection newer than each of them.
+/// Each link that replaces another (a spare beside a silent link, a resume
+/// after a loss, a move) thus takes no connection of the link that it
+/// replaces; the first link of a session shares a connection kept.
+#[derive(Debug, Default)]
+pub struct Links {
+    /// The serial number of the newest connection that a link rode; 0 for
+    /// none.
+    newest: AtomicU64,
+}
+
+impl Links {
+    /// The links of a new session: none yet.
+    pub fn new() -> Links {
+        Links::default()
+    }
+}
+
 /// Connect as [`crate::connect`] does, with `token` in a field and nowhere
 /// else, on this road where the host takes it, else by the upgrade of
 /// HTTP/1.1: the session, and how it is carried. `pool` keeps the
 /// connections and what it found of each host.
 pub async fn connect(pool: &Pool, config: &WsClientConfig, token: &str) -> Result<(RelaySession, Road), ConnectError> {
+    connect_link(pool, &Links::new(), config, token).await
+}
+
+/// [`connect`] for a link of the session of `links`: on a connection newer
+/// than each that a link of the session rode, which `links` then holds.
+pub async fn connect_link(
+    pool: &Pool,
+    links: &Links,
+    config: &WsClientConfig,
+    token: &str,
+) -> Result<(RelaySession, Road), ConnectError> {
     config.validate().map_err(ConnectError::Config)?;
     if token.contains(['\r', '\n']) {
         return Err(ConnectError::Config("the relay token contains a line break".into()));
@@ -200,7 +234,8 @@ pub async fn connect(pool: &Pool, config: &WsClientConfig, token: &str) -> Resul
     // to a new one, once; the last one's words go into the fallback's.
     let mut ended = String::new();
     for _ in 0..2 {
-        let (conn, place, shared) = match pool.place(config).await? {
+        let after = links.newest.load(Ordering::SeqCst);
+        let (conn, place, shared) = match pool.place(config, after).await? {
             pool::Got::Place { conn, place, shared } => (conn, place, shared),
             pool::Got::Http1(tls, peer) => {
                 return Ok((upgrade_on(*tls, peer, config, token).await?, Road::Http1(Fallback::NotChosen)));
@@ -208,7 +243,10 @@ pub async fn connect(pool: &Pool, config: &WsClientConfig, token: &str) -> Resul
             pool::Got::Fallback(why) => return Ok((crate::connect(config, token).await?, Road::Http1(why))),
         };
         match open_on(&conn, place, config, token).await {
-            Ok(session) => return Ok((session, Road::Stream { shared })),
+            Ok(session) => {
+                links.newest.fetch_max(conn.serial(), Ordering::SeqCst);
+                return Ok((session, Road::Stream { shared }));
+            }
             Err(Carry::Answer(e)) => return Err(e),
             Err(Carry::Connection(why)) => {
                 ended = why;
