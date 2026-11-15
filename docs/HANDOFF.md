@@ -26,8 +26,12 @@ is done. Git and the record keep finished work.
    podssh"): parts 2 and 3 of `pod-egress` (T-035, partial) start again
    from `main`: part 2 is `vless/`, `vmess/`, `trojan/`, `shadowsocks/`;
    part 3 is `eice/`, `iap/` of podssh-ws at podssh `2ffb7cd7`, which
-   podssh froze. Their agents stopped at the end of the last session
-   with no commit kept. Give each the brief of part 1 (each road behind
+   podssh froze. Their agents stopped at the end of the last session.
+   The import and the edition commits of each are on the branches
+   `wip/egress-part2` and `wip/egress-part3` (based on part 1, which is
+   on `main`); the adaptation that was not committed is lost. Start each
+   agent from its branch (a local worktree branch on that commit), merge
+   it to `main` as usual, then delete the `wip/` branch. Give each the brief of part 1 (each road behind
    its own feature, on the shared parts of the crate; an adoption patch
    with `.needs` = pod-egress). podssh's map of the glue is in the body of
    PodUtils/podssh#248. Then step 3 of the move: `pod-tor`, `pod-iroh`,

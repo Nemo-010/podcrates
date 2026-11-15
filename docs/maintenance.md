@@ -318,6 +318,11 @@ fourth argument of the script names the list when it is elsewhere.
   After the merge commit, run `cargo todo check --base HEAD~1`: CI
   checks the citations against the first parent, and a citation into a
   file that the branch changed moves only in that check.
+* At the end of a session, an agent that has not finished commits its
+  work as it is on its local branch, and the session pushes that branch
+  as `wip/NAME` and names it in `docs/HANDOFF.md`. Never remove a
+  worktree with work that is not committed. The next session merges the
+  work and deletes the `wip/` branch.
 * A test that uses a Unix item (a Unix socket, a mode of a file, the
   unix carrier) needs `#[cfg(unix)]`, or the Windows jobs of the nightly
   do not build. `sh scripts/agent/check-windows.sh` checks the tests of
