@@ -5,14 +5,11 @@
 ## State
 
 - `docs/HANDOFF.md` has what is in flight and what waits.
-- Last release: `v0.51.0` at `7119770` (`docs/releases/v0.51.0.md`; ci
-  43704477293, adoption 43704480669, release 43706934823, publish
-  43706977883): part 1 of `pod-egress` (T-035), T-639, T-640, T-643,
-  T-647, T-648, T-650, T-651. Its `plants` run 43704485014 missed the
-  three plants of T-678, whose fix is on `main` after the tag.
-- In release: `v0.52.0` (`docs/releases/v0.52.0.md`): parts 2 and 3 of
-  `pod-egress` (T-035), T-668 to T-672, T-676 (PodUtils/podvm#395, #403,
-  #406, #407), and the test fixes of the nightly (T-679 to T-683).
+- Last release: `v0.52.0` at `7998b72` (`docs/releases/v0.52.0.md`; ci
+  43711409358, adoption 43711411992, release 43715190817; the hand-off
+  #176, COORD-106): parts 2 and 3 of `pod-egress` (T-035), T-668 to
+  T-672, T-676, T-678, T-679 to T-683.
+- On `main` for the next tag: T-686 and T-687 (PodUtils/podssh#262).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.51.0` (`3f6a9fe`, PodUtils/podssh#260): part 1 of
@@ -61,10 +58,10 @@ online"): the work for podrunner and podnet comes first, then podssh and
 podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
-First: `v0.52.0` (#175) (parts 2 and 3 of T-035,
-and the asks of podvm that wait on the local branch `integ`). Then the move of podssh's waves 3 and 4 (the
-ruling "The move of podssh", PodUtils/podssh#248): T-035 (parts 2 and 3);
-T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2
+First: the takes of `v0.52.0` (#176); then the next tag (the fixes of
+PodUtils/podssh#262, on `main`). Then the move of podssh's waves 3 and 4 (the
+ruling "The move of podssh", PodUtils/podssh#248): T-035 (done when podssh
+takes parts 2 and 3); T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
 
 1. **The defects and asks of the consumers:** T-378 (`pod-devtunnel`, GitHub #94 and

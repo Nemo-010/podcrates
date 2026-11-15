@@ -178,5 +178,6 @@ numbers. `TODO/RULES.md` gives the rules.
 | #173 | [gh action] requested: ci, adoption, plants, secrets and deny on main at 2f23632 (v0.52.0) | closed (secrets, deny passed; ci failed on a test of T-669; adoption, plants cancelled by #174) | T-035, T-668, T-669, T-670, T-671, T-672, T-676, T-678 |
 | #174 | [gh action] requested: the gates of main at a866f99 and the release v0.52.0; the reruns of services.yml | closed (ci 43708818874 at 2f23632 failed on a test of T-669; replaced by #175) | T-035, T-668, T-669, T-670, T-676, T-679, T-684, T-685 |
 | #175 | [gh action] requested: the gates of main at 7998b72 and the release v0.52.0; the reruns of services.yml | open | T-035, T-668, T-669, T-670, T-676, T-679, T-684, T-685 |
+| #176 | COORD-106: v0.52.0: pod-egress parts 2 and 3; the asks of podvm#395, #403, #406, #407 (to all) | open | T-035, T-668, T-669, T-670, T-671, T-672, T-676 |
 
 #79 to #81 are pull requests.
