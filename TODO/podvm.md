@@ -8321,6 +8321,8 @@ The live step: `tests/windows_keep_live.rs` runs six cold boots of `run` on the 
 
 The live step ran: `guest-windows.yml` run 43683270673 at `1368e49` (by a dispatch, #165) passed, with "RESULT: cold boots: 6 of 6 reached their outcome". The warm start was not run (QEMU 8.2 cannot save the NVMe root disk, T-629), and the two controls of the mounted mailbox gave "no", as before.
 
+podvm answered the question of its runs of experiment 450 (PodUtils/podvm#413): each Windows run copies the OVMF variable store into a fresh scratch directory (its `vars_run`), and the guest writes only that copy; no state crosses from run to run.
+
 # T-641: `pod-guest`: the installer tries its shutdown again, and `dos::run` keeps the evidence of a run that times out
 
 **Source:** T-640 (a finding of its work).
