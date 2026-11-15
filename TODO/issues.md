@@ -197,5 +197,6 @@ kinds and the rules.
 | #190 | request | [gh action] requested: the checks of main at bf13591 and a dry run of issue-sync.yml | closed (deny 43762144799 and secrets 43762148637 passed; adoption 43762137913 failed: T-703; issue-sync dry run 43762153730: one fault, #190 unmapped; ci and plants cancelled by #191) | T-703 |
 | #191 | request | [gh action] requested: the checks of main at 320ebdf (the rules of the issues opt in) and a dry run of issue-sync.yml | open | T-703 |
 | #192 | coord | COORD-114: the rules of the issues found drift in the records of podssh and podnet; repair the map, then turn the rules on (to podssh) (to podnet) | open | T-703 |
+| #193 | request | [gh action] requested: the gates of main at e3c3e1d and the release v0.55.0 | open | T-703, T-701 |
 
 #79 to #81 are pull requests.
