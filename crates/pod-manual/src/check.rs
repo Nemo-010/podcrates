@@ -116,12 +116,14 @@ pub fn variables(manual: &Manual, sources: &[(PathBuf, String)], exempt: &[&str]
 
 /// Each exit code in `given` (the codes that the program gives) against the
 /// facts, both ways: a code with no row fails, and a row of one code that
-/// the program does not give fails.
+/// the program does not give fails. A row of [`crate::Code::Payload`]
+/// names the codes of a payload, not the codes of the program itself: it
+/// covers no code of `given`.
 pub fn exit_codes(manual: &Manual, given: &[i32]) -> Vec<Finding> {
     let exits = &manual.facts.exits;
     let mut out = Vec::new();
     for &code in given {
-        if !crate::facts::covers(exits, code) {
+        if !exits.iter().any(|e| e.code.holds(code)) {
             out.push(finding("the exit codes", format!("the program gives {code}, and no fact names it")));
         }
     }

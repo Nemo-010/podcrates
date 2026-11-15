@@ -9,27 +9,29 @@ fn the_sample_keeps_each_rule() {
     assert_none(model(&m));
 }
 
-/// The control of [`texts`]: a fault in each kind of string is found.
+/// The control of [`texts`]: a fault in each kind of string is found at
+/// its place in the model, not only in the text that a writer makes.
 #[test]
 fn a_fault_in_each_part_of_the_model_is_found() {
     type Plant = Box<dyn Fn(&mut Manual)>;
     let plants: Vec<(&str, Plant)> = vec![
-        ("an emoji in a flag", Box::new(|m| m.commands[1].flags[0].help.push('\u{1F680}'))),
-        ("a work id in a fact", Box::new(|m| m.facts.exits[0].meaning.push_str(" See T-700."))),
-        ("an escape in a topic", Box::new(|m| m.topics[0].blocks[0] = crate::sections::para("a \u{1b}[1m bold"))),
-        ("a long step", Box::new(|m| m.topics[0].blocks[2] = Block::Steps { steps: vec!["do ".repeat(21)] })),
-        ("a long note", Box::new(|m| m.commands[1].notes.push("word ".repeat(26)))),
-        ("an issue in a table", Box::new(|m| m.facts.tables[0].rows[0][2].push_str(" (#181)"))),
-        ("a control in a variable", Box::new(|m| m.facts.variables[0].vars[0].meaning.push('\u{7}'))),
+        ("sample tunnel --url", Box::new(|m| m.commands[1].flags[0].help.push('\u{1F680}'))),
+        ("the exit code 0", Box::new(|m| m.facts.exits[0].meaning.push_str(" See T-700."))),
+        ("the topic notes", Box::new(|m| m.topics[0].blocks[0] = crate::sections::para("a \u{1b}[1m bold"))),
+        ("the topic notes", Box::new(|m| m.topics[0].blocks[2] = Block::Steps { steps: vec!["do ".repeat(21)] })),
+        ("sample tunnel", Box::new(|m| m.commands[1].notes.push("word ".repeat(26)))),
+        ("the table keywords", Box::new(|m| m.facts.tables[0].rows[0][2].push_str(" (#181)"))),
+        ("the variable HTTPS_PROXY", Box::new(|m| m.facts.variables[0].vars[0].meaning.push('\u{7}'))),
         (
-            "a call in a rule",
+            "sample tunnel",
             Box::new(|m| m.commands[1].rules.push(Rule::Needs { flag: "--url".into(), needs: vec!["C681".into()] })),
         ),
     ];
-    for (what, plant) in plants {
+    for (at, plant) in plants {
         let mut m = manual();
         plant(&mut m);
-        assert!(!texts(&m).is_empty(), "{what} passed");
+        let found = texts(&m);
+        assert!(found.iter().any(|f| f.at == at), "no finding at {at:?}: {found:?}");
     }
 }
 
@@ -102,6 +104,9 @@ fn the_exit_codes_are_checked_both_ways() {
     assert!(f.len() == 1 && f[0].what.contains("gives 3"), "{f:?}");
     let f = exit_codes(&m, &[0]);
     assert!(f.len() == 1 && f[0].what.contains("64"), "{f:?}");
+    // The row of the payload does not hide a code of the program.
+    let f = exit_codes(&m, &[0, 64, 3]);
+    assert!(f.len() == 1 && f[0].what.contains("gives 3"), "{f:?}");
 }
 
 fn row(spellings: &[&str], takes_value: bool) -> ParserFlag {
