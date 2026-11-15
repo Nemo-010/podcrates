@@ -3,11 +3,18 @@
 //! `/dev/pts` of the image. Each is made where the image has that
 //! directory (not a link). A refused one writes one line to the payload's
 //! standard error, and the payload runs as on the chroot rung.
+//!
+//! In a user namespace of the rung (`ns_user`) the kernel refuses the
+//! fresh proc with `EPERM`: the PID namespace belongs to the user
+//! namespace of the host. There the child binds the host's `/proc`
+//! (`ns_proc_bind`), where that proc is the one of the PID namespace of the
+//! entry.
 
 use pod_hostprobe::sys::{self, CBuf};
 
 use crate::entry::{decimal, ns_dir_target, ns_setup_step};
 use crate::names::Names;
+use crate::ns_proc_bind::Fallback;
 
 /// The step byte of the proc mount. It names its step but never goes to
 /// the readiness pipe: a refused proc mount does not stop the rung.
@@ -28,6 +35,8 @@ pub(crate) struct Optional {
     fstype: CBuf,
     flags: u64,
     refused: Vec<u8>,
+    /// What the child does at `EPERM` in a user namespace.
+    fallback: Fallback,
 }
 
 /// The `/proc` of the image as a mount target, with the rule of
@@ -63,25 +72,38 @@ pub(crate) fn optional_mounts(root: &str, names: &Names) -> Vec<Optional> {
     // that `RootDir` holds: such a path has none.
     if let Some(target) = ns_proc_target(root).and_then(|t| CBuf::new(&t)) {
         let refused = ns_proc_refused(names).into_bytes();
-        out.push(Optional { source: lit("proc"), target, fstype: lit("proc"), flags: PROC_FLAGS, refused });
+        let fallback = crate::ns_proc_bind::fallback(names);
+        out.push(Optional { source: lit("proc"), target, fstype: lit("proc"), flags: PROC_FLAGS, refused, fallback });
     }
     if let Some(target) = ns_pts_target(root).and_then(|t| CBuf::new(&t)) {
         let refused = ns_refused_line(names, "/dev/pts", NS_PTS_STEP).into_bytes();
         let flags = sys::MS_BIND | sys::MS_REC;
-        out.push(Optional { source: lit("/dev/pts"), target, fstype: sys::cempty(), flags, refused });
+        let fallback = Fallback::None;
+        out.push(Optional { source: lit("/dev/pts"), target, fstype: sys::cempty(), flags, refused, fallback });
     }
     out
 }
 
 /// Make each optional mount, in the child after the tmpfs on `/tmp`: no
 /// allocation. A refused one writes its line and the next one goes on.
-pub(crate) fn mount_each(list: &[Optional]) {
+/// `user`: the rung is in a user namespace of its own, where `EPERM` calls
+/// for the fallback of the mount.
+pub(crate) fn mount_each(list: &[Optional], user: bool) {
     for m in list {
-        if let Err(e) = sys::mount(&m.source, &m.target, &m.fstype, m.flags) {
-            let mut digits = [0u8; 10];
-            let _ = sys::write(2, &m.refused);
-            let _ = sys::write(2, decimal(e.0.unsigned_abs(), &mut digits));
-            let _ = sys::write(2, b"\n");
+        let Err(e) = sys::mount(&m.source, &m.target, &m.fstype, m.flags) else { continue };
+        if user && e == sys::EPERM && !matches!(m.fallback, Fallback::None) {
+            crate::ns_proc_bind::bind(&m.fallback, &m.target);
+            continue;
         }
+        refused_line(&m.refused, e);
     }
+}
+
+/// The start of a line, the number of the errno and a newline, to the
+/// standard error of the payload. No allocation.
+pub(crate) fn refused_line(start: &[u8], e: sys::Errno) {
+    let mut digits = [0u8; 10];
+    let _ = sys::write(2, start);
+    let _ = sys::write(2, decimal(e.0.unsigned_abs(), &mut digits));
+    let _ = sys::write(2, b"\n");
 }

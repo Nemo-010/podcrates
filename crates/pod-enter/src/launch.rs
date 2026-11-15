@@ -5,7 +5,7 @@ use std::io::Write;
 use pod_core::Class;
 use pod_hostprobe::sys::{self, CBuf};
 
-use crate::entry::{NS_JOIN_STEP, NsEntry, chroot_landed, ns_setup_step, refuse_workdir, workdir_kind};
+use crate::entry::{NsEntry, chroot_landed, ns_setup_step, refuse_workdir, workdir_kind};
 use crate::names::var_name;
 use crate::status::{NOT_FOUND, invocable_but_refused};
 use crate::userland::Maps;
@@ -219,10 +219,10 @@ pub(crate) fn spawn_with(
             }
             // The join comes before the passed descriptors, so a pass onto
             // the number of the pidfd cannot replace it.
-            if let Some(NsEntry::Join(pidfd, _)) = ns
-                && let Err(e) = sys::setns(pidfd, sys::CLONE_NEWNS)
+            if let Some(NsEntry::Join(j)) = ns
+                && let Err((step, e)) = j.enter()
             {
-                report(NS_JOIN_STEP, e);
+                report(step, e);
             }
             for (child_fd, host_fd) in &plan.fds.pass {
                 if host_fd != child_fd {
@@ -269,7 +269,7 @@ pub(crate) fn spawn_with(
                 }
                 // `/proc` and `/dev/pts`: a refused one writes one line
                 // and the rung goes on.
-                crate::ns_optional::mount_each(&m.optional);
+                crate::ns_optional::mount_each(&m.optional, m.user.is_some());
                 if let Some(name) = &hostname
                     && let Err((step, e)) = crate::uts::enter(name, hostname_len)
                 {

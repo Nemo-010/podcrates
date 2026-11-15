@@ -1,0 +1,51 @@
+use super::*;
+use crate::ns_setup_step;
+
+/// The pid of a pidfd comes from its `Pid:` line; 0 (a process outside
+/// the PID namespace) and -1 (a process that ended) give none.
+#[test]
+fn the_pid_of_a_pidfd_is_read_from_its_fdinfo() {
+    let text = "pos:\t0\nflags:\t02000002\nmnt_id:\t15\nino:\t1057\nPid:\t4242\nNSpid:\t4242\n";
+    assert_eq!(fdinfo_pid(text), Some(4242));
+    assert_eq!(fdinfo_pid("Pid:\t0\n"), None);
+    assert_eq!(fdinfo_pid("Pid:\t-1\n"), None);
+    assert_eq!(fdinfo_pid("pos:\t0\n"), None);
+    assert_eq!(fdinfo_pid("Pid:\tx\n"), None);
+}
+
+/// A join of a payload in another user namespace joins it with the mount
+/// namespace, in one call with its own step; a join in the user namespace
+/// of the caller joins the mount namespace alone.
+#[test]
+fn the_join_takes_the_user_namespace_only_where_it_differs() {
+    let own = Join { pidfd: 9, overlay: false, user: false };
+    assert_eq!(own.flags(), sys::CLONE_NEWNS);
+    assert_eq!(own.step(), NS_JOIN_STEP);
+    let other = Join { user: true, ..own };
+    assert_eq!(other.flags(), sys::CLONE_NEWUSER | sys::CLONE_NEWNS);
+    assert_eq!(other.step(), NS_JOIN_USER_STEP);
+    assert_eq!(ns_setup_step(NS_JOIN_USER_STEP), Some("setns(pidfd, CLONE_NEWUSER | CLONE_NEWNS)"));
+    assert_eq!(ns_setup_step(NS_JOIN_STEP), Some("setns(pidfd, CLONE_NEWNS)"));
+}
+
+/// A process in the user namespace of the test is not in another one:
+/// the join of a run as root stays `CLONE_NEWNS` alone. A descriptor that
+/// is not a pidfd tells nothing, and gives false.
+#[test]
+fn a_child_in_the_own_user_namespace_is_not_in_another() {
+    let mut child = std::process::Command::new("sleep").arg("5").spawn().unwrap();
+    let pidfd = match sys::pidfd_open(i64::from(child.id())) {
+        Ok(fd) => fd,
+        Err(e) => {
+            let _ = child.kill();
+            let _ = child.wait();
+            return pod_testkit::host::skip_line(&format!("no pidfd_open on this kernel: {}", e.name()));
+        }
+    };
+    assert!(!other_user_namespace(pidfd));
+    assert_eq!(Join::of(pidfd, true), Join { pidfd, overlay: true, user: false });
+    let _ = sys::close(pidfd);
+    let _ = child.kill();
+    let _ = child.wait();
+    assert!(!other_user_namespace(0));
+}

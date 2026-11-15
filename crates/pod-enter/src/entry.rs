@@ -146,12 +146,11 @@ pub struct NsMount {
 }
 
 /// The mounts of the namespace rung: its own, or the mount namespace of
-/// a running process, by its pidfd (and true where its root is an
-/// overlay).
+/// a running process, by its pidfd (`ns_join`).
 #[derive(Clone, Copy)]
 pub(crate) enum NsEntry<'a> {
     Own(&'a NsMount),
-    Join(i64, bool),
+    Join(crate::ns_join::Join),
 }
 
 impl NsEntry<'_> {
@@ -159,7 +158,7 @@ impl NsEntry<'_> {
     pub(crate) fn overlay(&self) -> bool {
         match self {
             NsEntry::Own(m) => m.overlay.is_some(),
-            NsEntry::Join(_, overlay) => *overlay,
+            NsEntry::Join(j) => j.overlay,
         }
     }
 }
@@ -289,7 +288,10 @@ pub fn ns_setup_step(step: u8) -> Option<&'static str> {
         10 => Some("verifying the chroot landed on the opened rootfs"),
         NS_PROC_STEP => Some("mounting proc on /proc"),
         NS_PTS_STEP => Some("binding /dev/pts on /dev/pts"),
+        crate::ns_proc_bind::NS_PROC_BIND_STEP => Some("binding the host's /proc on /proc"),
+        crate::ns_proc_bind::NS_PROC_REMOUNT_STEP => Some("remounting the bind of /proc nosuid, nodev and noexec"),
         NS_JOIN_STEP => Some("setns(pidfd, CLONE_NEWNS)"),
+        crate::ns_join::NS_JOIN_USER_STEP => Some("setns(pidfd, CLONE_NEWUSER | CLONE_NEWNS)"),
         NS_OVERLAY_TMPFS_STEP => Some("mounting the tmpfs of the overlay layers"),
         NS_OVERLAY_DIRS_STEP => Some("making the upper and work directories"),
         NS_OVERLAY_STEP => Some("mounting overlay on the root"),
@@ -351,7 +353,9 @@ pub(crate) fn namespace_entry(root: &RootDir, plan: &Plan, banner: bool, err: &m
 
 /// Enter `root` in the mount namespace of the running process of `pidfd`
 /// and exec: the payload of an exec sees the `/tmp` and the `/proc` of
-/// the payload of the run. The entry mounts nothing of its own.
+/// the payload of the run. The entry mounts nothing of its own. Where the
+/// payload is in a user namespace that is not the one of the caller (a run
+/// of a caller with no capabilities), the entry joins it too (`ns_join`).
 ///
 /// A refused join (a kernel before 5.8, `EPERM`, a process that ended)
 /// names the step and enters a mount namespace of its own with
@@ -365,7 +369,7 @@ pub fn spawn_joined(root: &RootDir, plan: &Plan, pidfd: i64, err: &mut dyn Write
 /// enters an overlay root of its own ([`crate::spawn_namespace_root`]), which
 /// never falls back to chroot.
 pub fn spawn_joined_root(root: Root<'_>, plan: &Plan, pidfd: i64, err: &mut dyn Write) -> Result<Child> {
-    let join = NsEntry::Join(pidfd, matches!(root, Root::Overlay { .. }));
+    let join = NsEntry::Join(crate::ns_join::Join::of(pidfd, matches!(root, Root::Overlay { .. })));
     match spawn_with(root.dir(), plan, Rung::Namespace.word(), None, None, None, Some(join), true, err) {
         Err(Error::NsSetup { step, errno }) => {
             let cause = format!("{step} ({} ({}))", errno.name(), errno.0);

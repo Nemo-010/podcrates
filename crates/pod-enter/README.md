@@ -37,9 +37,15 @@ The entries:
   `NS_GID_MAP_STEP` 26). Only then does the entry fall back to chroot, and
   the line names both refusals (`both_refused`). The overlay root takes
   the same retry. The files of the caller show as uid 0 in the payload,
-  each other owner as 65534; a proc mount is refused there (no PID
-  namespace) and the rung goes on with no `/proc`. The banner goes out one
-  time for each entry, also over a retry or a fallback.
+  each other owner as 65534. The kernel refuses a fresh proc there (the
+  PID namespace belongs to the user namespace of the host): the child
+  binds the host's `/proc` recursively (`NS_PROC_BIND_STEP` 28) and
+  remounts the bind `nosuid`, `nodev` and `noexec`
+  (`NS_PROC_REMOUNT_STEP` 29; a refused remount removes the bind). It
+  binds only a proc whose `/proc/self` is the pid of the entry
+  (`proc_of_this_pid_namespace`): a proc of another PID namespace gives
+  one line and no `/proc`. The banner goes out one time for each entry,
+  also over a retry or a fallback.
 * The overlay root of the namespace rung (`spawn_namespace_root`,
   `run_namespace_root` with `Root::Overlay { lower, upper }`): the
   caller's tree is the read-only lower layer of an overlay, so a shared
@@ -62,7 +68,12 @@ The entries:
   `spawn_namespace`.
 * The joined entry (`spawn_joined`, for an exec): `setns` on the pidfd of
   a running payload of the namespace rung joins its mount namespace, then
-  the chroot by path and the check of the rung. The payload of the exec
+  the chroot by path and the check of the rung. Where the payload is in a
+  user namespace that is not the one of the caller (`ns_user`), one call
+  joins both (`setns(pidfd, CLONE_NEWUSER | CLONE_NEWNS)`,
+  `NS_JOIN_USER_STEP` 27): the owner of that user namespace holds each
+  capability in it. The entry compares `/proc/self/ns/user` with the one
+  of the pid of the pidfd (`other_user_namespace`) before the fork. The payload of the exec
   sees the `/tmp` and the `/proc` of the payload of the run; the entry
   mounts nothing. A refused join (a kernel before 5.8, `EPERM`, a process
   that ended) writes `ns_join_fallback_line` and enters

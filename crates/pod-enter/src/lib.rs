@@ -61,8 +61,10 @@ mod confine;
 mod entry;
 mod launch;
 mod names;
+mod ns_join;
 mod ns_optional;
 mod ns_overlay;
+mod ns_proc_bind;
 mod ns_user;
 
 use std::io::Write;
@@ -76,11 +78,13 @@ pub use confine::check_exec;
 pub use entry::*;
 pub use limits::{Limit, Resource};
 pub use names::Names;
+pub use ns_join::{NS_JOIN_USER_STEP, fdinfo_pid, other_user_namespace};
 pub use ns_optional::{NS_PROC_STEP, NS_PTS_STEP, ns_proc_refused, ns_proc_target, ns_pts_target, ns_refused_line};
 pub use ns_overlay::{
     NS_OVERLAY_DIRS_STEP, NS_OVERLAY_STEP, NS_OVERLAY_TMPFS_STEP, OVERLAY_OPTIONS_MOST, Root, Upper, overlay_escape,
     overlay_options, run_namespace_root, spawn_namespace_root,
 };
+pub use ns_proc_bind::{NS_PROC_BIND_STEP, NS_PROC_REMOUNT_STEP, proc_of_this_pid_namespace};
 pub use ns_user::{
     NS_GID_MAP_STEP, NS_SETGROUPS_STEP, NS_UID_MAP_STEP, NS_USER_STEP, both_refused, calls_for_user_namespace,
 };

@@ -317,7 +317,10 @@ pub const SHUTDOWN_SIGNALS: u64 = (1 << (SIGINT - 1)) | (1 << (SIGTERM - 1));
 /// (0x400000 on sparc). `SIG_BLOCK` and `SIG_SETMASK` are in `sigmask`.
 pub const SFD_CLOEXEC: u64 = linux_raw_sys::general::O_CLOEXEC as u64;
 
-/// `MS_NOSUID`, `MS_NODEV` and `MS_NOEXEC`, from the headers of the kernel.
+/// `MS_RDONLY`, `MS_NOSUID`, `MS_NODEV`, `MS_NOEXEC` and `MS_REMOUNT`,
+/// from the headers of the kernel.
+pub const MS_RDONLY: u64 = 0x1;
+pub const MS_REMOUNT: u64 = 0x20;
 pub const MS_NOSUID: u64 = 0x2;
 pub const MS_NODEV: u64 = 0x4;
 pub const MS_NOEXEC: u64 = 0x8;
