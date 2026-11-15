@@ -2771,6 +2771,10 @@ cargo test -p pod-actions-store -p pod-actions-results --all-features
 python3 -I scripts/check-sources.py pod-actions-store pod-actions-results
 ```
 
+## Correction
+
+2026-11-15: `nightly.yml` run 43699451813 at `98017c3`: the test `the_git_command_takes_the_proxy_of_the_grant_and_https_only` fails on both Windows jobs. Windows keeps the case of the first removed spelling (`https_proxy`), and the test reads `HTTPS_PROXY`. The code is correct. T-679 has the fix of the test.
+
 ## Done
 
 2026-11-14, commits 0457efc (`pod-actions-store`) and 87daa5a

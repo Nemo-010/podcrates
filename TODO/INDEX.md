@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**537 entries: 106 open, 9 partial, 6 blocked, 416 done.**
+**544 entries: 113 open, 9 partial, 6 blocked, 416 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 3 | 0 | 111 | 125 |
-| P2 | 45 | 3 | 4 | 218 | 270 |
+| P1 | 16 | 3 | 0 | 111 | 130 |
+| P2 | 47 | 3 | 4 | 218 | 272 |
 | P3 | 50 | 3 | 2 | 85 | 140 |
-| **All** | 106 | 9 | 6 | 416 | 537 |
+| **All** | 113 | 9 | 6 | 416 | 544 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -584,3 +584,10 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-651](podvm.md) | P2 | S | M6 | feature | done | `pod-services`: the aarch64 netboot of Alpine 3.22.6 and the static `qemu-system-aarch64` (PodUtils/podvm#394) |
 | [T-677](upkeep.md) | P1 | S | M5 | defect | done | `plants.yml` passes its limit of 60 minutes: the plants run in shards |
 | [T-678](upkeep.md) | P1 | S | M5 | defect | done | three plants of `pod-extract` no longer catch: a second guard holds their check |
+| [T-679](upkeep.md) | P1 | S | M5 | defect | open | The nightly at `98017c3` is red on Windows: a test of `pod-actions-store` reads a removed variable by the wrong case |
+| [T-680](upkeep.md) | P1 | S | M5 | defect | open | The nightly at `98017c3` is red on macOS: a port that a socket holds with no listen does not refuse there |
+| [T-681](upkeep.md) | P1 | S | M5 | defect | open | The nightly at `98017c3` is red on windows-2025: a test of `pod-link` reads the answer of a POST before the rest of its body in the link |
+| [T-682](upkeep.md) | P1 | S | M5 | defect | open | The nightly at `98017c3` is red on riscv64 and ppc64le: the upper bound of the split form of `pod-relay` over HTTP/2 is not scaled under an emulator |
+| [T-683](upkeep.md) | P1 | S | M5 | defect | open | The nightly at `98017c3` is red on ppc64le: the kernel test of `pod-term` gives the numbers of `asm-generic` to a powerpc kernel |
+| [T-684](upkeep.md) | P2 | S | M1 | defect | open | `services.yml` at `98017c3`: the Trojan node `node-trojan-149-28-130-108` ends the TLS handshake |
+| [T-685](upkeep.md) | P2 | S | M1 | defect | open | `services.yml` at `98017c3`: both RDAP servers answer 403 for the `.xyz` names to the runner |

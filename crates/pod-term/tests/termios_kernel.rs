@@ -173,6 +173,101 @@ impl Seen {
     }
 }
 
+/// One field of a flag word: its mask and its value in the numbers of
+/// `asm-generic` (`Termios`), and its value in the libc of this target.
+type Field = (u32, u32, libc::tcflag_t);
+
+/// `IUTF8` is not in the libc crate; Linux gives it the same value on each
+/// target.
+const IFLAGS: [Field; 15] = [
+    (IGNBRK, IGNBRK, libc::IGNBRK),
+    (BRKINT, BRKINT, libc::BRKINT),
+    (IGNPAR, IGNPAR, libc::IGNPAR),
+    (PARMRK, PARMRK, libc::PARMRK),
+    (INPCK, INPCK, libc::INPCK),
+    (ISTRIP, ISTRIP, libc::ISTRIP),
+    (INLCR, INLCR, libc::INLCR),
+    (IGNCR, IGNCR, libc::IGNCR),
+    (ICRNL, ICRNL, libc::ICRNL),
+    (IUCLC, IUCLC, libc::IUCLC),
+    (IXON, IXON, libc::IXON),
+    (IXANY, IXANY, libc::IXANY),
+    (IXOFF, IXOFF, libc::IXOFF),
+    (IMAXBEL, IMAXBEL, libc::IMAXBEL),
+    (IUTF8, IUTF8, 0o040000),
+];
+const OFLAGS: [Field; 8] = [
+    (OPOST, OPOST, libc::OPOST),
+    (OLCUC, OLCUC, libc::OLCUC),
+    (ONLCR, ONLCR, libc::ONLCR),
+    (OCRNL, OCRNL, libc::OCRNL),
+    (ONOCR, ONOCR, libc::ONOCR),
+    (ONLRET, ONLRET, libc::ONLRET),
+    (OFILL, OFILL, libc::OFILL),
+    (OFDEL, OFDEL, libc::OFDEL),
+];
+/// The speed and the size of a character are fields of more than one bit.
+const CFLAGS: [Field; 5] = [
+    (B38400, B38400, libc::B38400),
+    (CSIZE, CS8, libc::CS8),
+    (CREAD, CREAD, libc::CREAD),
+    (PARENB, PARENB, libc::PARENB),
+    (HUPCL, HUPCL, libc::HUPCL),
+];
+const LFLAGS: [Field; 16] = [
+    (ISIG, ISIG, libc::ISIG),
+    (ICANON, ICANON, libc::ICANON),
+    (XCASE, XCASE, libc::XCASE),
+    (ECHO, ECHO, libc::ECHO),
+    (ECHOE, ECHOE, libc::ECHOE),
+    (ECHOK, ECHOK, libc::ECHOK),
+    (ECHONL, ECHONL, libc::ECHONL),
+    (NOFLSH, NOFLSH, libc::NOFLSH),
+    (TOSTOP, TOSTOP, libc::TOSTOP),
+    (ECHOCTL, ECHOCTL, libc::ECHOCTL),
+    (ECHOPRT, ECHOPRT, libc::ECHOPRT),
+    (ECHOKE, ECHOKE, libc::ECHOKE),
+    (FLUSHO, FLUSHO, libc::FLUSHO),
+    (PENDIN, PENDIN, libc::PENDIN),
+    (IEXTEN, IEXTEN, libc::IEXTEN),
+    (EXTPROC, EXTPROC, libc::EXTPROC),
+];
+/// Each index of `c_cc`: in `Termios`, and in the libc of this target.
+const CC: [(usize, usize); 17] = [
+    (VINTR, libc::VINTR),
+    (VQUIT, libc::VQUIT),
+    (VERASE, libc::VERASE),
+    (VKILL, libc::VKILL),
+    (VEOF, libc::VEOF),
+    (VTIME, libc::VTIME),
+    (VMIN, libc::VMIN),
+    (VSWTC, libc::VSWTC),
+    (VSTART, libc::VSTART),
+    (VSTOP, libc::VSTOP),
+    (VSUSP, libc::VSUSP),
+    (VEOL, libc::VEOL),
+    (VREPRINT, libc::VREPRINT),
+    (VDISCARD, libc::VDISCARD),
+    (VWERASE, libc::VWERASE),
+    (VLNEXT, libc::VLNEXT),
+    (VEOL2, libc::VEOL2),
+];
+
+/// The flag word `bits` of `Termios` in the numbers of this target.
+/// `Termios` holds the numbers of `asm-generic`; powerpc, mips and sparc
+/// give other numbers to the same flags, and the kernel reads its own.
+fn native(bits: u32, fields: &[Field], word: &str) -> libc::tcflag_t {
+    let (mut out, mut known) = (0, 0);
+    for &(mask, value, native) in fields {
+        if bits & mask == value {
+            out |= native;
+            known |= mask;
+        }
+    }
+    assert_eq!(bits & !known, 0, "{word} {bits:#o} has bits with no native value");
+    out
+}
+
 /// A pty of the kernel: the master, and the slave with no controlling
 /// terminal, both with no wait.
 struct Pty {
@@ -214,11 +309,13 @@ impl Pty {
         unsafe {
             let mut t: libc::termios = std::mem::zeroed();
             assert_eq!(libc::tcgetattr(fd, &mut t), 0, "{}", errno("tcgetattr"));
-            t.c_iflag = state.iflag;
-            t.c_oflag = state.oflag;
-            t.c_cflag = state.cflag;
-            t.c_lflag = state.lflag;
-            t.c_cc[..NCCS].copy_from_slice(&state.cc);
+            t.c_iflag = native(state.iflag, &IFLAGS, "c_iflag");
+            t.c_oflag = native(state.oflag, &OFLAGS, "c_oflag");
+            t.c_cflag = native(state.cflag, &CFLAGS, "c_cflag");
+            t.c_lflag = native(state.lflag, &LFLAGS, "c_lflag");
+            for (generic, index) in CC {
+                t.c_cc[index] = state.cc[generic];
+            }
             let action = match when {
                 When::Now => libc::TCSANOW,
                 When::Drain => libc::TCSADRAIN,
@@ -333,4 +430,19 @@ fn tty_gives_the_bytes_of_a_kernel_pty_for_each_case() {
         faults.extend(run(case, &pty));
     }
     assert!(faults.is_empty(), "{} of {} cases differ:\n{}", faults.len(), all.len(), faults.join("\n"));
+}
+
+/// Each flag of `Termios` has a value of this target: a flag that the table
+/// leaves out would go to the kernel as a wrong bit.
+#[test]
+fn each_flag_of_termios_has_a_value_of_this_target() {
+    for (fields, word) in [(&IFLAGS[..], "c_iflag"), (&OFLAGS, "c_oflag"), (&CFLAGS, "c_cflag"), (&LFLAGS, "c_lflag")] {
+        let all = fields.iter().fold(0, |a, f| a | f.1);
+        let want = fields.iter().fold(0, |a, f| a | f.2);
+        assert_eq!(native(all, fields, word), want, "{word}");
+    }
+    let sane = Termios::sane();
+    assert_eq!(native(sane.lflag, &LFLAGS, "c_lflag") & libc::ICANON, libc::ICANON);
+    let cc: std::collections::BTreeSet<usize> = CC.iter().map(|c| c.1).collect();
+    assert_eq!(cc.len(), CC.len(), "two indexes of c_cc are one index of this target");
 }

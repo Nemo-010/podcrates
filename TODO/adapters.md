@@ -698,6 +698,10 @@ to `WarpNet` (T-335). Loopback tests with two dials of the test, one slow.
 cargo test -p pod-warp --all-features
 ```
 
+## Correction
+
+2026-11-15: `nightly.yml` run 43699451813 at `98017c3`: `a_failure_of_both_legs_names_both_causes` fails on both macOS jobs (15.7 s against 5 s). The cause is the dead port of the tests on macOS (T-621), not the race of the legs. T-680 has the fix.
+
 ## Done
 
 2026-11-12. Commit `5358f67` (the work and the plant), and the commit of

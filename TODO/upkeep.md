@@ -1738,6 +1738,10 @@ Find why the stand-in refused: a listener that is bound after `world()` returns,
 cargo test -p pod-warp --all-features --test net
 ```
 
+## Correction
+
+2026-11-15: `nightly.yml` run 43699451813 at `98017c3`: on macOS a connection to the port of a socket that is bound with no listen is not refused; it waits for the limit of the dial. `a_failure_of_both_legs_names_both_causes` of `tests/leg.rs` takes 15.7 s on both macOS jobs, and `tests/net.rs` takes 31 to 40 s there (2.1 s here). T-680 has the fix for macOS.
+
 ## Done
 
 2026-11-14, commit d463022. The cause was not a late bind: `dead()` freed
@@ -1899,3 +1903,223 @@ sh scripts/plant-each.sh extract-t597-pass-only-widens extract-t598-existing-dir
 ## Done
 
 2026-11-15, commit `f453b82e`. The second guard of each plant: for `extract-t597-pass-only-widens`, the pass after the last layer (`modes::DirModes::set`) sets the mode of each directory again; for the two T-598 plants, the walk before the first layer (`modes::open_tree`, T-606) adds the owner bits to each directory of the earlier tree. Each was found with the plant applied and the candidate removed, as root through the worker of uid 1000. The umask test now also checks the tree between two layers (`run_open`), which only the permission pass of the layer sets: the T-597 plant is caught there, as it is. The `fchmod` of an existing directory and the `open_for_write` of the parent of a whiteout are redundant in `crate::extract` (call C646); they stay as the guard of a caller of the public steps, and the two T-598 plants also remove the walk. `plant-each.sh` catches the three plants as root, and the eight other plants of `drive::umask` and `drive::dirmodes`; `plant-each.sh --apply` shows 0 stale.
+
+# T-679: The nightly at `98017c3` is red on Windows: a test of `pod-actions-store` reads a removed variable by the wrong case
+
+**Source:** `nightly.yml` run 43699451813 at `98017c3` (jobs `test (windows-11-arm)` 132767154797 and `test (windows-2025)` 132767155063).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`store::tests::the_git_command_takes_the_proxy_of_the_grant_and_https_only` (T-613) panicked at `crates\pod-actions-store\src\store\tests.rs:320:19` on both Windows jobs: "no entry found for key". The line reads `env["HTTPS_PROXY"]` from the map of `Command::get_envs`.
+
+## Premise
+
+- Read: the logs of both jobs; `crates/pod-actions-store/src/git.rs` (`PROXY_VARS` removes `http_proxy`, `https_proxy`, `HTTP_PROXY`, `HTTPS_PROXY` and the others in that order); the environment of `std::process::Command`: on Windows one key holds each name in any case, and a second change of the same name keeps the case of the first.
+- Measured: the test is new in this run (commit `0457efc` is after `f6479c7`, the run before).
+- Not measured: the test on Windows; this host builds it for `x86_64-pc-windows-gnu` and does not run it.
+
+## Approach
+
+The code is correct: Windows removes each spelling. The test reads each key in upper case on Windows.
+
+## Prove
+
+```sh
+cargo test -p pod-actions-store --all-features
+sh scripts/agent/check-windows.sh
+```
+
+The next nightly proves the two Windows jobs.
+
+# T-680: The nightly at `98017c3` is red on macOS: a port that a socket holds with no listen does not refuse there
+
+**Source:** `nightly.yml` run 43699451813 at `98017c3` (jobs `test (macos-15)` 132767155119 and `test (macos-15-intel)` 132767154999).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`a_failure_of_both_legs_names_both_causes` of `crates/pod-warp/tests/leg.rs` (T-336) failed on both macOS jobs: "the relay waited for its delay: 15.708s" (macos-15) and "15.642s" (macos-15-intel), against a bound of 5 s. The direct dial goes to `common::dead()`. T-621 (call C520) made `dead()` a socket that is bound with no listen and held, in place of a port that is freed.
+
+## Premise
+
+- Read: the logs of both jobs; `crates/pod-warp/tests/common/mod.rs` (`dead`); the record of T-621 and the macOS note of an earlier entry (`TODO/transport.md`, "On macOS the refused port is free").
+- Measured from the logs: `tests/net.rs` (which uses `dead()` too) passes on macOS in 39.5 s (macos-15) and 31.3 s (macos-15-intel), with gaps of about 7 s between its tests; here it passes in 2.1 s. The same leg test passes on Windows (4 s), riscv64 and ppc64le. Thus macOS gives no refusal to a connection to such a port, and the dial waits for its limit.
+- Measured: the failure is new in this run (`d463022`, T-621, is after `f6479c7`).
+- Not measured: the test on macOS; this host checks the build alone.
+
+## Approach
+
+On macOS, `dead()` gives the port of a listener that is bound and dropped: macOS picks each free port at random, so another test takes it seldom. The other hosts keep the held socket of C520.
+
+## Prove
+
+```sh
+cargo test -p pod-warp --all-features
+sh scripts/agent/check-macos.sh
+```
+
+The next nightly proves the two macOS jobs.
+
+# T-681: The nightly at `98017c3` is red on windows-2025: a test of `pod-link` reads the answer of a POST before the rest of its body in the link
+
+**Source:** `nightly.yml` run 43699451813 at `98017c3` (job `test (windows-2025)` 132767155063).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`a_body_up_goes_into_the_link_by_parts_and_a_cut_keeps_its_part` of `crates/pod-link/tests/poll_lanes.rs` (T-525) panicked on windows-2025 at the read of the answer: "the answer in time: Elapsed(())", after 30 s. The test sends the POST again with the whole body (128 KiB), reads the answer, and only then reads the rest (64 KiB) at the far end of the link.
+
+## Premise
+
+- Read: the log of the job; `crates/pod-link/src/poll/answer.rs` (`up`: each part goes into the pipe of the session, and the answer 202 comes after the last part).
+- The listener answers after the whole body is in the link. When the pipe, the pump and the far end hold less than the rest, the write of the last part waits for a read of the far end, and the test reads it only after the answer: a deadlock of the test. The room on Linux holds the rest; the room on Windows does not.
+- Measured: the test is new in this run (`c3b3403` is after `f6479c7`).
+- Not measured: the room of each part of the link on Windows.
+
+## Approach
+
+The test reads the answer and the rest at the far end at the same time (`tokio::join!`). The assertions stay.
+
+## Prove
+
+```sh
+cargo test -p pod-link --all-features --test poll_lanes
+```
+
+The next nightly proves windows-2025.
+
+# T-682: The nightly at `98017c3` is red on riscv64 and ppc64le: the upper bound of the split form of `pod-relay` over HTTP/2 is not scaled under an emulator
+
+**Source:** `nightly.yml` run 43699451813 at `98017c3` (jobs `cross (riscv64gc-unknown-linux-musl, riscv64)` 132767155083 and `cross (powerpc64le-unknown-linux-musl, ppc64le)` 132767155158).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`with_no_mark_on_the_stream_the_client_takes_the_split_form_within_the_bound` of `crates/pod-relay/tests/http_road_one_h2.rs` (T-560) failed under qemu-user: "took the split form after 4.821s" (riscv64) and "after 4.06s" (ppc64le), against a bound of 4 s.
+
+## Premise
+
+- Read: the logs of both jobs; the test; T-532 and T-535 (the bounds of tests under an emulator: `pod_testkit::host::scaled`, five times under qemu-user, never for a timer that the test checks).
+- The bound has two parts: the wait for the mark (`MARK_WAIT`, 2 s, a timer of the client that the test checks) and the TLS and HTTP/2 work of a debug build (2 s).
+- Measured: the test is new in this run (`bfeacab` is after `f6479c7`).
+
+## Approach
+
+The lower bound stays 2 s. The upper bound is 2 s and `scaled(2 s)`: 4 s on a kernel, 12 s under an emulator. On a kernel the bound proves as before that the client takes the split form at the end of the wait for the mark; under an emulator it proves that the client does not wait for the end of the body or a hang.
+
+## Prove
+
+```sh
+cargo test -p pod-relay --all-features --test http_road_one_h2
+```
+
+The next nightly proves riscv64 and ppc64le.
+
+# T-683: The nightly at `98017c3` is red on ppc64le: the kernel test of `pod-term` gives the numbers of `asm-generic` to a powerpc kernel
+
+**Source:** `nightly.yml` run 43699451813 at `98017c3` (job `cross (powerpc64le-unknown-linux-musl, ppc64le)` 132767155158).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`tty_gives_the_bytes_of_a_kernel_pty_for_each_case` of `crates/pod-term/tests/termios_kernel.rs` (T-540) failed on ppc64le: "67 of 53 cases differ". The reads of the kernel's slave give many reads of 0, and the echo of `a` in the case "no ICANON, an erase" is `A`.
+
+## Premise
+
+- Read: the log of the job; the test (`Pty::set` copies `c_iflag`, `c_oflag`, `c_cflag`, `c_lflag` and `c_cc` of `Termios` into `libc::termios`); `crates/pod-term/src/termios/flags.rs` (the numbers of `include/uapi/asm-generic/termbits.h`); the termios constants of `libc` 0.2.191 for powerpc.
+- powerpc gives other numbers to the flags and to the indexes of `c_cc` (for example `ICANON` is 0x100, `OLCUC` is 0o4, `VMIN` is 5). The generic `ONLCR` (0o4) is `OLCUC` on powerpc: thus the echo `A`. `Termios` keeps the generic numbers by design: a child of an SSH channel sends them.
+- Measured: the test is new in this run (`f9f7339` is after `f6479c7`). The tests of pod-term build for `powerpc64le-unknown-linux-musl` here (`cargo check`). No qemu here: the run of the fix waits for the nightly.
+
+## Approach
+
+The test gives the kernel the numbers of its target: a table of each field (the generic mask and value, and the value of `libc`) and of each index of `c_cc`. A bit with no row fails the test. A test of the table: each flag of `Termios` has a value of the target, and no two indexes of `c_cc` are one.
+
+## Prove
+
+```sh
+cargo test -p pod-term --all-features --test termios_kernel
+cargo check -p pod-term --tests --all-features --target powerpc64le-unknown-linux-musl
+```
+
+The next nightly proves ppc64le.
+
+# T-684: `services.yml` at `98017c3`: the Trojan node `node-trojan-149-28-130-108` ends the TLS handshake
+
+**Source:** `services.yml` run 43699230156 at `98017c3` (job `watch` 132766442485).
+**Category:** defect
+**Milestone:** M1
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The scheduled run failed: "FAILED node-trojan-149-28-130-108 proxy-banner: TLS for searchcreativejobsandshowcaseyourartistictalents.com at 149.28.130.108:443: tls handshake eof". The node held on 2026-11-11 and 2026-11-12 (T-174) and in the scheduled run of 2026-11-14 (43578297319, green).
+
+## Premise
+
+- Read: the log of the job; `crates/pod-services/services/node-trojan-149-28-130-108.toml`; T-174 (the node `node-trojan-70-34-207-14` left after one failed day); `docs/maintenance.md`, "A red run of `services.yml`".
+- The TCP connection opened; the node closed it in the TLS handshake. This is not a failure with no answer (call C153).
+- Not measured: the node from here. The egress of this session is a proxy that resolves the name itself, so a TLS handshake to the address cannot be made. A dispatch of `services.yml` with the input `service` failed: "Actions has been disabled for this user".
+
+## Approach
+
+Dispatch `services.yml` with `service = node-trojan-149-28-130-108` (or ask for it by the issue `[gh action] requested`), and read the next scheduled run. When the failure stays, remove the node as T-174 removed `node-trojan-70-34-207-14`: its file, its row count in `crates/pod-services/README.md`, and the list of ids that podssh gets (PodUtils/podssh@T-574).
+
+## Prove
+
+```sh
+cargo run -q -p pod-services-watch -- --service node-trojan-149-28-130-108
+cargo test -p pod-services --all-features
+```
+
+# T-685: `services.yml` at `98017c3`: both RDAP servers answer 403 for the `.xyz` names to the runner
+
+**Source:** `services.yml` run 43699230156 at `98017c3` (job `watch` 132766442485).
+**Category:** defect
+**Milestone:** M1
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+Three `rdap` watches failed: `gosuda-portal` (`gosunuts.xyz`), `openbare-xyz` (`openbare.xyz`) and `opentunnel` (`opentunnel.xyz`): "https://rdap.centralnic.com/xyz/domain/NAME answered HTTP 403; https://rdap.org/domain/NAME answered HTTP 403". The other `rdap` watches of the run held. The scheduled run of 2026-11-14 (43578297319) was green.
+
+## Premise
+
+- Read: the log of the job; `crates/pod-services-watch/src/rdap.rs` (the server of IANA's bootstrap, then `rdap.org`, which redirects to the same server; the user agent is `pod-services-watch/VERSION`).
+- Measured here (2026-11-15): `https://rdap.centralnic.com/xyz/domain/openbare.xyz` answered 200 and `https://rdap.org/domain/openbare.xyz` answered 302, also with the user agent of the watch. Thus the registry refused the address of the runner (a limit or a block of the cloud range), not the request.
+- Not measured: a second run from a runner. A dispatch of `services.yml` failed here: "Actions has been disabled for this user".
+
+## Approach
+
+Dispatch `services.yml` with `kind = rdap` (or ask for it by the issue `[gh action] requested`), and read the next scheduled run. When the 403 stays on each run: make an answer 403 of each server for a name a `skipped` line with the reason (the registry refuses the runner), in the class of call C153, with a test; or read the record of `.xyz` from a second source. A failure that is not 403 stays a failure.
+
+## Prove
+
+```sh
+cargo run -q -p pod-services-watch -- --kind rdap
+cargo test -p pod-services-watch --all-features
+```

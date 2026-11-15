@@ -5898,6 +5898,10 @@ Make the pipes of a session on the listener smaller (the pump drains the pipe do
 cargo test -p pod-link --all-features --test poll_lanes
 ```
 
+## Correction
+
+2026-11-15: `nightly.yml` run 43699451813 at `98017c3`: `a_body_up_goes_into_the_link_by_parts_and_a_cut_keeps_its_part` fails on windows-2025 after 30 s at the read of the answer: the test reads the rest at the far end only after the answer, and the link on Windows holds less than the rest. T-681 has the fix of the test.
+
 ## Done
 
 2026-11-14, commit `c3b3403`. A poll listener reads the body of a POST up
@@ -7204,6 +7208,10 @@ Offer `h2,http/1.1` on the connection of the one form only. That needs a dial th
 ```sh
 cargo test -p pod-relay --all-features --test http_road_one
 ```
+
+## Correction
+
+2026-11-15: `nightly.yml` run 43699451813 at `98017c3`: under qemu-user the split form comes after 4.82 s (riscv64) and 4.06 s (ppc64le), against the bound of 4 s of `with_no_mark_on_the_stream_the_client_takes_the_split_form_within_the_bound`. T-682 scales the part of the bound that is not the timer.
 
 ## Done
 

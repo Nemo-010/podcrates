@@ -292,16 +292,23 @@ async fn a_body_up_goes_into_the_link_by_parts_and_a_cut_keeps_its_part() {
     let mut whole = head.into_bytes();
     whole.extend_from_slice(&data);
     let mut conn = connect(&key(1), identity(2), local).await.unwrap();
-    conn.write_all(&whole).await.unwrap();
-    let mut answer = Vec::new();
-    let mut byte = [0u8];
-    while !answer.ends_with(b"\r\n\r\n") {
-        timeout(limit(), conn.read_exact(&mut byte)).await.expect("the answer in time").unwrap();
-        answer.push(byte[0]);
-    }
+    // The listener answers when the whole body is in the link, and the
+    // link holds less than the rest where its buffers are small (Windows):
+    // the far end reads the rest while the answer comes.
+    let answer = async {
+        conn.write_all(&whole).await.unwrap();
+        let mut answer = Vec::new();
+        let mut byte = [0u8];
+        while !answer.ends_with(b"\r\n\r\n") {
+            timeout(limit(), conn.read_exact(&mut byte)).await.expect("the answer in time").unwrap();
+            answer.push(byte[0]);
+        }
+        answer
+    };
+    let rest = async { timeout(limit(), far.read_exact(&mut got)).await.expect("the rest in time").unwrap() };
+    let (answer, _) = tokio::join!(answer, rest);
     let answer = String::from_utf8_lossy(&answer).to_ascii_lowercase();
     assert!(answer.starts_with("http/1.1 202") && answer.contains("pod-ack: 131072"), "{answer}");
-    timeout(limit(), far.read_exact(&mut got)).await.expect("the rest in time").unwrap();
     assert!(got == data[half..], "the rest came whole");
     assert_eq!(door.stats().duplicate, half as u64, "the part before the cut went in one time");
 }

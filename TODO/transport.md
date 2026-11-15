@@ -3107,6 +3107,10 @@ cargo test -p pod-services --test public_carriers
 cargo run -q -p pod-services-watch -- --kind proxy-banner
 ```
 
+## Correction
+
+2026-11-15: `services.yml` run 43699230156 at `98017c3`: `node-trojan-149-28-130-108` ends the TLS handshake ("tls handshake eof"). T-684 has the next step.
+
 ## Done
 
 2026-11-12. Seven Trojan nodes held the live check on both days; one
@@ -6938,6 +6942,10 @@ A test, where `/dev/ptmx` opens (else it skips with the reason, as `need_loopbac
 ```sh
 cargo test -p pod-term --all-features
 ```
+
+## Correction
+
+2026-11-15: `nightly.yml` run 43699451813 at `98017c3`: on ppc64le 67 steps of the 53 cases differ. The test gave the numbers of `asm-generic` to a powerpc kernel, whose flags and indexes of `c_cc` have other numbers. T-683 has the fix of the test.
 
 ## Done
 
