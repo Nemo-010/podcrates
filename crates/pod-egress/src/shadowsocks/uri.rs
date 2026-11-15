@@ -248,11 +248,7 @@ pub(super) fn plugin_name(value: &str) -> String {
     let name = value.split(';').next().unwrap_or_default().trim();
     let shaped = (1..=40).contains(&name.len())
         && name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'));
-    if shaped {
-        name.to_string()
-    } else {
-        String::new()
-    }
+    if shaped { name.to_string() } else { String::new() }
 }
 
 /// The refusal of a key that names a plugin, by its name when it has one.

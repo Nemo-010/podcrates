@@ -9,14 +9,14 @@
 //! one, so that the client must dial again. Each connection is counted.
 
 use std::collections::HashMap;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 use tokio::sync::mpsc;
 
-use super::xhttp::{padding_of, upsert, Sessions};
-use super::{dial, parse_request, Seen};
+use super::xhttp::{Sessions, padding_of, upsert};
+use super::{Seen, dial, parse_request};
 
 /// The packets that a kept connection takes before the stand-in closes it.
 pub const CLOSE_AFTER: usize = 3;

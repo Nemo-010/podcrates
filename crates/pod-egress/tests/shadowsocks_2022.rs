@@ -18,8 +18,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes128Gcm, Aes256Gcm};
 use chacha20poly1305::ChaCha20Poly1305;
-use podssh_ws::shadowsocks::{self, ChunkError, Method, Node, OpenError};
 use podssh_ws::ProxyChoice;
+use podssh_ws::shadowsocks::{self, ChunkError, Method, Node, OpenError};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 

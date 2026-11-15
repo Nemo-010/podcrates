@@ -101,7 +101,7 @@ pub async fn open(server: &Server, host: &str, port: u16, dial: &Dial<'_>) -> Re
         Ok(Err(answer::FirstError::Ended)) => return Err(TrojanError::Ended),
         Ok(Err(answer::FirstError::Fallback(line))) => return Err(TrojanError::Fallback(line)),
         Ok(Err(answer::FirstError::Io(e))) => {
-            return Err(TrojanError::Carry(format!("before the target's bytes: {e}")))
+            return Err(TrojanError::Carry(format!("before the target's bytes: {e}")));
         }
         Err(_) if dial.silence_is_ready => false,
         Err(_) => return Err(TrojanError::Silent(dial.answer)),

@@ -32,7 +32,7 @@ use crate::via::Duplex;
 
 pub use crate::forwarder::AtEnd;
 pub use extra::Extra;
-pub use header::{not_vless, ENDED};
+pub use header::{ENDED, not_vless};
 pub use link::{Id, Mode, Server, Transport};
 
 /// How long a session whose server speaks first waits for VLESS's answer,

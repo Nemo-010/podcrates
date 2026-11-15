@@ -15,7 +15,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::time::Instant;
 
 use super::codec::{self, ChunkError, Decoder, Encoder};
-use super::{carry, Carried, Node};
+use super::{Carried, Node, carry};
 use crate::dial::{DialError, ProxyChoice};
 use crate::tls::Trust;
 
@@ -201,7 +201,7 @@ async fn first_chunk<S: AsyncRead + Unpin>(
             Err(_) if untouched && silence_is_ready => return Ok(None),
             Err(_) if untouched => return Err(Waited::Silent(None)),
             Err(_) => {
-                return Err(Waited::Cut(format!("its answer stopped inside its first chunk ({})", seconds(wait))))
+                return Err(Waited::Cut(format!("its answer stopped inside its first chunk ({})", seconds(wait))));
             }
             Ok(Ok(0)) if untouched => return Err(Waited::Silent(Some("it closed the connection".into()))),
             Ok(Ok(0)) => return Err(Waited::Cut("its answer ended inside its first chunk".into())),

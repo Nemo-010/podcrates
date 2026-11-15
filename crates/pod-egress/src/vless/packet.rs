@@ -17,10 +17,10 @@ use bytes::Bytes;
 use h2::client::SendRequest;
 use tokio::io::{AsyncReadExt, DuplexStream};
 
+use super::VlessError;
 use super::link::Server;
 use super::split::{Failed, Halves};
 use super::xhttp::{answer, at, request, send, send_all, session_id};
-use super::VlessError;
 use crate::via::Stream;
 
 /// The pipe in memory to the task of the POSTs: a write waits while a POST

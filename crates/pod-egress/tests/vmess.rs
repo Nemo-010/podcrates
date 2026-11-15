@@ -18,7 +18,7 @@ use base64::Engine as _;
 use podssh_ws::vmess::{self, AtEnd, Dial, Opened, Server, VmessError};
 use podssh_ws::{ProxyChoice, Trust};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use vless_support::{pins, target, BANNER, NAME};
+use vless_support::{BANNER, NAME, pins, target};
 
 const LIMIT: Duration = Duration::from_secs(20);
 /// A throwaway user of the tests' own server, no credential.

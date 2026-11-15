@@ -128,7 +128,7 @@ impl Server {
                 return Err(format!(
                     "type={other} is not spoken: podssh carries Trojan over TLS (type=tcp) and over a WebSocket \
                      (type=ws)"
-                ))
+                ));
             }
         };
         // A Trojan server is its TLS: with none, the password crosses in the
@@ -136,7 +136,7 @@ impl Server {
         match params.get("security").unwrap_or("tls").to_ascii_lowercase().as_str() {
             "tls" | "" => {}
             "none" => {
-                return Err("security=none is refused: Trojan is TLS, and the password would cross in clear".into())
+                return Err("security=none is refused: Trojan is TLS, and the password would cross in clear".into());
             }
             "reality" => return Err("security=reality is not spoken: it borrows another site's TLS".into()),
             other => return Err(format!("security={other} is not spoken: tls")),

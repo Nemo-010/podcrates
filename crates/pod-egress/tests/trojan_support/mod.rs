@@ -15,7 +15,7 @@ use sha2::{Digest, Sha224};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-use crate::vless_support::{cert, NAME};
+use crate::vless_support::{NAME, cert};
 
 /// The stand-ins' password.
 pub const PASSWORD: &str = "a-trojan-password-of-the-test";

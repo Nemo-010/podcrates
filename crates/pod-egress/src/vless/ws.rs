@@ -16,7 +16,7 @@ use tokio::sync::Notify;
 use super::link::Server;
 use super::{Dial, VlessError};
 use crate::client::{self, ConnectError};
-use crate::forwarder::end::{end_of_input, AtEnd};
+use crate::forwarder::end::{AtEnd, end_of_input};
 use crate::session::RelaySession;
 use crate::{frame, handshake, url};
 

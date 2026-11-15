@@ -34,10 +34,10 @@ mod ws;
 mod yaml;
 
 pub use carry::{Carried, Ended, Status};
-pub use codec::{address, parse_address, ChunkError, Decoder, Encoder, MAX_PAYLOAD};
+pub use codec::{ChunkError, Decoder, Encoder, MAX_PAYLOAD, address, parse_address};
 pub use key::access_key;
-pub use list::{subscription, Listed};
-pub use open::{open, Dial, OpenError, Opened, ANSWER_WAIT};
+pub use list::{Listed, subscription};
+pub use open::{ANSWER_WAIT, Dial, OpenError, Opened, open};
 pub use uri::Node;
 
 use zeroize::Zeroizing;

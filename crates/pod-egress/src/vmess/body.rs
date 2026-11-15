@@ -8,7 +8,7 @@
 use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
 use tokio::sync::oneshot;
 
-use super::header::{self, Keys, ANSWER_LEN};
+use super::header::{self, ANSWER_LEN, Keys};
 use crate::crypto::aead::{Aead, AeadId, NONCE_LEN};
 
 /// The tag of each sealed chunk.

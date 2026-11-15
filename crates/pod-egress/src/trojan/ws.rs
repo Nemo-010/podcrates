@@ -8,8 +8,8 @@
 
 use tokio::io::DuplexStream;
 
-use super::link::Server;
 use super::TrojanError;
+use super::link::Server;
 use crate::client::{self, ConnectError};
 use crate::session::RelaySession;
 use crate::vless::Dial;

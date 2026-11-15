@@ -16,8 +16,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use zeroize::Zeroizing;
 
-use super::codec::ChunkError;
 use super::Method;
+use super::codec::ChunkError;
 
 /// BLAKE3's context for each stream's key, as SIP022 fixes it.
 pub const CONTEXT: &str = "shadowsocks 2022 session subkey";

@@ -14,7 +14,7 @@ use tokio::io::DuplexStream;
 
 use crate::client::ConnectError;
 use crate::dial::ProxyChoice;
-use crate::forwarder::{carry, Form, Note};
+use crate::forwarder::{Form, Note, carry};
 use crate::tls::Trust;
 use crate::url::WsUrl;
 

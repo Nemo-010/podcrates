@@ -18,8 +18,8 @@ use podssh_ws::vless::{self, AtEnd, Dial, Mode, Opened, Server, Transport, Vless
 use podssh_ws::{Proxy, ProxyChoice, Trust};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
-use vless_support::{pins, root_file, talker, target, ws_server, xhttp1_server, xhttp_server};
 use vless_support::{BANNER, CLOSE_AFTER, ID, NAME};
+use vless_support::{pins, root_file, talker, target, ws_server, xhttp_server, xhttp1_server};
 
 const LIMIT: Duration = Duration::from_secs(20);
 

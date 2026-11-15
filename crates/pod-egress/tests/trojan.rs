@@ -20,8 +20,8 @@ use std::time::Duration;
 use podssh_ws::trojan::{self, AtEnd, Dial, Opened, Server, TrojanError};
 use podssh_ws::{ProxyChoice, Trust};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use trojan_support::{listen, serve_tls, serve_ws, PASSWORD};
-use vless_support::{pins, root_file, talker, target, BANNER, NAME};
+use trojan_support::{PASSWORD, listen, serve_tls, serve_ws};
+use vless_support::{BANNER, NAME, pins, root_file, talker, target};
 
 const LIMIT: Duration = Duration::from_secs(20);
 

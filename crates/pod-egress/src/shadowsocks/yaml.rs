@@ -57,11 +57,7 @@ impl Reader {
     /// A mapping or a sequence whose lines start at `indent`.
     fn block(&mut self, indent: usize) -> Result<Value, String> {
         let first = &self.lines[self.at];
-        if first.text == "-" || first.text.starts_with("- ") {
-            self.sequence(indent)
-        } else {
-            self.mapping(indent)
-        }
+        if first.text == "-" || first.text.starts_with("- ") { self.sequence(indent) } else { self.mapping(indent) }
     }
 
     fn sequence(&mut self, indent: usize) -> Result<Value, String> {

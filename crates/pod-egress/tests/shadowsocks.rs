@@ -13,8 +13,8 @@ use std::time::Duration;
 use aes_gcm::aead::{Aead, KeyInit};
 use aes_gcm::{Aes128Gcm, Aes256Gcm};
 use chacha20poly1305::ChaCha20Poly1305;
-use podssh_ws::shadowsocks::{self, Decoder, Encoder, Method, Node, OpenError};
 use podssh_ws::ProxyChoice;
+use podssh_ws::shadowsocks::{self, Decoder, Encoder, Method, Node, OpenError};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 /// EVP_BytesToKey with MD5 from its definition: D1 = MD5(password),

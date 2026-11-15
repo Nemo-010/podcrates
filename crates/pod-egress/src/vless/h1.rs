@@ -10,8 +10,8 @@ use std::time::Duration;
 
 use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, BufReader};
 
-use super::link::Server;
 use super::VlessError;
+use super::link::Server;
 use crate::dial::ProxyChoice;
 use crate::tls::Trust;
 use crate::via::Duplex;

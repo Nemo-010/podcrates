@@ -181,7 +181,7 @@ impl Server {
                 return Err(format!(
                     "type={other} is not spoken: podssh carries VLESS over type=ws and type=xhttp, which pass where \
                      HTTPS does"
-                ))
+                ));
             }
         };
         let tls = match params.get("security").unwrap_or("none").to_ascii_lowercase().as_str() {

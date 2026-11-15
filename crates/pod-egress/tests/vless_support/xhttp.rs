@@ -15,7 +15,7 @@ use h2::{RecvStream, SendStream};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::sync::mpsc;
 
-use super::{dial, parse_request, Seen};
+use super::{Seen, dial, parse_request};
 
 /// The upload of a session of packet-up or stream-up.
 pub struct Upload {

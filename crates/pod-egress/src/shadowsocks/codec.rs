@@ -10,7 +10,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use zeroize::Zeroizing;
 
-use super::{sip022, stream_key, Method, TAG_LEN};
+use super::{Method, TAG_LEN, sip022, stream_key};
 use crate::crypto::aead::{Aead, NONCE_LEN};
 
 /// The largest payload of a chunk that podssh sends: the AEAD form's
