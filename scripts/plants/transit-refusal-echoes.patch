@@ -1,0 +1,11 @@
+--- a/crates/pod-transit/src/lib.rs
++++ b/crates/pod-transit/src/lib.rs
+@@ -72,7 +72,7 @@
+         "" | "yes" | "on" | "true" | "1" => WsUrl::parse(&default_url()).map(Setting::On),
+         "no" | "off" | "false" | "0" => Ok(Setting::Off),
+         _ => {
+-            WsUrl::parse(value).map(Setting::On).map_err(|why| format!("{variable}: yes, no, or a relay's URL: {why}"))
++            WsUrl::parse(value).map(Setting::On).map_err(|why| format!("{variable}: yes, no, or a relay's URL: {why} ({value})"))
+         }
+     }
+ }

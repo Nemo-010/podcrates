@@ -1,0 +1,6 @@
+# The refusal of a bad setting of the road echoes the value, whose query
+# may hold a secret; the test of the setting must fail.
+ENTRY=T-027
+GROUP=transit
+EXPECT='test tests::the_variable_turns_the_road_off_names_a_relay_or_is_refused_without_its_text \.\.\. FAILED'
+RUN='cargo test -p pod-transit --lib -- tests::the_variable_turns_the_road_off_names_a_relay_or_is_refused_without_its_text --exact'

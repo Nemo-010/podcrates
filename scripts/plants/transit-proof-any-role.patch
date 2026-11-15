@@ -1,0 +1,11 @@
+--- a/crates/pod-transit/src/token.rs
++++ b/crates/pod-transit/src/token.rs
+@@ -80,7 +80,7 @@
+             Err(_) => <Hmac<Sha256> as KeyInit>::new(&Default::default()),
+         };
+         mac.update(PROOF_LABEL);
+-        mac.update(&[0, role]);
++        mac.update(&[0, role & 0]);
+         mac.update(sender);
+         mac.update(receiver);
+         mac

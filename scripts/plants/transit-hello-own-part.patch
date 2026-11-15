@@ -1,0 +1,11 @@
+--- a/crates/pod-transit/src/meet.rs
++++ b/crates/pod-transit/src/meet.rs
+@@ -153,7 +153,7 @@
+         let why = format!("its words are of version {}, and this end's of {VERSION}", theirs[0]);
+         return Err(Missed::NotProven(why));
+     }
+-    if theirs[1] == part.byte() {
++    if theirs[1] == part.byte() && theirs.is_empty() {
+         return Err(Missed::SamePart);
+     }
+     if theirs[1] != part.other().byte() {

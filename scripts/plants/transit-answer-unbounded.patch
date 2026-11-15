@@ -1,0 +1,11 @@
+--- a/crates/pod-transit/src/meet.rs
++++ b/crates/pod-transit/src/meet.rs
+@@ -171,7 +171,7 @@
+         let line: Vec<u8> = bytes.drain(..=at).collect();
+         return Ok(Some(String::from_utf8_lossy(&line[..at]).trim_end_matches('\r').to_string()));
+     }
+-    if bytes.len() > ANSWER_MOST {
++    if bytes.len() > ANSWER_MOST * 1000 {
+         return Err(Missed::Refused(format!("the relay answered {} bytes with no newline", bytes.len())));
+     }
+     Ok(None)

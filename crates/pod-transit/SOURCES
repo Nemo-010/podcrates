@@ -18,3 +18,7 @@ file eaf8092c59b76ff78054475e836599d8236fcc8c crates/podssh-relay/src/transit/to
 file b56b20ac3ae7da9f400d96dd9e0cd82993f663d0 crates/podssh-relay/tests/cleanup/mod.rs -> crates/pod-transit/tests/cleanup/mod.rs
 file 207f839184b811744f7b26794ec22966d5586ad4 crates/podssh-relay/tests/transit.rs -> crates/pod-transit/tests/transit.rs
 file 8ca068a7b03eebeddbe4b4c5089c522e935ff5d0 crates/podssh-relay/tests/transit_server/mod.rs -> crates/pod-transit/tests/transit_server/mod.rs
+# The plant of podssh, now transit-same-side (the patch rewritten for the
+# paths of this crate, the RUN for its virtualenv).
+file 38c84f2ebe6d42dcf7cbabfdf2e420a84facbab5 scripts/plants/t436-transit-same-side.patch -> scripts/plants/transit-same-side.patch
+file d3b8c095d32351848edc31863fe496301174a27e scripts/plants/t436-transit-same-side.plant -> scripts/plants/transit-same-side.plant
