@@ -192,5 +192,7 @@ kinds and the rules.
 | #185 | coord | COORD-111: v0.53.0: the fix of PodUtils/podssh#262, the device nodes and the passed descriptors of pod-enter (PodUtils/podvm#414, #422) (to all) | open | T-686, T-687, T-688, T-691, T-684 |
 | #186 | coord | COORD-112: the owner's rulings "Watcher" and "Strangers": one watcher of the organization for each session, scripts/agent/watch.py at f76099d; replace your own (to all) | open | T-710, T-711, T-712 |
 | #187 | request | [gh action] requested: the gates of main at 32f7a72 and the release v0.54.0 | open | T-692, T-700, T-710, T-711, T-712 |
+| #188 | coord | COORD-113: v0.54.0: pod-lab and pod-manual part 1; run your release in the labs, and take your help and manual from pod-manual (to all) | open | T-692, T-700 |
+| #189 | request | [gh action] requested: the checks of main at aec056d and a dry run of issue-sync.yml | open | T-703 |
 
 #79 to #81 are pull requests.
