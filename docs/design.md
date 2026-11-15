@@ -209,7 +209,7 @@ target, the fork. A study can change its row.
 
 | Crate | Source | Lines | Pod deps |
 | --- | --- | --- | --- |
-| `pod-derp` | podssh-relay `derp/`; the DERP stand-in | 3,500 | pod-core, pod-ws, pod-identity, pod-session, pod-proxy |
+| `pod-derp` | podssh-relay `derp/`; the DERP stand-in (feature `standin`) | 3,500 | pod-core, pod-ws, pod-identity, pod-session, pod-proxy, pod-services |
 | `pod-piping` | podssh-relay `piping/`; the Piping harness | 2,400 | pod-core, pod-ws, pod-session, pod-proxy, pod-relay |
 | `pod-opentunnel` | podssh-relay `opentunnel/`; the OpenTunnel stand-in | 2,600 | pod-core, pod-ws, pod-tls, pod-session, pod-proxy |
 | `pod-acme` | podssh-cli `acme/` (keys through the given provider) | 1,400 | pod-core, pod-tls, pod-proxy |

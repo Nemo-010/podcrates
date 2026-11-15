@@ -17,6 +17,8 @@ pod-actions-workflow = { workspace = true }
 pod-broker = { workspace = true }
 pod-confine = { workspace = true }
 pod-core = { workspace = true }
+# `standin` is out: it is for the tests of this crate and of a consumer, and no binary turns it on.
+pod-derp = { workspace = true }
 # `standin`: the probe runs a client against the stand-in on the loopback.
 pod-devtunnel = { workspace = true, features = ["standin"] }
 pod-dns = { workspace = true, features = ["ech"] }
