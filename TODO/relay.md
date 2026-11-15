@@ -7907,7 +7907,7 @@ cargo test -p pod-link --all-features --test split
 **Milestone:** M1
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7926,3 +7926,7 @@ Count the failed reads in a row in `DatagramSocket`, and in a wrapper of the sys
 ```sh
 cargo test -p pod-quic --all-features
 ```
+
+## Done
+
+2026-11-15, the commit of the fix. `crates/pod-quic/src/bounded.rs`: `Bounded` counts the failed reads in a row of the socket of an endpoint and gives `BrokenPipe` at `FAILED_READS_MOST` (256); a read that succeeds or waits starts the count again. `endpoint::on_socket` wraps the system socket of tokio in it, and `over` wraps the `DatagramSocket`. Two tests: the error at the bound and the reset by a wait; an endpoint over a way that fails each read reads at most 512 times in 300 ms, and its drop returns. With the bound removed, the first test failed, and the second hung (the spin of PodUtils/podssh#253). The plant `quic-failed-reads-unbounded`. `cargo test -p pod-quic --all-features` passed.

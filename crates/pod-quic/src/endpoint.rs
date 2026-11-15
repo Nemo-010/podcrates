@@ -7,9 +7,10 @@
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket};
 use std::sync::Arc;
 
-use noq::{Endpoint, EndpointConfig, ServerConfig, TokioRuntime};
+use noq::{Endpoint, EndpointConfig, Runtime, ServerConfig, TokioRuntime};
 use pod_core::{Class, Datagrams, Failure, Stage};
 
+use crate::bounded::Bounded;
 use crate::keys::{ResetKey, TokenKey};
 use crate::socket::DatagramSocket;
 
@@ -33,9 +34,11 @@ fn no_endpoint(e: std::io::Error) -> Failure {
 }
 
 /// An endpoint on `socket`, a UDP socket that the caller bound, and a server
-/// on it when `server` is given.
+/// on it when `server` is given. Its reads have the bound of [`Bounded`].
 pub fn on_socket(socket: UdpSocket, server: Option<ServerConfig>) -> Result<Endpoint, Failure> {
-    Endpoint::new(config()?, server, socket, Arc::new(TokioRuntime)).map_err(no_endpoint)
+    let socket = TokioRuntime.wrap_udp_socket(socket).map_err(no_endpoint)?;
+    let socket = Box::new(Bounded::new(socket));
+    Endpoint::new_with_abstract_socket(config()?, server, socket, Arc::new(TokioRuntime)).map_err(no_endpoint)
 }
 
 /// A client endpoint on a UDP socket bound to `addr` (`[::]:0` or
@@ -61,8 +64,8 @@ pub fn server(config: ServerConfig, addr: SocketAddr) -> Result<Endpoint, Failur
 
 /// An endpoint whose only socket is `datagrams`, and a server on it when
 /// `server` is given. The endpoint dials the real address of the peer; the
-/// way carries each datagram there.
+/// way carries each datagram there. Its reads have the bound of [`Bounded`].
 pub fn over(datagrams: Arc<dyn Datagrams>, server: Option<ServerConfig>) -> Result<Endpoint, Failure> {
-    let socket = Box::new(DatagramSocket::new(datagrams));
+    let socket = Box::new(Bounded::new(Box::new(DatagramSocket::new(datagrams))));
     Endpoint::new_with_abstract_socket(config()?, server, socket, Arc::new(TokioRuntime)).map_err(no_endpoint)
 }
