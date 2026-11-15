@@ -1,0 +1,65 @@
+name: vmess interop
+
+# VMess's AEAD form of pod-egress against Xray-core, a server that this
+# repository did not write: the pinned release, its zip checked against the
+# pinned SHA-256, run by crates/pod-egress/tests/vmess.rs on the loopback
+# over a WebSocket and TLS, with a certificate that openssl makes for the
+# run. Each cipher, a pipe, a clock 5 minutes off, another ID and another
+# path. Each test says "did not run" with no Xray-core, so the job fails on
+# that word. Each day, by hand, and on a push that changes the road; it
+# publishes nothing.
+
+on:
+  schedule:
+    # Each day at 05:23 UTC, off the hour.
+    - cron: "23 5 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "crates/pod-egress/src/vmess/**"
+      - "crates/pod-egress/src/vless/ws.rs"
+      - "crates/pod-egress/tests/vmess.rs"
+      - ".github/workflows/vmess-interop.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vmess-interop-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_BUILD_JOBS: "4"
+  XRAY_RELEASE: "v26.10.21"
+  XRAY_SHA256: "0eec3ed4163c273d8c8bf821f7d219e257921cf584aa3fb970715e458e631978"
+
+jobs:
+  interop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: sh scripts/retry.sh rustup toolchain install
+      - name: Xray-core of the pinned release
+        run: |
+          set -eu
+          mkdir -p "$RUNNER_TEMP/xray"
+          sh scripts/retry.sh curl -qfsSL --max-time 120 -o "$RUNNER_TEMP/xray/xray.zip" \
+            "https://github.com/XTLS/Xray-core/releases/download/$XRAY_RELEASE/Xray-linux-64.zip"
+          echo "$XRAY_SHA256  $RUNNER_TEMP/xray/xray.zip" | sha256sum -c -
+          python3 -I -c 'import sys, zipfile; zipfile.ZipFile(sys.argv[1]).extract("xray", sys.argv[2])' \
+            "$RUNNER_TEMP/xray/xray.zip" "$RUNNER_TEMP/xray"
+          chmod 755 "$RUNNER_TEMP/xray/xray"
+          echo "POD_EGRESS_XRAY_TEST_BIN=$RUNNER_TEMP/xray/xray" >> "$GITHUB_ENV"
+      - name: the road against Xray-core
+        run: |
+          set -o pipefail
+          cargo test --locked -p pod-egress --features vmess --lib vmess
+          timeout 900 cargo test --locked -p pod-egress --features vmess --test vmess -- --nocapture 2>&1 | tee "$RUNNER_TEMP/vmess.log"
+          grep -q "test result: ok. 3 passed" "$RUNNER_TEMP/vmess.log"
+          if grep -q "did not run" "$RUNNER_TEMP/vmess.log"; then echo "a test did not run"; exit 1; fi

@@ -1,0 +1,14 @@
+diff --git a/crates/pod-egress/src/trojan/mod.rs b/crates/pod-egress/src/trojan/mod.rs
+index 30d2c2e7..5d84bbc2 100644
+--- a/crates/pod-egress/src/trojan/mod.rs
++++ b/crates/pod-egress/src/trojan/mod.rs
+@@ -88,7 +88,8 @@ impl TrojanError {
+             TrojanError::Dial(e) => e.stage_and_class(),
+             TrojanError::Carry(_) => (Stage::WebSocket, Class::Unavailable),
+             TrojanError::Refused { .. } => (Stage::WebSocket, Class::Refused),
+-            TrojanError::Fallback(_) | TrojanError::Ended => (Stage::Relay, Class::Refused),
++            TrojanError::Fallback(_) => (Stage::Relay, Class::Protocol),
++            TrojanError::Ended => (Stage::Relay, Class::Refused),
+             TrojanError::Silent(_) => (Stage::Relay, Class::Timeout),
+         }
+     }

@@ -1,0 +1,13 @@
+diff --git a/crates/pod-egress/src/vless/mod.rs b/crates/pod-egress/src/vless/mod.rs
+index 50ab728b..2fe7bc88 100644
+--- a/crates/pod-egress/src/vless/mod.rs
++++ b/crates/pod-egress/src/vless/mod.rs
+@@ -188,7 +188,7 @@ pub async fn open_as(
+     let mut stream = header::Answered::new(stream);
+     let answered = match tokio::time::timeout(dial.answer, stream.answer()).await {
+         Ok(Ok(())) => true,
+-        Ok(Err(e)) => return Err(e.into()),
++        Ok(Err(_)) => false,
+         Err(_) if dial.silence_is_ready => false,
+         Err(_) => return Err(VlessError::Silent(dial.answer)),
+     };
