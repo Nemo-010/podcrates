@@ -2,7 +2,9 @@
 //! own binary again as uid and gid [`NOBODY`] with no supplementary groups:
 //! the kernel clears each capability at the change of the uid. As another
 //! user, the test runs in its own process. [`again_over_a_bare_proc`] also
-//! gives the test a proc with no flags of the host.
+//! gives the test a proc with no flags of the host, and
+//! [`again_over_a_bare_dev`] (root only) a `/dev` with no `nosuid` and no
+//! `noexec`.
 
 use std::os::unix::process::CommandExt;
 
@@ -61,6 +63,60 @@ pub fn again_over_a_bare_proc(args: &[&str], env: &[(&str, &str)]) -> Result<i32
     unsafe { command.pre_exec(move || bare_proc(uid_map.as_bytes(), gid_map.as_bytes())) };
     let status = command.status().map_err(|e| format!("{} over a fresh proc as uid {uid}: {e}", exe.display()))?;
     Ok(status.code().unwrap_or(128))
+}
+
+/// The options of the top mount on `path` in `/proc/self/mountinfo` (the
+/// flags of that mount), or an empty string where no mount is on `path`.
+pub fn mount_options(path: &str) -> String {
+    let info = std::fs::read_to_string("/proc/self/mountinfo").unwrap_or_default();
+    let top = info.lines().rfind(|l| l.split(' ').nth(4) == Some(path));
+    top.and_then(|l| l.split(' ').nth(5)).unwrap_or_default().to_string()
+}
+
+/// As root only: start this test binary again with `args` and `env` as
+/// [`NOBODY`] with no supplementary groups, in a private mount namespace
+/// of its own where the mount on `/dev` has no `nosuid` and no `noexec`
+/// (the other flags stay). A check of the flags that the code under test
+/// sets on a bind of a device then sees them on each host: a bind keeps the
+/// flags of the host's `/dev`, and a user namespace cannot clear them. The
+/// mounts of the host do not change. `Err` where this process is not root,
+/// or where the kernel refuses the namespace or the remount.
+pub fn again_over_a_bare_dev(args: &[&str], env: &[(&str, &str)]) -> Result<i32, String> {
+    if !is_root() {
+        return Err("a /dev with no nosuid and no noexec needs root".to_string());
+    }
+    let exe = std::env::current_exe().map_err(|e| format!("the path of this test binary: {e}"))?;
+    let mut command = std::process::Command::new(&exe);
+    command.args(args).envs(env.iter().copied());
+    // SAFETY: the closure runs in the child between the fork and the exec,
+    // and makes only calls of the C library with no allocation.
+    unsafe { command.pre_exec(bare_dev) };
+    let status = command.status().map_err(|e| format!("{} over a bare /dev as uid {NOBODY}: {e}", exe.display()))?;
+    Ok(status.code().unwrap_or(128))
+}
+
+/// The child of [`again_over_a_bare_dev`], as root: the mount namespace and
+/// the remount of `/dev`, then the change to [`NOBODY`]. std changes the uid
+/// before this closure, so the closure changes it itself, after the mounts.
+fn bare_dev() -> std::io::Result<()> {
+    let none = std::ptr::null();
+    os(unsafe { libc::unshare(libc::CLONE_NEWNS) })?;
+    os(unsafe { libc::mount(none, c"/".as_ptr(), none, libc::MS_REC | libc::MS_PRIVATE, none.cast()) })?;
+    let mut st: libc::statvfs = unsafe { std::mem::zeroed() };
+    os(unsafe { libc::statvfs(c"/dev".as_ptr(), &mut st) })?;
+    // MS_BIND with MS_REMOUNT sets the flags of this mount alone; the kernel
+    // keeps its atime flags.
+    let mut flags = libc::MS_REMOUNT | libc::MS_BIND;
+    for (st_flag, ms_flag) in [(libc::ST_RDONLY, libc::MS_RDONLY), (libc::ST_NODEV, libc::MS_NODEV)] {
+        if st.f_flag & st_flag != 0 {
+            flags |= ms_flag;
+        }
+    }
+    os(unsafe { libc::mount(none, c"/dev".as_ptr(), none, flags, none.cast()) })?;
+    os(unsafe { libc::setgroups(0, std::ptr::null()) })?;
+    os(unsafe { libc::setresgid(NOBODY, NOBODY, NOBODY) })?;
+    os(unsafe { libc::setresuid(NOBODY, NOBODY, NOBODY) })?;
+    Ok(())
 }
 
 fn os<T: PartialEq + From<i8>>(r: T) -> std::io::Result<T> {

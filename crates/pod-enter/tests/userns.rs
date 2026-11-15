@@ -11,7 +11,12 @@
 //! uid and gid 65534 with no groups (`pod_testkit::nobody`). The test of
 //! the run starts again also as another user, in namespaces of its own
 //! over a fresh proc with no `nosuid`, `nodev` or `noexec`: the check of
-//! the remount of the bind then does not depend on the host's proc. The image is
+//! the remount of the bind then does not depend on the host's proc. As
+//! root, the test of the devices starts again in a private mount namespace
+//! whose `/dev` has no `nosuid` and no `noexec`, so that its check of the
+//! remount of each bind does not depend on the host's `/dev`; as another
+//! user over such a `/dev`, it says that the check is not seen here
+//! (`scripts/ci/userns-tests.sh` runs it again with root). The image is
 //! a static `busybox` of the host (`PODVM_T486_BUSYBOX`, or `/bin/busybox`
 //! where it is static). Where the host has none, where the kernel gives
 //! such a caller no user namespace that takes a mount, or where uid 65534
@@ -32,6 +37,9 @@ use pod_testkit::nobody;
 const NAME: &str = "unit2";
 /// The image that the root parent made for the child of uid 65534.
 const IMAGE: &str = "POD_ENTER_USERNS_IMAGE";
+/// Set where the root parent gave the child a `/dev` with no `nosuid` and
+/// no `noexec`.
+const BARE_DEV: &str = "POD_ENTER_USERNS_BARE_DEV";
 
 /// One test at a time: a test that forks while another test writes its
 /// copy of busybox gives the child that write descriptor until the exec,
@@ -109,21 +117,20 @@ fn as_nobody(test: &str, tag: &str, body: fn(&Path)) {
         let _ = fs::remove_dir_all(&root);
         return;
     }
-    let env = [(IMAGE, root.to_str().unwrap())];
+    let env = [(IMAGE, root.to_str().unwrap()), (BARE_DEV, "1")];
     let args = [test, "--exact", "--nocapture", "--test-threads=1"];
-    let code = if bare { nobody::again_over_a_bare_proc(&args, &env) } else { nobody::again(&args, &env) };
+    // As root, the devices get a /dev with no nosuid and no noexec, so that
+    // a host whose /dev has them does not hide a missing remount (T-736).
+    let code = match tag {
+        "run" => nobody::again_over_a_bare_proc(&args, &env[..1]),
+        "dev" => nobody::again_over_a_bare_dev(&args, &env),
+        _ => nobody::again(&args, &env[..1]),
+    };
     let _ = fs::remove_dir_all(&root);
     match code {
         Ok(code) => assert_eq!(code, 0, "the test as a caller with no capabilities failed"),
         Err(why) => skip_line(&why),
     }
-}
-
-/// The options of the top mount on `/proc` in `/proc/self/mountinfo`.
-fn proc_options() -> String {
-    let info = fs::read_to_string("/proc/self/mountinfo").unwrap();
-    let top = info.lines().rfind(|l| l.split(' ').nth(4) == Some("/proc"));
-    top.and_then(|l| l.split(' ').nth(5)).unwrap_or_default().to_string()
 }
 
 /// The caller holds no capability and gets a user namespace for the rung;
@@ -157,7 +164,7 @@ fn as_the_caller(root: &Path) {
     if !no_capabilities() {
         return;
     }
-    let host = proc_options();
+    let host = nobody::mount_options("/proc");
     assert!(["nosuid", "nodev", "noexec"].iter().all(|f| !host.split(',').any(|o| o == *f)), "a bare proc: {host}");
     let dir = RootDir::open(root.to_str().unwrap()).unwrap();
     let active = format!("${}", Names::DEFAULT.mode_active);
@@ -201,6 +208,20 @@ fn dev_of_the_image(root: &Path) {
 fn devices_of_the_host(root: &Path) {
     if !no_capabilities() {
         return;
+    }
+    // A bind keeps the flags of the host's /dev: with them, the check of
+    // the remount (exit 8) passes with no remount.
+    let host = nobody::mount_options("/dev");
+    let flagged = host.split(',').any(|o| o == "nosuid" || o == "noexec");
+    if std::env::var_os(BARE_DEV).is_some() {
+        assert!(!flagged, "a /dev with no nosuid and no noexec: {host}");
+    } else if flagged {
+        // Not captured, as `skip_line`, so that the line shows for a pass.
+        use std::io::Write as _;
+        let _ = writeln!(
+            std::io::stderr(),
+            "not seen here: the check of the remount of a device: the host's /dev has {host}"
+        );
     }
     let dev = root.join("dev");
     let dir = RootDir::open(root.to_str().unwrap()).unwrap();
