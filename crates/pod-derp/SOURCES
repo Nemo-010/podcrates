@@ -1,0 +1,31 @@
+# The files of this crate that came from another repository
+# (docs/design.md, section 9). A file line holds the git blob id at the
+# commit (`git ls-tree COMMIT -- PATH` gives it). scripts/check-sources.py
+# compares each with the default branch of its repository.
+
+repo PodUtils/podssh b9c04657bf4e283263ef34ba2462be297231cd38
+# podssh froze src/derp/ and its tests at b9c04657 for the move (its T-684,
+# Q101; PodUtils/podssh#248): a fix there until podssh takes the crate is
+# ported here. src/serve/derp.rs and src/serve/derp_hub.rs (the DERP server
+# of podssh's relay role) stay in podssh until pod-relay-serve; they read
+# frame.rs and key.rs of this crate.
+dir crates/podssh-relay/src/derp
+file f4f036d6f3d28513ad44fb04caf597660666a61c crates/podssh-relay/src/derp/arq_tests.rs -> crates/pod-derp/src/arq_tests.rs
+file 7305edd3c388a839af9aaa13c9825801bdde409a crates/podssh-relay/src/derp/client.rs -> crates/pod-derp/src/client.rs
+file b538df6d9f33f2401b0ad399d0ac16ae996b193d crates/podssh-relay/src/derp/conn.rs -> crates/pod-derp/src/conn.rs
+file b976a3d0c0d37dd49450b34cb38947e95895af07 crates/podssh-relay/src/derp/dial.rs -> crates/pod-derp/src/dial.rs
+file a08da739d1c72006bfd90df13ac1080508ca34fc crates/podssh-relay/src/derp/far.rs -> crates/pod-derp/src/far.rs
+file 14d4e64945ecba8abb4592ad0c126c276b288c4f crates/podssh-relay/src/derp/frame.rs -> crates/pod-derp/src/frame.rs
+file cc50c03667cfc6675684b51245966a8054a2b7ba crates/podssh-relay/src/derp/key.rs -> crates/pod-derp/src/key.rs
+file 0367bed75414f2ffe01552f178f859d67dc23297 crates/podssh-relay/src/derp/link.rs -> crates/pod-derp/src/link.rs
+file d841c11712ea9c93a578ae4a2fc7504dde89643f crates/podssh-relay/src/derp/mod.rs -> crates/pod-derp/src/lib.rs
+file 4ca8fd18d1295b3127a5aa12e5ee44107fe206f4 crates/podssh-relay/src/derp/packet.rs -> crates/pod-derp/src/packet.rs
+file ade96f56a1e062f13db111b2b4b204467864481c crates/podssh-relay/src/derp/recv.rs -> crates/pod-derp/src/recv.rs
+file 64808304048a1f98f52963b5230018e5be74fb67 crates/podssh-relay/src/derp/rtt.rs -> crates/pod-derp/src/rtt.rs
+file 1ee1de65481b618872e76b6e295ea93f28cc1838 crates/podssh-relay/src/derp/send.rs -> crates/pod-derp/src/send.rs
+file 69a5fc0bce53e26803730210aae7c601bd20420d crates/podssh-relay/src/derp/servers.rs -> crates/pod-derp/src/servers.rs
+file f9efe6223b94470991f06b5ef2be3cc2bdf025cc crates/podssh-relay/src/derp/ticket.rs -> crates/pod-derp/src/ticket.rs
+file ce7bef921b349ad180f447fc0787d33da9752b40 crates/podssh-relay/tests/derp_link.rs -> crates/pod-derp/tests/derp_link.rs
+file e7510c89acfcfddfefd715a45c22b124d4cc55b1 crates/podssh-relay/tests/derp_live.rs -> crates/pod-derp/tests/derp_live.rs
+file 6f2e1828cf86ad39f9586612f68f5e16a18ee22d crates/podssh-relay/tests/derp_main_live.rs -> crates/pod-derp/tests/derp_main_live.rs
+file 645198964d71f6796625f43ec0cf584e4d779957 crates/podssh-relay/tests/derp_stand_in/mod.rs -> crates/pod-derp/tests/derp_stand_in/mod.rs
