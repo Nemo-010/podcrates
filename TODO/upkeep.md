@@ -1758,3 +1758,70 @@ The binary of `--test net` passed 50 runs of 50 beside `cargo clippy` of
 `cargo clippy -p pod-warp`. `cargo test -p pod-warp --all-features`
 passed. No plant: the change is a fix of the tests and not of a
 behaviour.
+
+# T-645: `secrets.yml` is red on each push: three made-up URLs of `pod-broker` read as unknown
+
+**Source:** the run of `secrets.yml` 43673806380 at `cca002b` (a red run that the record did not know).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+The step "TruffleHog over the history" of `secrets.yml` fails on each push: "secrets-report: 56 findings, 3 verified or unknown". The three are URI findings with the state unknown in `crates/pod-broker/src/words.rs` at commit `7cbcfffa` (T-609): the doc comment of `without_userinfo` and two of its tests. Each URL has a made-up user and password at a reserved name (`proxy.example`, `dns.example`). `.github/secrets-allow.txt` has no line for them.
+
+## Premise
+
+- Read: the log of the job of the run; `scripts/secrets-report.py` (a finding fails the run when its state is verified or unknown and no line of `.github/secrets-allow.txt` allows it); `crates/pod-broker/src/words.rs` at `7cbcfffa`.
+- Not measured: the first red run of this cause. Each run of `secrets.yml` that the mirror lists is red.
+
+## Approach
+
+A line in `.github/secrets-allow.txt` for each of the three findings, with the reason. The next push runs `secrets.yml`.
+
+## Prove
+
+```sh
+python3 scripts/secrets-report.py --allow .github/secrets-allow.txt found.jsonl
+```
+
+The run of `secrets.yml` on the push of the fix is green.
+
+## Done
+
+2026-11-15, commit `a34fa71`. Three lines in `.github/secrets-allow.txt` allow the URI findings of `crates/pod-broker/src/words.rs` at `7cbcfffa` (lines 47, 114, 118). `secrets-report.py` with the allowlist gave "3 findings, 0 verified or unknown" on the three findings. The run of `secrets.yml` 43683783577 at `a634d3a` (by a dispatch, #168) passed.
+
+
+# T-646: `adoption.yml`: the trial of `pod-egress` in podssh fails, as podssh's record cites the files that leave podssh
+
+**Source:** the run of `adoption.yml` 43673650741 at `141849e` (a red run that the record did not know); T-035, part 1.
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+The job "adoption (podssh)" fails at the first step of `adoption/podssh/pod-egress.run`: `podssh-todo remap Cargo.lock` reports 6 problems. Five citations of podssh's record name files that the patch removes from podssh: `.github/workflows/forwarder-live.yml` (four) and `PodUtils/podssh:scripts/plants/t439-via-no-credential.plant` (one). One citation of `PodUtils/podssh:crates/podssh-cli/src/doctor/forwarder.rs` moves by one line, as the patch changes that file. The trial must pass before `v0.51.0`, which carries the patch to podssh.
+
+## Premise
+
+- Read: the log of the job; `adoption/podssh/pod-egress.patch` and `.run`; podssh at `2ffb7cd7` with the patch applied.
+- Measured: the same 6 problems in a scratch copy of podssh at `2ffb7cd7` with the patch.
+
+## Approach
+
+The patch changes the five citations to the bare name of the file and its new place in PodUtils/podcrates (the checker of podssh reads a bare file name as no path), and moves the citation of `forwarder.rs` with `podssh-todo remap`. The patch is made again with `git diff --cached HEAD --abbrev=8`, as before.
+
+## Prove
+
+```sh
+sh scripts/adoption.sh podssh pod-egress
+```
+
+## Done
+
+2026-11-15, the commit of the fix. `adoption/podssh/pod-egress.patch` changes the five citations to the bare name of the file and its new place in PodUtils/podcrates (`forwarder-live.yml`, `egress-via-no-credential.plant`), and moves the citation of `forwarder.rs` to 28-45 with `podssh-todo remap`. The patch is made again with `git diff --cached HEAD --abbrev=8`; the old patch made the same way gave the same bytes. `sh scripts/adoption.sh podssh pod-egress` passed each step of the `.run` here: the record (743 entries), `check-repo.py`, clippy and the tests of `podssh-ws`, `podssh-cli` and `podssh-tor`, rustfmt, the toolchains and the 15 test targets. The run of `adoption.yml` on the push proves it in CI.

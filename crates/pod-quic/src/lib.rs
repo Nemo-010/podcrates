@@ -28,6 +28,7 @@
 //! The crate re-exports [`noq`], so that a consumer names one version of
 //! the stack.
 
+pub mod bounded;
 pub mod connect;
 pub mod endpoint;
 pub mod keys;

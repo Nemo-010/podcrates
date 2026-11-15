@@ -120,6 +120,11 @@ async fn send_main(mut w: WriteHalf<BoxIo>, mut from: DuplexStream, half: Half, 
             }
             () = until(&mut state, &[State::Failed]) => return tell(&mut w, &s, half).await,
         };
+        // The link closes its bytes after the loss ended it: that is no end
+        // of its bytes, and the peer must hear the loss.
+        if s.ends.failed() {
+            return tell(&mut w, &s, half).await;
+        }
         let (kind, n) = match read {
             Ok(0) | Err(_) => (kind::END, 0),
             Ok(n) => (kind::DATA, n),

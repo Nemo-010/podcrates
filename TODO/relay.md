@@ -7816,3 +7816,117 @@ cargo test -p pod-relay --all-features --test pair_code_live -- --ignored --noca
 - The READMEs of `pod-wormhole` and `pod-relay` give the close, the
   stand-in, the tests and the plants; their counts of plants (25) and of
   ignored tests (21) are corrected.
+
+# T-639: `pod-link`: a closed half of a split session can end the listener with "the carrier of the link ended" in place of the lost half
+
+**Source:** PodUtils/podnet#572 (COORD-085 of podnet;
+PodUtils/podnet@T-353), a defect of T-500.
+**Category:** defect
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+podnet with `v0.49.0`: its test
+`link_split::a_closed_down_half_ends_the_session_with_down_carrier_lost`
+(a `pod_link::Link` over each end of `split::Split`, two memory halves;
+the down half closes after one stream moved 3 bytes) failed one time in a
+full `cargo test --workspace` under load with `listener: the carrier of
+the link ended`. Alone it passed 5 times of 5, and it passed in each CI
+run. The rule of call C493 (and of podnet's decisions) is that each end
+names the lost half. The session ends in each case, and the dialer names
+the half; only the text at the listener differs. The ask: the byte
+stream of a split end gives the `Lost` error, not an end of stream, when
+a half is lost, also when the loss and the end race; a test of `pod-link`
+that closes each half many times under load. podnet takes the tag with
+the fix and runs its test 50 times.
+
+## Premise
+
+- Read: PodUtils/podnet#572; podnet's tests/link_split.rs (its `Paths`
+  close a half at each end at one time); `crates/pod-link/src/split/`,
+  `crates/pod-link/src/pipes.rs`, `crates/pod-link/src/link.rs`,
+  `crates/pod-link/tests/split.rs`; the Done section of T-500, calls C492
+  and C493.
+- The probable cause of podnet: the link reads 0 bytes from the byte
+  stream of the split end (`Ok(0)` gives `Error::CarrierEnded`) before
+  the run of that end set the `Lost` error on its pipes.
+
+## Approach
+
+1. Find the path that gives the end of the bytes after a loss, and make
+   the split give `Lost` on it.
+2. A test in `tests/split.rs` that closes each half of a session of two
+   links in many rounds (at least 200) on the multi-thread runtime with
+   tasks that load it, and checks the text of each link in each round. It
+   fails on the old code.
+3. A plant.
+
+## Prove
+
+```sh
+cargo test -p pod-link --all-features --test split
+```
+
+## Done
+
+2026-11-14, commit `1bc0e9c`. Calls C610 and C611.
+
+- The cause: a link closes its byte stream when the loss of a half ended
+  it. The task of an end that sends the link's bytes on its main half
+  could read that close before it saw the fault, and sent `END`. The peer
+  link then read the end of its bytes and ended with "the carrier of the
+  link ended" before its own end saw the loss. The task now reads the
+  fault after each read of the link's bytes and sends `LOST` in place of
+  `END` (call C610). The fault is set before the state turns to `Failed`
+  (`pipes::Ends::failed`). A write to the byte stream of a carrier of
+  tasks (poll, s3, split) after a fault gives the fault.
+- Test: `a_closed_half_ends_each_link_with_the_loss_of_that_half_in_each_round_under_load`
+  in `tests/split.rs`: 240 rounds of a link over each end, 3 bytes, then
+  the up or the down half closed at each end (podnet's form) or at one end
+  while the other end sees silence, on the multi-thread runtime (4
+  workers) with 8 tasks that spin 200 µs between yields; it checks the
+  text of each link in each round (call C611). On the old code: 6 of 240
+  rounds and 14 of 240 rounds failed in two runs (one of them in podnet's
+  form, "the listener: the carrier of the link ended"). After the fix:
+  `tests/split.rs` 6 passed, 10 runs of 10; the pipes test checks the
+  write after a fault. `cargo test -p pod-link --all-features`: each
+  passes.
+- Plant `link-split-end-after-loss`, caught by hand (14 of 240 rounds
+  failed). `sh scripts/plant-each.sh --apply`: 0 stale.
+- podnet proves it with the tag of the fix: its test
+  `link_split::a_closed_down_half_ends_the_session_with_down_carrier_lost`
+  50 times in a loop, and its full `cargo test --workspace` under load.
+
+# T-643: `pod-quic`: a way whose reads keep failing spins a core, and the drop of the endpoint hangs (PodUtils/podssh#253)
+
+**Source:** PodUtils/podssh#253 (COORD-075 of podssh; PodUtils/podssh@T-787).
+**Category:** defect
+**Milestone:** M1
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+The receive loop of noq 1.4.0 (`RecvState::poll_socket` of its endpoint) answers `ECONNRESET` and `EMSGSIZE` with `continue`, before its work limiter. `pod_quic::socket::DatagramSocket::poll_recv` passes each error of the `Datagrams` through. A way that fails each read with one of those keeps one worker of the runtime busy with no yield, and the driver holds the lock of the endpoint, so the drop of the `Endpoint` hangs too. podssh measured it: `pod_quic::over` with a `Datagrams` that fails each read with `ConnectionReset` gave 19,971,985 failed reads and 2.998 s of CPU in 3 s (its test crates/podssh-relay/tests/quic_socket_fails.rs, ignored until the take).
+
+## Premise
+
+- Read: PodUtils/podssh#253; `crates/pod-quic/src/socket.rs`, the endpoint on the system socket (`endpoint::on_socket`); noq 1.4.0 `src/endpoint.rs`. osewa ends such an endpoint of quinn after 256 empty reads in a row.
+
+## Approach
+
+Count the failed reads in a row in `DatagramSocket`, and in a wrapper of the system socket of `endpoint::on_socket`; reset the count on a read that succeeds or is `Pending`. Past a bound (256), return an error kind that noq does not skip (`BrokenPipe`), so that the driver ends and the caller dials again. A test like podssh's (a `Datagrams` that fails each read: the driver ends, the CPU stays bounded, the drop returns), and a plant that leaves the bound out.
+
+## Prove
+
+```sh
+cargo test -p pod-quic --all-features
+```
+
+## Done
+
+2026-11-15, the commit of the fix. `crates/pod-quic/src/bounded.rs`: `Bounded` counts the failed reads in a row of the socket of an endpoint and gives `BrokenPipe` at `FAILED_READS_MOST` (256); a read that succeeds or waits starts the count again. `endpoint::on_socket` wraps the system socket of tokio in it, and `over` wraps the `DatagramSocket`. Two tests: the error at the bound and the reset by a wait; an endpoint over a way that fails each read reads at most 512 times in 300 ms, and its drop returns. With the bound removed, the first test failed, and the second hung (the spin of PodUtils/podssh#253). The plant `quic-failed-reads-unbounded`. `cargo test -p pod-quic --all-features` passed.

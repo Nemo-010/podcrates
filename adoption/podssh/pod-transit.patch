@@ -266,15 +266,13 @@ diff --git a/crates/podssh-cli/src/ssh/roads.rs b/crates/podssh-cli/src/ssh/road
 index bdafdb8a..7d065d0a 100644
 --- a/crates/podssh-cli/src/ssh/roads.rs
 +++ b/crates/podssh-cli/src/ssh/roads.rs
-@@ -178,7 +178,10 @@ impl<'a> Roads<'a> {
+@@ -178,7 +178,8 @@ impl<'a> Roads<'a> {
          }
          if let Some(dialer) = &self.transit {
              // Q65's fallback: only when each road before it failed.
 -            list.push((Start::WhenAllFailed, Box::pin(async move { dialer.link().await.map(Road::Transit) })));
-+            list.push((
-+                Start::WhenAllFailed,
-+                Box::pin(async move { dialer.link().await.map(Road::Transit).map_err(|e| e.to_string()) }),
-+            ));
++            let link = async move { dialer.link().await.map(Road::Transit).map_err(|e| e.to_string()) };
++            list.push((Start::WhenAllFailed, Box::pin(link)));
              kinds.push(Kind::Transit);
          }
          if let Some(croc) = &self.croc {

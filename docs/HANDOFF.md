@@ -11,27 +11,49 @@ is done. Git and the record keep finished work.
 
 1. Start the watcher (`sh scripts/agent/watch-org.sh 90` under the Monitor
    tool) and read the open COORD issues `(to podcrates)`.
-2. Read the answer of podnet on #139 (the profile of `kcp`, T-526).
-3. Read the answers that wait: the measure of `AutoRun` (T-617, podvm),
-   podnet's fix of the capnp reader (T-029, PodUtils/podnet#555), and the
-   values of sand-net (T-586). Then the work order of
-   `TODO/PROGRESS.md`.
+2. A push of this session's account starts no workflow: each run comes
+   by a `[gh action] requested` issue (`docs/maintenance.md`, "A run of a
+   workflow"). Read the answers of #165 (`guest-windows.yml`, the proof of
+   T-640: a `RESULT:` line counts six cold boots) and #168 (the checks of a
+   push at `a634d3a`). Then close T-645 with the run of `secrets.yml`.
+3. Release `v0.51.0`: the release commit (the notes
+   `docs/releases/v0.51.0.md`, the bump) waits on the local `main` until
+   #168 is green. Push it, then ask for `ci.yml` on it and `release.yml`
+   (a dry run, then `version=0.51.0`) in one request. Then write the
+   hand-off `(to all)`: it answers PodUtils/podnet#572, PodUtils/podvm#380,
+   PodUtils/podssh#253, PodUtils/podvm#389, #390 and #393 (most of #393 is
+   `pod-qga` of `v0.45.0`; `osinfo` is new), and tells podvm that T-644 and
+   T-649 (PodUtils/podvm#384, #386) are open. Ask podvm there whether its
+   runs of experiment 450 copy the OVMF variable store fresh for each run.
+4. Record the takes of `v0.50.0` on #164 (COORD-104): podvm `0573bcd8` and
+   podnet `779c712` and podrunner `cbb5372` are in; podssh waits.
+5. The move of podssh (PodUtils/podssh#248, the ruling "The move of
+   podssh"): parts 2 and 3 of `pod-egress` (T-035, partial) start again
+   from `main`: part 2 is `vless/`, `vmess/`, `trojan/`, `shadowsocks/`;
+   part 3 is `eice/`, `iap/` of podssh-ws at podssh `2ffb7cd7`, which
+   podssh froze. The import and the edition commits of each are on the
+   branches `wip/egress-part2` and `wip/egress-part3` (based on part 1);
+   the adaptation that was not committed is lost. Start each agent from
+   its branch, merge it to `main` as usual, then delete the `wip/` branch.
+   Give each the brief of part 1 (each road behind its own feature, on the
+   shared parts of the crate; an adoption patch with `.needs` =
+   pod-egress). podssh's map of the glue is in the body of
+   PodUtils/podssh#248. Then step 3 of the move: `pod-tor`, `pod-iroh`,
+   `pod-cloudflare`, `pod-ts`; then `pod-relay-serve`.
+6. Then the work order of `TODO/PROGRESS.md`.
 
 ## In flight
 
-- The last release: `v0.49.0` at `212d45d` (ci 43661139464, adoption
-  43658168842 at `94b5ce3`, release 43662863611; the hand-off #163,
-  COORD-103): the Nostr fix of the run of a code (T-634,
-  PodUtils/podssh#247), the warm restore on a new mailbox medium and the
-  mailbox by id (T-628, T-632), the SHA-256 answers of `pod-turn`
-  (T-631). Each consumer took `v0.46.0` to `v0.48.0` (#159, #160, #162
-  closed).
-- The move of podssh's waves 3 and 4 (PodUtils/podssh#248, the ruling
-  "The move of podssh"): podssh froze `transit/`, `acme/`, `piping/`,
-  `opentunnel/` and `derp/` at podssh `b9c04657`; agents import them.
-- The agents of the move run in worktrees `mv-*`. The owner reserves
-  the names `pod-actions-store`, `pod-actions-results`, `pod-udf` and
-  `pod-qga` on crates.io ("Owner actions" of `TODO/PROGRESS.md`).
+- The last tags: `v0.50.0` at `26fb91f` (ci 43669018284, adoption 43669018236,
+  release 43672638621; the hand-off #164, COORD-104): step 1 of the move.
+- The moved crates of step 1 (`pod-transit`, `pod-acme`, `pod-piping`,
+  `pod-opentunnel`, `pod-derp`) are in `v0.50.0`; their trial patches in
+  `adoption/podssh/` name `v0.50.0`. Part 1 of `pod-egress` is on `main`;
+  its patch names `v0.51.0`.
+- The owner reserves the names of `pod-actions-store`,
+  `pod-actions-results`, `pod-udf`, `pod-qga` and of the crates of the
+  move on crates.io ("Owner actions" of `TODO/PROGRESS.md`);
+  `scripts/check-crates-io-names.py` reports the missing names.
 - The open threads of this session:
   - T-539 is in `v0.41.0`; T-540 (open) tests it against a kernel pty.
   - T-557 (open): a finding of T-542.

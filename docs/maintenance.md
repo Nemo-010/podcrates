@@ -180,6 +180,10 @@ starts `ci.yml`, `adoption.yml`, `plants.yml`, `deny.yml` and
 `adoption.yml` and `plants.yml`. Dispatch the other workflows (`nightly.yml`, `live.yml`,
 `services.yml`, `release.yml`, `upstream.yml`, `record-issues.yml`) when a step needs them.
 
+A push of a session whose account has no GitHub Actions starts no run:
+then ask for `ci.yml`, `adoption.yml`, `plants.yml`, `secrets.yml` and
+`deny.yml` of the pushed commit in the same way (each takes a dispatch).
+
 When the dispatch fails, open a new issue titled exactly
 `[gh action] requested`: one line of why, and one `sh` block with each
 `gh` command in full (`-R` and each flag), `set -e` first. The owner's
@@ -318,6 +322,11 @@ fourth argument of the script names the list when it is elsewhere.
   After the merge commit, run `cargo todo check --base HEAD~1`: CI
   checks the citations against the first parent, and a citation into a
   file that the branch changed moves only in that check.
+* At the end of a session, an agent that has not finished commits its
+  work as it is on its local branch, and the session pushes that branch
+  as `wip/NAME` and names it in `docs/HANDOFF.md`. Never remove a
+  worktree with work that is not committed. The next session merges the
+  work and deletes the `wip/` branch.
 * A test that uses a Unix item (a Unix socket, a mode of a file, the
   unix carrier) needs `#[cfg(unix)]`, or the Windows jobs of the nightly
   do not build. `sh scripts/agent/check-windows.sh` checks the tests of

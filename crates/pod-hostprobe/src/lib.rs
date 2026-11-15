@@ -18,6 +18,7 @@
 #![forbid(unsafe_op_in_unsafe_fn)]
 
 pub mod binfmt;
+pub mod cgroup;
 pub mod child;
 pub mod exec;
 pub mod identity;

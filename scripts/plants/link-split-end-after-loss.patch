@@ -1,0 +1,15 @@
+diff --git a/crates/pod-link/src/split/run.rs b/crates/pod-link/src/split/run.rs
+--- a/crates/pod-link/src/split/run.rs
++++ b/crates/pod-link/src/split/run.rs
+@@ -120,11 +120,6 @@
+             }
+             () = until(&mut state, &[State::Failed]) => return tell(&mut w, &s, half).await,
+         };
+-        // The link closes its bytes after the loss ended it: that is no end
+-        // of its bytes, and the peer must hear the loss.
+-        if s.ends.failed() {
+-            return tell(&mut w, &s, half).await;
+-        }
+         let (kind, n) = match read {
+             Ok(0) | Err(_) => (kind::END, 0),
+             Ok(n) => (kind::DATA, n),
