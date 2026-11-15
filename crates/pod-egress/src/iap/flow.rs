@@ -1,4 +1,4 @@
-//! The flow of one IAP session (T-351), with no I/O: the bytes of each
+//! The flow of one IAP session, with no I/O: the bytes of each
 //! direction, the acknowledgements, and what a reconnect sends again.
 //!
 //! The rules of gcloud 570.0.0 (`iap_tunnel_websocket.py`) and of IAP
@@ -17,7 +17,7 @@ use super::frame::MAX_DATA;
 
 /// The bytes kept for a resend: past them a lost link ends the session, as
 /// a reconnect could not send them again. gcloud and IAP Desktop keep each
-/// one; podssh bounds what a stalled server can make it hold.
+/// one; this client bounds what a stalled server can make it hold.
 pub const KEEP: usize = 8 * 1024 * 1024;
 
 /// The bytes of a session, both ways.
@@ -55,7 +55,7 @@ impl fmt::Display for FlowError {
             FlowError::Beyond { ack, sent } => write!(f, "IAP acknowledged {ack} bytes of the {sent} that went"),
             FlowError::NotKept { lost } => write!(
                 f,
-                "the new link needs {lost} bytes sent again, more than the {} MiB that podssh keeps",
+                "the new link needs {lost} bytes sent again, more than the {} MiB that this client keeps",
                 KEEP >> 20
             ),
         }
@@ -184,7 +184,7 @@ mod tests {
     use super::*;
 
     /// gcloud's capture: 17 bytes went, the link was lost, and the reconnect's
-    /// success said 10; gcloud sent `pture\r\n` again, and so does podssh.
+    /// success said 10; gcloud sent `pture\r\n` again, and so does this client.
     #[test]
     fn iap_resume_sends_again_what_the_server_did_not_take() {
         let mut flow = Flow::new();

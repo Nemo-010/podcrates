@@ -1,10 +1,12 @@
-//! One IAP session as a byte stream (T-351). SSH reads and writes one end of
-//! a pipe; a task carries the other end over the WebSocket in IAP's data
+//! One IAP session as a byte stream. The caller (SSH) reads and writes one
+//! end of a pipe; a task carries the other end over the WebSocket in IAP's data
 //! messages of 16 KiB at most, acknowledges what comes, keeps what went
 //! until the server confirms it ([`Flow`]), and after a lost link takes the
 //! session up on a new one, as gcloud does: `/v4/reconnect` with the
 //! session's id and the bytes received, the server's reconnect success,
-//! then the bytes that it did not take, again.
+//! then the bytes that it did not take, again. A lost link and the new one
+//! are events of the caller's [`Note`] ([`LOST`], [`RESUMED`]), and so is
+//! each step that a verbose log shows ([`STEP`]).
 //!
 //! The end of SSH's input ends the session as gcloud ends it: what was read
 //! goes, then a Close, as IAP's protocol has no half-close; what the server
@@ -19,14 +21,21 @@ use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, DuplexStream, ReadHalf, WriteHalf};
 use tokio::sync::{Notify, watch};
 
+use pod_core::Event;
+use pod_ws::close::close_code_and_reason;
+use pod_ws::frame as ws;
+use pod_ws::session::RelaySession;
+
 use super::Resume;
 use super::close::{self, Fate, fate};
 use super::flow::Flow;
 use super::frame::{self, MAX_DATA, Message};
-use crate::frame as ws;
-use crate::session::{RelaySession, close_code_and_reason};
+use crate::Note;
 use link::{First, Unopened, first, take_up, what, words};
 
+pub use ended::{Ended, NotOpen};
+
+mod ended;
 mod link;
 
 /// How long the first message of a link may take: the probe's 20 s.
@@ -49,42 +58,18 @@ pub type Dialing<S, E> = Pin<Box<dyn Future<Output = Result<RelaySession<S>, E>>
 /// Opens a link of the session: the first with `None`, then each that takes
 /// it up. Each call takes a token of its own, as one may have expired.
 pub type Dial<S, E> = Arc<dyn Fn(Option<Resume>) -> Dialing<S, E> + Send + Sync>;
-/// Where the task says what it does.
-pub type Say = Arc<dyn Fn(Line) + Send + Sync>;
 
-/// A line of the task's.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Line {
-    /// For the user: a lost link, and the new one.
-    Info(String),
-    /// For `-v`.
-    Verbose(String),
-}
+/// The kind of the event of a lost link, which a new one takes up (a
+/// warning for the user).
+pub const LOST: &str = "iap.lost";
+/// The kind of the event of a new link that took the session up.
+pub const RESUMED: &str = "iap.resumed";
+/// The kind of the event of each other step: the session opened, a new link
+/// that did not open, the bytes that go again. A verbose log shows them.
+pub const STEP: &str = "iap.step";
 
-/// Why no session opened.
-#[derive(Debug)]
-pub enum NotOpen<E> {
-    /// The link did not open: the dial's own reason.
-    Dial(E),
-    /// The server closed the link before the session: its code and reason.
-    Closed { code: Option<u16>, reason: String },
-    /// No message of IAP within the wait.
-    Silent(Duration),
-    /// A message out of the protocol, or a link that broke.
-    Fault(String),
-}
-
-/// How a session ended.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Ended {
-    /// The stream's own end: SSH's, or the far end's.
-    Normal,
-    /// A Close of the server that ends the session: its code and reason.
-    Closed { code: Option<u16>, reason: String },
-    /// A lost link that no new one took up: why.
-    Lost(String),
-    /// A fault of the protocol: why.
-    Fault(String),
+fn step(note: &Note, text: String) {
+    note.event(Event::info(STEP, text));
 }
 
 /// How the session ended, once it did. The task sets it before the end of
@@ -110,18 +95,18 @@ impl Carried {
 
 /// The session on its first link: the link, then IAP's connect success
 /// within [`FIRST_MESSAGE`]; then a task carries it, and the stream is SSH's.
-pub async fn open<S, E>(dial: Dial<S, E>, say: Say) -> Result<(DuplexStream, Carried), NotOpen<E>>
+pub async fn open<S, E>(dial: Dial<S, E>, note: Note) -> Result<(DuplexStream, Carried), NotOpen<E>>
 where
     S: AsyncRead + AsyncWrite + Send + 'static,
     E: Display + Send + 'static,
 {
-    open_within(dial, say, FIRST_MESSAGE).await
+    open_within(dial, note, FIRST_MESSAGE).await
 }
 
 /// [`open`], with `wait` for the first message, so that a test waits less.
 pub(crate) async fn open_within<S, E>(
     dial: Dial<S, E>,
-    say: Say,
+    note: Note,
     wait: Duration,
 ) -> Result<(DuplexStream, Carried), NotOpen<E>>
 where
@@ -136,10 +121,10 @@ where
         Err(Unopened::Silent) => return Err(NotOpen::Silent(wait)),
         Err(Unopened::Fault(why)) => return Err(NotOpen::Fault(why)),
     };
-    say(Line::Verbose(format!("IAP opened the session (an id of {} bytes)", sid.len())));
+    step(&note, format!("IAP opened the session (an id of {} bytes)", sid.len()));
     let (ours, theirs) = tokio::io::duplex(PIPE);
     let (tell, carried) = watch::channel(None);
-    tokio::spawn(run(link, sid, dial, theirs, say, tell, wait));
+    tokio::spawn(run(link, sid, dial, theirs, note, tell, wait));
     Ok((ours, Carried(carried)))
 }
 
@@ -169,7 +154,7 @@ async fn run<S, E>(
     sid: Vec<u8>,
     dial: Dial<S, E>,
     pipe: DuplexStream,
-    say: Say,
+    note: Note,
     tell: watch::Sender<Option<Ended>>,
     wait: Duration,
 ) where
@@ -197,11 +182,11 @@ async fn run<S, E>(
                 break Ended::Fault(why);
             }
         };
-        say(Line::Info(format!("the link to IAP was lost ({lost}); a new one takes the session up")));
-        match take_up(&dial, &sid, &flow, &say, wait).await {
+        note.event(Event::warn(LOST, format!("the link to IAP was lost ({lost}); a new one takes the session up")));
+        match take_up(&dial, &sid, &flow, &note, wait).await {
             Ok(new) => {
                 link = new;
-                say(Line::Info("IAP took the session up on a new link".into()));
+                note.event(Event::info(RESUMED, "IAP took the session up on a new link"));
             }
             Err(end) => break end,
         }
@@ -355,10 +340,10 @@ where
         loop {
             match link.read_frame().await {
                 Ok(f) if f.opcode == ws::OPCODE_BINARY => {
-                    if let Ok(Message::Data(data)) = frame::decode(&f.payload) {
-                        if !deliver(to_ssh, &data, flow).await {
-                            return;
-                        }
+                    if let Ok(Message::Data(data)) = frame::decode(&f.payload)
+                        && !deliver(to_ssh, &data, flow).await
+                    {
+                        return;
                     }
                 }
                 Ok(f) if f.opcode == ws::OPCODE_CLOSE => return,

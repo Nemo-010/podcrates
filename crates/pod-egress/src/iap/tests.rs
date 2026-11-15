@@ -1,6 +1,6 @@
-//! The upgrade of the IAP road against gcloud's own (T-351): each request
-//! that gcloud 570.0.0's client sent to a stand-in on the loopback on
-//! 2026-10-31, its connect and its reconnect, with the key, the `Host` and
+//! The upgrade of the IAP road against gcloud's own: each request
+//! that gcloud 570.0.0's client sent to a stand-in on the loopback, its
+//! connect and its reconnect, with the key, the `Host` and
 //! the `User-Agent` of that run; the names of a target as GCP writes them;
 //! and a token that cannot go in a header, refused without being quoted.
 

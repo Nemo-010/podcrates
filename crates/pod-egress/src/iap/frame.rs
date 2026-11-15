@@ -1,4 +1,4 @@
-//! The messages of IAP's TCP forwarding (T-351), version 4 of its relay
+//! The messages of IAP's TCP forwarding, version 4 of its relay
 //! protocol, with no I/O. Each WebSocket message holds one: a tag of two
 //! bytes, big-endian, then its fields. Read in gcloud 570.0.0
 //! (`googlecloudsdk/api_lib/compute/iap_tunnel_websocket_utils.py`) and in
@@ -14,7 +14,7 @@
 //! - a long close (10): a code and a length of four bytes each, then the
 //!   reason (IAP Desktop's; gcloud skips it as a tag that it does not know).
 //!
-//! A tag that podssh does not know is skipped, and so are bytes after a
+//! A tag that this client does not know is skipped, and so are bytes after a
 //! message's fields, as both clients skip them.
 
 use std::fmt;
@@ -27,7 +27,7 @@ pub const TAG_LONG_CLOSE: u16 = 0x000a;
 
 /// The most that one data message carries, as both clients send.
 pub const MAX_DATA: usize = 16 * 1024;
-/// The longest message that podssh sends: data of [`MAX_DATA`] and its head.
+/// The longest message that this client sends: data of [`MAX_DATA`] and its head.
 pub const MAX_MESSAGE: usize = 6 + MAX_DATA;
 
 /// One message of the relay protocol.
@@ -44,7 +44,7 @@ pub enum Message {
     Ack(u64),
     /// The server's reason to end the session, longer than a Close holds.
     LongClose { code: u32, reason: String },
-    /// A tag that podssh does not know.
+    /// A tag that this client does not know.
     Unknown(u16),
 }
 
@@ -151,7 +151,7 @@ fn long_close(body: &[u8]) -> Result<Message, FrameError> {
     let len = u32::from_be_bytes(*len) as usize;
     let reason = rest.get(..len).ok_or_else(|| short(8usize.saturating_add(len)))?;
     // The server's text goes to the user's terminal.
-    let reason = crate::text::one_line(&String::from_utf8_lossy(reason));
+    let reason = pod_core::text::one_line(&String::from_utf8_lossy(reason));
     Ok(Message::LongClose { code: u32::from_be_bytes(*code), reason })
 }
 

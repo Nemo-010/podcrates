@@ -1,18 +1,23 @@
-//! The road of GCP's Identity-Aware Proxy for TCP (T-351): a WebSocket to
-//! `wss://tunnel.cloudproxy.app/v4/connect`, through `HTTPS_PROXY` when one
-//! is set, with the subprotocol `relay.tunnel.cloudproxy.app` and the user's
-//! OAuth token in its `Authorization` header, never in the URL. Its query
-//! names the VM, as gcloud names it; IAP's own messages ([`frame`]) carry
-//! the stream, with acknowledgements ([`flow`]), and a session that loses
-//! its link takes it up on a new one ([`carry`]).
+//! The road of Google Cloud's Identity-Aware Proxy for TCP: a WebSocket to
+//! `wss://tunnel.cloudproxy.app/v4/connect`, through the caller's way out,
+//! with the subprotocol `relay.tunnel.cloudproxy.app` and the user's OAuth
+//! token in its `Authorization` header, never in the URL. Its query names
+//! the VM, as gcloud names it; IAP's own messages ([`frame`]) carry the
+//! stream, with acknowledgements ([`flow`]), and a session that loses its
+//! link takes it up on a new one ([`carry`]).
 //!
 //! The upgrade is the one that gcloud 570.0.0 sends, captured from its own
-//! client against a stand-in on the loopback (2026-10-31): the request line
-//! with the target's query, then `Upgrade`, `Connection`, `Host`,
+//! client against a stand-in on the loopback: the request line with the
+//! target's query, then `Upgrade`, `Connection`, `Host`,
 //! `Origin: bot:iap-tunneler`, the key, the version, the subprotocol, the
 //! `User-Agent` and the token, in that order. Google's documents: IAP "isn't
 //! intended for bulk transfer of data", and it ends a session after an
 //! hour with no traffic.
+//!
+//! The far end is the VM that the cloud names: the road is not a
+//! [`pod_core::Dial`]. A link that does not open is a [`ConnectError`]; a
+//! session that does not open or that ends is a [`carry::NotOpen`] or a
+//! [`carry::Ended`], each with its stage and its class.
 
 pub mod carry;
 pub mod close;
@@ -25,11 +30,11 @@ use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncWrite};
 use zeroize::Zeroizing;
 
-use crate::client::{self, ConnectError, WRITE_TIMEOUT};
-use crate::dial::ProxyChoice;
-use crate::handshake;
-use crate::session::RelaySession;
-use crate::tls::Trust;
+use pod_tls::Trust;
+use pod_ws::Way;
+use pod_ws::client::{self, ConnectError, WRITE_TIMEOUT};
+use pod_ws::handshake;
+use pod_ws::session::RelaySession;
 
 pub const HOST: &str = "tunnel.cloudproxy.app";
 pub const PORT: u16 = 443;
@@ -40,7 +45,6 @@ pub const SUBPROTOCOL: &str = "relay.tunnel.cloudproxy.app";
 pub const ORIGIN: &str = "bot:iap-tunneler";
 /// The VM's network interface: gcloud's default.
 pub const INTERFACE: &str = "nic0";
-pub const USER_AGENT: &str = concat!("podssh/", env!("CARGO_PKG_VERSION"));
 /// The longest token: an access token of Google is about 2 KiB.
 pub const MAX_TOKEN: usize = 8192;
 
@@ -199,38 +203,42 @@ pub fn request(host: &str, path: &str, token: &str, key: &str, user_agent: &str)
 }
 
 /// A new link to IAP for `target`, or one that takes the session of
-/// `resume` up, through `proxy`, with `token` in its header. Each step is
-/// bounded by `timeout`.
+/// `resume` up, through `way`, as the user agent of `way`, with `token` in
+/// its header. Each step is bounded by `timeout`.
 pub async fn connect(
     target: &Target,
     resume: Option<&Resume>,
     token: &str,
+    way: &Way,
     trust: &Trust,
-    proxy: &ProxyChoice,
     timeout: Duration,
 ) -> Result<RelaySession, ConnectError> {
     check_token(token).map_err(ConnectError::Config)?;
-    let tls = client::open_tls(HOST, PORT, HOST, trust, proxy, timeout).await?;
-    let (tls, pending) = upgrade(tls, HOST, target, resume, token, timeout).await?;
-    // The stream of each session to a relay, TLS here (T-326).
-    Ok(session(crate::url::Stream::Tls(Box::new(tls)), pending))
+    let (tls, _) = way.open_tls(HOST, PORT, HOST, trust, timeout, &[]).await?;
+    let link = Link { host: HOST, target, resume, token, user_agent: &way.user_agent };
+    let (tls, pending) = upgrade(tls, &link, timeout).await?;
+    Ok(session(pod_ws::url::Stream::Tls(Box::new(tls)), pending))
+}
+
+/// What the upgrade of one link names: the host, the VM, the session to take
+/// up, the token and the user agent.
+pub(crate) struct Link<'a> {
+    pub host: &'a str,
+    pub target: &'a Target,
+    pub resume: Option<&'a Resume>,
+    pub token: &'a str,
+    pub user_agent: &'a str,
 }
 
 /// The upgrade over `stream`; a refusal's body, which may quote what it was
 /// sent, shows no token.
-pub(crate) async fn upgrade<S>(
-    stream: S,
-    host: &str,
-    target: &Target,
-    resume: Option<&Resume>,
-    token: &str,
-    timeout: Duration,
-) -> Result<(S, Vec<u8>), ConnectError>
+pub(crate) async fn upgrade<S>(stream: S, link: &Link<'_>, timeout: Duration) -> Result<(S, Vec<u8>), ConnectError>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
+    let Link { host, target, resume, token, user_agent } = *link;
     let key = handshake::generate_key().map_err(|e| ConnectError::Upgrade(e.to_string()))?;
-    let request = request(host, &path(target, resume), token, &key, USER_AGENT).map_err(ConnectError::Config)?;
+    let request = request(host, &path(target, resume), token, &key, user_agent).map_err(ConnectError::Config)?;
     match tokio::time::timeout(timeout, client::upgrade_with(stream, &request, &key)).await {
         Err(_) => Err(ConnectError::Timeout { step: "the WebSocket upgrade", after: timeout }),
         Ok(Err(ConnectError::Refused { status, body })) => {

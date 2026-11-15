@@ -1,10 +1,10 @@
-//! SigV4 in a query string against AWS's own vectors (T-351): three of the
+//! SigV4 in a query string against AWS's own vectors: three of the
 //! signing test suite of awslabs/aws-c-auth
-//! (`tests/aws-signing-test-suite/v4/*/query-*.txt`, read on 2026-10-31),
-//! and four presigned URLs of an openTunnel that aws-cli's own EICE signer
+//! (`tests/aws-signing-test-suite/v4/*/query-*.txt`), and four presigned
+//! URLs of an openTunnel that aws-cli's own EICE signer
 //! (aws/aws-cli:awscli/customizations/ec2instanceconnect/eicesigner.py, on
-//! the botocore 1.34.22 that gcloud bundles) made on this host at a fixed
-//! time, with the example keys of AWS's documents.
+//! the botocore 1.34.22 that gcloud bundles) made at a fixed time, with the
+//! example keys of AWS's documents.
 
 use super::*;
 

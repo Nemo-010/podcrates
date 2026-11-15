@@ -1,18 +1,22 @@
-//! The road of AWS's EC2 Instance Connect Endpoint (T-351): a WebSocket to
-//! `wss://DNS/openTunnel`, DNS the endpoint's own name, through
-//! `HTTPS_PROXY` when one is set. Its URL is presigned with SigV4
-//! ([`sigv4`]) for 60 s, as aws-cli presigns it, and so carries the
-//! credential: the one exception to "credentials never in URLs", by the
-//! operator's ruling Q51. podssh makes a new URL for each connection, just
-//! before its upgrade, keeps it in memory that is wiped, and never shows
-//! it. Then the stream goes in binary messages as they are.
+//! The road of AWS's EC2 Instance Connect Endpoint: a WebSocket to
+//! `wss://DNS/openTunnel`, DNS the endpoint's own name, through the
+//! caller's way out. Its URL is presigned with SigV4 ([`sigv4`]) for 60 s,
+//! as aws-cli presigns it, and so carries the credential: the one exception
+//! to "credentials never in URLs" (podssh's ruling Q51). The client makes a
+//! new URL for each connection, just before its upgrade, keeps it in memory
+//! that is wiped, and never shows it. Then the stream goes in binary
+//! messages as they are.
 //!
 //! Read in aws/aws-cli at v2 (`awscli/customizations/ec2instanceconnect/`:
-//! `eicesigner.py`, `websocket.py`, `opentunnel.py`) and in AWS's documents,
-//! on 2026-10-31: the upgrade is awscrt's (`Host`, `Upgrade`, `Connection`,
-//! the key, the version) with aws-cli's `User-Agent` and no subprotocol; a
+//! `eicesigner.py`, `websocket.py`, `opentunnel.py`) and in AWS's documents:
+//! the upgrade is awscrt's (`Host`, `Upgrade`, `Connection`, the key, the
+//! version) with a `User-Agent`, as aws-cli adds one, and no subprotocol; a
 //! tunnel lasts an hour at most, `maxTunnelDuration` shortens it, an
 //! endpoint takes 20 tunnels at once, and a high volume is throttled.
+//!
+//! The far end is the endpoint that the cloud names: the road is not a
+//! [`pod_core::Dial`]. A failure is a [`ConnectError`], whose stage and
+//! class are pod-ws's.
 
 pub mod sigv4;
 
@@ -23,11 +27,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncRead, AsyncWrite};
 use zeroize::Zeroizing;
 
-use crate::client::{self, ConnectError, WRITE_TIMEOUT};
-use crate::dial::ProxyChoice;
-use crate::handshake;
-use crate::session::RelaySession;
-use crate::tls::Trust;
+use pod_tls::Trust;
+use pod_ws::Way;
+use pod_ws::client::{self, ConnectError, WRITE_TIMEOUT};
+use pod_ws::handshake;
+use pod_ws::session::RelaySession;
 
 pub const PORT: u16 = 443;
 pub const PATH: &str = "/openTunnel";
@@ -37,7 +41,6 @@ pub const SERVICE: &str = "ec2-instance-connect";
 pub const EXPIRES: u32 = 60;
 /// The longest tunnel, and the default of `maxTunnelDuration`.
 pub const MAX_DURATION: u32 = 3600;
-pub const USER_AGENT: &str = concat!("podssh/", env!("CARGO_PKG_VERSION"));
 /// The largest frame taken from the endpoint, which documents none; aws-cli
 /// sends frames of 65000 bytes.
 pub const MAX_FRAME: usize = 1024 * 1024;
@@ -223,23 +226,22 @@ fn now() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64)
 }
 
-/// A tunnel to `target` through `endpoint`, through `proxy`, its URL signed
-/// with `credentials` once TLS is up, as late as can be. Each step is
-/// bounded by `timeout`.
+/// A tunnel to `target` through `endpoint`, through `way`, as the user
+/// agent of `way`, its URL signed with `credentials` once TLS is up, as late
+/// as can be. Each step is bounded by `timeout`.
 pub async fn connect(
     endpoint: &Endpoint,
     target: &Target,
     credentials: &Credentials,
+    way: &Way,
     trust: &Trust,
-    proxy: &ProxyChoice,
     timeout: Duration,
 ) -> Result<RelaySession, ConnectError> {
     credentials.check().map_err(ConnectError::Config)?;
-    let tls = client::open_tls(&endpoint.dns, PORT, &endpoint.dns, trust, proxy, timeout).await?;
+    let (tls, _) = way.open_tls(&endpoint.dns, PORT, &endpoint.dns, trust, timeout, &[]).await?;
     let path = presigned_path(endpoint, target, credentials, now());
-    let (tls, pending) = upgrade(tls, &endpoint.dns, &path, credentials, timeout).await?;
-    // The stream of each session to a relay, TLS here (T-326).
-    Ok(session(crate::url::Stream::Tls(Box::new(tls)), pending))
+    let (tls, pending) = upgrade(tls, &endpoint.dns, &path, credentials, &way.user_agent, timeout).await?;
+    Ok(session(pod_ws::url::Stream::Tls(Box::new(tls)), pending))
 }
 
 /// The upgrade over `stream`; a refusal's body shows no credential and no
@@ -249,13 +251,14 @@ async fn upgrade<S>(
     host: &str,
     path: &str,
     credentials: &Credentials,
+    user_agent: &str,
     timeout: Duration,
 ) -> Result<(S, Vec<u8>), ConnectError>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     let key = handshake::generate_key().map_err(|e| ConnectError::Upgrade(e.to_string()))?;
-    let request = request(host, path, &key, USER_AGENT).map_err(ConnectError::Config)?;
+    let request = request(host, path, &key, user_agent).map_err(ConnectError::Config)?;
     match tokio::time::timeout(timeout, client::upgrade_with(stream, &request, &key)).await {
         Err(_) => Err(ConnectError::Timeout { step: "the WebSocket upgrade", after: timeout }),
         Ok(Err(ConnectError::Refused { status, body })) => {

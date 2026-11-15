@@ -1,4 +1,4 @@
-//! The carrier of an IAP session (T-351) against a stand-in of IAP's relay,
+//! The carrier of an IAP session against a stand-in of IAP's relay,
 //! over links in memory, so that no test listens. The stand-in writes each
 //! message by hand, as gcloud's and IAP Desktop's sources lay them out, and
 //! reads the client's frames:
@@ -15,9 +15,11 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
+use pod_core::{Event, Level};
+use pod_ws::frame::{self as wsf, Frame, Role};
+
 use super::*;
-use crate::frame::{self as wsf, Frame, Role};
-use crate::iap::{Target, session, upgrade};
+use crate::iap::{Link, Target, session, upgrade};
 
 const TOKEN: &str = "TEST-TOKEN-NOT-A-CREDENTIAL";
 const SHORT: Duration = Duration::from_secs(5);
@@ -55,7 +57,7 @@ impl Peer {
         let answer = format!(
             "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
              Sec-WebSocket-Accept: {}\r\nSec-WebSocket-Protocol: relay.tunnel.cloudproxy.app\r\n\r\n",
-            crate::handshake::accept_key(&key)
+            pod_ws::handshake::accept_key(&key)
         );
         link.write_all(answer.as_bytes()).await.unwrap();
         Peer { link, head, buf: Vec::new() }
@@ -135,22 +137,29 @@ fn dial_to(board: Board) -> Dial<DuplexStream, String> {
         Box::pin(async move {
             let (near, far) = tokio::io::duplex(ROOM);
             board.send(far).map_err(|_| "the stand-in is gone".to_string())?;
-            let upgraded = upgrade(near, crate::iap::HOST, &target, resume.as_ref(), TOKEN, SHORT).await;
+            let link = Link {
+                host: crate::iap::HOST,
+                target: &target,
+                resume: resume.as_ref(),
+                token: TOKEN,
+                user_agent: "ua",
+            };
+            let upgraded = upgrade(near, &link, SHORT).await;
             let (link, pending) = upgraded.map_err(|e| e.to_string())?;
             Ok::<_, String>(session(link, pending))
         })
     })
 }
 
-fn quiet() -> Say {
-    Arc::new(|_: Line| {})
+fn quiet() -> Note {
+    Arc::new(pod_core::NoEvents)
 }
 
-/// The lines that the task says, kept.
-fn heard() -> (Say, Arc<std::sync::Mutex<Vec<Line>>>) {
+/// The events of the task, kept.
+fn heard() -> (Note, Arc<std::sync::Mutex<Vec<Event>>>) {
     let lines = Arc::new(std::sync::Mutex::new(Vec::new()));
     let kept = lines.clone();
-    (Arc::new(move |line: Line| kept.lock().unwrap().push(line)), lines)
+    (Arc::new(move |event: Event| kept.lock().unwrap().push(event)), lines)
 }
 
 /// 100 KiB each way: each message of the client is at most 16 KiB of data,
@@ -271,8 +280,10 @@ async fn iap_session_is_taken_up_on_a_new_link_after_a_lost_one() {
     assert_eq!(&again[..2000], &first[1000..], "what the server did not take goes again first");
     assert_eq!(&again[2000..], &more[..]);
     let said = lines.lock().unwrap().clone();
-    assert!(said.iter().any(|l| matches!(l, Line::Info(t) if t.contains("link to IAP was lost"))), "{said:?}");
-    assert!(said.iter().any(|l| matches!(l, Line::Info(t) if t.contains("new link"))), "{said:?}");
+    let lost = |e: &Event| e.kind == LOST && e.level == Level::Warn && e.text.contains("link to IAP was lost");
+    assert!(said.iter().any(lost), "{said:?}");
+    assert!(said.iter().any(|e| e.kind == RESUMED && e.text.contains("new link")), "{said:?}");
+    assert!(said.iter().any(|e| e.kind == STEP && e.text.contains("IAP opened the session")), "{said:?}");
 }
 
 /// A Close before the session, its code and reason given back; silence,

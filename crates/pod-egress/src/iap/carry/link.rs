@@ -1,8 +1,8 @@
-//! A link's first message, and a new link that takes a session up (T-351):
-//! out of `carry.rs`, at its 500 lines. The connect's success comes first
-//! on a new session, a reconnect's on a link that takes one up, each within
-//! the wait of the probe; a message that IAP adds and podssh does not know
-//! is skipped, as gcloud and IAP Desktop skip one.
+//! A link's first message, and a new link that takes a session up. The
+//! connect's success comes first on a new session, a reconnect's on a link
+//! that takes one up, each within the wait of the probe; a message that IAP
+//! adds and this client does not know is skipped, as gcloud and IAP Desktop
+//! skip one.
 
 use std::fmt::Display;
 use std::sync::Mutex;
@@ -10,13 +10,16 @@ use std::time::Duration;
 
 use tokio::io::{AsyncRead, AsyncWrite};
 
+use pod_ws::close::close_code_and_reason;
+use pod_ws::frame as ws;
+use pod_ws::session::RelaySession;
+
 use super::super::Resume;
 use super::super::close::{Fate, fate};
 use super::super::flow::Flow;
 use super::super::frame::{self, Message};
-use super::{Dial, Ended, Line, RECONNECT_WAIT, RECONNECTS, Say, lock};
-use crate::frame as ws;
-use crate::session::{RelaySession, close_code_and_reason};
+use super::{Dial, Ended, RECONNECT_WAIT, RECONNECTS, lock, step};
+use crate::Note;
 
 /// The first message of a link that counts: the connect's success, or a
 /// reconnect's.
@@ -32,7 +35,8 @@ pub(super) enum Unopened {
 }
 
 /// Wait `wait` at most for the connect's success (`connect`), else for a
-/// reconnect's; a message that IAP adds and podssh does not know is skipped.
+/// reconnect's; a message that IAP adds and this client does not know is
+/// skipped.
 pub(super) async fn first<S>(link: &RelaySession<S>, connect: bool, wait: Duration) -> Result<First, Unopened>
 where
     S: AsyncRead + AsyncWrite,
@@ -73,7 +77,7 @@ pub(super) fn what(message: &Message) -> &'static str {
         Message::Data(_) => "data",
         Message::Ack(_) => "an acknowledgement",
         Message::LongClose { .. } => "a long close",
-        Message::Unknown(_) => "a message of a tag that podssh does not know",
+        Message::Unknown(_) => "a message of a tag that this client does not know",
     }
 }
 
@@ -93,7 +97,7 @@ pub(super) async fn take_up<S, E>(
     dial: &Dial<S, E>,
     sid: &[u8],
     flow: &Mutex<Flow>,
-    say: &Say,
+    note: &Note,
     wait: Duration,
 ) -> Result<RelaySession<S>, Ended>
 where
@@ -110,7 +114,7 @@ where
             Ok(link) => link,
             Err(e) => {
                 last = e.to_string();
-                say(Line::Verbose(format!("a new link to IAP did not open (try {attempt} of {RECONNECTS}): {last}")));
+                step(note, format!("a new link to IAP did not open (try {attempt} of {RECONNECTS}): {last}"));
                 continue;
             }
         };
@@ -136,7 +140,7 @@ where
         };
         let resend = lock(flow).resume(took);
         let resend = resend.map_err(|e| Ended::Lost(e.to_string()))?;
-        say(Line::Verbose(format!("IAP took {took} bytes of this side's; {} messages go again", resend.len())));
+        step(note, format!("IAP took {took} bytes of this side's; {} messages go again", resend.len()));
         let mut sent = Ok(());
         for chunk in &resend {
             let message = frame::data(chunk).map_err(|e| Ended::Fault(e.to_string()))?;

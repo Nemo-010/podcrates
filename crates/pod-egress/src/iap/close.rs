@@ -1,7 +1,9 @@
-//! What a Close of IAP's relay means (T-351). Its codes extend RFC 6455's,
+//! What a Close of IAP's relay means. Its codes extend RFC 6455's,
 //! as IAP Desktop names them (`SshRelayCloseCode` in
 //! `Google.Solutions.Iap/Protocol/SshRelayConstants.cs`) and gcloud reads
 //! them (`iap_tunnel_websocket.py`, `iap_tunnel_websocket_helper.py`).
+
+use pod_core::{Class, Stage};
 
 /// What the session does after a Close of the server.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -64,6 +66,21 @@ pub fn fate(code: Option<u16>) -> Fate {
     }
 }
 
+/// The stage and the class of a Close with `code` that ends a session or
+/// opens none: a refusal of the account or of its token is IAP's, at the
+/// upgrade's stage; a port of the VM that IAP cannot reach, or no such VM,
+/// is the origin's; a session that the server forgot is the session's.
+pub fn stage_and_class(code: Option<u16>) -> (Stage, Class) {
+    match fate(code) {
+        Fate::Fail(Why::NotAuthorized) | Fate::Reauthenticate => (Stage::WebSocket, Class::Refused),
+        Fate::Fail(Why::Backend) | Fate::End => (Stage::Origin, Class::Unavailable),
+        Fate::Fail(Why::Lookup) => (Stage::Origin, Class::NotFound),
+        Fate::Fail(Why::Lost) => (Stage::Session, Class::Unavailable),
+        Fate::Fail(Why::Protocol) => (Stage::WebSocket, Class::Protocol),
+        Fate::Resume => (Stage::WebSocket, Class::Unavailable),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -87,5 +104,16 @@ mod tests {
         for code in [None, Some(1001), Some(1006), Some(1011), Some(4000), Some(4999)] {
             assert_eq!(fate(code), Fate::Resume, "{code:?}");
         }
+    }
+
+    #[test]
+    fn iap_close_codes_have_their_stages_and_classes() {
+        assert_eq!(stage_and_class(Some(4033)), (Stage::WebSocket, Class::Refused));
+        assert_eq!(stage_and_class(Some(4004)), (Stage::WebSocket, Class::Refused));
+        assert_eq!(stage_and_class(Some(4003)), (Stage::Origin, Class::Unavailable));
+        assert_eq!(stage_and_class(Some(4047)), (Stage::Origin, Class::NotFound));
+        assert_eq!(stage_and_class(Some(4074)), (Stage::Session, Class::Unavailable));
+        assert_eq!(stage_and_class(Some(4013)), (Stage::WebSocket, Class::Protocol));
+        assert_eq!(stage_and_class(None), (Stage::WebSocket, Class::Unavailable));
     }
 }

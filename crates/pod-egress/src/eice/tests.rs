@@ -1,4 +1,4 @@
-//! The EICE road's names, URL and upgrade (T-351): an endpoint by the DNS
+//! The EICE road's names, URL and upgrade: an endpoint by the DNS
 //! names of AWS's documents; the presigned path that aws-cli's own signer
 //! made for the same request and time; the upgrade of awscrt with aws-cli's
 //! `User-Agent`; and no credential in a refusal or in `Debug`.

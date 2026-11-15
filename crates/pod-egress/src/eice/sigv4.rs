@@ -1,6 +1,6 @@
 //! AWS Signature Version 4 in a query string (a presigned URL), for the
-//! WebSocket of EC2 Instance Connect Endpoint (T-351), as botocore's
-//! `SigV4QueryAuth` signs one (`botocore/auth.py`, read on 2026-10-31): the
+//! WebSocket of EC2 Instance Connect Endpoint, as botocore's
+//! `SigV4QueryAuth` signs one (`botocore/auth.py`): the
 //! request's own parameters, then `X-Amz-Algorithm`, `X-Amz-Credential`,
 //! `X-Amz-Date`, `X-Amz-Expires`, `X-Amz-SignedHeaders` and, for a
 //! temporary credential, `X-Amz-Security-Token`, each name and value
@@ -52,7 +52,7 @@ pub fn escape(text: &str) -> String {
 
 /// `secs` since the Unix epoch as `YYYYMMDDTHHMMSSZ`.
 pub fn amz_date(secs: i64) -> String {
-    let (y, m, d) = crate::clock::civil_from_days(secs.div_euclid(86_400));
+    let (y, m, d) = pod_core::clock::civil_from_days(secs.div_euclid(86_400));
     let rest = secs.rem_euclid(86_400);
     format!("{y:04}{m:02}{d:02}T{:02}{:02}{:02}Z", rest / 3600, rest % 3600 / 60, rest % 60)
 }
