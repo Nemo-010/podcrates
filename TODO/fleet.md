@@ -2927,7 +2927,9 @@ A user spends about 20 minutes to set up a project of PodUtils. The owner's ruli
 
 ## Premise
 
-- Not read: podrunner's installer and its lessons (asked in the COORD issue of the ruling); the installers of podssh, podnet and podvm.
+- Read: PodUtils/podrunner#183 (`PodUtils/podrunner:scripts/install.sh`, about 320 lines, with `PodUtils/podrunner:scripts/install-pins.py`, `PodUtils/podrunner:scripts/make-bundle.sh` and `PodUtils/podrunner:scripts/test-install.sh`), PodUtils/podnet#586 (`PodUtils/podnet:scripts/install.sh`, 501 lines, `PodUtils/podnet:docs/install.md`), PodUtils/podssh#269 (no installer: three commands in its README).
+- Not read: podvm's installer; the code of each installer.
+- The 20 minutes of podrunner: five sources (one a workflow artifact that needs `gh` and a token, and expires), a SHA-256 and an attestation for each by hand, an image that the pinned podvm could not load, a first command of about eight flags, then the host (a small `/tmp`, no loopback bind, a proxy with a credential).
 
 ## Approach
 
@@ -2935,6 +2937,11 @@ A user spends about 20 minutes to set up a project of PodUtils. The owner's ruli
 2. podcrates gives the shared part: a POSIX `sh` core (the detection of the OS and the architecture, the download of the static binary of the release with the first fetch tool that a probe finds, the check of its SHA-256 against the `SHA256SUMS` of the release, an atomic move into the prefix, the PATH line, a second run that changes nothing, `--prefix`, `--version`, `--dry-run`, an offline install from a file, and the proxy of the environment), with the text rules of T-700. Each project keeps its name, its files and its setup steps in a small part of its own.
 3. A test runs the installer of each project in each profile of `pod-lab` (T-692, T-701) with `shellcheck --shell=sh` and `dash`, `busybox sh` and `bash --posix`: a first run, a second run that changes nothing, and a run cut in the middle. The time of a run is measured and has a limit.
 4. podcrates publishes its own installer for `podlab`.
+
+The needs of the projects, for the core:
+- From podrunner: the pins (each version and SHA-256) are written into the published installer by the release from the pin files, and a check fails on a difference; a copy of the tree with no pins refuses a network install. Each file goes to a temporary name in the prefix, is checked, then moved; a second run checks each file against its pin and downloads only what is missing or wrong. An offline bundle as `.tar.gz` (busybox has `tar` and `gzip`, not always `unzip`). The free space of each target directory is checked before a download, and the error names the knob that fixes it. The proxy comes from `https_proxy`, `HTTPS_PROXY` and `no_proxy`, and a credential never reaches a file or argv. A configuration file at the end, so the first command is short. The last step is a self-check that runs the program (`doctor`) and names the host fact on failure. Each file is an asset of a release, never a workflow artifact. Test the file that the release publishes, not a copy.
+- From podnet: the first downloader that a probe finds (`curl`, `wget`, `aria2c`, `python3`, `perl`, `busybox wget` with a warning); the SHA-256 tool that a probe finds; the cosign signature of `SHA256SUMS` where `cosign` is there; the new binary runs once in the install directory before it replaces the old one; INT, TERM and HUP remove the temporary files; `$XDG_BIN_HOME`, else `~/.local/bin`; a host that loses its disk at each start (an install directory that stays).
+- From podssh: the target triple of each host (musl on Linux, both Macs, the `.exe` of Windows), the quarantine of macOS, and a prefix that can run programs (some hosts mount `$HOME` with `noexec` while `/tmp` runs them).
 
 ## Prove
 
@@ -2958,7 +2965,8 @@ The open issues of the projects of PodUtils and their comments go stale and drif
 ## Premise
 
 - Read: `scripts/check-github-numbers.py`, `crates/pod-todo/src/github.rs`.
-- Not read: how podssh, podnet, podvm and podrunner map their issues to their records.
+- Read: PodUtils/podssh#269, PodUtils/podnet#586, PodUtils/podrunner#184. Each maps an issue in `TODO/issues.md` (a row `| #N | Subject | State | Entries |`, or a bold head `**#N, ...**` for an issue of many asks) and lists each number in `TODO/github.txt`; each entry's `**Source:**` names the issue. The State column is written by hand: it is the part that drifts. `record-issues.yml` (`check-github-numbers.py`) compares `github.txt` with GitHub each day.
+- Not read: podvm's map.
 
 ## Approach
 
@@ -2966,6 +2974,8 @@ The open issues of the projects of PodUtils and their comments go stale and drif
 2. The status of an issue is one block in its body that a tool writes from the record (the entries, their status, the tag that carries the work, the date), between two markers. A comment never holds the current state. A session never edits the block by hand.
 3. A workflow of each project (a reusable workflow of podcrates, at a tag) runs on each push to the default branch and each day: it writes the block of each issue, closes an issue whose entries are done (with a comment that names the tag), reopens a closed issue with an open entry, and fails when an open issue has no entry or no block. It uses `GITHUB_TOKEN` with `issues: write`.
 4. Each project takes the workflow; podcrates first.
+
+The kinds of issue, each with its rule (from the answers): an external report (a user or a tester; its author reads only that issue, so its block matters most); a COORD message (`COORD-NNN:` in the title) closes on the answer of the other project and its subject, not on the entries of the sender, and its `state:` lines move into the block; a run request (`[gh action] requested`) has no entry of its own and closes when the runs are recorded; a deferred issue (`[DEFERRED]`) stays open with blocked entries; a tracker (its body lists the asks of another project) closes when each ask is done. The State column of `TODO/issues.md` becomes generated, or leaves. A session account that cannot start a workflow relies on the daily schedule, and on each push where the account can start one.
 
 ## Prove
 
