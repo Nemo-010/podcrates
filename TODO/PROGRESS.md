@@ -97,8 +97,8 @@ for podnet (item 3c): T-526. Then the items below, in order.
       with the first carrier over a shared path), T-514 (a stream-aware
       ARQ, when podnet asks), T-501 (`pod-turn` with RFC 6062),
       T-214 and T-215 (`pod-transit`, `pod-wormhole`).
-   e. Then: T-029 and T-030 (`pod-cloudflare`), T-035, T-302 and T-673
-      (`pod-egress`; T-673 makes `check-probe.py` green), T-039 (`pod-ts`), T-502 (a headscale harness).
+   e. Then: T-029 and T-030 (`pod-cloudflare`), T-035 and T-302
+      (`pod-egress`), T-039 (`pod-ts`), T-502 (a headscale harness).
    The rest of `pod-warp`: T-339 (partial: the trial patches and the
    live run), T-482, T-481, T-470, T-410, T-409; T-407 (the fuzz targets
    of the server face of `pod-proxy`). T-121 and T-124
