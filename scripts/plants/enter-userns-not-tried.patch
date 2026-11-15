@@ -1,5 +1,5 @@
 diff --git a/crates/pod-enter/src/ns_user.rs b/crates/pod-enter/src/ns_user.rs
-index e6a77963..6167f954 100644
+index 61d09c02..c20f95fa 100644
 --- a/crates/pod-enter/src/ns_user.rs
 +++ b/crates/pod-enter/src/ns_user.rs
 @@ -95,7 +95,7 @@ pub(crate) struct Own {
@@ -9,5 +9,5 @@ index e6a77963..6167f954 100644
 -        Err(Error::NsSetup { step, errno }) if calls_for_user_namespace(step, errno) => {
 +        Err(Error::NsSetup { step, errno }) if false && calls_for_user_namespace(step, errno) => {
              mount.user = Some(Maps::of_caller());
+             mount.devices = Some(crate::ns_dev_bind::devices(root, &plan.names));
              let result = spawn_with(root, plan, word, None, None, None, Some(NsEntry::Own(mount)), false, err);
-             Own { result, first: Some((step, errno)) }

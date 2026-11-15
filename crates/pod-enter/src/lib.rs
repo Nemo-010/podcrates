@@ -61,6 +61,7 @@ mod confine;
 mod entry;
 mod launch;
 mod names;
+mod ns_dev_bind;
 mod ns_join;
 mod ns_optional;
 mod ns_overlay;
@@ -78,6 +79,10 @@ pub use confine::check_exec;
 pub use entry::*;
 pub use limits::{Limit, Resource};
 pub use names::Names;
+pub use ns_dev_bind::{
+    Choice, DEVICES, Kind, NS_DEV_BIND_STEP, NS_DEV_POINT_STEP, NS_DEV_REMOUNT_STEP, choose, kind_of, no_dev_line,
+    refused_start as ns_dev_refused_start, skipped_line as ns_dev_skipped_line,
+};
 pub use ns_join::{NS_JOIN_USER_STEP, fdinfo_pid, other_user_namespace};
 pub use ns_optional::{NS_PROC_STEP, NS_PTS_STEP, ns_proc_refused, ns_proc_target, ns_pts_target, ns_refused_line};
 pub use ns_overlay::{

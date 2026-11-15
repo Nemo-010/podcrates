@@ -1,0 +1,13 @@
+diff --git a/crates/pod-enter/src/ns_dev_bind.rs b/crates/pod-enter/src/ns_dev_bind.rs
+index 4d14067a..05785f33 100644
+--- a/crates/pod-enter/src/ns_dev_bind.rs
++++ b/crates/pod-enter/src/ns_dev_bind.rs
+@@ -77,7 +77,7 @@ pub fn choose(image: Kind, host_char: bool) -> Choice {
+         Kind::Missing | Kind::Regular | Kind::CharDevice if !host_char => "the host's node is not a character device",
+         Kind::Missing => return Choice::Bind { create: true },
+         Kind::Regular | Kind::CharDevice => return Choice::Bind { create: false },
+-        Kind::Link => "the image holds a symbolic link there, and the entry binds nothing over a link",
++        Kind::Link => return Choice::Bind { create: false },
+         Kind::Directory => "the image holds a directory there",
+         Kind::Other => "the image holds a file of another kind there",
+         Kind::Unreadable => "the entry cannot read that path of the image",

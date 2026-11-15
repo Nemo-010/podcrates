@@ -143,6 +143,9 @@ pub struct NsMount {
     /// The overlay root, first after the private remount, where the root
     /// is an overlay ([`crate::Root::Overlay`]).
     pub(crate) overlay: Option<OverlayMount>,
+    /// The binds of the host's devices, built with the user namespace
+    /// (`ns_dev_bind`).
+    pub(crate) devices: Option<crate::ns_dev_bind::Devices>,
 }
 
 /// The mounts of the namespace rung: its own, or the mount namespace of
@@ -290,6 +293,9 @@ pub fn ns_setup_step(step: u8) -> Option<&'static str> {
         NS_PTS_STEP => Some("binding /dev/pts on /dev/pts"),
         crate::ns_proc_bind::NS_PROC_BIND_STEP => Some("binding the host's /proc on /proc"),
         crate::ns_proc_bind::NS_PROC_REMOUNT_STEP => Some("remounting the bind of /proc nosuid, nodev and noexec"),
+        crate::ns_dev_bind::NS_DEV_POINT_STEP => Some("opening the mount point of a device of the host"),
+        crate::ns_dev_bind::NS_DEV_BIND_STEP => Some("binding the host's device"),
+        crate::ns_dev_bind::NS_DEV_REMOUNT_STEP => Some("remounting the bind of a device nosuid and noexec"),
         NS_JOIN_STEP => Some("setns(pidfd, CLONE_NEWNS)"),
         crate::ns_join::NS_JOIN_USER_STEP => Some("setns(pidfd, CLONE_NEWUSER | CLONE_NEWNS)"),
         NS_OVERLAY_TMPFS_STEP => Some("mounting the tmpfs of the overlay layers"),
@@ -336,8 +342,8 @@ pub(crate) fn namespace_entry(root: &RootDir, plan: &Plan, banner: bool, err: &m
     let Some(target) = CBuf::new(&target) else {
         return chroot(err, "the /tmp mount point contains a NUL byte", banner);
     };
-    let mut mount =
-        NsMount { user: None, tmp_target: target, optional: optional_mounts(&root.path, names), overlay: None };
+    let optional = optional_mounts(&root.path, names);
+    let mut mount = NsMount { user: None, tmp_target: target, optional, overlay: None, devices: None };
     let own = crate::ns_user::spawn_own(root, plan, &mut mount, banner, err);
     match (own.result, own.first) {
         (Err(Error::NsSetup { step, errno }), Some((first, e))) => {

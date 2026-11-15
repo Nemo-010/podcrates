@@ -1,0 +1,6 @@
+# pod-enter: the bind of a device of the host goes over a link of the image; the live test as a caller with no capabilities must fail where /dev/zero is no longer a link (T-688).
+ENTRY=T-688
+GROUP=enter
+EXPECT='left: Ok\(7\)'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

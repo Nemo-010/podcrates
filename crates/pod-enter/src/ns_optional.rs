@@ -86,16 +86,20 @@ pub(crate) fn optional_mounts(root: &str, names: &Names) -> Vec<Optional> {
 
 /// Make each optional mount, in the child after the tmpfs on `/tmp`: no
 /// allocation. A refused one writes its line and the next one goes on.
-/// `user`: the rung is in a user namespace of its own, where `EPERM` calls
-/// for the fallback of the mount.
-pub(crate) fn mount_each(list: &[Optional], user: bool) {
-    for m in list {
+/// In a user namespace of the rung, `EPERM` calls for the fallback of the
+/// mount, and the host's devices come after (`ns_dev_bind`).
+pub(crate) fn mount_each(ns: &crate::entry::NsMount) {
+    let user = ns.user.is_some();
+    for m in &ns.optional {
         let Err(e) = sys::mount(&m.source, &m.target, &m.fstype, m.flags) else { continue };
         if user && e == sys::EPERM && !matches!(m.fallback, Fallback::None) {
             crate::ns_proc_bind::bind(&m.fallback, &m.target);
             continue;
         }
         refused_line(&m.refused, e);
+    }
+    if let Some(devices) = ns.devices.as_ref().filter(|_| user) {
+        crate::ns_dev_bind::bind_each(devices);
     }
 }
 

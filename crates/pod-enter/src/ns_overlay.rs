@@ -196,7 +196,8 @@ pub(crate) fn namespace_root_entry(root: Root<'_>, plan: &Plan, banner: bool, er
         return Err(Error::Overlay { step: "the /tmp of the image as a mount point", errno: sys::ENOTDIR });
     };
     let overlay = Some(OverlayMount::new(lower, upper)?);
-    let mut mount = NsMount { user: None, tmp_target, optional: optional_mounts(&lower.path, &plan.names), overlay };
+    let optional = optional_mounts(&lower.path, &plan.names);
+    let mut mount = NsMount { user: None, tmp_target, optional, overlay, devices: None };
     match crate::ns_user::spawn_own(lower, plan, &mut mount, banner, err).result {
         Err(Error::NsSetup { step, errno }) => Err(Error::Overlay { step: overlay_step(step), errno }),
         other => other,

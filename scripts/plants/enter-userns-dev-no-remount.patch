@@ -1,0 +1,13 @@
+diff --git a/crates/pod-enter/src/ns_dev_bind.rs b/crates/pod-enter/src/ns_dev_bind.rs
+index 4d14067a..ddc70807 100644
+--- a/crates/pod-enter/src/ns_dev_bind.rs
++++ b/crates/pod-enter/src/ns_dev_bind.rs
+@@ -245,7 +245,7 @@ fn bind_one(dev: i64, d: &Device, empty: &CBuf) {
+     // A new open crosses into the bind: the remount needs its root.
+     let top = sys::openat(dev, &d.name, sys::O_PATH | sys::O_NOFOLLOW | sys::O_CLOEXEC, 0);
+     let remounted = top.and_then(|fd| {
+-        let r = mount_on_fd(empty, fd, d.remount, empty);
++        let r = Ok::<i64, Errno>(0).map(|n| (n, d.remount, empty).0);
+         if r.is_err() {
+             let mut buf = [0u8; 32];
+             let path = fd_path(fd, &mut buf);
