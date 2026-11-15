@@ -1,0 +1,8 @@
+# A split end sends the close of the bytes of its link after a loss as
+# the end of its bytes: the peer link ends with "the carrier of the link
+# ended" in place of the lost half (T-639).
+ENTRY=T-639
+GROUP=link
+EXPECT='rounds named no lost half'
+RUN='cargo test -p pod-link --all-features --test split a_closed_half_ends_each_link'
+LIMIT=1800

@@ -566,3 +566,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-633](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: the screen sign of the readiness fails on Validation OS, so the provision never types into a Windows guest |
 | [T-634](relay.md) | P1 | S | M2 | defect | done | `pod-relay`: the run of a code fails over the Nostr relays alone, though `pod_wormhole::nostr` pairs (PodUtils/podssh#247) |
 | [T-635](podvm.md) | P3 | S | M7 | feature | open | `pod-guest`: a setting of the bus of the root disk, so that a warm start runs on QEMU 8.2 |
+| [T-639](relay.md) | P2 | S | M2 | defect | open | `pod-link`: a closed half of a split session can end the listener with "the carrier of the link ended" in place of the lost half |

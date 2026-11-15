@@ -7816,3 +7816,56 @@ cargo test -p pod-relay --all-features --test pair_code_live -- --ignored --noca
 - The READMEs of `pod-wormhole` and `pod-relay` give the close, the
   stand-in, the tests and the plants; their counts of plants (25) and of
   ignored tests (21) are corrected.
+
+# T-639: `pod-link`: a closed half of a split session can end the listener with "the carrier of the link ended" in place of the lost half
+
+**Source:** PodUtils/podnet#572 (COORD-085 of podnet;
+PodUtils/podnet@T-353), a defect of T-500.
+**Category:** defect
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+podnet with `v0.49.0`: its test
+`link_split::a_closed_down_half_ends_the_session_with_down_carrier_lost`
+(a `pod_link::Link` over each end of `split::Split`, two memory halves;
+the down half closes after one stream moved 3 bytes) failed one time in a
+full `cargo test --workspace` under load with `listener: the carrier of
+the link ended`. Alone it passed 5 times of 5, and it passed in each CI
+run. The rule of call C493 (and of podnet's decisions) is that each end
+names the lost half. The session ends in each case, and the dialer names
+the half; only the text at the listener differs. The ask: the byte
+stream of a split end gives the `Lost` error, not an end of stream, when
+a half is lost, also when the loss and the end race; a test of `pod-link`
+that closes each half many times under load. podnet takes the tag with
+the fix and runs its test 50 times.
+
+## Premise
+
+- Read: PodUtils/podnet#572; podnet's tests/link_split.rs (its `Paths`
+  close a half at each end at one time); `crates/pod-link/src/split/`,
+  `crates/pod-link/src/pipes.rs`, `crates/pod-link/src/link.rs`,
+  `crates/pod-link/tests/split.rs`; the Done section of T-500, calls C492
+  and C493.
+- The probable cause of podnet: the link reads 0 bytes from the byte
+  stream of the split end (`Ok(0)` gives `Error::CarrierEnded`) before
+  the run of that end set the `Lost` error on its pipes.
+
+## Approach
+
+1. Find the path that gives the end of the bytes after a loss, and make
+   the split give `Lost` on it.
+2. A test in `tests/split.rs` that closes each half of a session of two
+   links in many rounds (at least 200) on the multi-thread runtime with
+   tasks that load it, and checks the text of each link in each round. It
+   fails on the old code.
+3. A plant.
+
+## Prove
+
+```sh
+cargo test -p pod-link --all-features --test split
+```
