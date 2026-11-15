@@ -1,0 +1,13 @@
+diff --git a/crates/pod-egress/src/iap/close.rs b/crates/pod-egress/src/iap/close.rs
+index e4b6d7d0..c8df854f 100644
+--- a/crates/pod-egress/src/iap/close.rs
++++ b/crates/pod-egress/src/iap/close.rs
+@@ -72,7 +72,7 @@ pub fn fate(code: Option<u16>) -> Fate {
+ /// is the origin's; a session that the server forgot is the session's.
+ pub fn stage_and_class(code: Option<u16>) -> (Stage, Class) {
+     match fate(code) {
+-        Fate::Fail(Why::NotAuthorized) | Fate::Reauthenticate => (Stage::WebSocket, Class::Refused),
++        Fate::Fail(Why::NotAuthorized) | Fate::Reauthenticate => (Stage::WebSocket, Class::Unavailable),
+         Fate::Fail(Why::Backend) | Fate::End => (Stage::Origin, Class::Unavailable),
+         Fate::Fail(Why::Lookup) => (Stage::Origin, Class::NotFound),
+         Fate::Fail(Why::Lost) => (Stage::Session, Class::Unavailable),

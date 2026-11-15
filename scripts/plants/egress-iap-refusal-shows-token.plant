@@ -1,0 +1,6 @@
+# A refused upgrade of IAP keeps the token that its body quotes: the test of
+# the refusals must find the token in the words.
+ENTRY=T-035
+GROUP=egress
+EXPECT='test an_iap_refusal_of_the_account_is_a_typed_failure \.\.\. FAILED'
+RUN='cargo test -p pod-egress --all-features --test iap -- an_iap_refusal_of_the_account_is_a_typed_failure'
