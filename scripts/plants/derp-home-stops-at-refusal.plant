@@ -1,0 +1,7 @@
+# podssh T-534: a node takes a server that answers its probe and then closes
+# in DERP's handshake as the end of its search: the test of a server that
+# closes after the client's info must fail.
+ENTRY=T-031
+GROUP=derp
+EXPECT='test a_server_that_closes_after_the_client_s_info_sends_the_node_to_the_next \.\.\. FAILED'
+RUN='cargo test --no-fail-fast -p pod-derp --all-features --test derp_link -- a_server_that_closes_after_the_client_s_info_sends_the_node_to_the_next'

@@ -1,0 +1,12 @@
+--- a/crates/pod-derp/src/key.rs
++++ b/crates/pod-derp/src/key.rs
+@@ -129,8 +129,7 @@ impl fmt::Debug for Secret {
+ pub fn client_info_json(app: &str) -> Vec<u8> {
+     // Go's order of the fields; the name as a JSON string, so that a name of
+     // the caller's with a quote stays one member.
+-    let app = serde_json::Value::from(app);
+-    format!(r#"{{"version":{},"CanAckPings":false,"AppName":{app}}}"#, super::frame::VERSION).into_bytes()
++    format!(r#"{{"version":{},"CanAckPings":false,"AppName":"{app}"}}"#, super::frame::VERSION).into_bytes()
+ }
+ 
+ /// What the server says of itself: its version, and the rate at which it

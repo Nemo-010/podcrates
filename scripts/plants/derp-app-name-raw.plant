@@ -1,0 +1,6 @@
+# The client's info writes the caller's name with no JSON escape: a name with
+# a quote breaks the JSON, and the test of the client's info must fail.
+ENTRY=T-031
+GROUP=derp
+EXPECT='test key::tests::the_client_s_info_is_the_json_that_go_writes_and_the_server_s_is_read_in_both_cases \.\.\. FAILED'
+RUN='cargo test --no-fail-fast -p pod-derp --all-features --lib -- key::tests::'

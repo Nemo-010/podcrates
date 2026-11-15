@@ -12,8 +12,8 @@
 //! cargo test -p pod-derp --test derp_main_live -- --ignored --nocapture
 //! ```
 //!
-//! The job `derp-main` of `.github/workflows/live.yml` runs it from GitHub
-//! Actions.
+//! The measure `derp-main` of `.github/workflows/live.yml` runs it from
+//! GitHub Actions, by hand.
 
 mod common;
 

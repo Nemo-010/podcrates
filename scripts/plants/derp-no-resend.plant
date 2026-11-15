@@ -1,0 +1,7 @@
+# podssh T-349: a sender that never sends a lost segment again. The two
+# halves of a link through a server of the test's that drops packets must
+# fail, and so must 8 MiB each way through the stand-in that drops 5 %.
+ENTRY=T-031
+GROUP=derp
+EXPECT='test arq_tests::eight_mib_go_each_way_with_five_percent_of_the_packets_dropped \.\.\. FAILED'
+RUN='cargo test --no-fail-fast -p pod-derp --all-features --lib -- arq_tests::'

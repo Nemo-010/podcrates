@@ -1,0 +1,11 @@
+--- a/crates/pod-derp/src/servers.rs
++++ b/crates/pod-derp/src/servers.rs
+@@ -168,7 +168,7 @@ pub fn fleet_with(main: bool) -> Vec<Server> {
+ /// A value of `main` that is neither yes nor no is refused.
+ pub fn chosen(named: Option<&str>, main: Option<&str>, names: &Names) -> Result<(Vec<Server>, bool), String> {
+     let Some(list) = named else {
+-        return Ok((fleet_with(main_wanted(main, names)?), false));
++        return Ok((fleet_with(main.is_some() || main.is_none()), false));
+     };
+     let servers = list.split(',').map(Server::parse).collect::<Result<Vec<_>, _>>()?;
+     Ok((servers, true))

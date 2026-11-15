@@ -1,0 +1,7 @@
+# podssh T-379: a client tries the ticket's server alone, never the rest of
+# its list, where a node whose home went away calls the next one home: the
+# test of the order of a client's servers must fail.
+ENTRY=T-031
+GROUP=derp
+EXPECT='test servers::tests::a_client_s_own_list_follows_the_ticket_s_server_when_it_holds_that_server \.\.\. FAILED'
+RUN='cargo test --no-fail-fast -p pod-derp --all-features --lib -- servers::tests::'

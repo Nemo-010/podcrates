@@ -1,0 +1,11 @@
+--- a/crates/pod-derp/src/send.rs
++++ b/crates/pod-derp/src/send.rs
+@@ -178,7 +178,7 @@ impl Sender {
+         // As many as the window lets go again, and one at least: with the
+         // peer's window closed, that one asks for it again.
+         let again = room.max(1).saturating_sub(self.in_flight());
+-        for seg in self.queue.iter_mut().filter(|s| s.lost).take(again as usize) {
++        for seg in self.queue.iter_mut().filter(|s| s.lost).take(again as usize * 0) {
+             self.sends += 1;
+             seg.sent = Some((now, self.sends));
+             seg.sends += 1;

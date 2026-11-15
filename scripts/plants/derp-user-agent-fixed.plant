@@ -1,0 +1,6 @@
+# The upgrade names the crate, not the program of the caller (Names::user_agent):
+# the test of the upgrade request must fail.
+ENTRY=T-031
+GROUP=derp
+EXPECT='test dial::tests::the_upgrade_asks_for_derp_s_subprotocol_at_its_path_and_names_no_token \.\.\. FAILED'
+RUN='cargo test --no-fail-fast -p pod-derp --all-features --lib -- dial::tests::'
