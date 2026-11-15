@@ -170,7 +170,7 @@ numbers. `TODO/RULES.md` gives the rules.
 | #165 | [gh action] requested: guest-windows.yml on main at 1368e49 (v0.51.0) | closed (run 43683270673: 6 of 6 cold boots) | T-640 |
 | #166 | [gh action] requested: ci, adoption, plants, secrets and deny on main at 0c6c4c0 | closed (main moved; replaced by #168) | T-643, T-645, T-646, T-647, T-648, T-650 |
 | #167 | [gh action] requested: the checks of a push at a634d3a | closed (a wrong commit id; replaced by #168) | T-645 |
-| #168 | [gh action] requested: ci, adoption, plants, secrets and deny on main at a634d3a | open | T-643, T-645, T-646, T-647, T-648, T-650 |
+| #168 | [gh action] requested: ci, adoption, plants, secrets and deny on main at a634d3a | closed (ci, secrets, deny passed; adoption and plants cancelled by #169) | T-643, T-645, T-646, T-647, T-648, T-650 |
 | #169 | [gh action] requested: the gates of main at 482ba53 and the release v0.51.0 | open | T-035, T-639, T-640, T-643, T-647, T-648, T-650, T-651 |
 
 #79 to #81 are pull requests.
