@@ -18,14 +18,22 @@ to a tunnel of Cloudflare:
 * `meek` and `webtunnel`: Tor's pluggable transports meek_lite and
   WebTunnel, as lyrebird speaks them, with what they share (`pt`);
 * `cloudflare`: the road of `cloudflared access tcp`, with the credentials
-  of Cloudflare Access.
+  of Cloudflare Access;
+* `vless`: a VLESS server (Xray-core, sing-box, shoes) over a WebSocket or
+  XHTTP (HTTP/2, or HTTP/1.1 on two connections);
+* `vmess`: a VMess server in the AEAD form over a WebSocket;
+* `trojan`: a Trojan server over TLS or a WebSocket over TLS;
+* `shadowsocks`: a Shadowsocks server in the AEAD form or Shadowsocks 2022,
+  over TCP or a WebSocket (an Outline access key), with the `ss://` URIs,
+  the subscriptions and the access keys that name one.
 
-This is part 1 of the crate (T-035). Parts 2 and 3 add `vless/`, `vmess/`,
-`trojan/`, `shadowsocks/`, `eice/` and `iap/` of podssh-ws.
+This is parts 1 and 2 of the crate (T-035). Part 3 adds `eice/` and `iap/`
+of podssh-ws.
 
 The base is podssh's `crates/podssh-ws/src/` at `2ffb7cd7`: `via/`,
 `forwarder/`, `wstunnel/`, `wisp/`, `meek.rs`, `meek/`, `webtunnel.rs`,
-`pt.rs` and `cloudflare.rs`, with their tests.
+`pt.rs` and `cloudflare.rs` (part 1), `vless/`, `vmess/`, `trojan/` and
+`shadowsocks/` (part 2), with their tests.
 
 ## API
 
@@ -42,12 +50,17 @@ The base is podssh's `crates/podssh-ws/src/` at `2ffb7cd7`: `via/`,
 | `meek` (feature `meek`) | `Args` (`parse`), `Front`, `open(args, reach)`, `Session` (`shown`, `carry(local)`), `Ended`, `next_poll`, `session_id`, `MAX_PAYLOAD`, `INIT_POLL`, `MAX_POLL`, `MAX_TRIES`, `RETRY_DELAY`, `EXCHANGE_WAIT` |
 | `webtunnel` (feature `webtunnel`) | `Args` (`parse`, `shown`, `dial`, `server_name`), `open(args, reach)`, `request`, `check_answer`, `chain_hash` |
 | `cloudflare` (feature `cloudflare`) | `Access`, `connect(host, access, way, trust, timeout, idle)`, `connect_loopback(host, port, access, user_agent, timeout, idle)` (feature `plain-ws`), `request`, `refused_by_access`, `PORT`, `PATH`, `MAX_MESSAGE`, `LOGIN_PATH`, `CLIENT_ID`, `CLIENT_SECRET`, `TOKEN` |
+| `vless` (feature `vless`) | `Server` (`parse`, `shown`), `Id`, `Transport`, `Mode`, `Extra`, `link`, `Dial { way, trust, timeout, answer, silence_is_ready, at_end }`, `open(server, host, port, dial)`, `open_as(server, transport, ..)`, `modes(transport)`, `Opened { stream, how, answered }`, `Road { server, dial }` (a `pod_core::Dial`), `VlessError` (`line`, `stage_and_class`; a `pod_core::Failure`), `ENDED`, `not_vless`, `ANSWER_WAIT`, `EARLY_WAIT` |
+| `vmess` (feature `vmess`) | `Server` (`parse`, `shown`), `Cipher`, `link`, `Dial` (VLESS's), `open`, `open_at(.., unix)`, `Opened`, `Road { server, dial }` (a `pod_core::Dial`), `VmessError` (`line`, `stage_and_class`; a `pod_core::Failure`), `ANSWER_WAIT`, `EARLY_WAIT` |
+| `trojan` (feature `trojan`) | `Server` (`parse`, `shown`), `Password`, `Transport`, `link`, `Dial` (VLESS's), `open`, `Opened`, `Road { server, dial }` (a `pod_core::Dial`), `TrojanError` (`line`, `stage_and_class`; a `pod_core::Failure`), `ANSWER_WAIT`, `EARLY_WAIT` |
+| `shadowsocks` (feature `shadowsocks`) | `Node` (`parse`, `new`, `shown`), `Method`, `Dial { way, trust, timeout, answer, silence_is_ready }`, `open(node, host, port, dial)`, `Opened { carried, answered_in }`, `Carried`, `Status`, `Ended`, `Road { node, dial }` (a `pod_core::Dial`), `OpenError` (`line`, `stage_and_class`; a `pod_core::Failure`), `access_key`, `subscription`, `Listed`, `codec` (`Encoder`, `Decoder`, `ChunkError`, `address`, `parse_address`, `MAX_PAYLOAD`), `sip022`, `master_key`, `ANSWER_WAIT`, `TAG_LEN` |
 | `fuzzing` (feature `fuzzing`) | `wisp_packet`, `wisp_answer` |
 
 ## Each road as a dialer
 
 A road that takes its target from the client is a `pod_core::Dial`
-(`via::Client`, `forwarder::Forwarder`, `wisp::Road`, `wstunnel::Tunnel`):
+(`via::Client`, `forwarder::Forwarder`, `wisp::Road`, `wstunnel::Tunnel`,
+`vless::Road`, `vmess::Road`, `trojan::Road`, `shadowsocks::Road`):
 a dial of a target opens the road to it before the deadline, and gives the
 stream. Each says `names_inside()` (the far end resolves the name), its
 `label()` and its `proxy_label()`. A failure is a `pod_core::Failure` with
@@ -86,6 +99,10 @@ the bridge or the tunnel names: they are not dialers.
 | `wstunnel` | wstunnel (HMAC-SHA-256 of its token) |
 | `meek`, `webtunnel` | Tor's pluggable transports (SHA-256) |
 | `cloudflare` | the Access road |
+| `vless` | VLESS (h2, http, bytes, SHA-1, tokio-rustls) |
+| `vmess` | VMess's AEAD form (AES, HMAC-SHA-256, MD5, the AEADs of `pod-tls`'s feature `pure`); turns on `vless` |
+| `trojan` | Trojan (SHA-224); turns on `vless` |
+| `shadowsocks` | Shadowsocks (MD5, HKDF-SHA1, BLAKE3 in its portable code, the AEADs of `pod-tls`'s feature `pure`) |
 | `plain-ws` | `cloudflare::connect_loopback`, for the tests; no binary turns it on |
 | `fuzzing` | the readers of the fuzz target `wisp_packet`; no consumer turns it on |
 
@@ -95,10 +112,11 @@ No feature is on by default. Each one is pure Rust.
 
 | Setting | Where | What |
 | --- | --- | --- |
-| the way out | `Dial::way`, `Connect::way`, `Reach::way`, `cloudflare::connect`'s `way` | the dialer (direct, the host's proxy), the TLS context and its words, the user agent |
+| the way out | `Dial::way` (of each road), `Connect::way`, `Reach::way`, `cloudflare::connect`'s `way` | the dialer (direct, the host's proxy), the TLS context and its words, the user agent |
 | the trust | `trust` of each | the roots of each TLS connection |
 | the bounds | `timeout`, `wait` | each step of a dial |
 | the end of input | `at_end` | a Close at once, or after the peer's end |
+| the wait for an answer | `answer`, `silence_is_ready` of VLESS's and Shadowsocks's `Dial` | how long a road waits for the server's first bytes, and whether a silence is a stream (a pipe) |
 | the notes | `note` | the sink of a peer's own words (`egress.note`, `wisp.note`) |
 | the credentials file | `via::Dial::auth_file` | how the user names it in the words of a `407` |
 
@@ -117,7 +135,17 @@ the class of `pod_ws::ConnectError`; `Answer` is `WebSocket`/`Protocol`;
 another `Closed` is `Origin`/`Unavailable`; `Gone` and `Failed` are
 `WebSocket`/`Unavailable`. `WstunnelError`: `Target` is `Connect`/`Usage`;
 `Refused` (each 400 of wstunnel) is `WebSocket`/`Refused`; `NotWstunnel` is
-`WebSocket`/`Protocol`. meek_lite, WebTunnel and `pt` keep podssh's
+`WebSocket`/`Protocol`. The server of VLESS, VMess, Trojan and
+Shadowsocks is the relay of its road: `Target` is `Connect`/`Usage`; `Dial`
+is the stage and the class of `pod_proxy::DialError`; `Carry` and
+Shadowsocks's `WebSocket` (TLS, the upgrade, HTTP/2) are
+`WebSocket`/`Unavailable`; `Refused` (an HTTP status) is
+`WebSocket`/`Refused`; VLESS's `Http1` is `WebSocket`/`Unsupported`; an end
+before the answer (`Ended`, Trojan's `Fallback`, Shadowsocks's `Silent` with
+an end) is `Relay`/`Refused`; an answer of another protocol (`NotVless`,
+VMess's `Wrong`, Shadowsocks's `Chunk`) is `Relay`/`Protocol`; no answer in
+the wait (`Silent`) is `Relay`/`Timeout`; Shadowsocks's `Send` and `Cut` are
+`Relay`/`Unavailable`. meek_lite, WebTunnel and `pt` keep podssh's
 `String`.
 
 ## Parity
@@ -142,7 +170,18 @@ Each line of the source, as it is here:
   their tries;
 - [x] WebTunnel: the arguments, the pin of the certificates, the upgrade;
 - [x] the Access client: the upgrade of cloudflared, the credentials in
-  their headers, a refusal of Access with no credential in it.
+  their headers, a refusal of Access with no credential in it;
+- [x] VLESS: the share link and its ID, `extra`, the request and the
+  answer, the WebSocket, XHTTP's stream-one, stream-up and packet-up on
+  HTTP/2, packet-up and stream-up on HTTP/1.1 and two connections, the
+  padding, the wait for the answer and a pipe's silence;
+- [x] VMess: v2rayN's line, the AEAD header and its auth ID of the clock,
+  the body's ciphers, the answer, the WebSocket;
+- [x] Trojan: the share link and its password, the request, TLS alone and
+  a WebSocket over TLS, the fallback told from the target;
+- [x] Shadowsocks: the AEAD form and SIP022, `ss://` of SIP002, the
+  subscriptions (SIP008 and lists), Outline's access keys and their YAML,
+  a server in a WebSocket, a silence that names a proxy, the half-close.
 
 The differences: the way out is a `pod_ws::Way` (podssh: a `ProxyChoice`,
 the process's TLS context and `podssh/VERSION`); a peer's words go to
@@ -152,7 +191,12 @@ a function (podssh: a static); the names of the caller are parameters (the
 app of the TLS words, `auth_file`); the entropy is pod-core's (podssh:
 pod-tls's `OsRandom`); via's stream of HTTP/2 is pod-ws's; each road that
 takes a target is a `pod_core::Dial` and its error a `pod_core::Failure`
-(new).
+(new). In part 2: the user agent of a request of VLESS, VMess and Trojan is
+the way's (podssh: `url::USER_AGENT`); the proxy that a silence of
+Shadowsocks names is the way's dialer's `proxy_label` (podssh: the
+environment's proxy); the words that named podssh name "this client";
+VLESS's, VMess's and Trojan's carriers share one dial of TCP and TLS
+(`vless::ws::connect`).
 
 ## Adoption map
 
@@ -170,9 +214,18 @@ takes a target is a `pod_core::Dial` and its error a `pod_core::Failure`
 | podssh | the plants `t438-wisp-credit`, `t439-via-no-credential`, `t441-wstunnel-wrong-secret` | `egress-wisp-credit`, `egress-via-no-credential`, `egress-wstunnel-wrong-secret` |
 | podssh | `PODSSH_TEST_WISP_PYTHON`, `PODSSH_TEST_WISP_REQUIRED`, `PODSSH_TEST_FORWARDER_PLANT` | `POD_EGRESS_TEST_WISP_PYTHON`, `POD_EGRESS_TEST_WISP_REQUIRED`, `POD_EGRESS_TEST_FORWARDER_PLANT` |
 | podssh | PodUtils/podssh:.github/workflows/forwarder-live.yml | `.github/workflows/forwarder-live.yml` of podcrates; podssh's `via-interop.yml`, `wstunnel-interop.yml` and `wisp-rate.yml` drive its binary and stay |
+| podssh | `podssh_ws::{vless, vmess, trojan, shadowsocks}` (part 2) | the same modules of podssh-ws, each `pub use pod_egress::ROAD::*` with podssh's glue: `vless::dial(&trust, &proxy, timeout, answer, silence_is_ready, at_end)` (for VLESS, VMess and Trojan), `shadowsocks::dial(&trust, &proxy, timeout, answer, silence_is_ready)` |
+| podssh | `vless::Dial { trust: &trust, proxy: &proxy, .. }`, `shadowsocks::Dial { proxy, trust, .. }` (podssh-cli, `proxy_nodes`) | `Dial { way: podssh_ws::client::way(&proxy), trust: trust.clone(), .. }`, or the glue functions above |
+| podssh | `proxy_nodes::carry(nodes, host, port, &Dial<'_>, ..)` | `&Dial`: the same, with no lifetime |
+| podssh | `tests/vless.rs`, `vmess.rs`, `trojan.rs`, `shadowsocks.rs`, `shadowsocks_2022.rs` | the tests of this crate; `tests/vless_support/` and `trojan_support/` stay in podssh for `proxy_nodes.rs`, `hysteria.rs` and `tuic.rs` |
+| podssh | the plant `t440-vless-refusal-unsaid` | `egress-vless-refusal-unsaid` |
+| podssh | `PODSSH_XRAY_TEST_BIN` of `tests/vmess.rs` | `POD_EGRESS_XRAY_TEST_BIN` |
+| podssh | PodUtils/podssh:.github/workflows/vmess-interop.yml | `.github/workflows/vmess-interop.yml` of podcrates; podssh's `vless-interop.yml`, `trojan-interop.yml`, `outline-interop.yml` and `proxy-nodes-live.yml` drive its binary and stay |
+| podssh | the dependencies `hkdf`, `blake3`, `aes-gcm` and `chacha20poly1305` (dev) of podssh-ws | gone from podssh-ws: they serve this crate's roads |
 
-The adoption trial is `adoption/podssh/pod-egress.patch` with its `.run`
-and `.commit`.
+The adoption trials are `adoption/podssh/pod-egress.patch` (part 1) and
+`adoption/podssh/pod-egress-part2.patch` (part 2, after part 1), each with
+its `.run` and `.commit`.
 
 ## Tests
 
@@ -184,7 +237,11 @@ status, the answer of the frame form; the end of input; Wisp's packets, its
 opening, its errors and the forwarder's road; wstunnel's server, secret,
 token (against Python's vectors), request and words; meek_lite's polls,
 session id, arguments and carry; WebTunnel's arguments, pin, request and
-answer; the Access client's request.
+answer; the Access client's request; VLESS's link, ID, `extra`, header,
+answer, upgrade, XHTTP's requests and HTTP/1.1; VMess's line, KDF, header
+(against Xray-core's vectors) and body; Trojan's link, request and the
+fallback's answer; Shadowsocks's methods, keys, codec, SIP022, `ss://`,
+subscriptions, access keys and their YAML.
 
 The tests of each road against stand-ins on the loopback:
 
@@ -213,6 +270,24 @@ The tests of each road against stand-ins on the loopback:
 - `tests/cloudflare_access.rs` (feature `plain-ws`): the upgrade of
   cloudflared line by line, messages of 16 KiB, no Ping, a refusal of
   Access;
+- `tests/vless.rs` (with `tests/vless_support/`, the stand-ins of
+  Xray-core's server over a WebSocket, XHTTP on h2's HTTP/2 server and
+  HTTP/1.1 alone): a WebSocket and each mode of XHTTP, a wrong ID, a
+  refused upgrade, a wrong path and HTTP/1.1, packet-up and stream-up on
+  two connections, a pipe, a pipe's end of input, the host's proxy,
+  `a_vless_road_is_a_dialer_and_a_wrong_id_is_a_typed_failure`;
+- `tests/trojan.rs` (with `tests/trojan_support/`, the stand-ins of
+  trojan-gfw's server): TLS alone and a WebSocket, a wrong password and a
+  wrong path, a pipe's end of input, a pipe,
+  `a_trojan_road_is_a_dialer_and_a_wrong_password_is_a_typed_failure`;
+- `tests/shadowsocks.rs`, `tests/shadowsocks_2022.rs`: known answers of
+  Python and OpenSSL, a codec of the specification on the loopback, a wrong
+  password or key, the half-close, a pipe, the URIs and the lists, a server
+  60 s off, `a_shadowsocks_road_is_a_dialer_and_a_silence_is_a_typed_failure`;
+- `tests/vmess.rs`, against Xray-core (`vmess-interop.yml`, each day;
+  `POD_EGRESS_XRAY_TEST_BIN` names it, and each test says "did not run"
+  with none): each cipher, a pipe, a clock 5 minutes off, another ID and
+  another path;
 - live (`#[ignore]`, `forwarder-live.yml`, each day):
   `tests/live_forwarder.rs`, GitHub's version line through each built-in
   forwarder; `POD_EGRESS_TEST_FORWARDER_PLANT` makes each fail.
@@ -220,7 +295,9 @@ The tests of each road against stand-ins on the loopback:
 The plants (`scripts/plants/`, group `egress`): `egress-wisp-credit`,
 `egress-via-no-credential`, `egress-wstunnel-wrong-secret`,
 `egress-via-dial-untyped`, `egress-forwarder-close-untyped`,
-`egress-wstunnel-refusal-untyped`, `egress-wisp-blocked-untyped`.
+`egress-wstunnel-refusal-untyped`, `egress-wisp-blocked-untyped`,
+`egress-vless-refusal-unsaid`, `egress-vless-dial-untyped`,
+`egress-trojan-dial-untyped`, `egress-shadowsocks-dial-untyped`.
 
 The fuzz target `wisp_packet` (`fuzz/`, feature `fuzzing`).
 

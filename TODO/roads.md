@@ -1367,3 +1367,30 @@ A requirements file with the hash of each package (`uv pip compile --generate-ha
 ```sh
 python3 scripts/check-workflows.py
 ```
+
+# T-652: `pod-egress`: the stage of a failed TLS or upgrade on the roads of VLESS, VMess and Trojan
+
+**Source:** T-035 (a finding of its work, part 2; call C622).
+**Category:** feature
+**Milestone:** M4
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`VlessError::Carry`, `VmessError::Carry` and `TrojanError::Carry` hold one text for a failed TLS handshake, a failed WebSocket upgrade and a failed stream of HTTP/2, as podssh had them. Their class is `WebSocket`/`Unavailable` for each: a certificate that is not trusted (`Tls`/`Refused`), a clock that is wrong and a cut of the network have the class of a server that went away. `ws::failed` reads the `pod_ws::ConnectError` and drops its stage and class.
+
+## Premise
+
+- Read: `crates/pod-egress/src/vless/ws.rs` (`failed`), `crates/pod-egress/src/trojan/ws.rs`, `crates/pod-egress/src/vmess/ws.rs`, `crates/pod-egress/src/vless/xhttp.rs` (`tls`); `pod_ws::ConnectError::stage_and_class`; call C622.
+
+## Approach
+
+A variant `Connect(pod_ws::ConnectError)` in each of the three errors for a failure of TCP, TLS or the upgrade, with the stage and the class of the `ConnectError`, and the same words in `line`; XHTTP's own TLS gives a `ConnectError::Tls` with the kind of the cut. `Carry` stays for the failures of HTTP/2 and of the pump. A test of each road: a server whose certificate is not trusted fails with `Tls`.
+
+## Prove
+
+```sh
+cargo test -p pod-egress --all-features --test vless --test trojan
+```
