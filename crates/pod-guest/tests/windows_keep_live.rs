@@ -18,6 +18,12 @@
 //!    mounted mailbox, on the USB mailbox of step 2 and on an NVMe mailbox
 //!    (the line of a run before T-602). The test prints if each one
 //!    reached the agent; it does not fail on them.
+//! 5. cold boots (T-640): six runs of `pod_guest::run` on the installed
+//!    disk, each a cold boot with its own overlay, variable store, NVMe
+//!    mailbox, command and limit, as podvm runs a provisioned image. A run
+//!    that times out keeps its screen, its serial log and its mailbox in
+//!    `WORK/evidence`. The test prints the count that reached their
+//!    outcome, and fails at its end when one did not.
 //!
 //! The variables: `POD_GUEST_WINDOWS_ISO` (the ISO, which the workflow
 //! checks against the pin of the service `microsoft-windows-eval`),
@@ -46,6 +52,8 @@ const COMMAND: Duration = Duration::from_secs(5 * 60);
 const CONTROL: Duration = Duration::from_secs(150);
 /// The limit of the save and of the load of 4 GiB of RAM.
 const SAVE: Duration = Duration::from_secs(10 * 60);
+/// The limit of one cold boot of step 5, as the runs of podvm.
+const COLD: Duration = Duration::from_secs(10 * 60);
 
 struct Env {
     iso: PathBuf,
@@ -267,6 +275,7 @@ fn boot<'a>(env: &Env, p: &'a Plan, disk: &Path, vars: &Path, first: &Request) -
 fn a_windows_guest_takes_each_next_command_on_a_new_medium() {
     let env = Env::read();
     let (disk, vars) = install(&env);
+    let (reached_cold, boots) = cold_boots(&env, &disk, &vars);
 
     let p = plan(&env, &env.work.join("swap"), MailboxBus::Usb);
     let first = request("echo pod-guest-one& exit /b 3", "tok-one", Mode::KeepAlive);
@@ -319,6 +328,49 @@ fn a_windows_guest_takes_each_next_command_on_a_new_medium() {
     let reached = control(&env, &mut g, &p.mailbox, &ctl, "NVMe mailbox");
     env.say(&format!("RESULT: a write into the mounted NVMe mailbox reached the agent: {}", yes(reached)));
     drop(g);
+    assert_eq!(reached_cold, boots, "cold boots that did not reach their outcome; see WORK/evidence");
+}
+
+/// Step 5: cold boots of `pod_guest::run` on the installed disk. Returns
+/// the count that reached their outcome, and the count of boots.
+fn cold_boots(env: &Env, disk: &Path, vars: &Path) -> (usize, usize) {
+    // The host argv of each run, as podvm gives it, the exit code, and a
+    // text of stdout. The first three are the runs of PodUtils/podvm#380.
+    let runs: [(&[&str], i32, &str); 6] = [
+        (&["exit", "42"], 42, ""),
+        (&["cmd", "/c", "exit", "42"], 42, ""),
+        (&["echo", "out", "&", "exit", "7"], 7, "out"),
+        (&["ver"], 0, "Microsoft Windows"),
+        (&["echo", "pod-guest-cold&", "exit", "/b", "3"], 3, "pod-guest-cold"),
+        (&["exit", "0"], 0, ""),
+    ];
+    let mut st = Settings::new(&env.work);
+    st.evidence = Some(env.work.join("evidence"));
+    let mut reached = 0;
+    for (i, (argv, code, out)) in runs.iter().enumerate() {
+        let argv: Vec<String> = argv.iter().map(|a| a.to_string()).collect();
+        let command = agent::command_from_argv(&argv);
+        let token = agent::nonce().expect("a token");
+        let req = Request { command: command.clone(), token, timeout: COLD, mode: Mode::Once };
+        let dir = pod_guest::scratch_dir(&st, &format!("cold-{i}")).expect("a per-run directory");
+        let p = plan(env, &dir, MailboxBus::Nvme);
+        std::fs::copy(vars, &p.firmware_vars).unwrap();
+        pod_guest::stage(&st, Path::new("qemu-img"), disk, &p, agent::AGENT_CMD, &req).expect("the stage");
+        let start = Instant::now();
+        let got = pod_guest::run(&st, &p, &req);
+        let secs = start.elapsed().as_secs();
+        match got {
+            Ok(o) if o.code == *code && text(&o.stdout).contains(out) => {
+                reached += 1;
+                env.say(&format!("cold {i}: {command:?}: code {} in {secs}s", o.code));
+            }
+            Ok(o) => env.say(&format!("cold {i}: {command:?}: a wrong outcome in {secs}s: {o:?}")),
+            Err(e) => env.say(&format!("cold {i}: {command:?}: no outcome in {secs}s: {e}")),
+        }
+        pod_guest::cleanup(&st, &p);
+    }
+    env.say(&format!("RESULT: cold boots: {reached} of {} reached their outcome", runs.len()));
+    (reached, runs.len())
 }
 
 /// Step 3, the save: the idle guest of the swap into `WORK/warm`. `None`

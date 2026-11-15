@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**523 entries: 103 open, 8 partial, 6 blocked, 406 done.**
+**525 entries: 104 open, 8 partial, 6 blocked, 407 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 3 | 0 | 106 | 120 |
+| P1 | 11 | 3 | 0 | 107 | 121 |
 | P2 | 46 | 2 | 4 | 213 | 265 |
-| P3 | 46 | 3 | 2 | 85 | 136 |
-| **All** | 103 | 8 | 6 | 406 | 523 |
+| P3 | 47 | 3 | 2 | 85 | 137 |
+| **All** | 104 | 8 | 6 | 407 | 525 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -570,3 +570,5 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-637](roads.md) | P3 | S | M4 | chore | open | `pod-acme`: a whole order against Pebble on the loopback in CI |
 | [T-638](roads.md) | P3 | S | M4 | feature | open | `pod-opentunnel`: the stand-in of OpenTunnel behind the feature `standin` |
 | [T-639](relay.md) | P2 | S | M2 | defect | done | `pod-link`: a closed half of a split session can end the listener with "the carrier of the link ended" in place of the lost half |
+| [T-640](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: a cold boot of a Windows guest under KVM reaches no shutdown on one run of two, and a run that times out keeps no trace |
+| [T-641](podvm.md) | P3 | S | M7 | defect | open | `pod-guest`: the installer tries its shutdown again, and `dos::run` keeps the evidence of a run that times out |

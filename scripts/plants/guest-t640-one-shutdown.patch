@@ -1,0 +1,13 @@
+diff --git a/crates/pod-guest/src/agent.rs b/crates/pod-guest/src/agent.rs
+index 4178e98..64827d6 100644
+--- a/crates/pod-guest/src/agent.rs
++++ b/crates/pod-guest/src/agent.rs
+@@ -135,7 +135,7 @@ set WQTRIES=0
+ shutdown /s /t 0 /f
+ set WQOFF=%errorlevel%
+ >>%WQ%\WQLOG.TXT echo %TIME% shutdown %WQOFF%
+-if %WQOFF% EQU 0 goto :eof
++goto :eof
+ set /a WQTRIES+=1
+ if %WQTRIES% GEQ 300 goto :eof
+ call :nap

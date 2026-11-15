@@ -159,12 +159,22 @@ fn ready_reads_the_marker_of_the_agent() {
 /// [`AGENT_CMD`] that the agent runs, by the meaning that `cmd.exe` gives it.
 /// A line that the walk does not know fails the test, so that a change of
 /// the agent changes the walk too.
+///
+/// The walk has a clock in hundredths of a second: each line takes one, and
+/// a `ping` that answers takes one second.
 struct Guest {
     files: std::collections::HashMap<String, String>,
     vars: std::collections::HashMap<String, String>,
     events: Vec<String>,
     /// The exit code of the next command.
     exit: i32,
+    /// The exit code of each `ping`: 0 waits one second, another code
+    /// does not wait.
+    ping: i32,
+    /// The exit codes of the next `shutdown` calls; 0 after the last one.
+    shutdowns: std::collections::VecDeque<i32>,
+    /// The clock, in hundredths of a second.
+    clock: u64,
 }
 
 impl Guest {
@@ -174,11 +184,21 @@ impl Guest {
             vars: Default::default(),
             events: Vec::new(),
             exit: 0,
+            ping: 0,
+            shutdowns: Default::default(),
+            clock: 0,
         }
     }
 
+    /// `%TIME%`: `HH:MM:SS.CC`, the hour with a space in front of one digit.
+    fn time(&self) -> String {
+        let s = self.clock / 100;
+        format!("{:>2}:{:02}:{:02}.{:02}", (s / 3600) % 24, (s / 60) % 60, s % 60, self.clock % 100)
+    }
+
     fn expand(&self, text: &str) -> String {
-        let mut out = text.to_string();
+        let time = self.time();
+        let mut out = text.replace("%TIME:~6,2%", &time[6..8]).replace("%TIME%", &time);
         for (k, v) in &self.vars {
             out = out.replace(&format!("%{k}%"), v);
         }
@@ -190,19 +210,28 @@ impl Guest {
         word.rsplit('\\').next().unwrap().trim_matches('"').to_string()
     }
 
-    /// Walk the agent. `at_wait(n, self)` runs at the `n`th wait of one
-    /// second, from 1; the walk stops after 2,000 waits.
+    fn errorlevel(&self) -> i32 {
+        self.vars.get("errorlevel").map_or(0, |v| v.parse().unwrap())
+    }
+
+    /// Walk the agent. `at_wait(n, self)` runs at the `n`th `ping`, from 1;
+    /// the walk stops after 2,000 of them.
     fn walk(&mut self, mut at_wait: impl FnMut(u32, &mut Guest)) {
         let lines: Vec<&str> = AGENT_CMD.lines().collect();
         let label = |l: &str| lines.iter().position(|x| *x == format!(":{l}")).expect(l);
-        let (mut pc, mut waits) = (0usize, 0u32);
+        let (mut pc, mut waits, mut steps) = (0usize, 0u32, 0u64);
+        // The return lines of `call`: `goto :eof` returns to the last one,
+        // or ends the agent when there is none.
+        let mut calls: Vec<usize> = Vec::new();
         while pc < lines.len() {
             let raw = lines[pc];
             pc += 1;
+            steps += 1;
+            assert!(steps < 20_000_000, "the agent runs with no end: {:?}", self.events);
+            self.clock += 1;
             let line = self.expand(raw);
-            let jump = |target: &str| -> Option<usize> {
-                if target == ":eof" { Some(lines.len()) } else { Some(label(target) + 1) }
-            };
+            let jump = |target: &str| Some(target.to_string());
+            let mut call = false;
             let to = if raw.starts_with(':') || raw == "@echo off" {
                 None
             } else if let Some(rest) = raw.strip_prefix("if defined ") {
@@ -211,16 +240,34 @@ impl Guest {
             } else if let Some(rest) = raw.strip_prefix("if not defined ") {
                 let (v, t) = rest.split_once(" goto ").unwrap();
                 if self.vars.contains_key(v) { None } else { jump(t) }
+            } else if let Some(rest) = raw.strip_prefix("if not errorlevel ") {
+                let (n, t) = rest.split_once(" goto ").unwrap();
+                if self.errorlevel() < n.parse::<i32>().unwrap() { jump(t) } else { None }
             } else if let Some(rest) = line.strip_prefix("if exist ") {
                 let (f, t) = rest.split_once(" goto ").unwrap();
                 if self.files.contains_key(&Guest::name(f)) { jump(t) } else { None }
-            } else if raw == "if %WQTRIES% GEQ 600 goto :eof" {
-                if self.vars["WQTRIES"].parse::<u32>().unwrap() >= 600 { jump(":eof") } else { None }
+            } else if let Some(rest) = line.strip_prefix("if \"") {
+                let (test, t) = rest.split_once(" goto ").unwrap();
+                let (a, b) = test.split_once("\"==\"").unwrap();
+                if a == b.trim_end_matches('"') { jump(t) } else { None }
+            } else if let Some(rest) = line.strip_prefix("if ") {
+                let (test, t) = rest.split_once(" goto ").unwrap();
+                let w: Vec<&str> = test.split(' ').collect();
+                let (a, b): (i64, i64) = (w[0].parse().unwrap(), w[2].parse().unwrap());
+                let holds = match w[1] {
+                    "GEQ" => a >= b,
+                    "EQU" => a == b,
+                    op => panic!("the walk does not know the operator {op}"),
+                };
+                if holds { jump(t) } else { None }
+            } else if let Some(t) = raw.strip_prefix("call ") {
+                call = true;
+                jump(t.trim_start_matches(':'))
             } else if let Some(t) = raw.strip_prefix("goto ") {
                 jump(t)
-            } else if raw == "set /a WQTRIES+=1" {
-                let n: u32 = self.vars["WQTRIES"].parse().unwrap();
-                self.vars.insert("WQTRIES".into(), (n + 1).to_string());
+            } else if let Some(v) = raw.strip_prefix("set /a ").and_then(|r| r.strip_suffix("+=1")) {
+                let n: u32 = self.vars[v].parse().unwrap();
+                self.vars.insert(v.into(), (n + 1).to_string());
                 None
             } else if raw.starts_with("for %%d in (") {
                 if self.files.contains_key(MARKER) && !self.vars.contains_key("WQ") {
@@ -237,6 +284,11 @@ impl Guest {
                 self.events.push("run".into());
                 self.vars.insert("errorlevel".into(), self.exit.to_string());
                 None
+            } else if let Some(rest) = line.strip_prefix(">>") {
+                // The log is not an event: the order of the protocol stays.
+                let (f, text) = rest.split_once(" echo ").unwrap();
+                self.files.entry(Guest::name(f)).or_default().push_str(&format!("{text}\n"));
+                None
             } else if let Some(rest) = line.strip_prefix('>') {
                 let (f, text) = rest.split_once(" echo ").unwrap();
                 self.events.push(format!("write {}", Guest::name(f)));
@@ -249,10 +301,16 @@ impl Guest {
                 None
             } else if raw == "shutdown /s /t 0 /f" {
                 self.events.push("shutdown".into());
+                let code = self.shutdowns.pop_front().unwrap_or(0);
+                self.vars.insert("errorlevel".into(), code.to_string());
                 None
-            } else if raw.starts_with("ping -n 2 ") {
+            } else if raw == "ping -n 2 127.0.0.1 >nul 2>&1" {
                 waits += 1;
                 assert!(waits <= 2_000, "the agent waits with no end: {:?}", self.events);
+                self.vars.insert("errorlevel".into(), self.ping.to_string());
+                if self.ping == 0 {
+                    self.clock += 100;
+                }
                 at_wait(waits, self);
                 None
             } else if let Some((v, value)) = raw.strip_prefix("set ").and_then(|r| r.split_once('=')) {
@@ -266,8 +324,11 @@ impl Guest {
             } else {
                 panic!("the walk does not know the line {raw:?}");
             };
-            if let Some(next) = to {
-                pc = next;
+            if let Some(target) = to {
+                if call {
+                    calls.push(pc);
+                }
+                pc = if target == ":eof" { calls.pop().unwrap_or(lines.len()) } else { label(&target) + 1 };
             }
         }
     }
@@ -280,6 +341,62 @@ fn the_agent_gives_up_after_600_tries_with_no_mailbox() {
     g.walk(|_, _| seen += 1);
     assert_eq!(seen, 599, "one wait between two of the 600 tries");
     assert!(g.events.is_empty(), "{:?}", g.events);
+}
+
+/// PodUtils/podvm#380: a `ping` that does not wait made the 600 tries of
+/// the probe end in a few seconds, before a slow mailbox disk came online,
+/// and the guest stayed up to the limit of the host. Each try waits about
+/// one second, with or without `ping`.
+#[test]
+fn the_probes_wait_about_one_second_each_also_when_ping_fails() {
+    for ping in [0, 1, 9009] {
+        let mut g = Guest::with(&[]);
+        g.ping = ping;
+        g.walk(|_, _| {});
+        let secs = g.clock / 100;
+        assert!(secs >= 599, "ping {ping}: the 600 tries took {secs}s, not 600");
+        assert!(secs <= 2 * 600 + 60, "ping {ping}: the 600 tries took {secs}s");
+        assert!(g.events.is_empty(), "{:?}", g.events);
+    }
+}
+
+/// A mailbox that comes online late, also with no `ping`: the agent finds
+/// it and runs the command.
+#[test]
+fn a_mailbox_that_comes_online_late_is_found_with_no_ping() {
+    let mut g = Guest::with(&[]);
+    g.ping = 1;
+    g.walk(|wait, g| {
+        if wait == 120 {
+            g.files = [(MARKER, "m"), (GO, "tok-late")].map(|(n, t)| (n.into(), t.into())).into();
+        }
+    });
+    assert_eq!(g.events, ["write WQREADY.TXT", "run", "write WQCODE.TXT", "del WQGO.TXT", "shutdown"]);
+    assert!(g.files[LOG].contains("found D: after 120 tries"), "{}", g.files[LOG]);
+}
+
+/// PodUtils/podvm#380: early in a boot Windows can refuse a shutdown, and
+/// a guest that does not power off reaches the limit of the host. The
+/// agent tries again until Windows takes it, and logs each code.
+#[test]
+fn the_agent_tries_the_shutdown_again_until_windows_takes_it() {
+    let mut g = Guest::with(&[(MARKER, "m"), (GO, "tok-off")]);
+    g.exit = 42;
+    g.shutdowns = [21, 1115, 21].into();
+    g.walk(|_, _| {});
+    assert_eq!(g.events.iter().filter(|e| *e == "shutdown").count(), 4, "{:?}", g.events);
+    assert_eq!(g.files[CODE], "42 tok-off");
+    // `%TIME%` is first on each line, 11 characters; the hour of the clock
+    // is 0.
+    assert!(g.files[LOG].lines().all(|l| l.starts_with(" 0:00:")), "{}", g.files[LOG]);
+    let log: Vec<&str> = g.files[LOG].lines().map(|l| l[11..].trim_start()).collect();
+    assert_eq!(log, ["found D: after 0 tries", "code 42", "shutdown 21", "shutdown 1115", "shutdown 21", "shutdown 0"]);
+
+    // A shutdown that never takes ends the agent after 300 tries.
+    let mut g = Guest::with(&[(MARKER, "m"), (GO, "tok-never")]);
+    g.shutdowns = std::iter::repeat_n(21, 1000).collect();
+    g.walk(|_, _| {});
+    assert_eq!(g.events.iter().filter(|e| *e == "shutdown").count(), 300);
 }
 
 #[test]
@@ -297,7 +414,7 @@ fn the_installer_registers_the_boot_task_and_starts_its_scheduler() {
 #[test]
 fn every_name_the_protocol_uses_is_8_3() {
     // The mailbox writer refuses each other name.
-    for n in [MARKER, GO, CMD, OUT, ERR, CODE, AGENT_NAME, SETUP_NAME, SETUP] {
+    for n in [MARKER, GO, CMD, OUT, ERR, CODE, AGENT_NAME, SETUP_NAME, SETUP, READY, KEEP, LOG] {
         assert!(n.len() <= 12, "{n} is longer than 8.3");
         let (base, ext) = n.split_once('.').expect("has an extension");
         assert!(base.len() <= 8 && ext.len() <= 3, "{n} is not 8.3");

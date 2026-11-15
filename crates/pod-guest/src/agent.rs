@@ -60,6 +60,8 @@ pub const SETUP: &str = "SETUP.TXT";
 pub const READY: &str = "WQREADY.TXT";
 /// The content of [`READY`].
 pub const READY_TEXT: &str = "WQREADY";
+/// The log of the agent: one line for each step, appended.
+pub const LOG: &str = "WQLOG.TXT";
 /// The file of the keep-alive mode: with it on the mailbox, the agent does
 /// not shut the guest down and polls for the next token.
 pub const KEEP: &str = "WQKEEP.TXT";
@@ -82,6 +84,23 @@ pub enum Mode {
 /// `cmd /c` runs the command in a child shell, so that an `exit` in the
 /// command does not end the agent. `WQRC` keeps the exit code before the
 /// next line changes `%errorlevel%`.
+///
+/// The agent tries the shutdown again, one time each second for 300
+/// tries, until Windows takes it: early in a boot Windows can refuse a
+/// shutdown (`ERROR_NOT_READY`), and a guest that does not power off ends
+/// its run at the limit of the host.
+///
+/// The wait of one second (`:nap`) is `ping` to the loopback address. A
+/// `ping` that fails (no `ping.exe`, no loopback yet) does not wait, so the
+/// agent then waits for two changes of the second of `%TIME%`: with no
+/// wait, the 600 tries of the probe end in a few seconds, before a slow
+/// mailbox disk comes online. A bound of spins ends a wait whose time
+/// does not change.
+///
+/// The agent appends one line to [`LOG`] at each step: the time, the drive
+/// and the count of tries when it finds the mailbox, the exit code, and the
+/// code of each `shutdown`. The host reads it after a run that timed out
+/// ([`crate::evidence`]).
 pub const AGENT_CMD: &str = r#"@echo off
 if defined WQ_ACTIVE goto :eof
 set WQ_ACTIVE=1
@@ -92,9 +111,10 @@ for %%d in (D E F G H I J K L M N O P Q R S T U V W X Y Z) do if not defined WQ 
 if defined WQ goto found
 set /a WQTRIES+=1
 if %WQTRIES% GEQ 600 goto :eof
-ping -n 2 127.0.0.1 >nul
+call :nap
 goto probe
 :found
+>>%WQ%\WQLOG.TXT echo %TIME% found %WQ% after %WQTRIES% tries
 >%WQ%\WQREADY.TXT echo WQREADY
 :next
 if exist %WQ%\WQGO.TXT goto take
@@ -108,16 +128,39 @@ cmd /c %WQ%\WQCMD.CMD < NUL > %WQ%\WQOUT.TXT 2> %WQ%\WQERR.TXT
 set WQRC=%errorlevel%
 >%WQ%\WQCODE.TXT echo %WQRC% %WQNONCE%
 del %WQ%\WQGO.TXT >nul 2>&1
+>>%WQ%\WQLOG.TXT echo %TIME% code %WQRC%
 if exist %WQ%\WQKEEP.TXT goto idle
+set WQTRIES=0
+:off
 shutdown /s /t 0 /f
-goto :eof
+set WQOFF=%errorlevel%
+>>%WQ%\WQLOG.TXT echo %TIME% shutdown %WQOFF%
+if %WQOFF% EQU 0 goto :eof
+set /a WQTRIES+=1
+if %WQTRIES% GEQ 300 goto :eof
+call :nap
+goto off
 :idle
 >%WQ%\WQREADY.TXT echo WQREADY
-ping -n 2 127.0.0.1 >nul
+call :nap
 if exist %WQ%\WQGO.TXT goto take
 if exist %WQ%\WQMARK.TXT goto idle
 set WQTRIES=0
 goto probe
+:nap
+ping -n 2 127.0.0.1 >nul 2>&1
+if not errorlevel 1 goto :eof
+call :tick
+call :tick
+goto :eof
+:tick
+set WQSPIN=0
+set WQSEC=%TIME:~6,2%
+:spin
+set /a WQSPIN+=1
+if %WQSPIN% GEQ 50000 goto :eof
+if "%TIME:~6,2%"=="%WQSEC%" goto spin
+goto :eof
 "#;
 
 /// The installer, for one run. It copies [`AGENT_CMD`] into the image and
