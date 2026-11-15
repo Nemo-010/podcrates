@@ -191,5 +191,6 @@ kinds and the rules.
 | #184 | request | [gh action] requested: the gates of main at d0f38a6 and the release v0.53.0 | open | T-686, T-687, T-688, T-691, T-684, T-713 |
 | #185 | coord | COORD-111: v0.53.0: the fix of PodUtils/podssh#262, the device nodes and the passed descriptors of pod-enter (PodUtils/podvm#414, #422) (to all) | open | T-686, T-687, T-688, T-691, T-684 |
 | #186 | coord | COORD-112: the owner's rulings "Watcher" and "Strangers": one watcher of the organization for each session, scripts/agent/watch.py at f76099d; replace your own (to all) | open | T-710, T-711, T-712 |
+| #187 | request | [gh action] requested: the gates of main at 32f7a72 and the release v0.54.0 | open | T-692, T-700, T-710, T-711, T-712 |
 
 #79 to #81 are pull requests.
