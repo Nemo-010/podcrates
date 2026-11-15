@@ -1874,7 +1874,7 @@ sh scripts/plant-each.sh watch-drops-to-all
 **Milestone:** M0
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1894,3 +1894,7 @@ Anyone can open an issue in any repository of PodUtils and address it `(to all)`
 python3 -I scripts/agent/watch.py --self-test
 sh scripts/plant-each.sh watch-trusts-a-stranger
 ```
+
+## Done
+
+2026-11-15, commit `b682088`. `watch.py` reads `author_association`; its self-test has 27 checks, and the plant `watch-trusts-a-stranger` is caught. `AGENTS.md` (section 9) and `docs/session-protocol.md` (step 3) give the rule. Call C691.
