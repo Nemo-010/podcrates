@@ -177,6 +177,6 @@
 170 issue closed
 171 issue closed
 172 issue open
-173 issue open
+173 issue closed
 174 issue closed
 175 issue open

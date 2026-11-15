@@ -175,7 +175,7 @@ numbers. `TODO/RULES.md` gives the rules.
 | #170 | [gh action] requested: the gates of main at 98017c3 and the release v0.51.0 | closed (ci failed on a table of design.md; replaced by #171) | T-677, T-035, T-639, T-640, T-643, T-647, T-648, T-650, T-651 |
 | #171 | [gh action] requested: the gates of main at 7119770 and the release v0.51.0 | closed (ci 43704477293, adoption 43704480669, release 43706934823, publish 43706977883) | T-678, T-035, T-639, T-640, T-643, T-647, T-648, T-650, T-651 |
 | #172 | COORD-105: v0.51.0: pod-egress part 1; the fixes of podnet#572, podvm#380, podssh#253; the asks of podvm#389, #390, #393, #394 (to all) | open (podnet `ee6ea13`, PodUtils/podnet#577; podrunner `800f6d4`, PodUtils/podrunner#152) | T-035, T-639, T-640, T-643, T-647, T-648, T-650, T-651 |
-| #173 | [gh action] requested: ci, adoption, plants, secrets and deny on main at 2f23632 (v0.52.0) | open | T-035, T-668, T-669, T-670, T-671, T-672, T-676, T-678 |
+| #173 | [gh action] requested: ci, adoption, plants, secrets and deny on main at 2f23632 (v0.52.0) | closed (secrets, deny passed; ci failed on a test of T-669; adoption, plants cancelled by #174) | T-035, T-668, T-669, T-670, T-671, T-672, T-676, T-678 |
 | #174 | [gh action] requested: the gates of main at a866f99 and the release v0.52.0; the reruns of services.yml | closed (ci 43708818874 at 2f23632 failed on a test of T-669; replaced by #175) | T-035, T-668, T-669, T-670, T-676, T-679, T-684, T-685 |
 | #175 | [gh action] requested: the gates of main at 7998b72 and the release v0.52.0; the reruns of services.yml | open | T-035, T-668, T-669, T-670, T-676, T-679, T-684, T-685 |
 
