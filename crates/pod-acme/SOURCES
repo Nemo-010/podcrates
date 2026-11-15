@@ -1,0 +1,22 @@
+# The files of this crate that came from another repository
+# (docs/design.md, section 9). A file line holds the git blob id at the
+# commit (`git ls-tree COMMIT -- PATH` gives it). scripts/check-sources.py
+# compares each with the default branch of its repository.
+
+repo PodUtils/podssh b9c04657bf4e283263ef34ba2462be297231cd38
+# podssh froze src/acme/ at this commit for the move (PodUtils/podssh@T-684,
+# PodUtils/podssh#248). Of src/update/fetch.rs, the crate takes `Url`
+# (`parse`, `shown`) and its two tests, as src/url.rs; the rest of the file
+# (the fetcher of podssh's update) stays in podssh. The Pebble interop of
+# podssh (scripts/interop-acme.sh, acme-interop.yml) runs podssh's binary:
+# it stays in podssh.
+dir crates/podssh-cli/src/acme
+file 0da22b93c972576b7cfd3c77785953fcf156d328 crates/podssh-cli/src/acme/certs.rs -> crates/pod-acme/src/certs.rs
+file d62ed59ee418e700914e45624f6f5b66fa55e4ca crates/podssh-cli/src/acme/certs_tests.rs -> crates/pod-acme/src/certs_tests.rs
+file c6745faedcc3b66261ef25f606cfb55493d48689 crates/podssh-cli/src/acme/client.rs -> crates/pod-acme/src/client.rs
+file a80cbb7c2d4ef123ba334b79db868dcc5174be87 crates/podssh-cli/src/acme/client_tests.rs -> crates/pod-acme/src/client_tests.rs
+file 5a60f4c185350b9658094251940fb3529f858715 crates/podssh-cli/src/acme/jws.rs -> crates/pod-acme/src/jws.rs
+file be371ad106060f4fcd0d27862c630f7f392d31ae crates/podssh-cli/src/acme/mod.rs -> crates/pod-acme/src/lib.rs
+file 738d4647714fa29b81d1b2e82c48a7626c19fedf crates/podssh-cli/src/acme/order.rs -> crates/pod-acme/src/order.rs
+file 2bb1826fb22089a4ac38042b709d49033998a5a5 crates/podssh-cli/src/acme/store.rs -> crates/pod-acme/src/store.rs
+file b091c92caf2225e36e110e85fad3b7fb3a1317f0 crates/podssh-cli/src/update/fetch.rs -> crates/pod-acme/src/url.rs
