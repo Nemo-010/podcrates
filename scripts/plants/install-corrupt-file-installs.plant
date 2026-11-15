@@ -1,0 +1,7 @@
+# The installer core does not compare the SHA-256 of a download with its
+# pin: a corrupt file installs. The test must fail.
+ENTRY=T-702
+GROUP=install
+EXPECT='FAIL: a corrupt file installs'
+RUN='sh scripts/install/test.sh --case corrupt'
+LIMIT=300

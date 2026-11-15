@@ -230,13 +230,17 @@ for s in (signal.SIGINT, signal.SIGQUIT):
     signal.signal(s, signal.SIG_DFL)
 os.execvp(sys.argv[1], sys.argv[1:])'
 
-# Wait for the temporary file of the download in PREFIX.
+# Wait for the first bytes of the download in PREFIX, or of the file in
+# place when no temporary file comes.
 wait_temp() {
     i=0
-    until [ "$(temps "$1")" -gt 0 ]; do
+    while :; do
+        for f in "$1"/.podlab-install.*.podlab; do [ ! -s "$f" ] || return 0; done
+        # A run that writes to the name in place.
+        [ "$(sum "$1/podlab")" = "$old" ] || return 0
         i=$((i + 1))
-        [ "$i" -lt 100 ] || fail "no download started in $1"
-        sleep 0.1
+        [ "$i" -lt 200 ] || fail "no download started in $1"
+        sleep 0.05
     done
 }
 

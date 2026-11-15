@@ -1,0 +1,13 @@
+diff --git a/scripts/install/core.sh b/scripts/install/core.sh
+index 37e3ba00..f463f17e 100644
+--- a/scripts/install/core.sh
++++ b/scripts/install/core.sh
+@@ -447,7 +447,7 @@ EOF
+         # Each file to a temporary name, checked, then run once.
+         while read -r inst_n inst_a inst_s; do
+             [ "$inst_s" = get ] || continue
+-            inst_get "$inst_a" "$inst_tmp.$inst_n"
++            inst_get "$inst_a" "$inst_prefix/$inst_n" && cp "$inst_prefix/$inst_n" "$inst_tmp.$inst_n"
+             chmod 0755 "$inst_tmp.$inst_n"
+             [ "$inst_os" != Darwin ] || xattr -d com.apple.quarantine "$inst_tmp.$inst_n" 2> /dev/null || true
+             inst_v=$(inst_run_version "$inst_tmp.$inst_n")

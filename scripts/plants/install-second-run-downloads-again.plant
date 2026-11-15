@@ -1,0 +1,7 @@
+# The plan of the installer core never finds a file that agrees with its
+# pin: a second run downloads each file again. The test must fail.
+ENTRY=T-702
+GROUP=install
+EXPECT='FAIL: the second run (says so|downloaded again)'
+RUN='sh scripts/install/test.sh --case second'
+LIMIT=300

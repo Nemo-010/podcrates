@@ -1,0 +1,13 @@
+diff --git a/scripts/install/core.sh b/scripts/install/core.sh
+index 37e3ba00..a771a4d5 100644
+--- a/scripts/install/core.sh
++++ b/scripts/install/core.sh
+@@ -371,7 +371,7 @@ inst_plan() {
+         [ -n "$(inst_pin "$inst_a")" ] ||
+             inst_die "$inst_a: no pin for the target $inst_target; this release has: $INST_TARGETS"
+         inst_s=get
+-        if [ -f "$inst_prefix/$inst_n" ] && [ "$(inst_sha256 "$inst_prefix/$inst_n")" = "$(inst_pin "$inst_a")" ]; then
++        if false && [ -f "$inst_prefix/$inst_n" ] && [ "$(inst_sha256 "$inst_prefix/$inst_n")" = "$(inst_pin "$inst_a")" ]; then
+             inst_s=ok
+         else
+             inst_need=$((inst_need + $(inst_size "$inst_a") / 1024 + 1))

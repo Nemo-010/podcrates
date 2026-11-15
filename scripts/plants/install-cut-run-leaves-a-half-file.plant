@@ -1,0 +1,7 @@
+# The installer core downloads straight to the name in the prefix: a run
+# cut in the middle leaves a half file there. The test must fail.
+ENTRY=T-702
+GROUP=install
+EXPECT='FAIL: a run cut by KILL changed'
+RUN='sh scripts/install/test.sh --case cut'
+LIMIT=300
