@@ -8533,3 +8533,31 @@ cargo test -p pod-services --all-features
 ## Done
 
 2026-11-15, the commit of the change. `crates/pod-services/services/alpine-netboot-aarch64.toml` (the archive, `release`, `vmlinuz-virt-sha256`, `modloop-virt-sha256`, `archive-sha256`, `archive-bytes`, a watch) and the endpoint `qemu-system-aarch64` of `pkgforge-qemu` (its sha256, its length, a watch). Each size and sum of the ask, measured here, is the same. The test `the_aarch64_netboot_holds_the_pins_of_podvm` and the row of `qemu-system-aarch64` in `the_static_qemu_holds_the_pins_of_podvm`; `cargo test -p pod-services --all-features` and `cargo test -p pod-services-watch --all-features` passed. The release of the kernel and the NIC modules wait for podvm's ask.
+
+# T-669: `pod-enter`: a UTS namespace and a host name on the namespace rung (PodUtils/podvm#403)
+
+**Source:** PodUtils/podvm#403 (COORD-130 of podvm; PodUtils/podvm@T-1908, PodUtils/podvm#402, PodUtils/podrunner#115).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+podvm adds `run --hostname NAME`: the official runner writes the host name into the job log of github.com, so podrunner needs a unit with its own name. The namespace rung of `pod-enter` unshares `CLONE_NEWNS` and no `CLONE_NEWUTS`, so podvm refuses `--hostname` there with exit 125. The ask: a field of the plan (`Plan.hostname: Option<String>`); where it is set, `unshare(CLONE_NEWUTS)` with the mount namespace, then `sethostname(NAME)`, before the exec; a named failure step (`ns_setup_step`) for each call. The release, the version and the machine of `uname` stay the host's.
+
+## Premise
+
+- Read: PodUtils/podvm#403; `crates/pod-enter/src/launch.rs` (the setup of the namespace rung in the child), `crates/pod-enter/src/entry.rs` (`ns_setup_step`, the fallback to chroot), `crates/pod-enter/src/plan.rs`.
+- Measured: this session can unshare a UTS namespace as root.
+
+## Approach
+
+`Plan::hostname` and a module `uts`: the name checked before the fork (not empty, at most 64 bytes, no NUL); in the child, after the mounts of the namespace rung, `unshare(CLONE_NEWUTS)` (step `NS_UTS_STEP`) and `sethostname` (step `NS_HOSTNAME_STEP`). A plan with a name never falls back to chroot, and each entry with no UTS namespace (the chroot rung, a join, the entry with no chroot) refuses it by name: the payload never sees the host's name in place of its own. Unit tests of the checks and the steps; a live test with a static busybox (`uname -n`, `/proc/sys/kernel/hostname`, the host's name unchanged); a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+```

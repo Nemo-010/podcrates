@@ -116,6 +116,7 @@ fn plan(argv: Vec<String>, confine: Option<Spec>) -> Plan {
         limits: Vec::new(),
         no_new_privs: false,
         die_with_parent: false,
+        hostname: None,
         confine,
     }
 }

@@ -28,6 +28,7 @@ fn plan_with(limits: Vec<Limit>, no_new_privs: bool, die_with_parent: bool) -> P
         no_new_privs,
         die_with_parent,
         confine: None,
+        hostname: None,
     }
 }
 

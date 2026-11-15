@@ -54,6 +54,7 @@ pub mod plan;
 pub mod stage;
 pub mod status;
 pub mod userland;
+pub mod uts;
 
 mod child;
 mod confine;

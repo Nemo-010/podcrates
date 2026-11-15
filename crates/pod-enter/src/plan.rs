@@ -50,6 +50,11 @@ pub struct Plan {
     /// host paths. A host with no Landlock refuses the entry: the payload
     /// never runs unconfined.
     pub confine: Option<pod_confine::Spec>,
+    /// The host name of the payload ([`crate::uts`]): the namespace rung
+    /// enters a UTS namespace and sets it before the exec. Every other entry
+    /// refuses a plan with a name, and the namespace rung does not fall back
+    /// to chroot with one: the payload never sees the host's name instead.
+    pub hostname: Option<String>,
 }
 
 impl Plan {

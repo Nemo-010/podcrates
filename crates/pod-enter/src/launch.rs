@@ -99,6 +99,16 @@ pub(crate) fn spawn_with(
     // private mount, and the device and inode check after the chroot
     // refuses a path that changed.
     let rootpath = CBuf::new(&root.path).ok_or_else(|| nul("the root path contains a NUL byte".to_string()))?;
+    let hostname = crate::uts::checked(plan)?;
+    let hostname_len = plan.hostname.as_ref().map_or(0, String::len);
+    if !matches!(ns, Some(NsEntry::Own(_))) {
+        let entry = match (&ns, userland) {
+            (Some(NsEntry::Join(..)), _) => "a join of the mount namespace of the payload",
+            (_, Some(_)) => "the entry with no chroot",
+            _ => "the chroot rung",
+        };
+        crate::uts::refuse_without_namespace(plan, entry)?;
+    }
 
     let mut argv: Vec<*const u8> = argv_owned.iter().map(|c| c.ptr() as *const u8).collect();
     argv.push(std::ptr::null());
@@ -251,6 +261,11 @@ pub(crate) fn spawn_with(
                 // `/proc` and `/dev/pts`: a refused one writes one line
                 // and the rung goes on.
                 crate::ns_optional::mount_each(&m.optional);
+                if let Some(name) = &hostname
+                    && let Err((step, e)) = crate::uts::enter(name, hostname_len)
+                {
+                    report(step, e);
+                }
             }
             // `fchdir` onto the checked descriptor: a path can change after
             // its check, and a descriptor cannot. The working directory is

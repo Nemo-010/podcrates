@@ -95,6 +95,7 @@ fn plan(confine: Option<Spec>, env: Vec<String>) -> Plan {
         limits: Vec::new(),
         no_new_privs: false,
         die_with_parent: false,
+        hostname: None,
         confine,
     }
 }

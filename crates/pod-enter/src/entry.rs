@@ -291,6 +291,8 @@ pub fn ns_setup_step(step: u8) -> Option<&'static str> {
         NS_OVERLAY_TMPFS_STEP => Some("mounting the tmpfs of the overlay layers"),
         NS_OVERLAY_DIRS_STEP => Some("making the upper and work directories"),
         NS_OVERLAY_STEP => Some("mounting overlay on the root"),
+        crate::uts::NS_UTS_STEP => Some("unshare(CLONE_NEWUTS)"),
+        crate::uts::NS_HOSTNAME_STEP => Some("sethostname"),
         _ => None,
     }
 }
@@ -306,6 +308,13 @@ pub fn ns_setup_step(step: u8) -> Option<&'static str> {
 pub fn spawn_namespace(root: &RootDir, plan: &Plan, err: &mut dyn Write) -> Result<Child> {
     let names = &plan.names;
     let chroot = |err: &mut dyn Write, cause: &str| {
+        // A host name has no place on the chroot rung: refuse, with the cause.
+        if let Some(name) = &plan.hostname {
+            return Err(Error::runtime(
+                Class::Unsupported,
+                format!("the host name {name:?} needs the namespace rung, and {cause}"),
+            ));
+        }
         let _ = writeln!(err, "{}", ns_fallback_line(names, cause));
         spawn_with(root, plan, ENTERED_RUNG.word(), None, None, None, None, err)
     };

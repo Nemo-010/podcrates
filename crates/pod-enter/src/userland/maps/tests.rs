@@ -220,6 +220,7 @@ fn the_userland_entry_enters_a_workdir_in_a_volume() {
             limits: Vec::new(),
             no_new_privs: false,
             die_with_parent: false,
+            hostname: None,
             confine: None,
         };
         let argv = vec!["/bin/sh".to_string(), "-c".to_string(), format!("pwd -P > {}", s(&out))];
@@ -240,6 +241,7 @@ fn the_userland_entry_enters_a_workdir_in_a_volume() {
         limits: Vec::new(),
         no_new_privs: false,
         die_with_parent: false,
+        hostname: None,
         confine: None,
     };
     let other = Maps::of_root("/elsewhere");
