@@ -5,11 +5,8 @@
 ## State
 
 - `docs/HANDOFF.md` has what is in flight and what waits.
-- Last release: `v0.54.0` at `32f7a72` (`docs/releases/v0.54.0.md`; ci
-  43760037975, adoption 43760041298, release 43761945030; the hand-off
-  #188, COORD-113): `pod-lab` part 1 (T-692), `pod-manual` part 1
-  (T-700), the watcher (T-710 to T-712).
-- In release: `v0.55.0` (`docs/releases/v0.55.0.md`): T-703 (the sync of
+- Last release: `v0.55.0` at `e3c3e1d` (`docs/releases/v0.55.0.md`; ci
+  43765816118, adoption 43765819330; the request #193): T-703 (the sync of
   the issues), T-701 (the host classes of podssh and podnet).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
