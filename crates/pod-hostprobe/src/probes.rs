@@ -101,6 +101,10 @@ pub static PROBES: &[Probe] = &[
             kind: Kind::Child { ns_flags: NS, body: p_mount_tmpfs } },
     Probe { name: "mount(MS_SLAVE,/) in clone(NEWNS)", group: Group::Census,
             kind: Kind::Child { ns_flags: NS, body: p_mount_slave } },
+    // The namespace rung of a caller with no capabilities: the user
+    // namespace and its maps first, then the mount namespace and a tmpfs.
+    Probe { name: USERNS_LEG, group: Group::Census,
+            kind: Kind::Child { ns_flags: 0, body: p_userns_mount } },
     Probe { name: "pivot_root(/tmp,/tmp)", group: Group::Census,
             kind: Kind::Child { ns_flags: 0, body: p_pivot_root } },
     Probe { name: "ptrace(PTRACE_TRACEME)", group: Group::Census,
@@ -263,6 +267,11 @@ pub static PROBES: &[Probe] = &[
     Probe { name: "waitid(P_PIDFD, child) [supervise]", group: Group::Supervise,
             kind: Kind::Child { ns_flags: 0, body: s_waitid_child } },
 ];
+
+/// The leg of the namespace rung through a user namespace: the sequence of
+/// [`crate::userns::enter`], then `unshare(CLONE_NEWNS)`, `/` private and a
+/// tmpfs on `/tmp`. [`crate::select`] reads it through this name.
+pub const USERNS_LEG: &str = "mount(tmpfs,/tmp) in unshare(NEWUSER+maps,NEWNS)";
 
 /// The machine tier's legs, in the order they run. [`crate::machine`] and the
 /// report read the verdicts through these names, so a rename moves all three.

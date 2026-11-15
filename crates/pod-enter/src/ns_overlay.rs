@@ -19,11 +19,9 @@
 use std::io::Write;
 
 use pod_core::Class;
-use pod_hostprobe::select::Rung;
 use pod_hostprobe::sys::{self, CBuf, Errno};
 
-use crate::entry::{NsEntry, NsMount, ns_setup_step, ns_tmp_target, spawn_namespace};
-use crate::launch::spawn_with;
+use crate::entry::{NsMount, namespace_entry, ns_setup_step, ns_tmp_target};
 use crate::ns_optional::optional_mounts;
 use crate::{Child, Error, Plan, Result, RootDir};
 
@@ -185,16 +183,21 @@ pub(crate) fn overlay_step(step: &'static str) -> &'static str {
 /// tree does. Each refusal of the overlay root is [`Error::Overlay`],
 /// before the payload starts: the caller can fill a tree and enter it.
 pub fn spawn_namespace_root(root: Root<'_>, plan: &Plan, err: &mut dyn Write) -> Result<Child> {
+    namespace_root_entry(root, plan, true, err)
+}
+
+/// [`spawn_namespace_root`]; `banner` is false after a refused join.
+pub(crate) fn namespace_root_entry(root: Root<'_>, plan: &Plan, banner: bool, err: &mut dyn Write) -> Result<Child> {
     let (lower, upper) = match root {
-        Root::Tree(dir) => return spawn_namespace(dir, plan, err),
+        Root::Tree(dir) => return namespace_entry(dir, plan, banner, err),
         Root::Overlay { lower, upper } => (lower, upper),
     };
     let Some(tmp_target) = ns_tmp_target(&lower.path).and_then(|t| CBuf::new(&t)) else {
         return Err(Error::Overlay { step: "the /tmp of the image as a mount point", errno: sys::ENOTDIR });
     };
     let overlay = Some(OverlayMount::new(lower, upper)?);
-    let mount = NsMount { tmp_target, optional: optional_mounts(&lower.path, &plan.names), overlay };
-    match spawn_with(lower, plan, Rung::Namespace.word(), None, None, None, Some(NsEntry::Own(&mount)), err) {
+    let mut mount = NsMount { user: None, tmp_target, optional: optional_mounts(&lower.path, &plan.names), overlay };
+    match crate::ns_user::spawn_own(lower, plan, &mut mount, banner, err).result {
         Err(Error::NsSetup { step, errno }) => Err(Error::Overlay { step: overlay_step(step), errno }),
         other => other,
     }

@@ -24,7 +24,7 @@
 //!   [`Selection::choose`] is the same precedence with the probe as its source.
 
 use crate::Findings;
-use crate::probes::Group;
+use crate::probes::{Group, USERNS_LEG};
 use crate::verdict::{Outcome, Verdict};
 
 /// The ladder of modes, strongest first. The order is the
@@ -144,6 +144,13 @@ fn evidence(f: &Findings, name: &str) -> String {
     }
 }
 
+/// The namespace rung with no user namespace: a mount namespace and a
+/// mount in the namespace of the caller.
+fn mount_only(f: &Findings) -> bool {
+    let ns_created = ok(f, "unshare(CLONE_NEWNS)") || ok(f, "clone(CLONE_NEWNS)");
+    ns_created && (ok(f, "mount(tmpfs,/mnt)") || ok(f, "mount(tmpfs,/mnt) in clone(NEWNS)"))
+}
+
 fn evidence_of(f: &Findings, names: &[&str]) -> String {
     names.iter().map(|n| evidence(f, n)).collect::<Vec<_>>().join(" ")
 }
@@ -159,9 +166,9 @@ impl Selection {
         // "mounts" is the attach half and not the create half. A machine where
         // fsmount succeeds and move_mount is denied has detached mounts it
         // cannot use.
-        let ns_created = ok(f, "unshare(CLONE_NEWNS)") || ok(f, "clone(CLONE_NEWNS)");
-        let mounts = ok(f, "mount(tmpfs,/mnt)") || ok(f, "mount(tmpfs,/mnt) in clone(NEWNS)");
-        if ns_created && mounts {
+        // A caller with no capabilities gets the rung through a user
+        // namespace of its own: the leg measures that whole sequence.
+        if mount_only(f) || ok(f, USERNS_LEG) {
             return Selection { rung: Rung::Namespace, rejected, ..Selection::controls(f) };
         }
         rejected.push(Rejection {
@@ -174,6 +181,7 @@ impl Selection {
                     "clone(CLONE_NEWNS)",
                     "mount(tmpfs,/mnt)",
                     "mount(tmpfs,/mnt) in clone(NEWNS)",
+                    USERNS_LEG,
                 ],
             ),
         });
@@ -305,11 +313,15 @@ pub struct Provides {
 
 impl Provides {
     pub fn of(rung: Rung, f: &Findings) -> Provides {
-        // The namespace rung is mount-only: one mount namespace with a
-        // private tmpfs on /tmp, and no user, pid or network namespace. The
-        // cells state the rung, not the machine: "as configured" here can
-        // pass a chroot off as namespaces.
-        let namespaces = if rung == Rung::Namespace {
+        // The namespace rung is one mount namespace with a private tmpfs
+        // on /tmp, and no pid or network namespace. Where the caller cannot
+        // make a mount namespace in its own user namespace, the entry makes
+        // a user namespace first that maps the caller to 0 only: "user+mount".
+        // The cells state the rung, not the machine: "as configured" here
+        // can pass a chroot off as namespaces.
+        let namespaces = if rung == Rung::Namespace && !mount_only(f) && ok(f, USERNS_LEG) {
+            "user+mount".to_string()
+        } else if rung == Rung::Namespace {
             "mount-only".to_string()
         } else if ok(f, "clone(CLONE_NEWUTS)") && ok(f, "sethostname(in NEWUTS)") {
             "uts-only".to_string()

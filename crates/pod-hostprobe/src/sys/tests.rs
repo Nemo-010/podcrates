@@ -239,6 +239,13 @@ fn the_id_calls_are_the_32_bit_form_on_each_target() {
     #[cfg(any(target_arch = "x86", target_arch = "arm"))]
     assert_eq!([CHOWN.name, LCHOWN.name], ["chown32", "lchown32"]);
     assert!(n.iter().all(|&x| x > 0));
+    let e = [SYS_GETEUID, SYS_GETEGID];
+    #[cfg(any(target_arch = "x86", target_arch = "arm"))]
+    assert_eq!(e, [201, 202], "32-bit effective id calls");
+    #[cfg(target_arch = "x86_64")]
+    assert_eq!(e, [107, 108], "x86_64 effective id calls");
+    #[cfg(target_arch = "aarch64")]
+    assert_eq!(e, [175, 177], "aarch64 effective id calls");
 }
 
 fn status_ids(key: &str) -> Vec<u32> {

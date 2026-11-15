@@ -11,9 +11,7 @@ use pod_hostprobe::sys::{self, CBuf};
 use crate::abi::{GuestRoot, ResolveKind};
 use crate::launch::spawn_with;
 use crate::ns_optional::{NS_PROC_STEP, NS_PTS_STEP, Optional, optional_mounts};
-use crate::ns_overlay::{
-    NS_OVERLAY_DIRS_STEP, NS_OVERLAY_STEP, NS_OVERLAY_TMPFS_STEP, OverlayMount, Root, spawn_namespace_root,
-};
+use crate::ns_overlay::{NS_OVERLAY_DIRS_STEP, NS_OVERLAY_STEP, NS_OVERLAY_TMPFS_STEP, OverlayMount, Root};
 use crate::userland::Maps;
 use crate::{Child, ENTERED_RUNG, Error, Names, Plan, Result, RootDir, ladder};
 
@@ -28,7 +26,7 @@ use crate::{Child, ENTERED_RUNG, Error, Names, Plan, Result, RootDir, ladder};
 /// [`ENTERED_RUNG`], the rung that this sequence does. [`spawn_ladder`]
 /// reports a rung of the ladder.
 pub fn spawn(root: &RootDir, plan: &Plan, err: &mut dyn Write) -> Result<Child> {
-    spawn_with(root, plan, ENTERED_RUNG.word(), None, None, None, None, err)
+    spawn_with(root, plan, ENTERED_RUNG.word(), None, None, None, None, true, err)
 }
 
 /// Enter `root` on a rung of the ladder and exec the plan. Return when the
@@ -48,7 +46,7 @@ pub fn spawn_ladder(
     fd: Option<i64>,
     err: &mut dyn Write,
 ) -> Result<Child> {
-    spawn_with(root, plan, mode.name(), None, fd, None, None, err)
+    spawn_with(root, plan, mode.name(), None, fd, None, None, true, err)
 }
 
 /// Enter `root` with no `chroot(2)` and exec. Return when the exec
@@ -84,7 +82,7 @@ pub fn spawn_userland(
             CBuf::new(a).ok_or_else(|| Error::runtime(Class::Usage, format!("the argument {a:?} contains a NUL byte")))
         })
         .collect::<Result<_>>()?;
-    spawn_with(root, plan, active, Some(override_argv), fd_exec, Some(maps), None, err)
+    spawn_with(root, plan, active, Some(override_argv), fd_exec, Some(maps), None, true, err)
 }
 
 /// Run a payload inside `root` with no `chroot(2)`, and return its exit
@@ -134,8 +132,12 @@ pub fn run_ladder(
 /// One private tmpfs on the `/tmp` of the image: the mount that a run
 /// keeps apart from the host. Then the mounts that do not stop the rung
 /// (`ns_optional`): a fresh proc and a bind of the host's `/dev/pts`. No
-/// user, PID or network namespace: the banner says so.
+/// PID or network namespace: the banner says so. A user namespace only for
+/// a caller that cannot make the mount namespace in its own (`ns_user`).
 pub struct NsMount {
+    /// The maps of the user namespace that the child makes first, where
+    /// the rung needs one.
+    pub(crate) user: Option<pod_hostprobe::userns::Maps>,
     pub(crate) tmp_target: CBuf,
     pub(crate) optional: Vec<Optional>,
     /// The overlay root, first after the private remount, where the root
@@ -293,21 +295,29 @@ pub fn ns_setup_step(step: u8) -> Option<&'static str> {
         NS_OVERLAY_STEP => Some("mounting overlay on the root"),
         crate::uts::NS_UTS_STEP => Some("unshare(CLONE_NEWUTS)"),
         crate::uts::NS_HOSTNAME_STEP => Some("sethostname"),
-        _ => None,
+        _ => crate::ns_user::step_name(step),
     }
 }
 
 /// Enter `root` in a mount namespace and exec, or fall back to chroot.
 ///
-/// The child makes a mount namespace, mounts `/` again as recursively
+/// The child makes a mount namespace (in a user namespace of its own where
+/// the caller has no `CAP_SYS_ADMIN`: `ns_user`), mounts `/` again as recursively
 /// private so that its mounts cannot reach the host, mounts its private
 /// tmpfs on the `/tmp` of the image, and then does the chroot sequence. A
 /// failure of the setup stops the namespace rung, and the entry enters
 /// chroot and names the fallback: a host that lost a leg between the probe
 /// and the entry still runs what the chroot rung can carry.
 pub fn spawn_namespace(root: &RootDir, plan: &Plan, err: &mut dyn Write) -> Result<Child> {
+    namespace_entry(root, plan, true, err)
+}
+
+/// [`spawn_namespace`]; `banner` is false where an entry before it wrote
+/// the banner (a refused join).
+pub(crate) fn namespace_entry(root: &RootDir, plan: &Plan, banner: bool, err: &mut dyn Write) -> Result<Child> {
     let names = &plan.names;
-    let chroot = |err: &mut dyn Write, cause: &str| {
+    // The banner of the fallback: none where a fork before it wrote one.
+    let chroot = |err: &mut dyn Write, cause: &str, banner: bool| {
         // A host name has no place on the chroot rung: refuse, with the cause.
         if let Some(name) = &plan.hostname {
             return Err(Error::runtime(
@@ -316,20 +326,26 @@ pub fn spawn_namespace(root: &RootDir, plan: &Plan, err: &mut dyn Write) -> Resu
             ));
         }
         let _ = writeln!(err, "{}", ns_fallback_line(names, cause));
-        spawn_with(root, plan, ENTERED_RUNG.word(), None, None, None, None, err)
+        spawn_with(root, plan, ENTERED_RUNG.word(), None, None, None, None, banner, err)
     };
     let Some(target) = ns_tmp_target(&root.path) else {
-        return chroot(err, &format!("the image holds no /tmp mount point under {}", root.path));
+        return chroot(err, &format!("the image holds no /tmp mount point under {}", root.path), banner);
     };
     let Some(target) = CBuf::new(&target) else {
-        return chroot(err, "the /tmp mount point contains a NUL byte");
+        return chroot(err, "the /tmp mount point contains a NUL byte", banner);
     };
-    let mount = NsMount { tmp_target: target, optional: optional_mounts(&root.path, names), overlay: None };
-    match spawn_with(root, plan, Rung::Namespace.word(), None, None, None, Some(NsEntry::Own(&mount)), err) {
-        Err(Error::NsSetup { step, errno }) => {
-            chroot(err, &format!("the namespace rung refused at {step} ({} ({}))", errno.name(), errno.0))
+    let mut mount =
+        NsMount { user: None, tmp_target: target, optional: optional_mounts(&root.path, names), overlay: None };
+    let own = crate::ns_user::spawn_own(root, plan, &mut mount, banner, err);
+    match (own.result, own.first) {
+        (Err(Error::NsSetup { step, errno }), Some((first, e))) => {
+            let cause = crate::both_refused(first, e, step, errno);
+            chroot(err, &format!("the namespace rung refused at {cause}"), false)
         }
-        other => other,
+        (Err(Error::NsSetup { step, errno }), None) => {
+            chroot(err, &format!("the namespace rung refused at {step} ({} ({}))", errno.name(), errno.0), false)
+        }
+        (other, _) => other,
     }
 }
 
@@ -346,15 +362,15 @@ pub fn spawn_joined(root: &RootDir, plan: &Plan, pidfd: i64, err: &mut dyn Write
 
 /// [`spawn_joined`] on a [`Root`]. For an overlay root, the chroot must
 /// land on an overlay that is not the lower directory, and a refused join
-/// enters an overlay root of its own ([`spawn_namespace_root`]), which
+/// enters an overlay root of its own ([`crate::spawn_namespace_root`]), which
 /// never falls back to chroot.
 pub fn spawn_joined_root(root: Root<'_>, plan: &Plan, pidfd: i64, err: &mut dyn Write) -> Result<Child> {
     let join = NsEntry::Join(pidfd, matches!(root, Root::Overlay { .. }));
-    match spawn_with(root.dir(), plan, Rung::Namespace.word(), None, None, None, Some(join), err) {
+    match spawn_with(root.dir(), plan, Rung::Namespace.word(), None, None, None, Some(join), true, err) {
         Err(Error::NsSetup { step, errno }) => {
             let cause = format!("{step} ({} ({}))", errno.name(), errno.0);
             let _ = writeln!(err, "{}", ns_join_fallback_line(&plan.names, &cause));
-            spawn_namespace_root(root, plan, err)
+            crate::ns_overlay::namespace_root_entry(root, plan, false, err)
         }
         other => other,
     }

@@ -63,6 +63,7 @@ mod launch;
 mod names;
 mod ns_optional;
 mod ns_overlay;
+mod ns_user;
 
 use std::io::Write;
 
@@ -79,6 +80,9 @@ pub use ns_optional::{NS_PROC_STEP, NS_PTS_STEP, ns_proc_refused, ns_proc_target
 pub use ns_overlay::{
     NS_OVERLAY_DIRS_STEP, NS_OVERLAY_STEP, NS_OVERLAY_TMPFS_STEP, OVERLAY_OPTIONS_MOST, Root, Upper, overlay_escape,
     overlay_options, run_namespace_root, spawn_namespace_root,
+};
+pub use ns_user::{
+    NS_GID_MAP_STEP, NS_SETGROUPS_STEP, NS_UID_MAP_STEP, NS_USER_STEP, both_refused, calls_for_user_namespace,
 };
 pub use plan::{Plan, Program};
 pub use status::exit_status;

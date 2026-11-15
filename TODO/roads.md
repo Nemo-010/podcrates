@@ -1465,3 +1465,31 @@ A variant `Connect(pod_ws::ConnectError)` in each of the three errors for a fail
 ```sh
 cargo test -p pod-egress --all-features --test vless --test trojan
 ```
+
+# T-673: `pod-egress`: the features `vless`, `vmess`, `trojan` and `shadowsocks` are in no static probe
+
+**Source:** T-670 (a finding of its work: `python3 -I scripts/check-probe.py` on the branch `integ` at `f6c4fbde`).
+**Category:** defect
+**Milestone:** M1
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`scripts/check-probe.py` reports four faults after the merge of T-035, part 2: `pod-egress: feature vless is in no static probe, and not in ALLOWED`, and the same for `vmess`, `trojan` and `shadowsocks`. `sh scripts/agent/check.sh` runs that check, so its step `paths` is red, and the static link of the four roads is not proved (`docs/design.md`, section 7).
+
+## Premise
+
+- Measured: `python3 -I scripts/check-probe.py` gives `48 crates, 4 faults` with and without the change of T-670.
+- Read: `scripts/check-probe.py` (`ALLOWED`), `examples/static-probe*/Cargo.toml`.
+
+## Approach
+
+Turn the four features of `pod-egress` on in `examples/static-probe` (the probe that takes tokio), with a call of each road in the probe so that the linker keeps it; then `sh scripts/check-static.sh` on x86_64 musl. None goes into `ALLOWED`: each one is a feature of a consumer binary (podssh).
+
+## Prove
+
+```sh
+python3 -I scripts/check-probe.py
+```

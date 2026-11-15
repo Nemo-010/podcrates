@@ -26,6 +26,20 @@ The entries:
   to the payload's standard error (`ns_refused_line`), and the payload
   runs with no `/proc` or `/dev/pts`, as on the chroot rung. The rung has no PID namespace: the
   payload's `/proc` shows the host's processes.
+* The namespace rung for a caller with no capabilities (`ns_user`,
+  PodUtils/podvm#406): at `EPERM` of `unshare(CLONE_NEWNS)`, the entry
+  tries the rung again with a user namespace first, as `unshare -Ur` makes
+  it: `unshare(CLONE_NEWUSER)`, `deny` into `/proc/self/setgroups`, then
+  one line in `uid_map` and in `gid_map` (the effective ids of the caller
+  to 0; the sequence of `pod_hostprobe::userns`, built before the fork),
+  then each step of the rung as for root. Each call has its step
+  (`NS_USER_STEP` 23, `NS_SETGROUPS_STEP` 24, `NS_UID_MAP_STEP` 25,
+  `NS_GID_MAP_STEP` 26). Only then does the entry fall back to chroot, and
+  the line names both refusals (`both_refused`). The overlay root takes
+  the same retry. The files of the caller show as uid 0 in the payload,
+  each other owner as 65534; a proc mount is refused there (no PID
+  namespace) and the rung goes on with no `/proc`. The banner goes out one
+  time for each entry, also over a retry or a fallback.
 * The overlay root of the namespace rung (`spawn_namespace_root`,
   `run_namespace_root` with `Root::Overlay { lower, upper }`): the
   caller's tree is the read-only lower layer of an overlay, so a shared
@@ -153,6 +167,7 @@ each entry takes; the payload owns the standard output.
 | `stage` | `copy_tree`, `stage_tmpfs`, `release_tmpfs`, `cache_dir`, `stage_cache(&names, ..)`, `Refusal` |
 | `fuse` | `check_node`, `check_node_at`, `serve_tree`, `release_mount`, `ActiveMount`, `FUSE_NODE` |
 | `device` | `parse`, `Mapping`, `canon`, `spec_entry`, `serve_entry`, `banner_line(&names, ..)`, `open_all`, `Opened`, `specs_of(&names, ..)`, `push_spec(&names, ..)`, `push_serve(&names, ..)`, `CHILD_FD_BASE`, `HOST_FD_FLOOR`, `SEP_ENTRY` |
+| `NS_USER_STEP`, `NS_SETGROUPS_STEP`, `NS_UID_MAP_STEP`, `NS_GID_MAP_STEP`, `calls_for_user_namespace`, `both_refused` | the namespace rung through a user namespace (PodUtils/podvm#406): the steps in `ns_setup_step`, the refusal that calls for the retry (`EPERM` of `unshare(CLONE_NEWNS)`), the cause of the fallback line |
 | `uts` | `NS_UTS_STEP`, `NS_HOSTNAME_STEP` (the steps of `unshare(CLONE_NEWUTS)` and `sethostname` in `ns_setup_step`), `MOST` (64 bytes): the host name of the payload on the namespace rung (PodUtils/podvm#403) |
 | `userland` | `Family`, `LoaderPlan` (`inhibit_cache`: the loader is glibc 2.16 or later, so a caller can give `--inhibit-cache`), `lib_dirs` (the loader's directory, the standard ones with `/usr/local/lib`, then the image's `/etc/ld.so.conf` or `/etc/ld-musl-ARCH.path`; each resolved inside the image), `takes_inhibit_cache`, `ldconf` (`configured_dirs`, the bounds `MOST_FILES`, `MOST_DEPTH`, `MOST_DIRS`, `MOST_BYTES`), `invocation_path`, `loader_argv_for`, `loader_plan` (the three take a `GuestRoot`), `host_env(&names, ..)`; `Volume { guest, host }`, `Maps` (`of_root(rootfs)`, `new(&names, rootfs, &volumes)` with the refusals of more than `MAX_MAP_PAIRS - 1` volumes (by the name of `names.maps`), of a guest side that is not absolute, is `/`, is not a normal path, repeats one, or is a reserved path of `names` or is under one (by name), and of a host side that is not absolute; `rootfs`, `volumes`, `volume_at`), `userland_maps_table(&names, &maps)` (the root pair, then each volume pair), `userland_volume_table(&names, &maps)` (the volume pairs only), `MAX_MAP_SIDE` (4096 bytes), `MAX_MAP_PAIRS` (32): each side that the variable cannot spell is refused with its own name (the rootfs path, the guest side or the host side of the volume) |
 | `binfmt` | `support_for`, `Support`, `copy_in_target`, `copy_interpreter_in`, and the reader of `pod_hostprobe::binfmt` |
@@ -268,6 +283,12 @@ overlays that the kernel stacks is a refusal (`Error::Overlay` at
 `mounting overlay on the root: EINVAL`), and the payload does not run; a
 joined entry sees the writes of the running payload under `/`, and with
 the pidfd of a process that ended enters an overlay root of its own.
+`tests/userns.rs` runs the namespace rung as a caller with no
+capabilities (as root, the test starts again as uid 65534): the payload
+sees uid 0, the host name of the plan, a `/tmp` that is not the image's,
+the word `namespace`, and one banner; `scripts/ci/userns-tests.sh` runs it
+in CI and fails on a skip. The plants `enter-userns-not-tried`,
+`enter-userns-no-maps` and `enter-userns-banner-twice` prove it.
 `tests/overlay_root.rs` is podvm's acceptance test of the overlay root
 (PodUtils/podvm#323) with an upper directory of the caller: the writes
 are in the upper layer, the image is the same byte for byte, and a file

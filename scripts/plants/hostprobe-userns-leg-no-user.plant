@@ -1,0 +1,6 @@
+# pod-hostprobe: the leg through a user namespace makes no user namespace, so a caller with no capabilities gets EPERM at unshare(CLONE_NEWNS); the live test of the leg as such a caller must fail (T-670).
+ENTRY=T-670
+GROUP=hostprobe
+EXPECT='the leg failed for a caller with no capabilities'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

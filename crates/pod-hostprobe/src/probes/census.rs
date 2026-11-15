@@ -7,26 +7,61 @@ pub(super) fn p_unshare_newns() -> Outcome {
 }
 
 pub(super) fn p_unshare_newuser() -> Outcome {
-    // The kernel refuses `unshare(CLONE_NEWUSER)` to a multithreaded caller
-    // with EINVAL whatever the policy, so an EINVAL from a threaded prober is
-    // the prober's own answer and not the machine's. This child was newly
-    // execed and has one thread, so the invariant holds. It is checked
-    // rather than assumed, because the day somebody adds a thread pool the
-    // check is what says so.
-    match threads_of_self() {
-        Some(n) if n > 1 => {
-            return Outcome::skip(
-                None,
-                format!(
-                    "this prober has {n} threads, and the kernel refuses \
-                         unshare(CLONE_NEWUSER) to any multithreaded caller with \
-                         EINVAL whatever the policy; the machine was not asked"
-                ),
-            );
-        }
-        _ => {}
+    if let Err(skip) = one_thread() {
+        return skip;
     }
     Outcome::from(unsafe { sys::sys(sys::SYS_UNSHARE, [sys::CLONE_NEWUSER, 0, 0, 0, 0, 0]) })
+}
+
+/// The kernel refuses `unshare(CLONE_NEWUSER)` to a multithreaded caller
+/// with EINVAL whatever the policy, so an EINVAL from a threaded prober is
+/// the prober's own answer and not the machine's. A probe child was newly
+/// execed and has one thread, so the invariant holds. It is checked rather
+/// than assumed, because the day somebody adds a thread pool the check is
+/// what says so.
+fn one_thread() -> Result<(), Outcome> {
+    match threads_of_self() {
+        Some(n) if n > 1 => Err(Outcome::skip(
+            None,
+            format!(
+                "this prober has {n} threads, and the kernel refuses \
+                 unshare(CLONE_NEWUSER) to any multithreaded caller with \
+                 EINVAL whatever the policy; the machine was not asked"
+            ),
+        )),
+        _ => Ok(()),
+    }
+}
+
+/// The namespace rung of a caller with no capabilities, in the order of
+/// the entry: the user namespace and its maps ([`crate::userns::enter`]),
+/// the mount namespace, `/` private, a tmpfs on `/tmp`. The denial names
+/// the call that the kernel refused. The child and its namespaces end with
+/// the probe, so the tmpfs needs no unmount: no other process sees it.
+pub(super) fn p_userns_mount() -> Outcome {
+    if let Err(skip) = one_thread() {
+        return skip;
+    }
+    let refused = |call: &str, e: Errno| Outcome {
+        reason: format!("{call} failed with {} ({})", e.name(), e.0),
+        ..Outcome::denied(e)
+    };
+    let maps = crate::userns::Maps::of_caller();
+    if let Err((step, e)) = crate::userns::enter(&maps) {
+        return refused(step.name(), e);
+    }
+    if let Err(e) = sys::unshare(sys::CLONE_NEWNS) {
+        return refused("unshare(CLONE_NEWNS) in the user namespace", e);
+    }
+    let (none, slash, tmp, tmpfs) = (sys::cempty(), c("/"), c("/tmp"), c("tmpfs"));
+    if let Err(e) = sys::mount(&none, &slash, &none, sys::MS_REC | sys::MS_PRIVATE) {
+        return refused("remounting / recursively private", e);
+    }
+    match sys::mount(&tmpfs, &tmp, &tmpfs, 0) {
+        Ok(_) => Outcome::ok(),
+        Err(sys::ENOENT) => Outcome::skip(Some(sys::ENOENT), "/tmp does not exist here, so no tmpfs was mounted on it"),
+        Err(e) => refused("mounting tmpfs on /tmp", e),
+    }
 }
 
 pub(super) fn p_unshare_newpid() -> Outcome {

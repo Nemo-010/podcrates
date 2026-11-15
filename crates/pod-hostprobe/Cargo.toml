@@ -52,3 +52,9 @@ boon = { workspace = true }
 [[test]]
 name = "children"
 harness = false
+
+# The leg through a user namespace as a caller with no capabilities: a
+# probe child of this binary, so no libtest.
+[[test]]
+name = "userns_leg"
+harness = false

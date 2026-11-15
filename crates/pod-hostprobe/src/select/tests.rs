@@ -164,3 +164,38 @@ fn the_namespace_rung_reports_mount_only() {
     assert!(Rung::Namespace.must_never_claim().contains("network"));
     assert!(Rung::Namespace.must_never_claim().contains("/proc"));
 }
+
+/// A caller with no capabilities (`EPERM` at each mount namespace in its own
+/// user namespace) gets the namespace rung where the leg through a user
+/// namespace passes, and the cell names the user namespace.
+#[test]
+fn the_leg_through_a_user_namespace_selects_namespace() {
+    let mut f = target_shape();
+    f.rows[1].1 = Outcome::denied(sys::EPERM);
+    let without = Selection::choose(&f);
+    assert_eq!(without.rung, Rung::Chroot);
+    let why = without.rejected.iter().find(|r| r.rung == Rung::Namespace).unwrap();
+    assert!(why.evidence.contains(&format!("{USERNS_LEG}=(not probed)")), "{}", why.evidence);
+    f.rows.push((USERNS_LEG, Outcome::denied(sys::EPERM)));
+    let denied = Selection::choose(&f);
+    assert_eq!(denied.rung, Rung::Chroot);
+    let why = denied.rejected.iter().find(|r| r.rung == Rung::Namespace).unwrap();
+    assert!(why.evidence.contains(&format!("{USERNS_LEG}=EPERM")), "{}", why.evidence);
+    f.rows.last_mut().unwrap().1 = Outcome::ok();
+    let s = Selection::choose(&f);
+    assert_eq!(s.rung, Rung::Namespace);
+    assert_eq!(Provides::of(s.rung, &f).namespaces, "user+mount");
+    assert_eq!(Provides::of(s.rung, &f).mounts, "private, tmpfs on /tmp");
+}
+
+/// Where the mount namespace works with no user namespace, the entry needs
+/// none, and the cell stays mount-only.
+#[test]
+fn a_host_with_both_forms_reports_mount_only() {
+    let f = findings(&[
+        ("unshare(CLONE_NEWNS)", Outcome::ok()),
+        ("mount(tmpfs,/mnt)", Outcome::ok()),
+        (USERNS_LEG, Outcome::ok()),
+    ]);
+    assert_eq!(Provides::of(Selection::choose(&f).rung, &f).namespaces, "mount-only");
+}
