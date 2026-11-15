@@ -20,7 +20,11 @@
 //! takes HTTP/1.1 to that host for [`REMEMBERED`]. A link that replaces
 //! another link of its session ([`connect_link`]) takes no connection that a
 //! link of the session rode: a connection that went silent holds a new
-//! stream as it holds the old one, until its TCP recovers. A caller's own TLS
+//! stream as it holds the old one, until its TCP recovers. A CONNECT with no
+//! answer within [`ANSWER_WAIT`] asks its connection by a PING; with no
+//! answer within [`PING_WAIT`], the pool retires the connection and the
+//! CONNECT goes once to a new one, so that no new session waits on a silent
+//! connection for the whole timeout. A caller's own TLS
 //! configuration is used as it is, with no ALPN (`Trust::caller`), so it
 //! takes the upgrade alone. The caller owns the pool: one for each process,
 //! or one for each test.
@@ -69,6 +73,16 @@ pub const IDLE: Duration = Duration::from_secs(30);
 /// How long a host that took HTTP/1.1 at the cost of a connection is not
 /// asked for HTTP/2 again.
 pub const REMEMBERED: Duration = Duration::from_secs(600);
+
+/// How long a CONNECT waits for its answer before its connection is asked
+/// by a PING whether it still speaks: a relay that dials its target answers
+/// late on a live connection; a silent connection answers neither.
+pub const ANSWER_WAIT: Duration = Duration::from_secs(2);
+
+/// The least wait for the answer to that PING; four round trips of the
+/// connection's first PING, where longer. No answer retires the connection,
+/// and the CONNECT goes once to a new one.
+pub const PING_WAIT: Duration = Duration::from_secs(2);
 
 /// How long, and how much of, a refusal's body is read, as of a refused
 /// upgrade.
@@ -247,7 +261,14 @@ pub async fn connect_link(
                 links.newest.fetch_max(conn.serial(), Ordering::SeqCst);
                 return Ok((session, Road::Stream { shared }));
             }
-            Err(Carry::Answer(e)) => return Err(e),
+            Err(Carry::Answer(e)) => {
+                // A connection that answered its PING but not the CONNECT
+                // carries no next session either.
+                if matches!(e, ConnectError::Timeout { .. }) {
+                    conn.retire();
+                }
+                return Err(e);
+            }
             Err(Carry::Connection(why)) => {
                 ended = why;
                 conn.retire();
@@ -304,7 +325,25 @@ async fn open_on(
         Ok::<_, Carry>((response, send))
     };
     let late = |_| Carry::Answer(ConnectError::Timeout { step: "the WebSocket upgrade", after: limit });
-    let (response, send) = tokio::time::timeout(limit, asked).await.map_err(late)??;
+    let start = tokio::time::Instant::now();
+    tokio::pin!(asked);
+    let (response, send) = match tokio::time::timeout(ANSWER_WAIT.min(limit), &mut asked).await {
+        Ok(got) => got?,
+        Err(_) => {
+            let rest = limit.saturating_sub(start.elapsed());
+            tokio::select! {
+                got = &mut asked => got?,
+                speaks = conn.answers(rest) => {
+                    if !speaks {
+                        let after = start.elapsed().as_millis();
+                        return Err(Carry::Connection(format!("no answer to the CONNECT within {after} ms, nor to a PING")));
+                    }
+                    let rest = limit.saturating_sub(start.elapsed());
+                    tokio::time::timeout(rest, asked).await.map_err(late)??
+                }
+            }
+        }
+    };
     let status = response.status();
     if !status.is_success() {
         let reason = status.canonical_reason().unwrap_or_default().to_string();
