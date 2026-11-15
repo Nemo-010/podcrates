@@ -98,8 +98,10 @@ places, and the caller refuses `--acme` with no cache; the failures are
 | podssh | the dependencies `rcgen`, `x509-parser` and `aws-lc-rs` of the client | `pod-acme` (git tag); podssh keeps `aws-lc-rs` for russh |
 | podssh | `scripts/interop-acme.sh`, `acme-interop.yml` | stay in podssh: they run `podssh relay serve --acme` against Pebble |
 
-The adoption trial is `adoption/podssh/pod-acme.patch` with its `.run` and
-`.commit`.
+The adoption trial is `adoption/podssh/pod-acme.patch` with its `.run`,
+`.commit` and `.needs` (it applies after `pod-transit`'s patch, which
+moves each podcrates tag to `v0.49.0`). podssh's `rcgen` goes to its
+`[dev-dependencies]`: only the stand-in release of its tests takes it now.
 
 ## Tests
 
