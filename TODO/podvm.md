@@ -8766,3 +8766,34 @@ cargo test -p pod-enter --all-features --lib pass_clear
 ## Done
 
 2026-11-15, the commits of the change. `crates/pod-enter/src/pass_clear.rs`: `keep` moves the root and the memfd of the caller above each passed number (`F_DUPFD_CLOEXEC`) and `Moved` closes the copies in the parent after the fork; the child uses the copies (`fchdir`, the check of the chroot, `execveat`); a failed move names the number and the kind of its file (`fstat`). `clear_of_passes` of the readiness pipe moved there; `launch.rs` is 481 lines. The tests of `pass_clear::tests` (3) pass; the plant `enter-root-on-a-passed-number` is caught.
+
+# T-713: `pod-enter`: the tests of `tests/userns.rs` race on `ETXTBSY` as a user with no root
+
+**Source:** `ci.yml` run 43730534119 at `7ef7aab` (PodUtils/podcrates#179), the job `test`, the step "The namespace rung through a user namespace".
+**Category:** defect
+**Milestone:** M6
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+As a user with no root, `scripts/ci/userns-tests.sh` runs the three tests of `crates/pod-enter/tests/userns.rs` in parallel threads. A test that forks while another test writes its copy of busybox gives the child that write descriptor until its exec, and the exec of that copy then fails with `ETXTBSY`. Two tests failed in CI, so the gates of `v0.53.0` stopped. As root, each test runs again as uid 65534 with `--test-threads=1`, so a session as root did not see it.
+
+## Premise
+
+- Measured: the test binary at `7ef7aab`, run as uid 65534 with a static busybox, 60 times on 4 cores: 5 runs failed with `ETXTBSY`.
+
+## Approach
+
+One lock for the tests of the file: `as_nobody` holds it for the whole test, so no test forks while another writes its copy.
+
+## Prove
+
+```sh
+sh scripts/ci/userns-tests.sh
+```
+
+## Done
+
+2026-11-15. With the lock, the same binary as uid 65534 failed 0 of 60 runs.

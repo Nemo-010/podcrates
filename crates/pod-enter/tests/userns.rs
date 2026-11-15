@@ -33,6 +33,11 @@ const NAME: &str = "unit2";
 /// The image that the root parent made for the child of uid 65534.
 const IMAGE: &str = "POD_ENTER_USERNS_IMAGE";
 
+/// One test at a time: a test that forks while another test writes its
+/// copy of busybox gives the child that write descriptor until the exec,
+/// and the exec of that copy then fails with `ETXTBSY`.
+static ONE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 fn busybox() -> Result<PathBuf, String> {
     let p = std::env::var_os("PODVM_T486_BUSYBOX").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("/bin/busybox"));
     let mut head = [0u8; 4096];
@@ -83,6 +88,7 @@ fn plan(script: &str, hostname: Option<&str>) -> Plan {
 /// As root: the image, then the test `test` again as uid 65534. As
 /// another user: the test as this user.
 fn as_nobody(test: &str, tag: &str, body: fn(&Path)) {
+    let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
     if let Some(root) = std::env::var_os(IMAGE) {
         return body(Path::new(&root));
     }

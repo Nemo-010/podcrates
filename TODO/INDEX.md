@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**571 entries: 116 open, 10 partial, 6 blocked, 439 done.**
+**572 entries: 116 open, 10 partial, 6 blocked, 440 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 14 | 5 | 0 | 121 | 140 |
+| P1 | 14 | 5 | 0 | 122 | 141 |
 | P2 | 51 | 2 | 4 | 230 | 287 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 116 | 10 | 6 | 439 | 571 |
+| **All** | 116 | 10 | 6 | 440 | 572 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -618,3 +618,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-710](foundation.md) | P1 | S | M0 | chore | done | one watcher of the organization for each session: issues, pull requests and Actions runs (the ruling "Watcher") |
 | [T-711](foundation.md) | P1 | S | M0 | chore | done | a message from outside the team: its own session verifies and confirms it; each other session checks the author (the ruling "Strangers") |
 | [T-712](foundation.md) | P1 | S | M0 | chore | done | the watcher reports each comment that is new or edited (the owner's ask) |
+| [T-713](podvm.md) | P1 | S | M6 | defect | done | `pod-enter`: the tests of `tests/userns.rs` race on `ETXTBSY` as a user with no root |
