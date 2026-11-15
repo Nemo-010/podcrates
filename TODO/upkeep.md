@@ -1868,7 +1868,7 @@ The run of `plants.yml` on the commit passes each shard.
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1895,3 +1895,7 @@ For each plant: find the second guard (apply the plant, then remove each candida
 ```sh
 sh scripts/plant-each.sh extract-t597-pass-only-widens extract-t598-existing-directory-not-opened extract-t598-whiteout-parent-not-opened
 ```
+
+## Done
+
+2026-11-15, commit `f453b82e`. The second guard of each plant: for `extract-t597-pass-only-widens`, the pass after the last layer (`modes::DirModes::set`) sets the mode of each directory again; for the two T-598 plants, the walk before the first layer (`modes::open_tree`, T-606) adds the owner bits to each directory of the earlier tree. Each was found with the plant applied and the candidate removed, as root through the worker of uid 1000. The umask test now also checks the tree between two layers (`run_open`), which only the permission pass of the layer sets: the T-597 plant is caught there, as it is. The `fchmod` of an existing directory and the `open_for_write` of the parent of a whiteout are redundant in `crate::extract` (call C646); they stay as the guard of a caller of the public steps, and the two T-598 plants also remove the walk. `plant-each.sh` catches the three plants as root, and the eight other plants of `drive::umask` and `drive::dirmodes`; `plant-each.sh --apply` shows 0 stale.

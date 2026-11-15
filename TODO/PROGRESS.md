@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 537 entries: 107 open, 9 partial, 6 blocked, 415 done.
+`TODO/INDEX.md` holds 537 entries: 106 open, 9 partial, 6 blocked, 416 done.
 
 ## State
 
@@ -61,7 +61,7 @@ podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
 First: the release `v0.51.0` (the fixes of PodUtils/podnet#572,
-PodUtils/podvm#380 and PodUtils/podssh#253, part 1 of T-035, the asks of PodUtils/podvm#389 and #390) and T-678 (three plants that miss) beside it. Then the move of podssh's waves 3 and 4 (the
+PodUtils/podvm#380 and PodUtils/podssh#253, part 1 of T-035, the asks of PodUtils/podvm#389 and #390). Then the move of podssh's waves 3 and 4 (the
 ruling "The move of podssh", PodUtils/podssh#248): T-035 (parts 2 and 3);
 T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
