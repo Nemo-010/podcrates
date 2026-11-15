@@ -184,5 +184,7 @@ numbers. `TODO/RULES.md` gives the rules.
 | #179 | [gh action] requested: the gates of main at 7ef7aab and the release v0.53.0 | open | T-686, T-687, T-688, T-691, T-684 |
 | #180 | COORD-107: the answer to PodUtils/podrunner#180: podcrates takes pod-lab (T-692); each project runs its releases in the labs (to all) | open | T-692 |
 | #181 | COORD-108: the answer to PodUtils/podnet#584: podcrates takes pod-manual (T-700); each command line takes its help and its manual from it (to all) | open | T-700 |
+| #182 | COORD-109: the owner's ruling "Installer": one POSIX installer for each project, hermetic, idempotent, fast, run in the labs (T-702); podrunner, please give your lessons (to all) | open | T-702 |
+| #183 | COORD-110: the owner's ruling "Issues": the state of each issue comes from the record by a tool, not by hand (T-703) (to all) | open | T-703 |
 
 #79 to #81 are pull requests.
