@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**543 entries: 109 open, 9 partial, 6 blocked, 419 done.**
+**543 entries: 107 open, 9 partial, 6 blocked, 421 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 110 | 124 |
-| P2 | 46 | 3 | 4 | 222 | 275 |
-| P3 | 52 | 3 | 2 | 85 | 142 |
-| **All** | 109 | 9 | 6 | 419 | 543 |
+| P2 | 45 | 3 | 4 | 223 | 275 |
+| P3 | 51 | 3 | 2 | 86 | 142 |
+| **All** | 107 | 9 | 6 | 421 | 543 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -586,7 +586,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-668](upkeep.md) | P2 | S | M6 | feature | done | `pod-oci`: the token of the manifest for the parallel blob fetches of a pull (PodUtils/podvm#395) |
 | [T-669](podvm.md) | P2 | S | M6 | feature | done | `pod-enter`: a UTS namespace and a host name on the namespace rung (PodUtils/podvm#403) |
 | [T-670](podvm.md) | P2 | M | M6 | feature | done | `pod-enter`: the namespace rung through a user namespace, and its leg in `pod-hostprobe` (PodUtils/podvm#406) |
-| [T-671](podvm.md) | P2 | S | M6 | defect | open | `pod-enter`: the join of a run that entered the namespace rung through a user namespace |
-| [T-672](podvm.md) | P3 | S | M6 | feature | open | `pod-enter`: a `/proc` for the namespace rung through a user namespace |
+| [T-671](podvm.md) | P2 | S | M6 | defect | done | `pod-enter`: the join of a run that entered the namespace rung through a user namespace |
+| [T-672](podvm.md) | P3 | S | M6 | feature | done | `pod-enter`: a `/proc` for the namespace rung through a user namespace |
 | [T-673](roads.md) | P1 | S | M1 | defect | done | `pod-egress`: the features `vless`, `vmess`, `trojan` and `shadowsocks` are in no static probe |
 | [T-676](podvm.md) | P2 | S | M6 | defect | done | `pod-hostprobe`: the KVM leg is a yes only for a device that runs a guest of the build's architecture (PodUtils/podvm#407) |
