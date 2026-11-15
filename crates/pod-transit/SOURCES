@@ -1,0 +1,24 @@
+# The files of this crate that came from another repository
+# (docs/design.md, section 9). A file line holds the git blob id at the
+# commit (`git ls-tree COMMIT -- PATH` gives it). scripts/check-sources.py
+# compares each with the default branch of its repository.
+
+repo PodUtils/podssh b9c04657bf4e283263ef34ba2462be297231cd38
+# podssh froze src/transit/ at this commit for the move (PodUtils/podssh@T-684,
+# PodUtils/podssh#248). src/transit/link.rs is pod-session's ws_link.rs
+# already, so the directory has no link.rs here. tests/cleanup/mod.rs is the
+# removal of the scratch directories of the test relay.
+dir crates/podssh-relay/src/transit
+dir crates/podssh-relay/tests/transit_server
+file 95c8922e43665aec436eba8b772363d16dd8e71d crates/podssh-relay/src/transit/client.rs -> crates/pod-transit/src/client.rs
+file 4dca2f34a896387e51f6293b6a8d28dca695b20c crates/podssh-relay/src/transit/far.rs -> crates/pod-transit/src/far.rs
+file 66ce78c9d6f57fd9badd6161553a6406eafccdd4 crates/podssh-relay/src/transit/meet.rs -> crates/pod-transit/src/meet.rs
+file fe277e25aea2c2b6287a27d45b3bb031800f0155 crates/podssh-relay/src/transit/mod.rs -> crates/pod-transit/src/lib.rs
+file eaf8092c59b76ff78054475e836599d8236fcc8c crates/podssh-relay/src/transit/token.rs -> crates/pod-transit/src/token.rs
+file b56b20ac3ae7da9f400d96dd9e0cd82993f663d0 crates/podssh-relay/tests/cleanup/mod.rs -> crates/pod-transit/tests/cleanup/mod.rs
+file 207f839184b811744f7b26794ec22966d5586ad4 crates/podssh-relay/tests/transit.rs -> crates/pod-transit/tests/transit.rs
+file 8ca068a7b03eebeddbe4b4c5089c522e935ff5d0 crates/podssh-relay/tests/transit_server/mod.rs -> crates/pod-transit/tests/transit_server/mod.rs
+# The plant of podssh, now transit-same-side (the patch rewritten for the
+# paths of this crate, the RUN for its virtualenv).
+file 38c84f2ebe6d42dcf7cbabfdf2e420a84facbab5 scripts/plants/t436-transit-same-side.patch -> scripts/plants/transit-same-side.patch
+file d3b8c095d32351848edc31863fe496301174a27e scripts/plants/t436-transit-same-side.plant -> scripts/plants/transit-same-side.plant

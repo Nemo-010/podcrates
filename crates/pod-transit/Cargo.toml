@@ -1,0 +1,40 @@
+[package]
+name = "pod-transit"
+description = "The transit road: a pair's byte stream through a magic-wormhole transit relay (Least Authority's by default), with a proof of the pair's secret at each meeting and the resumable layer of pod-session over each link; the way out, the trust and the events are the caller's."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# The failure with its stage and class, the events, the entropy, the
+# backoff, the text made safe to print.
+pod-core = { workspace = true, features = ["async"] }
+# The WebSocket to the relay, through the caller's way out.
+pod-ws = { workspace = true }
+# The resumable layer over each link, the link over a WebSocket, the
+# sessions that a node keeps.
+pod-session = { workspace = true }
+# Least Authority's transit relay: the endpoint `relay` of
+# `leastauthority-transit`.
+pod-services = { workspace = true }
+tokio = { workspace = true, features = ["io-util", "time", "sync", "rt", "macros"] }
+# The jitter between two tries of a client.
+rand = { workspace = true }
+# HKDF-SHA256 of the token and of the proof key, HMAC-SHA256 of a proof.
+# Pure Rust.
+sha2 = { workspace = true }
+hmac = { workspace = true }
+hkdf = { workspace = true }
+zeroize = { workspace = true }
+
+[dev-dependencies]
+pod-testkit = { workspace = true }
+# The way of the tests: a direct dial and TLS on ring.
+pod-proxy = { workspace = true }
+pod-tls = { workspace = true }
+rustls = { workspace = true, features = ["ring"] }
+tokio = { workspace = true, features = ["io-util", "net", "time", "sync", "rt", "rt-multi-thread", "macros", "test-util"] }
+# The digests of the bytes that the tests carry.
+sha2 = { workspace = true }

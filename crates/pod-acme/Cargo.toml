@@ -1,0 +1,41 @@
+[package]
+name = "pod-acme"
+description = "An ACME client (RFC 8555): a certificate for a name proven by TLS-ALPN-01 on the caller's own listener, kept and renewed, its P-256 keys in pure Rust; the HTTPS client, the trust and the places of the state are the caller's."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+# The failure with its stage and class, the events, the entropy of the
+# keys, the clock, the text made safe to print, the private files.
+pod-core = { workspace = true, features = ["async"] }
+# The served certificates of a server with the challenge of TLS-ALPN-01,
+# a pair read as a server takes it, the trust of the CA.
+pod-tls = { workspace = true }
+# The HTTPS client of each request to the CA, through the caller's way out.
+pod-proxy = { workspace = true }
+# Let's Encrypt's directory: the endpoint `directory` of `letsencrypt-acme`.
+pod-services = { workspace = true }
+tokio = { workspace = true, features = ["time"] }
+rustls = { workspace = true }
+rustls-pki-types = { workspace = true }
+# The P-256 keys and their signatures (deterministic ECDSA), as pod-tls's
+# server signs. Pure Rust.
+p256 = { workspace = true }
+# The DER of a CSR and of the certificate of a challenge, with no crypto of
+# its own: each signature is the key's. Pure Rust.
+rcgen = { version = "0.14", default-features = false }
+# The names and the life of a leaf, and the blocks of a PEM file. Pure Rust.
+x509-parser = { version = "0.18", default-features = false }
+base64 = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+zeroize = { workspace = true }
+
+[dev-dependencies]
+# A key that ring wrote, as podssh kept its keys (aws-lc-rs writes the same
+# form).
+ring = { workspace = true }
+tokio = { workspace = true, features = ["time", "rt", "macros"] }

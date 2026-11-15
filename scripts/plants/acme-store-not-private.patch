@@ -1,0 +1,11 @@
+--- a/crates/pod-acme/src/store.rs
++++ b/crates/pod-acme/src/store.rs
+@@ -110,7 +110,7 @@
+     let tmp = path.with_file_name(format!(".{name}.{}.tmp", std::process::id()));
+     let _ = std::fs::remove_file(&tmp);
+     let result = (|| {
+-        let mut file = cache::create_new_private(&tmp)?;
++        let mut file = cache::create_new_public(&tmp)?;
+         file.write_all(body)?;
+         file.sync_all()?;
+         drop(file);

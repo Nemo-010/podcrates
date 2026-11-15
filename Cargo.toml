@@ -24,6 +24,7 @@ crates-io = false
 [workspace.dependencies]
 # No default feature here: a crate that needs the async parts of pod-core
 # (its feature `async`) names it, so that pod-tls builds with no tokio.
+pod-acme = { path = "crates/pod-acme", version = "0.49.0" }
 pod-actions-expr = { path = "crates/pod-actions-expr", version = "0.49.0" }
 pod-actions-results = { path = "crates/pod-actions-results", version = "0.49.0" }
 pod-actions-store = { path = "crates/pod-actions-store", version = "0.49.0" }
@@ -52,13 +53,14 @@ pod-proxy = { path = "crates/pod-proxy", version = "0.49.0" }
 pod-qga = { path = "crates/pod-qga", version = "0.49.0" }
 pod-quic = { path = "crates/pod-quic", version = "0.49.0" }
 pod-relay = { path = "crates/pod-relay", version = "0.49.0" }
-pod-session = { path = "crates/pod-session", version = "0.49.0" }
 pod-rootfs = { path = "crates/pod-rootfs", version = "0.49.0" }
 pod-services = { path = "crates/pod-services", version = "0.49.0" }
+pod-session = { path = "crates/pod-session", version = "0.49.0" }
 pod-supervise = { path = "crates/pod-supervise", version = "0.49.0" }
 pod-term = { path = "crates/pod-term", version = "0.49.0" }
 pod-testkit = { path = "crates/pod-testkit", version = "0.49.0" }
 pod-tls = { path = "crates/pod-tls", version = "0.49.0" }
+pod-transit = { path = "crates/pod-transit", version = "0.49.0" }
 # No default feature here: pod-proxy takes the codec of STUN alone (feature
 # `stun`); a crate that needs the TURN client names the feature `turn`.
 pod-turn = { path = "crates/pod-turn", version = "0.49.0", default-features = false }

@@ -1,0 +1,27 @@
+# The trial of pod-acme in podssh (T-034; call C601), at podssh's main
+# b9c04657 (pod-acme.commit), where podssh froze src/acme/ for the move
+# (PodUtils/podssh#248, PodUtils/podssh@T-684), after the patch of
+# pod-transit (pod-acme.needs), which moves each podcrates tag to v0.50.0.
+# podssh-cli's acme/mod.rs becomes glue over pod-acme: it re-exports the
+# crate and keeps `new` (podssh's HTTPS client through HTTPS_PROXY, the
+# trust, the places of its cache, the refusal of PODSSH_CACHE_DIR=none and
+# its exit codes), `keep` (the lines to the role's sender) and `Say`. The
+# Pinggy road and the OpenTunnel road take Key and the CSR of a tunnel from
+# the crate. The tests of the module leave podssh; its Pebble interop
+# stays, as it runs the binary. The record with its citations, the
+# repository checks; no moved file stays; the build; pod-acme in the tree;
+# clippy and the tests of the CLI's role and of its node of the publish
+# road; the Pebble interop of the binary; rustfmt of the crate that the
+# patch changes; each test target that the gate names.
+cargo run -q -p podssh-todo -- remap Cargo.lock > /dev/null
+cargo run -q -p podssh-todo -- check
+python3 scripts/check-repo.py
+test "$(ls crates/podssh-cli/src/acme)" = mod.rs
+cargo build -q
+cargo tree -q -p podssh-cli -i pod-acme | grep -q '^pod-acme v'
+cargo clippy -q --all-targets -p podssh-cli -- -D warnings -A clippy::collapsible_if
+cargo test -q -p podssh-cli --lib -- acme relay_serve:: pinggy_cert node_opentunnel
+cargo test -q -p podssh-cli --test relay_serve
+sh scripts/interop-acme.sh "${CARGO_TARGET_DIR:-target}/debug/podssh"
+cargo fmt -p podssh-cli --check
+python3 -I "$PODCRATES/scripts/check-consumer-tests.py"

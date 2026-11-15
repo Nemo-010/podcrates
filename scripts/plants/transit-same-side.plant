@@ -1,0 +1,10 @@
+# Each end's line to the transit relay names one side, which the relay
+# never pairs with itself, so no node and client meet; the test of two ends
+# that carry 1 MiB each way through magic-wormhole's own relay must fail.
+# The relay's Python packages go into a virtualenv of the plant's worktree,
+# each checked by its SHA-256 (scripts/ci/wormhole-servers.txt).
+ENTRY=T-027
+GROUP=transit
+EXPECT='test two_ends_meet_and_carry_one_mib_each_way \.\.\. FAILED'
+RUN='python3 -m venv target/transit-venv && sh scripts/retry.sh target/transit-venv/bin/python -m pip install --quiet --require-hashes -r scripts/ci/wormhole-servers.txt && POD_WORMHOLE_TEST_SERVER=required POD_WORMHOLE_TEST_PYTHON="$PWD/target/transit-venv/bin/python" cargo test -p pod-transit --test transit -- two_ends_meet_and_carry_one_mib_each_way --exact'
+LIMIT=1800

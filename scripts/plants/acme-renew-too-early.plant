@@ -1,0 +1,6 @@
+# A long certificate is renewed at a third of its life left, not 30 days
+# before its end; the test of the time of a renewal must fail.
+ENTRY=T-034
+GROUP=acme
+EXPECT='test tests::a_certificate_is_renewed_30_days_before_its_end_or_at_a_third_of_a_short_life \.\.\. FAILED'
+RUN='cargo test -p pod-acme --lib -- tests::a_certificate_is_renewed_30_days_before_its_end_or_at_a_third_of_a_short_life --exact'

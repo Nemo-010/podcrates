@@ -1,0 +1,6 @@
+# A request after newAccount names its key by both kid and jwk, which RFC
+# 8555, section 6.2, forbids; the test of a signed request must fail.
+ENTRY=T-034
+GROUP=acme
+EXPECT='test jws::tests::a_request_is_signed_es256_with_its_nonce_url_and_key \.\.\. FAILED'
+RUN='cargo test -p pod-acme --lib -- jws::tests::a_request_is_signed_es256_with_its_nonce_url_and_key --exact'

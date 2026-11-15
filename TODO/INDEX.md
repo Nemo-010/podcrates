@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**520 entries: 105 open, 8 partial, 6 blocked, 401 done.**
+**521 entries: 104 open, 8 partial, 6 blocked, 403 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 106 | 120 |
-| P2 | 48 | 2 | 4 | 210 | 264 |
-| P3 | 46 | 3 | 2 | 83 | 134 |
-| **All** | 105 | 8 | 6 | 401 | 520 |
+| P2 | 46 | 2 | 4 | 212 | 264 |
+| P3 | 47 | 3 | 2 | 83 | 135 |
+| **All** | 104 | 8 | 6 | 403 | 521 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -73,14 +73,14 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-024](relay.md) | P2 | S | M2 | feature | done | `pod-wg`: the WireGuard initiator |
 | [T-025](relay.md) | P1 | L | M2 | feature | done | `pod-relay`: the relay client, the pool, the roads and the reverse road (the base of podssh) |
 | [T-026](relay.md) | P1 | M | M2 | feature | done | `pod-relay`: podnet's relay client and its plain reverse mode |
-| [T-027](adapters.md) | P2 | S | M3 | feature | open | `pod-transit`: the transit relay carrier |
+| [T-027](adapters.md) | P2 | S | M3 | feature | done | `pod-transit`: the transit relay carrier |
 | [T-028](adapters.md) | P1 | L | M3 | feature | partial | `pod-warp`: the WARP adapter |
 | [T-029](adapters.md) | P1 | L | M3 | feature | open | `pod-cloudflare`: the edge client, the tunnel and the quick tunnels (the base of podnet) |
 | [T-030](adapters.md) | P1 | M | M3 | feature | open | `pod-cloudflare`: podssh's quick tunnels onto the edge client |
 | [T-031](roads.md) | P2 | M | M4 | feature | done | `pod-derp`: the DERP client and the DERP carrier of a node |
 | [T-032](roads.md) | P3 | S | M4 | feature | open | `pod-piping`: the Piping Server carrier |
 | [T-033](roads.md) | P3 | S | M4 | feature | open | `pod-opentunnel`: the OpenTunnel carrier |
-| [T-034](roads.md) | P2 | S | M4 | feature | open | `pod-acme`: the ACME client |
+| [T-034](roads.md) | P2 | S | M4 | feature | done | `pod-acme`: the ACME client |
 | [T-035](roads.md) | P2 | L | M4 | feature | open | `pod-egress`: the other roads out (via, VLESS, wstunnel, Wisp, Shadowsocks and more) |
 | [T-036](roads.md) | P2 | L | M4 | feature | open | `pod-relay-serve`: the relay role and its mailbox |
 | [T-037](roads.md) | P2 | M | M4 | feature | open | `pod-iroh`: the iroh road |
@@ -567,3 +567,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-634](relay.md) | P1 | S | M2 | defect | done | `pod-relay`: the run of a code fails over the Nostr relays alone, though `pod_wormhole::nostr` pairs (PodUtils/podssh#247) |
 | [T-635](podvm.md) | P3 | S | M7 | feature | open | `pod-guest`: a setting of the bus of the root disk, so that a warm start runs on QEMU 8.2 |
 | [T-636](roads.md) | P3 | S | M4 | chore | open | `pod-derp`: the tests of the DERP link against Tailscale's derper on the loopback in CI |
+| [T-637](roads.md) | P3 | S | M4 | chore | open | `pod-acme`: a whole order against Pebble on the loopback in CI |

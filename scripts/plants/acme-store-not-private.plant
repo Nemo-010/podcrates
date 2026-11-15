@@ -1,0 +1,6 @@
+# The certificate's key is kept in a file that others can read; the test
+# of the state's modes must fail (unix).
+ENTRY=T-034
+GROUP=acme
+EXPECT='test store::tests::the_account_is_made_once_and_the_certificate_replaced_whole_each_file_private \.\.\. FAILED'
+RUN='cargo test -p pod-acme --lib -- store::tests::the_account_is_made_once_and_the_certificate_replaced_whole_each_file_private --exact'

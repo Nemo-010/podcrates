@@ -1,0 +1,12 @@
+--- a/crates/pod-acme/src/key.rs
++++ b/crates/pod-acme/src/key.rs
+@@ -87,7 +87,8 @@
+     pub fn sign_fixed(&self, message: &[u8]) -> [u8; 64] {
+         let signature: Signature = self.secret.sign(message);
+         let mut fixed = [0u8; 64];
+-        fixed.copy_from_slice(&signature.to_bytes()[..]);
++        fixed[..32].copy_from_slice(&signature.to_bytes()[32..]);
++        fixed[32..].copy_from_slice(&signature.to_bytes()[..32]);
+         fixed
+     }
+ }

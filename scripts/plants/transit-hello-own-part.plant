@@ -1,0 +1,7 @@
+# A hello of this end's own part is taken as a stranger's, not as a second
+# client of the pair, so a client gives up where it must try again; the
+# test of the reading of a hello must fail.
+ENTRY=T-027
+GROUP=transit
+EXPECT='test meet::tests::a_hello_gives_its_nonce_only_from_the_other_part_and_this_version \.\.\. FAILED'
+RUN='cargo test -p pod-transit --lib -- meet::tests::a_hello_gives_its_nonce_only_from_the_other_part_and_this_version --exact'

@@ -1,0 +1,7 @@
+# The proof of a meeting does not hold the role of its maker, so the relay
+# can send a node's proof back to the node as a client's; the test of a
+# proof that holds for its role and its order alone must fail.
+ENTRY=T-027
+GROUP=transit
+EXPECT='test token::tests::a_proof_holds_for_its_role_and_order_alone_and_never_for_the_token_alone \.\.\. FAILED'
+RUN='cargo test -p pod-transit --lib -- token::tests::a_proof_holds_for_its_role_and_order_alone_and_never_for_the_token_alone --exact'

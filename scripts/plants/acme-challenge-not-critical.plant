@@ -1,0 +1,6 @@
+# The acmeIdentifier of the challenge's certificate is not critical, which
+# RFC 8737, section 3, requires; the test of the certificate must fail.
+ENTRY=T-034
+GROUP=acme
+EXPECT='test certs::tests::the_challenge_certificate_holds_one_name_and_the_digest_of_the_key_authorization \.\.\. FAILED'
+RUN='cargo test -p pod-acme --lib -- certs::tests::the_challenge_certificate_holds_one_name_and_the_digest_of_the_key_authorization --exact'

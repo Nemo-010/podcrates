@@ -1,0 +1,6 @@
+# The relay's answer is read with no bound until its newline, so a relay
+# that sends no newline fills the memory; the test of the bound must fail.
+ENTRY=T-027
+GROUP=transit
+EXPECT='test meet::tests::a_line_waits_for_its_newline_and_a_long_answer_with_none_is_refused \.\.\. FAILED'
+RUN='cargo test -p pod-transit --lib -- meet::tests::a_line_waits_for_its_newline_and_a_long_answer_with_none_is_refused --exact'

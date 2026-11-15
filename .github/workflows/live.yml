@@ -5,7 +5,8 @@ name: live
 # loopback proves the client on each push, T-350), a host that offers
 # Multipath TCP, a public registry, the WARP API and its front door,
 # Alpine's mirror, the public mailboxes of magic-wormhole, the public ntfy
-# servers (T-554), the public Nostr relays (T-550), the public WebTorrent trackers (T-551) and the public MQTT
+# servers (T-554), the public Nostr relays (T-550), the public WebTorrent trackers (T-551), Least Authority's
+# transit relay (T-027) and the public MQTT
 # brokers (magic-wormhole's own servers run on each push in ci.yml, T-354), the public file hosts of pod-services
 # (T-528), and two actions by tag from github.com (pod-actions-store,
 # T-564).
@@ -182,6 +183,30 @@ jobs:
           fi
           timeout 300 cargo test --locked -p pod-wormhole --all-features --test live -- --ignored --nocapture
           timeout 300 cargo test --locked -p pod-relay --all-features --test pair_code_live -- --ignored --nocapture
+      # Two meetings and one session of the resumable layer, 1 MiB each, through
+      # Least Authority's transit relay (T-027; podssh's ruling Q65: short
+      # runs), each Thursday and by hand, as a watch of a relay that publishes
+      # no limit. magic-wormhole's own relay proves the road on each push
+      # (ci.yml). A planted run gives both ends one side, which the relay
+      # never pairs, and must fail.
+      - name: pod-transit, two meetings and one session through Least Authority's transit relay
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -eu
+          if [ "$EVENT" = schedule ] && [ "$(date -u +%u)" != 4 ]; then
+            echo "the transit relay runs on Thursdays and by hand"
+            exit 0
+          fi
+          timeout 300 cargo test --locked -p pod-transit --test transit -- --ignored --nocapture --test-threads=1
+          rc=0
+          POD_TRANSIT_TEST_PLANT=same-side timeout 300 cargo test --locked -p pod-transit --test transit -- \
+            --ignored --test-threads=1 through_least_authority_two_ends_meet || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            echo "the check is vacuous: two ends of one side passed"
+            exit 1
+          fi
+          echo "two ends of one side failed (exit $rc), as they must"
       # A board of retained messages at each public MQTT broker (T-417,
       # PodUtils/podssh@T-738): a put, a take, a clear and a take after the
       # clear. Mosquitto proves the board on each push (ci.yml); this run
