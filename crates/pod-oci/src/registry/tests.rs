@@ -306,3 +306,15 @@ fn no_login_goes_to_a_registry_over_plain_http() {
     assert_eq!((err.stage, err.class), (Stage::Registry, Class::Policy), "{err}");
     assert!(err.to_string().contains("sends no login over plain HTTP"), "{err}");
 }
+
+/// The tokens of one client go to another by `tokens` and `with_tokens`,
+/// each under its own key; a new client holds none.
+#[test]
+fn the_tokens_of_a_client_go_to_another() {
+    assert!(client().tokens().is_empty());
+    let mut held = HashMap::new();
+    held.insert(key("registry.example", "repository:a:pull"), "made-up-token-a".to_string());
+    held.insert(key("registry.example", "repository:b:pull"), "made-up-token-b".to_string());
+    let other = client().with_tokens(held.clone());
+    assert_eq!(other.tokens(), held);
+}

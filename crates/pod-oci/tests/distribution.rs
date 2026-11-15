@@ -161,6 +161,15 @@ fn an_index_of_two_platforms_resolves_through_a_bearer_token() {
     }
     // One token for the scope: the client keeps it for each later request.
     assert_eq!(asked.len(), 1, "{asked:?}");
+    // A second client of the same pull with the tokens of the first
+    // fetches a blob with no new token request (PodUtils/podvm#395).
+    let reference = Reference::parse(&content.reference(&registry.endpoint)).unwrap();
+    let image = &content.images[0];
+    let mut worker =
+        client_with(&registry, &[&token_host], distribution::PASSWORD, Policy::default()).with_tokens(client.tokens());
+    let bytes = fetch(&mut worker, &reference, &image.layer_digest, image.layer.len()).unwrap();
+    assert_eq!(bytes, image.layer);
+    assert_eq!(tokens.asked().len(), 1, "the worker asked for a token again");
     println!("distribution: an index of two platforms resolved through a bearer token");
 
     // With no login, the token server refuses, and so does the client.

@@ -163,6 +163,23 @@ impl Client {
         }
     }
 
+    /// The tokens that this client holds, keyed by `<endpoint>|<scope>`.
+    /// A caller that fetches the blobs of one pull with several clients
+    /// gives each the tokens of the client that got the manifest
+    /// ([`Client::with_tokens`]), so that no blob starts with a 401 and a
+    /// new token request. A token is a credential: do not log it.
+    pub fn tokens(&self) -> HashMap<String, String> {
+        self.tokens.clone()
+    }
+
+    /// The client with `tokens` (from [`Client::tokens`]) in its cache. A
+    /// token that the registry refuses is asked for again, as one that
+    /// expired.
+    pub fn with_tokens(mut self, tokens: HashMap<String, String>) -> Client {
+        self.tokens.extend(tokens);
+        self
+    }
+
     /// The registries that the client may reach with no check or over HTTP.
     pub fn with_policy(mut self, policy: Policy) -> Client {
         self.policy = policy;

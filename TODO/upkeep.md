@@ -1825,3 +1825,35 @@ sh scripts/adoption.sh podssh pod-egress
 ## Done
 
 2026-11-15, the commit of the fix. `adoption/podssh/pod-egress.patch` changes the five citations to the bare name of the file and its new place in PodUtils/podcrates (`forwarder-live.yml`, `egress-via-no-credential.plant`), and moves the citation of `forwarder.rs` to 28-45 with `podssh-todo remap`. The patch is made again with `git diff --cached HEAD --abbrev=8`; the old patch made the same way gave the same bytes. `sh scripts/adoption.sh podssh pod-egress` passed each step of the `.run` here: the record (743 entries), `check-repo.py`, clippy and the tests of `podssh-ws`, `podssh-cli` and `podssh-tor`, rustfmt, the toolchains and the 15 test targets. The run of `adoption.yml` on the push proves it in CI.
+
+# T-668: `pod-oci`: the token of the manifest for the parallel blob fetches of a pull (PodUtils/podvm#395)
+
+**Source:** PodUtils/podvm#395 (COORD-129 of podvm; PodUtils/podvm@T-1850).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+podvm timed the phases of a pull through the HTTPS proxy of its cloud host: the blob phase of `busybox:1.37.0-musl` (2 blobs) took 1190 ms, as long as the manifest phase (1223 ms). podvm's estimate (not measured alone): `Client::blob` takes `&mut self`, so each worker of `fetch_parallel` builds its own `pod_oci::registry::Client`, whose token cache is empty, and each blob starts with a 401 and a token request. The ask: a way for the workers of one pull to use the token of the manifest request, for example `Client::tokens(&self)` and `Client::with_tokens(self, map)` with the key `<endpoint>|<scope>`.
+
+## Premise
+
+- Read: PodUtils/podvm#395; `crates/pod-oci/src/registry.rs` (`Client`, its `tokens`), `crates/pod-oci/src/registry/http.rs` (the answer to a `Bearer` challenge), `crates/pod-oci/tests/distribution.rs`.
+- Not measured: the time that podvm saves; podvm measures it again (its experiment 443).
+
+## Approach
+
+The first form of the ask: `Client::tokens` gives a copy of the cache, and `Client::with_tokens` adds a map to it. A token that the registry refuses is asked for again, as one that expired, so a stale map costs one request. A unit test of the round trip, and a step of the bearer test against the CNCF registry: a second client with the tokens of the first fetches a blob with no new token request.
+
+## Prove
+
+```sh
+cargo test -p pod-oci --all-features
+```
+
+## Done
+
+2026-11-15, the commit of the change. `Client::tokens` and `Client::with_tokens`; the test `the_tokens_of_a_client_go_to_another` and the step of `an_index_of_two_platforms_resolves_through_a_bearer_token` (the token server counts one request after the fetch of a worker). `cargo test -p pod-oci --all-features` passed (95 unit tests); the test against the registry runs in `ci.yml`, where the registry binary is.
