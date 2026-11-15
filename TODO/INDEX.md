@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**557 entries: 107 open, 8 partial, 6 blocked, 436 done.**
+**558 entries: 107 open, 8 partial, 6 blocked, 437 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 3 | 0 | 118 | 132 |
+| P1 | 11 | 3 | 0 | 119 | 133 |
 | P2 | 45 | 2 | 4 | 230 | 281 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 107 | 8 | 6 | 436 | 557 |
+| **All** | 107 | 8 | 6 | 437 | 558 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -604,3 +604,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-688](podvm.md) | P2 | S | M6 | feature | done | `pod-enter`: the device nodes of the host on the namespace rung through a user namespace (PodUtils/podvm#414) |
 | [T-689](upkeep.md) | P2 | S | M5 | defect | done | the plant `enter-userns-proc-no-remount` misses where the host's `/proc` has `nosuid`, `nodev` and `noexec` already |
 | [T-691](podvm.md) | P2 | S | M6 | defect | done | `pod-enter`: the root directory and the memfd move clear of the numbers of the passed descriptors (PodUtils/podvm#422) |
+| [T-713](podvm.md) | P1 | S | M6 | defect | done | `pod-enter`: the tests of `tests/userns.rs` race on `ETXTBSY` as a user with no root |
