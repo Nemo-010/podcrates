@@ -8,6 +8,8 @@
 - Last release: `v0.55.0` at `e3c3e1d` (`docs/releases/v0.55.0.md`; ci
   43765816118, adoption 43765819330; the request #193): T-703 (the sync of
   the issues), T-701 (the host classes of podssh and podnet).
+- In release: `v0.56.0` (`docs/releases/v0.56.0.md`): T-723 (the kind
+  `reference`, PodUtils/podvm#435).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.54.0` (`d00ca78`, PodUtils/podssh#274; it runs the one
