@@ -97,6 +97,7 @@ pub(crate) fn spawn_own(root: &RootDir, plan: &Plan, mount: &mut NsMount, banner
     match spawn_with(root, plan, word, None, None, None, Some(NsEntry::Own(mount)), banner, err) {
         Err(Error::NsSetup { step, errno }) if calls_for_user_namespace(step, errno) => {
             mount.user = Some(Maps::of_caller());
+            mount.devices = Some(crate::ns_dev_bind::devices(root, &plan.names));
             let result = spawn_with(root, plan, word, None, None, None, Some(NsEntry::Own(mount)), false, err);
             Own { result, first: Some((step, errno)) }
         }

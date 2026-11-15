@@ -4,6 +4,8 @@
 //! to chroot. The payload sees uid 0, the name of the plan, a `/tmp` that
 //! is not the `/tmp` of the image, and a `/proc` (a bind of the host's,
 //! T-672). An exec that joins the run sees the `/tmp` of the run (T-671).
+//! The device nodes of the host replace the regular files of the image
+//! (T-688).
 //!
 //! As root, the test makes the image and starts its own binary again as
 //! uid and gid 65534 with no groups (`pod_testkit::nobody`). The image is
@@ -51,7 +53,7 @@ fn image(bb: &Path, tag: &str) -> PathBuf {
     fs::write(root.join("tmp/of-the-image"), "x").unwrap();
     fs::copy(bb, root.join("bin/busybox")).unwrap();
     fs::set_permissions(root.join("bin/busybox"), fs::Permissions::from_mode(0o755)).unwrap();
-    for applet in ["sh", "id", "uname", "test", "touch", "grep", "sleep"] {
+    for applet in ["sh", "id", "uname", "test", "touch", "grep", "sleep", "head", "wc"] {
         std::os::unix::fs::symlink("busybox", root.join("bin").join(applet)).unwrap();
     }
     root
@@ -86,6 +88,9 @@ fn as_nobody(test: &str, tag: &str, body: fn(&Path)) {
         Err(why) => return skip_line(&format!("no static busybox: {why}")),
     };
     let root = image(&bb, tag);
+    if tag == "dev" {
+        dev_of_the_image(&root);
+    }
     if !nobody::is_root() {
         body(&root);
         let _ = fs::remove_dir_all(&root);
@@ -117,6 +122,11 @@ fn a_caller_with_no_capabilities_enters_the_namespace_rung() {
 }
 
 #[test]
+fn a_caller_with_no_capabilities_gets_the_devices_of_the_host() {
+    as_nobody("a_caller_with_no_capabilities_gets_the_devices_of_the_host", "dev", devices_of_the_host);
+}
+
+#[test]
 fn a_caller_with_no_capabilities_joins_its_run() {
     as_nobody("a_caller_with_no_capabilities_joins_its_run", "join", joins_its_run);
 }
@@ -142,6 +152,56 @@ fn as_the_caller(root: &Path) {
     assert!(!err.contains("entered chroot instead"), "{err}");
     assert!(!err.contains("runs with no /proc"), "{err}");
     assert!(!root.join("tmp/new").exists(), "the write of the payload landed in the /tmp of the image");
+}
+
+/// The `/dev` of [`devices_of_the_host`], of the caller of the test: the
+/// child makes the missing mount points in it.
+fn dev_of_the_image(root: &Path) {
+    let dev = root.join("dev");
+    fs::create_dir_all(&dev).unwrap();
+    fs::write(dev.join("null"), "").unwrap();
+    fs::write(dev.join("random"), vec![0u8; 1 << 20]).unwrap();
+    fs::write(dev.join("urandom"), vec![0u8; 1 << 20]).unwrap();
+    fs::write(root.join("zero-of-the-image"), "z").unwrap();
+    std::os::unix::fs::symlink("../zero-of-the-image", dev.join("zero")).unwrap();
+    if nobody::is_root() {
+        std::os::unix::fs::chown(&dev, Some(nobody::NOBODY), Some(nobody::NOBODY)).unwrap();
+    }
+}
+
+/// The `/dev` that `pod-rootfs` leaves in a user namespace: regular files
+/// (a `/dev/urandom` of 1 MiB), a missing `/dev/full` and `/dev/tty`, and
+/// a link at `/dev/zero`. The payload reads more than 1 MiB of
+/// `/dev/urandom`, `/dev/null` is a character device, a write to
+/// `/dev/full` fails with `ENOSPC`, each bind is `nosuid` and `noexec` but
+/// not `nodev`, and the link stays a link.
+fn devices_of_the_host(root: &Path) {
+    if !no_capabilities() {
+        return;
+    }
+    let dev = root.join("dev");
+    let dir = RootDir::open(root.to_str().unwrap()).unwrap();
+    let script = "test \"$(head -c 2000000 /dev/urandom | wc -c)\" = 2000000 || exit 3; \
+         test \"$(head -c 2000000 /dev/random | wc -c)\" = 2000000 || exit 4; test -c /dev/null || exit 5; \
+         out=$(echo x 2>&1 >/dev/full); case \"$out\" in *'No space left'*) ;; *) exit 6;; esac; \
+         test -L /dev/zero || exit 7; \
+         grep -Eq ' /dev/urandom [^ ]*nosuid[^ ]*noexec' /proc/self/mountinfo || exit 8; \
+         grep -Eq ' /dev/(null|urandom) [^ ]*nodev' /proc/self/mountinfo && exit 9; test -c /dev/tty || exit 10";
+    // The child writes the line of a skipped path to the standard error
+    // of the payload: a file here.
+    let lines = std::env::temp_dir().join(format!("pod-enter-userns-dev-err-{}", std::process::id()));
+    let file = fs::File::create(&lines).unwrap();
+    let mut plan = plan(script, None);
+    plan.fds.pass.push((2, i64::from(std::os::fd::AsRawFd::as_raw_fd(&file))));
+    let mut err = Vec::new();
+    let code = run_namespace(&dir, &plan, &mut err);
+    let (err, payload) = (String::from_utf8_lossy(&err), fs::read_to_string(&lines).unwrap_or_default());
+    let _ = fs::remove_file(&lines);
+    assert_eq!(code.map_err(|e| e.to_string()), Ok(0), "the payload as uid {}: {err}{payload}", nobody::NOBODY);
+    assert!(!err.contains("entered chroot instead"), "{err}");
+    assert!(payload.contains("keeps the image's /dev/zero: the image holds a symbolic link"), "{payload}");
+    assert_eq!(payload.matches("keeps the image's").count(), 1, "one line, for the link: {payload}");
+    assert_eq!(fs::read(dev.join("urandom")).unwrap().len(), 1 << 20, "the bind wrote into the image");
 }
 
 /// A run that writes `/tmp/shared` and sleeps, then an exec that joins it

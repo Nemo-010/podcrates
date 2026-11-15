@@ -267,9 +267,9 @@ pub(crate) fn spawn_with(
                 if let Err(e) = sys::mount(&tmpfs, &m.tmp_target, &tmpfs, 0) {
                     report(9, e);
                 }
-                // `/proc` and `/dev/pts`: a refused one writes one line
-                // and the rung goes on.
-                crate::ns_optional::mount_each(&m.optional, m.user.is_some());
+                // `/proc`, `/dev/pts` and the host's devices: a refused one
+                // writes one line and the rung goes on.
+                crate::ns_optional::mount_each(m);
                 if let Some(name) = &hostname
                     && let Err((step, e)) = crate::uts::enter(name, hostname_len)
                 {
