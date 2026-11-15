@@ -42,7 +42,7 @@ pub mod select;
 pub mod text;
 
 pub use facts::{Code, ConfigFile, ConfigKey, Exit, Facts, FileFact, Table, Use, Var, VarGroup};
-pub use model::{Arg, Block, Command, Example, Flag, FlagKind, Manual, Parity, Rule, Span, Status, Topic};
+pub use model::{Arg, Block, Command, Example, Flag, FlagKind, Group, Manual, Parity, Rule, Span, Status, Topic};
 pub use select::{Request, body, run};
 
 #[cfg(test)]

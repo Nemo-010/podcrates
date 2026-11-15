@@ -7,15 +7,18 @@ against this host, or run a command in a lab of one
 .SH SYNOPSIS
 \fBpodlab COMMAND [OPTIONS]\fR
 .PP
-\fBOptions:\fR
+\fBStart here:\fR
 .TP
-\fB\-V\fR, \fB\-\-version\fR
-Print version.
+\fBpodlab list\fR
+List each profile.
 .TP
-\fB\-h\fR, \fB\-\-help\fR
-Print the help.
+\fBpodlab check PROFILE\fR
+Check a profile on this host.
+.TP
+\fBpodlab man\fR
+Read the manual.
 .PP
-\fBCommands:\fR
+\fBRead the profiles:\fR
 .TP
 \fBlist\fR
 List each profile, its parts, and what holds each part in a lab
@@ -23,14 +26,26 @@ List each profile, its parts, and what holds each part in a lab
 \fBcheck\fR
 Check a profile on this host with the probes of pod\-hostprobe, or against a
 JSON report of pod\-hostprobe
+.PP
+\fBRun in a lab:\fR
 .TP
 \fBrun\fR
 Run a command in a lab of a profile. The lab checks itself before the command;
 a part that does not hold stops the run
+.PP
+\fBRead the manual:\fR
 .TP
 \fBman\fR
 The manual: each command, profile, variable and exit code. A pager shows it on
 a terminal
+.PP
+\fBOptions:\fR
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+Print version.
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print the help.
 .SH DESCRIPTION
 podlab holds the classes of hostile hosts as profiles. A profile names the
 probe rows that each part refuses or allows.

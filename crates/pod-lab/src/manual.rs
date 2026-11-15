@@ -3,7 +3,7 @@
 //! table of the profiles and the examples. The help of each command and
 //! `podlab man` come from it.
 
-use pod_manual::{Example, Manual, Table};
+use pod_manual::{Example, Group, Manual, Table};
 
 use crate::PROFILES;
 
@@ -60,6 +60,20 @@ pub fn manual(cmd: clap::Command) -> Manual {
     ];
     m.see_also =
         vec![s("pod-hostprobe: the probe rows that a profile names."), s("https://github.com/PodUtils/podcrates")];
+    if let Some(root) = m.commands.iter_mut().find(|c| c.path.is_empty()) {
+        root.lead = vec![
+            example("podlab list", "List each profile."),
+            example("podlab check PROFILE", "Check a profile on this host."),
+            example("podlab man", "Read the manual."),
+        ];
+        let group =
+            |title: &str, words: &[&str]| Group { title: s(title), commands: words.iter().map(|w| s(w)).collect() };
+        root.groups = vec![
+            group("Read the profiles", &["list", "check"]),
+            group("Run in a lab", &["run"]),
+            group("Read the manual", &["man"]),
+        ];
+    }
     m
 }
 

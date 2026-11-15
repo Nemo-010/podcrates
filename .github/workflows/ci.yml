@@ -86,6 +86,8 @@ jobs:
         run: |
           python3 -I scripts/check-size.py
           python3 -I scripts/check-size.py --self-test
+      - name: The rules of check-strings.py
+        run: python3 -I scripts/check-strings.py --self-test
       - name: The rules of the workflows
         run: python3 scripts/check-workflows.py
       - name: The repository table and the table of crates match the tree

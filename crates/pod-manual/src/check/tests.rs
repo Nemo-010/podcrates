@@ -47,6 +47,68 @@ fn a_rule_that_names_no_flag_and_a_name_of_two_sections_are_found() {
     assert!(model(&m).iter().any(|f| f.what.contains("names two sections")), "{:?}", model(&m));
 }
 
+/// A rule may name a positional argument by its name: clap gives such
+/// rules for a conflict with a positional.
+#[test]
+fn a_rule_may_name_an_argument() {
+    let mut m = manual();
+    m.commands[1].rules.push(Rule::Excludes { flags: vec!["--url".into(), "NAME".into()] });
+    m.commands[1].rules.push(Rule::OneOf { flags: vec!["NAME".into(), "--socket".into()], required: true });
+    assert_none(model(&m));
+    m.commands[1].rules.push(Rule::Excludes { flags: vec!["--url".into(), "OTHER".into()] });
+    let f = model(&m);
+    assert!(f.len() == 1 && f[0].what.contains("OTHER, which is no flag and no argument"), "{f:?}");
+}
+
+/// The groups of a command name each command under it once, and no other.
+#[test]
+fn the_groups_name_each_command_once() {
+    let group = |title: &str, words: &[&str]| crate::model::Group {
+        title: title.into(),
+        commands: words.iter().map(|w| w.to_string()).collect(),
+    };
+    let mut m = manual();
+    m.commands[0].groups = vec![group("Publish a service", &["tunnel", "chat"]), group("Networks", &["net"])];
+    assert_none(model(&m));
+    m.commands[0].groups[1].commands.push("chat".into());
+    m.commands[0].groups[0].commands.retain(|w| w != "tunnel");
+    m.commands[0].groups[0].commands.push("nothing".into());
+    let f: Vec<String> = model(&m).into_iter().map(|f| f.what).collect();
+    assert_eq!(
+        f,
+        [
+            "the command tunnel is in no group",
+            "the command chat is in 2 groups",
+            "a group names nothing, which is no command under this one"
+        ],
+        "{f:?}"
+    );
+}
+
+/// The help of a command with groups and a lead: "Start here", then a
+/// table for each group, before the options.
+#[test]
+fn the_help_shows_the_lead_and_each_group() {
+    let mut m = manual();
+    let root = &mut m.commands[0];
+    root.lead =
+        vec![crate::model::Example { command: "sample tunnel NAME".into(), meaning: "Expose a service.".into() }];
+    root.groups = vec![
+        crate::model::Group { title: "Publish a service".into(), commands: vec!["tunnel".into(), "chat".into()] },
+        crate::model::Group { title: "Networks".into(), commands: vec!["net".into()] },
+    ];
+    let h = crate::help::render(&m, &[]).unwrap();
+    let at = |t: &str| h.find(t).unwrap_or_else(|| panic!("no {t:?} in\n{h}"));
+    assert!(at("Start here") < at("sample tunnel NAME"), "{h}");
+    assert!(at("sample tunnel NAME") < at("Publish a service") && at("Publish a service") < at("Networks"), "{h}");
+    assert!(at("chat") < at("Networks") && at("Networks") < at("net ") && at("net ") < at("Options"), "{h}");
+    assert!(!h.contains("Commands") && !h.contains("Other commands"), "{h}");
+    assert_none(texts(&m));
+    m.commands[0].groups.pop();
+    let h = crate::help::render(&m, &[]).unwrap();
+    assert!(h.contains("Other commands"), "{h}");
+}
+
 #[test]
 fn a_generated_file_must_equal_the_model() {
     let dir = std::env::temp_dir().join(format!("pod-manual-generated-{}", std::process::id()));
@@ -81,6 +143,23 @@ fn the_variables_are_checked_both_ways() {
     assert!(variables(&m, &src(&read_more), &["SAMPLE_NEW"]).is_empty());
     let f = variables(&m, &src(&code.replace("SAMPLE_CHILD", "OTHER")), &["OTHER"]);
     assert!(f.len() == 1 && f[0].what.contains("SAMPLE_CHILD is a fact"), "{f:?}");
+}
+
+/// The variable of a flag (clap's `env`) is read by the parser: it holds
+/// its fact with no read in the code, and it needs a fact.
+#[test]
+fn the_variable_of_a_flag_is_a_read() {
+    let m = manual();
+    let code = r#"var("HTTPS_PROXY"); var("https_proxy"); cmd.env("SAMPLE_CHILD", x);"#;
+    let src = vec![(PathBuf::from("main.rs"), code.to_string())];
+    assert_none(variables(&m, &src, &[]));
+    let mut m2 = m.clone();
+    for g in &mut m2.facts.variables {
+        g.vars.retain(|v| !v.names.iter().any(|n| n == "SAMPLE_PROTOCOL"));
+    }
+    let f = variables(&m2, &src, &[]);
+    assert!(f.len() == 1 && f[0].what == "the parser reads SAMPLE_PROTOCOL, and no fact names it", "{f:?}");
+    assert_eq!(f[0].at, "sample tunnel");
 }
 
 /// The pager reads its variables, and its group of facts names each.

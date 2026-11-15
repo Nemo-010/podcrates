@@ -93,5 +93,10 @@ fn the_help_of_each_command_comes_from_the_model() {
         for f in &c.flags {
             assert!(text.contains(&f.term()), "{}: no {} in\n{text}", c.name(), f.term());
         }
+        for t in c.groups.iter().map(|g| &g.title).chain(c.lead.iter().map(|e| &e.command)) {
+            assert!(text.contains(t.as_str()), "{}: no {t} in\n{text}", c.name());
+        }
     }
+    let root = m.root().expect("the root");
+    assert!(root.groups.len() >= 3 && root.lead.len() >= 3, "{root:?}");
 }

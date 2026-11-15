@@ -90,14 +90,33 @@ pub fn generated(path: &Path, want: &str, fix: &str) -> Vec<Finding> {
 }
 
 /// Each variable that `sources` read, against the facts of `manual`, both
-/// ways. `exempt` holds names that need no fact (a shaped word that is no
-/// variable), and names of facts that no source holds (a variable that a
-/// library reads). Give [`crate::pager::SOURCE`] in `sources` when the
-/// program pages its manual.
+/// ways. The variable of each flag and argument of the model (clap's
+/// `env`) is a variable that the parser reads: it needs a fact, and it
+/// holds a fact. `exempt` holds names that need no fact (a variable that
+/// only a build reads), and names of facts that no source holds (a
+/// variable that a library reads). Give [`crate::pager::SOURCE`] in
+/// `sources` when the program pages its manual.
 pub fn variables(manual: &Manual, sources: &[(PathBuf, String)], exempt: &[&str]) -> Vec<Finding> {
     let facts: Vec<&str> =
         manual.facts.variables.iter().flat_map(|g| &g.vars).flat_map(|v| &v.names).map(String::as_str).collect();
+    let parsed: Vec<(String, &str)> = manual
+        .commands
+        .iter()
+        .flat_map(|c| {
+            let at = format!("{} {}", manual.name, c.name()).trim().to_string();
+            let envs =
+                c.flags.iter().filter_map(|f| f.env.as_deref()).chain(c.args.iter().filter_map(|a| a.env.as_deref()));
+            envs.map(move |e| (at.clone(), e))
+        })
+        .collect();
     let mut out = Vec::new();
+    let mut seen: Vec<&str> = Vec::new();
+    for (at, name) in &parsed {
+        if !facts.contains(name) && !exempt.contains(name) && !seen.contains(name) {
+            seen.push(name);
+            out.push(finding(at, format!("the parser reads {name}, and no fact names it")));
+        }
+    }
     for (path, code) in sources {
         for name in crate::scan::variables_read(code) {
             if !facts.contains(&name.as_str()) && !exempt.contains(&name.as_str()) {
@@ -107,7 +126,8 @@ pub fn variables(manual: &Manual, sources: &[(PathBuf, String)], exempt: &[&str]
     }
     for name in facts {
         let quoted = format!("\"{name}\"");
-        if !exempt.contains(&name) && !sources.iter().any(|(_, code)| code.contains(&quoted)) {
+        let held = parsed.iter().any(|(_, e)| *e == name) || sources.iter().any(|(_, code)| code.contains(&quoted));
+        if !exempt.contains(&name) && !held {
             out.push(finding("the facts", format!("{name} is a fact, and no source reads or sets it")));
         }
     }
@@ -201,20 +221,35 @@ pub fn flags(manual: &Manual, parser: impl Fn(&[String]) -> Option<ParserCommand
     out
 }
 
-/// The rules of the model itself: each rule names flags of its command, and
-/// each name of a section selects one section.
+/// The rules of the model itself: each rule names flags or arguments of
+/// its command; the groups of a command name each command under it once,
+/// and no other; each name of a section selects one section.
 pub fn model(manual: &Manual) -> Vec<Finding> {
     let mut out = Vec::new();
     for c in &manual.commands {
+        let at = format!("{} {}", manual.name, c.name());
+        let at = at.trim();
         for r in &c.rules {
             for name in r.names() {
-                if c.flag(name).is_none() {
-                    out.push(finding(
-                        format!("{} {}", manual.name, c.name()),
-                        format!("the rule names {name}, which is no flag"),
-                    ));
+                if c.flag(name).is_none() && c.arg(name).is_none() {
+                    out.push(finding(at, format!("the rule names {name}, which is no flag and no argument")));
                 }
             }
+        }
+        if c.groups.is_empty() {
+            continue;
+        }
+        let children: Vec<String> = manual.children(&c.path).iter().filter_map(|k| k.path.last().cloned()).collect();
+        let listed: Vec<&String> = c.groups.iter().flat_map(|g| &g.commands).collect();
+        for w in &children {
+            match listed.iter().filter(|l| **l == w).count() {
+                1 => {}
+                0 => out.push(finding(at, format!("the command {w} is in no group"))),
+                n => out.push(finding(at, format!("the command {w} is in {n} groups"))),
+            }
+        }
+        for l in listed.iter().filter(|l| !children.contains(l)) {
+            out.push(finding(at, format!("a group names {l}, which is no command under this one")));
         }
     }
     let all = crate::sections::sections(manual);

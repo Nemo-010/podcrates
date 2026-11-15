@@ -114,6 +114,7 @@ fn arg_text(a: &Arg) -> String {
     if !a.values.is_empty() {
         extra.push(format!("Values: {}.", a.values.join(", ")));
     }
+    extra.extend(a.env.as_ref().map(|e| format!("Variable: {e}.")));
     sentence(&a.help, &extra)
 }
 
@@ -125,6 +126,30 @@ fn example_of(manual: &Manual, line: &str, c: &Command) -> bool {
     words.len() >= c.path.len()
         && words.iter().zip(&c.path).all(|(w, p)| w == p)
         && words.get(c.path.len()).is_none_or(|next| !children.iter().any(|s| s == next))
+}
+
+/// The tables of the commands under `c`: one for each group of
+/// [`Command::groups`], then "Other commands" for each command in no group;
+/// with no group, one table "Commands".
+fn commands(manual: &Manual, c: &Command) -> Vec<Block> {
+    let children = manual.children(&c.path);
+    let word = |k: &Command| k.path.last().cloned().unwrap_or_default();
+    let row = |k: &Command| (vec![lit(word(k))], k.about.clone());
+    let mut blocks = Vec::new();
+    for g in &c.groups {
+        let rows: Vec<_> =
+            g.commands.iter().filter_map(|w| children.iter().find(|k| word(k) == *w)).map(|k| row(k)).collect();
+        blocks.push(Block::Sub { text: g.title.clone() });
+        blocks.push(Block::Table { rows });
+    }
+    let rest: Vec<_> =
+        children.iter().filter(|k| !c.groups.iter().any(|g| g.commands.contains(&word(k)))).map(|k| row(k)).collect();
+    if !rest.is_empty() {
+        let title = if c.groups.is_empty() { "Commands" } else { "Other commands" };
+        blocks.push(Block::Sub { text: title.into() });
+        blocks.push(Block::Table { rows: rest });
+    }
+    blocks
 }
 
 /// The blocks of a command: what `--help` and the manual show.
@@ -152,6 +177,12 @@ pub fn command_blocks(manual: &Manual, c: &Command) -> Vec<Block> {
         blocks.push(para(sentence(&format!("Against {}: {}. {}", p.tool, p.status.word(), p.text), &[])));
     }
     blocks.push(Block::Line { spans: vec![plain_span("Usage: "), lit(usage(manual, c))] });
+    if !c.lead.is_empty() {
+        blocks.push(Block::Sub { text: "Start here".into() });
+        let rows = c.lead.iter().map(|e| (vec![lit(e.command.clone())], e.meaning.clone()));
+        blocks.push(Block::Table { rows: rows.collect() });
+    }
+    blocks.extend(commands(manual, c));
     if !c.args.is_empty() {
         blocks.push(Block::Sub { text: "Arguments".into() });
         blocks.extend(c.args.iter().map(|a| item(vec![var(a.term())], arg_text(a))));
@@ -163,12 +194,6 @@ pub fn command_blocks(manual: &Manual, c: &Command) -> Vec<Block> {
     if !c.rules.is_empty() {
         blocks.push(Block::Sub { text: "Rules".into() });
         blocks.extend(c.rules.iter().map(|r| para(r.sentence())));
-    }
-    let children = manual.children(&c.path);
-    if !children.is_empty() {
-        blocks.push(Block::Sub { text: "Commands".into() });
-        let rows = children.iter().map(|k| (vec![lit(k.path.last().cloned().unwrap_or_default())], k.about.clone()));
-        blocks.push(Block::Table { rows: rows.collect() });
     }
     let own: Vec<_> =
         manual.examples.iter().filter(|e| !c.path.is_empty() && example_of(manual, &e.command, c)).collect();

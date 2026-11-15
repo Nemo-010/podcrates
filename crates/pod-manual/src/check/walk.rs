@@ -78,7 +78,7 @@ pub fn texts(manual: &Manual) -> Vec<Finding> {
         for a in &c.args {
             w.one(at, &a.name, TERM);
             w.one(at, &a.help, D);
-            w.all(at, a.default.iter().chain(&a.values), TERM);
+            w.all(at, a.default.iter().chain(&a.values).chain(&a.env), TERM);
         }
         for f in &c.flags {
             let at = format!("{at} {}", f.spelling());
@@ -96,6 +96,14 @@ pub fn texts(manual: &Manual) -> Vec<Finding> {
         }
         for r in &c.rules {
             w.one(at, &r.sentence(), D);
+        }
+        for g in &c.groups {
+            w.one(at, &g.title, D);
+            w.all(at, &g.commands, TERM);
+        }
+        for e in &c.lead {
+            w.one(at, &e.command, TERM);
+            w.one(at, &e.meaning, D);
         }
     }
     for t in &manual.topics {

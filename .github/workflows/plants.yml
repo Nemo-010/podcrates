@@ -47,12 +47,13 @@ jobs:
       - name: Toolchain
         run: sh scripts/retry.sh rustup toolchain install
       # The plant of the convert of pod-guest runs qemu-img and qemu-io; the
-      # plants of the overlay root of pod-enter run a static busybox.
-      - name: qemu-utils and busybox-static
+      # plants of the overlay root of pod-enter run a static busybox; the
+      # plant of check-man.sh runs groff and mandoc.
+      - name: qemu-utils, busybox-static, groff and mandoc
         run: |
           set -eu
           sh scripts/retry.sh sudo apt-get update
-          sh scripts/retry.sh sudo apt-get install -y --no-install-recommends qemu-utils busybox-static
+          sh scripts/retry.sh sudo apt-get install -y --no-install-recommends qemu-utils busybox-static groff-base mandoc
           qemu-img --version
       # The plants of the group turn run scripts/ci/turn-tests.sh, which
       # builds xturn with the Erlang/OTP and the Elixir of ci.yml.

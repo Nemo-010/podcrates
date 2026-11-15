@@ -2,7 +2,7 @@
 //! over its sample command tree.
 #![cfg(feature = "clap")]
 
-use pod_manual::check::{assert_none, flags};
+use pod_manual::check::{assert_none, flags, model};
 use pod_manual::{Request, Rule, body, help, json, roff, text};
 
 fn sample() -> clap::Command {
@@ -22,7 +22,16 @@ fn sample() -> clap::Command {
                         .value_parser(["auto", "quic", "http2"]),
                 )
                 .arg(clap::Arg::new("quiet").short('q').long("quiet").action(clap::ArgAction::SetTrue))
+                .arg(clap::Arg::new("token").long("token").env("PODNET_TOKEN").hide_env_values(true).help("The token"))
                 .arg(clap::Arg::new("name").value_name("NAME").help("The name").required(true)),
+        )
+        .subcommand(
+            clap::Command::new("stop")
+                .about("Stop an instance")
+                .group(clap::ArgGroup::new("target").args(["name", "all"]).required(true))
+                .arg(clap::Arg::new("name").help("The instance").env("PODNET_INSTANCE"))
+                .arg(clap::Arg::new("all").long("all").action(clap::ArgAction::SetTrue).conflicts_with("name"))
+                .arg(clap::Arg::new("secret").long("secret").hide(true).conflicts_with("all")),
         )
         .subcommand(
             clap::Command::new("net").subcommand(
@@ -62,6 +71,33 @@ fn the_reader_keeps_the_aliases_the_arguments_and_the_rules() {
     assert_eq!(t.flag("--socket").unwrap().value.as_deref(), Some("PATH"));
 }
 
+/// The reader gives the variable of each flag and argument (clap's `env`),
+/// and the text names it.
+#[test]
+fn the_reader_gives_the_variable_of_each_flag() {
+    let m = manual();
+    let t = m.command("tunnel").unwrap();
+    assert_eq!(t.flag("--token").unwrap().env.as_deref(), Some("PODNET_TOKEN"));
+    assert_eq!(t.flag("--url").unwrap().env, None);
+    assert_eq!(m.command("stop").unwrap().arg("NAME").unwrap().env.as_deref(), Some("PODNET_INSTANCE"));
+    let text = text::render(&m);
+    assert!(text.contains("The token. Variable: PODNET_TOKEN."), "{text}");
+    assert!(text.contains("The instance. Variable: PODNET_INSTANCE."), "{text}");
+}
+
+/// A rule of clap that names a positional argument names it as the model
+/// does, so the check of the model takes it; a rule with a hidden argument
+/// is left out.
+#[test]
+fn a_rule_with_a_positional_argument_passes_the_check_of_the_model() {
+    let m = manual();
+    let stop = m.command("stop").unwrap();
+    assert!(stop.rules.contains(&Rule::OneOf { flags: vec!["NAME".into(), "--all".into()], required: true }));
+    assert!(stop.rules.contains(&Rule::Excludes { flags: vec!["--all".into(), "NAME".into()] }), "{:?}", stop.rules);
+    assert_eq!(stop.rules.len(), 2, "{:?}", stop.rules);
+    assert_none(model(&m));
+}
+
 /// The model of the reader agrees with the parser of the same tree.
 #[test]
 fn the_model_of_the_reader_agrees_with_the_parser() {
@@ -94,7 +130,7 @@ fn the_roff_page_uses_standard_macros_and_escapes() {
 #[test]
 fn the_json_is_one_object_with_the_commands() {
     let j: serde_json::Value = serde_json::from_str(&json::text(&json::document(&manual()))).unwrap();
-    assert!(j["commands"].as_array().unwrap().len() >= 4);
+    assert!(j["commands"].as_array().unwrap().len() >= 5);
     assert_eq!(j["name"], "podnet");
 }
 

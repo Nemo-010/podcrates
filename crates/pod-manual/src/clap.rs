@@ -36,6 +36,12 @@ fn values(arg: &::clap::Arg) -> Vec<String> {
     arg.get_possible_values().iter().filter(|v| !v.is_hide_set()).map(|v| v.get_name().to_string()).collect()
 }
 
+/// The variable that gives the value of `arg` (clap's `env`). The manual
+/// names it also when clap hides it from its own help.
+fn env(arg: &::clap::Arg) -> Option<String> {
+    arg.get_env().map(|e| e.to_string_lossy().into_owned())
+}
+
 fn help(arg: &::clap::Arg) -> String {
     let long = text(arg.get_long_help());
     if long.is_empty() { text(arg.get_help()) } else { long }
@@ -51,17 +57,23 @@ fn spelling(arg: &::clap::Arg) -> String {
     }
 }
 
+/// The rules between the arguments of `cmd`: its groups of one argument
+/// (`OneOf`) and its conflicts (`Excludes`). A positional argument is
+/// named by its value name, as [`Command::arg`](crate::Command::arg)
+/// finds it. A rule that names a hidden argument is left out: the model
+/// has no hidden argument, and a rule must name what the model holds.
 fn rules(cmd: &::clap::Command) -> Vec<Rule> {
     let mut out: Vec<Rule> = Vec::new();
-    let by_id = |id: &::clap::Id| cmd.get_arguments().find(|a| a.get_id() == id).map(spelling);
+    let shown = |a: &&::clap::Arg| !a.is_hide_set();
+    let by_id = |id: &::clap::Id| cmd.get_arguments().find(|a| a.get_id() == id);
     for g in cmd.get_groups().filter(|g| !(*g).clone().is_multiple()) {
-        let flags: Vec<String> = g.get_args().filter_map(by_id).collect();
-        if flags.len() > 1 {
-            out.push(Rule::OneOf { flags, required: g.is_required_set() });
+        let args: Vec<&::clap::Arg> = g.get_args().filter_map(by_id).collect();
+        if args.len() > 1 && args.iter().all(&shown) {
+            out.push(Rule::OneOf { flags: args.into_iter().map(spelling).collect(), required: g.is_required_set() });
         }
     }
-    for a in cmd.get_arguments().filter(|a| !a.is_hide_set()) {
-        for b in cmd.get_arg_conflicts_with(a) {
+    for a in cmd.get_arguments().filter(shown) {
+        for b in cmd.get_arg_conflicts_with(a).into_iter().filter(shown) {
             let mut pair = vec![spelling(a), spelling(b)];
             pair.sort();
             let rule = Rule::Excludes { flags: pair };
@@ -82,6 +94,7 @@ fn walk(cmd: &::clap::Command, path: Vec<String>, out: &mut Vec<Command>) {
         many: many(a),
         default: defaults(a),
         values: values(a),
+        env: env(a),
     });
     let flags = cmd.get_arguments().filter(|a| !a.is_positional() && !a.is_hide_set());
     let flags = flags.map(|a| Flag {
@@ -91,6 +104,7 @@ fn walk(cmd: &::clap::Command, path: Vec<String>, out: &mut Vec<Command>) {
         help: help(a),
         default: defaults(a),
         values: values(a),
+        env: env(a),
         required: a.is_required_set(),
         repeatable: many(a),
         ..Flag::default()

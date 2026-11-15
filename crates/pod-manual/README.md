@@ -16,11 +16,11 @@ the code, the parser and the files of the repository fails a test.
 
 | Item | What |
 | --- | --- |
-| `Manual`, `Command`, `Arg`, `Flag`, `FlagKind`, `Parity`, `Status`, `Rule`, `Topic`, `Block`, `Span`, `Example` | the model: commands with other names, flags with a kind (wired, ignored, refused with what to use) and a status against another tool, rules between options (excludes, needs, one of), topics of blocks |
+| `Manual`, `Command`, `Arg`, `Flag`, `FlagKind`, `Parity`, `Status`, `Rule`, `Group`, `Topic`, `Block`, `Span`, `Example` | the model: commands with other names, flags with a kind (wired, ignored, refused with what to use) and a status against another tool, the variable of a flag or an argument, rules between flags and arguments (excludes, needs, one of), the commands under a command in groups (`Command::groups`) and a "Start here" block (`Command::lead`), topics of blocks |
 | `Facts`, `VarGroup`, `Var`, `Use`, `Exit`, `Code`, `FileFact`, `ConfigFile`, `ConfigKey`, `Table` | the typed facts: variables in groups, exit codes (a value, a range, `128+N`, the code of the payload), files, the keys of a configuration file, the tables that a program adds |
 | `facts::failure_classes()` (feature `core`) | the exit codes of the classes of `pod_core::failure` as facts |
 | `Manual::named(argv0)`, `Manual::for_repository()`, `Manual::with_help_flags()`, `model::date_of(secs)` | the name of `argv[0]` (podvm as `docker`); no version and no date for a file of a repository; `-h, --help` on each command; the date of a man page from `SOURCE_DATE_EPOCH` |
-| `clap::read(cmd)`, `clap::parser(cmd)` (feature `clap`) | the model of a clap tree; the rows of its parser for `check::flags` |
+| `clap::read(cmd)`, `clap::parser(cmd)` (feature `clap`) | the model of a clap tree, with the variable of each flag and argument (`env`) and its rules (a positional argument by its value name); the rows of its parser for `check::flags` |
 | `text::render`, `roff::render`, `json::document`, `json::read`, `llms::index`, `llms::full`, `llms::from_json` | the writers: plain text, man(7), JSON and its reader, `llms.txt` and `llms-full.txt` |
 | `sections::sections`, `sections::find` | the sections of the page: each command, topic and table of facts |
 | `help::request(manual, args)`, `help::render`, `help::answer` | `CLI --help`, `CLI COMMAND --help`, `CLI help COMMAND`, and `--json` |
@@ -28,7 +28,7 @@ the code, the parser and the files of the repository fails a test.
 | `pager::{Tty, PagerEnv, choose, show, page, variables, SOURCE}` | the pager, and its variables as facts |
 | `rules::{faults, char_faults, work_ids, sentences, words, Kind, Fault}` | the text rules |
 | `check::{texts, generated, variables, exit_codes, flags, model, assert_none, Finding}` | the checks that a program calls from its tests |
-| `scan::{rust_sources, non_test, variables_read, exit_constants, src}` | the reader of the source of a program for `check::variables` and `check::exit_codes` |
+| `scan::{rust_sources, non_test, variables_read, exit_constants, src}` | the reader of the source of a program for `check::variables` and `check::exit_codes`: only the calls that read or set a variable |
 | `error::fault(option, what, fix)`, `error::check` | `OPTION: what is wrong; fix: what to do`, and its rules |
 
 ## The pager
@@ -57,13 +57,23 @@ Each program calls these from its own tests (`podlab`:
 `crates/pod-lab/src/bin/podlab/tests.rs`):
 
 1. `check::texts(&manual)` and `check::model(&manual)`: the text rules,
-   the rules name flags, each name selects one section.
+   the rules name flags or arguments of their command, the groups of a
+   command name each command under it once, each name selects one
+   section.
 2. `check::generated(path, &text, fix)`: a man page or `llms.txt` of the
    repository equals the text of the model now
    (`Manual::for_repository()`).
 3. `check::variables(&manual, &scan::rust_sources(..), exempt)`: each
    variable that the code reads or sets is a fact, both ways. Give
-   `pager::SOURCE` too when the program pages.
+   `pager::SOURCE` too when the program pages. The reader takes the first
+   argument of `env::var`, `var_os`, `set_var`, `remove_var`,
+   `Command::env`, `env_remove`, `getenv` and `setenv` of C, clap's
+   `.env("X")` and `env = "X"`, and each name in a constant whose name ends
+   in `_VARIABLE` or `_VARIABLES`: name so a variable that the program
+   reads by a name that is not a literal of a call. The variable of each
+   flag and argument of the model is a read of the parser. `env!` and
+   `option_env!` read the build, not a run: no fact. `exempt` is for a
+   variable that only a build reads and a fact that only a library reads.
 4. `check::exit_codes(&manual, &given)`: each exit code that the program
    gives has a fact, both ways (`scan::exit_constants` reads the
    constants).
@@ -71,7 +81,21 @@ Each program calls these from its own tests (`podlab`:
    against the parser, both ways (`clap::parser` for a clap program).
 
 `scripts/check-man.sh BINARY` renders `BINARY man --roff` with groff and
-mandoc, with no warning, and finds each flag in both renderings.
+mandoc, with no warning, and finds each flag in both renderings as a word
+of its own. Its plant is a flag of a generated name that no text of the
+page holds.
+
+`scripts/check-strings.py [--data DIR] BINARY` checks the strings of a
+release binary (call C684). It removes the values of the service files of
+`pod-services` from a run with a fault (`--data`: the `services/` of the
+same tag as the binary).
+
+## The help of the root
+
+`Command::groups` puts the commands under a command in tables by purpose,
+and `Command::lead` puts a "Start here" table first. The help, the text
+and the man page show them before the options, so `CLI --help` can come
+from the model (`podlab`).
 
 ## Parity list
 
@@ -103,6 +127,8 @@ mandoc, with no warning, and finds each flag in both renderings.
 | podnet | `help_json_request` | `pod_manual::help::request` with `--json` |
 | podnet | `scripts/gen-llms.py` | `pod_manual::llms::{index, full}` and `check::generated` in a test |
 | podnet | the tests of `facts.rs` | `check::variables` with `scan::rust_sources` |
+| podnet | `fill_env`, the filter of the rules, and the exempt words of a form of a variable in `src/manual/mod.rs` and `src/cli/manual_tests.rs` | `clap::read` (each `env`, the rules with an argument), the reader of the calls |
+| podnet | `HELP_GROUPS`, `START_HERE` and the template of `src/cli/help.rs` | `Command::groups`, `Command::lead`, `help::request` and `help::answer` |
 | podssh | `crates/podssh-cli/src/man/{model,text,roff,json}.rs` | the model and the writers of this crate; its facts, notes and topics fill `Topic`, `Facts` and `Table` |
 | podssh | `flags.rs` `FlagRow`, `FlagKind` | `Flag` with `FlagKind` and `Parity`; `Verb::aliases` is `Command::aliases` |
 | podssh | `pager.rs` | `pod_manual::pager` |

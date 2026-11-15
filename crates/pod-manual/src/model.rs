@@ -57,6 +57,24 @@ pub struct Command {
     pub rules: Vec<Rule>,
     /// The status of the command against another tool.
     pub parity: Option<Parity>,
+    /// The commands under this one by purpose. Each group is a table of
+    /// the help and the manual; empty: one table "Commands".
+    #[serde(default)]
+    pub groups: Vec<Group>,
+    /// The first lines of the help, under "Start here": what to type
+    /// first.
+    #[serde(default)]
+    pub lead: Vec<Example>,
+}
+
+/// A group of the commands under one command, by purpose.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Group {
+    /// The title of the group: `Run in the background`.
+    pub title: String,
+    /// The last word of each command of the group, in the order of the
+    /// help.
+    pub commands: Vec<String>,
 }
 
 impl Command {
@@ -68,6 +86,11 @@ impl Command {
     /// The flag with this spelling: `-x` or `--long`.
     pub fn flag(&self, spelling: &str) -> Option<&Flag> {
         self.flags.iter().find(|f| f.spellings().iter().any(|s| s == spelling))
+    }
+
+    /// The positional argument with this name: `HOST`.
+    pub fn arg(&self, name: &str) -> Option<&Arg> {
+        self.args.iter().find(|a| a.name == name)
     }
 }
 
@@ -82,6 +105,9 @@ pub struct Arg {
     pub many: bool,
     pub default: Option<String>,
     pub values: Vec<String>,
+    /// The variable that gives the value when the argument is not given.
+    #[serde(default)]
+    pub env: Option<String>,
 }
 
 impl Arg {
@@ -185,8 +211,9 @@ impl Status {
     }
 }
 
-/// A rule between the flags of one command. Each name is a spelling of a
-/// flag of the command: `--json`.
+/// A rule between the flags and the arguments of one command. Each name is
+/// a spelling of a flag of the command (`--json`) or the name of one of its
+/// positional arguments (`NAME`).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "rule", rename_all = "kebab-case")]
 pub enum Rule {
