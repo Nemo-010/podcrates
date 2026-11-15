@@ -19,7 +19,7 @@
     `pod-egress`; parts 2 and 3 wait for `v0.52.0`.
   - podnet: `v0.51.0` (`ee6ea13`, PodUtils/podnet#577). It sets the
     profile of `kcp` with its take of the udp carrier (#139, T-526).
-  - podvm: `v0.50.0` (`0573bcd8`).
+  - podvm: `v0.51.0` (`3f92dab3`, PodUtils/podvm#413).
   - podrunner: `v0.51.0` (`800f6d4`, PodUtils/podrunner#152).
 - Takes that wait: podvm's check of T-208 against `lambda-al2023`, and
   its module set of T-206 with PodUtils/podvm@T-1662 (after `pod-netlab`,
@@ -61,7 +61,7 @@ online"): the work for podrunner and podnet comes first, then podssh and
 podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
-First: the takes of `v0.51.0` (#172); then `v0.52.0` (parts 2 and 3 of T-035,
+First: `v0.52.0` (#175) (parts 2 and 3 of T-035,
 and the asks of podvm that wait on the local branch `integ`). Then the move of podssh's waves 3 and 4 (the
 ruling "The move of podssh", PodUtils/podssh#248): T-035 (parts 2 and 3);
 T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2
