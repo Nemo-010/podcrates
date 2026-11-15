@@ -2192,7 +2192,7 @@ cargo test -p pod-services-watch --all-features
 **Milestone:** M5
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2212,3 +2212,24 @@ Make the check independent of the host: the test reads the mount flags that the 
 ```sh
 sh scripts/plant-each.sh enter-userns-proc-no-remount
 ```
+
+## Done
+
+2026-11-15, commit fc85198 (call C671). The test of the run as a caller
+with no capabilities (`a_caller_with_no_capabilities_enters_the_namespace_rung`
+of `crates/pod-enter/tests/userns.rs`) starts its binary again through the
+new `pod_testkit::nobody::again_over_a_bare_proc`: as root and as another
+user, the child is pid 1 of its own user, mount and PID namespaces, over a
+fresh proc with no `nosuid`, `nodev` or `noexec`; the user namespace maps
+the uid and the gid to themselves, so the exec clears each capability.
+The test first asserts that its proc has none of the three flags, so a
+host cannot hide the check again. The cause of the miss is confirmed
+here: in a mount namespace whose `/proc` is remounted
+`nosuid,nodev,noexec`, `plant-each.sh enter-userns-proc-no-remount` at
+`299b798` gives "MISSED ... exit 0"; at fc85198 it gives "caught (exit
+1)", on the host proc and on the flagged proc. `sh
+scripts/ci/userns-tests.sh` passes as root; the binary of
+`tests/userns.rs` as uid 65534 (the path of a user that is not root, as
+on a runner) passes 3 of 3 on both procs. `cargo test -p pod-enter
+--all-features`: 220 passed. The run on a runner is the next run of
+`plants.yml` (shard of the group `enter`).
