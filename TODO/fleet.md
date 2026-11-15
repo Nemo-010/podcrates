@@ -3090,8 +3090,8 @@ cargo test -p pod-manual --all-features
 
 ## Done
 
-Part 1, 2026-11-15, on the local branch `manual` (the commit of
-`crates/pod-manual` and the next one); calls C682 to C687.
+Part 1, 2026-11-15, commits b003f1fc and c3835991 (local branch
+`manual`); calls C682 to C687.
 
 - `crates/pod-manual` (about 4,000 lines): the model (`Manual`,
   `Command` with other names, `Flag` with `FlagKind` and `Parity`, `Arg`,
@@ -3126,10 +3126,14 @@ Part 1, 2026-11-15, on the local branch `manual` (the commit of
 - Tests: `pod-manual` 54 unit tests and 7 of `tests/clap.rs`; `pod-lab`
   24 unit tests, 6 of the binary (1 ignored: the writer of the
   generated files), 4 of `tests/cli.rs`; each passes as uid 65534 too.
-  Plants: 8 of group `manual` and 3 of group `lab`, each caught.
+  Plants: 8 of group `manual` and 3 of group `lab`, each caught by
+  `plant-each.sh`. Their first run missed two: the row of the code of the
+  payload hid a code of the program with no fact, and the walk test did
+  not see a skipped string; c3835991 fixed both checks.
 - `podlab` for `x86_64-unknown-linux-musl` (cargo zigbuild) is static,
   `check-strings.py` finds no fault in it, `check-man.sh` passes on it,
-  and `podlab man --no-pager` prints the manual.
+  and `podlab man --no-pager` prints the manual (257 lines).
+  `check-strings.py` reads 32-bit ELF files too (x86 and ARM, zig cc).
 - The parts of the Approach: 2, 3, 4, 6, 7, 8, 9, 10, 11, 13 and 14 are
   in. Of 1, the model and the check of each row against the parser are
   in; a parser driven by the model is not. Of 5, the rules are in the
