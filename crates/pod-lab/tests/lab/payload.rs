@@ -13,6 +13,7 @@ pub fn main(kind: &str) -> i32 {
         "fds" => fds(),
         "net" => net(),
         "tmp" => tmp(),
+        _ if kind.starts_with("connect:") => connect(&kind["connect:".len()..]),
         _ => crate::hosts_payload::main(kind),
     };
     match out {
@@ -68,6 +69,21 @@ fn net() -> Result<String, String> {
     let _ = std::fs::remove_dir_all(&dir);
     unix?;
     Ok("inet refused, unix ok".to_string())
+}
+
+/// `bind-denied` with one port that a connect may reach (PodUtils/podssh#278):
+/// a TCP connect to that port works, a connect to another port and each
+/// TCP bind still give EACCES.
+fn connect(port: &str) -> Result<String, String> {
+    let refused = |what: &str, r: std::io::Result<()>| match r {
+        Err(e) if e.kind() == ErrorKind::PermissionDenied => Ok(()),
+        Err(e) => Err(format!("{what}: {e}; the lab wants EACCES")),
+        Ok(()) => Err(format!("{what} succeeded; the lab wants EACCES")),
+    };
+    TcpStream::connect(format!("127.0.0.1:{port}")).map_err(|e| format!("connect(127.0.0.1:{port}): {e}"))?;
+    refused("connect(127.0.0.1:1)", TcpStream::connect("127.0.0.1:1").map(drop))?;
+    refused("bind(127.0.0.1:0)", TcpListener::bind("127.0.0.1:0").map(drop))?;
+    Ok(format!("port {port} ok, others refused"))
 }
 
 fn tmp() -> Result<String, String> {

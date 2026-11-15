@@ -28,7 +28,7 @@ The commands of a release, in each profile below:
 
 | Profile | Held here | The commands |
 | --- | --- | --- |
-| `bind-denied` | yes | 1, 2, 5, 6 |
+| `bind-denied` | yes | 1, 2, 5, 6, with `--allow-connect` of the port of the proxy |
 | `listen-denied` | yes | 1, 2, 5, 6 |
 | `udp-denied` | yes | 1, 2, 3 |
 | `no-ptmx` | yes | 1, 4 |
@@ -50,7 +50,14 @@ An example:
 ```sh
 podlab run no-ptmx -- podssh doctor
 podlab run seccomp-nonewprivs -- podssh doctor
+podlab run --allow-connect 3128 bind-denied -- podssh ssh -T git@github.com
 ```
+
+`bind-denied` refuses each TCP connect. podssh's host refuses each bind
+and lets a connect reach its proxy alone (PodUtils/podssh#278):
+`--allow-connect PORT` lets a connect reach that port, so the lab is the
+target sandbox of podssh with no root. Give the port of the proxy that
+`HTTPS_PROXY` names.
 
 podssh runs these commands today with `scripts/release-short.sh BINARY
 --net`, its release check, and `scripts/test_in_box.sh` with

@@ -3742,3 +3742,35 @@ writers already take `Needs`.
 ```sh
 cargo test -p pod-manual --all-features --test clap
 ```
+
+# T-737: `podlab run --allow-connect PORT`: the way out to a proxy in `bind-denied` (PodUtils/podssh#278)
+
+**Source:** PodUtils/podssh#278 (COORD-086 of podssh: its lane of PodUtils/podssh@T-791 on `pod-lab` of `v0.56.0`).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+`bind-denied` holds `tcp-connect-refused` with a Landlock ruleset that has no port rule, so each TCP connect fails, the connect to the proxy too. podssh's lane runs commands 2, 5 and 6 there, and each needs a way out. podssh's target host refuses each bind and lets a connect reach its proxy alone: `podssh doctor` gave 19 FAIL ("could not connect to the proxy: Permission denied"), and `podssh ssh` did not reach GitHub.
+
+## Premise
+
+- Read: PodUtils/podssh#278; podssh's runs in nine other profiles passed.
+
+## Approach
+
+`Options::allow_connect` and `podlab run --allow-connect PORT` (once for each port): the ruleset of `bind-denied` gets a rule that lets a TCP connect reach each port. Each bind and each connect to another port still give `EACCES`. The lane of podssh names it.
+
+## Prove
+
+```sh
+cargo test -p pod-lab --all-features --test lab
+sh scripts/plant-each.sh lab-allow-connect-dropped
+```
+
+## Done
+
+2026-11-16. `hold::landlock_tcp(connect)` adds a `LANDLOCK_RULE_NET_PORT` rule with `LANDLOCK_ACCESS_NET_CONNECT_TCP` for each port; the lab process takes the ports as an argument. `tests/lab.rs` (`bind_denied`): a listener outside the lab, a run with its port: the connect to it works, a connect to port 1 and a bind give `EACCES`, as root and as uid 65534. The plant `lab-allow-connect-dropped` is caught. `crates/pod-lab/LANES.md` names the option for podssh.

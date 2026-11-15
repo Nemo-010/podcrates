@@ -51,6 +51,11 @@ mod cli {
             /// others.
             #[arg(long)]
             partial: bool,
+            /// Let a TCP connect reach this port where the profile refuses
+            /// each TCP connect (the proxy of the host). Give it once for
+            /// each port.
+            #[arg(long, value_name = "PORT")]
+            allow_connect: Vec<u16>,
             /// The name of the profile.
             profile: String,
             /// The command and its arguments.
@@ -181,12 +186,12 @@ mod cli {
                 print(&v);
                 code(&v)
             }
-            Cmd::Run { partial, profile: name, cmd } => {
+            Cmd::Run { partial, allow_connect, profile: name, cmd } => {
                 let p = match profile(&settings, &name) {
                     Ok(p) => p,
                     Err(c) => return c,
                 };
-                match pod_lab::run(&settings, p, &cmd, Options { partial, stdout: None }) {
+                match pod_lab::run(&settings, p, &cmd, Options { partial, stdout: None, allow_connect }) {
                     Ok(ran) => {
                         for part in ran.verdict.parts.iter().filter(|x| x.state != State::Holds) {
                             eprintln!(

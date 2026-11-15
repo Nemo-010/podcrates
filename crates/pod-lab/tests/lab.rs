@@ -99,9 +99,20 @@ mod cases {
         cmd: &[OsString],
         partial: bool,
     ) -> (Result<pod_lab::Ran, RunError>, String) {
+        run_with(settings, name, cmd, partial, Vec::new())
+    }
+
+    /// As [`run`], with the ports that a connect may reach.
+    pub fn run_with(
+        settings: &Settings,
+        name: &str,
+        cmd: &[OsString],
+        partial: bool,
+        allow_connect: Vec<u16>,
+    ) -> (Result<pod_lab::Ran, RunError>, String) {
         let profile = pod_lab::find(settings.profiles, name).expect("a profile");
         let (mut r, w) = std::io::pipe().expect("a pipe");
-        let out = pod_lab::run(settings, profile, cmd, Options { partial, stdout: Some(w.into()) });
+        let out = pod_lab::run(settings, profile, cmd, Options { partial, stdout: Some(w.into()), allow_connect });
         let mut text = String::new();
         r.read_to_string(&mut text).expect("the output of the payload");
         (out, text)
@@ -143,6 +154,13 @@ mod cases {
         let (out, text) = run(&settings(), "bind-denied", &payload("net"), false);
         assert_eq!(ran("bind-denied", out, &text), 0, "{text}");
         assert!(text.contains("inet refused") && text.contains("unix ok"), "{text}");
+        // One port that a connect may reach: the proxy of the host
+        // (PodUtils/podssh#278).
+        let proxy = std::net::TcpListener::bind("127.0.0.1:0").expect("a listener outside the lab");
+        let port = proxy.local_addr().expect("its port").port();
+        let (out, text) = run_with(&settings(), "bind-denied", &payload(&format!("connect:{port}")), false, vec![port]);
+        assert_eq!(ran("bind-denied", out, &text), 0, "{text}");
+        assert_eq!(text.trim(), format!("port {port} ok, others refused"), "{text}");
         println!("bind_denied: ok");
     }
 

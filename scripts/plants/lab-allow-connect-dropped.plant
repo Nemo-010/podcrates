@@ -1,0 +1,6 @@
+# The lab of bind-denied drops the port that `--allow-connect` names, so a
+# connect to the proxy of the host is refused; the run must fail.
+ENTRY=T-737
+GROUP=lab
+EXPECT='connect\(127\.0\.0\.1:[0-9]+\): Permission denied'
+RUN='cargo test -p pod-lab --all-features --test lab'

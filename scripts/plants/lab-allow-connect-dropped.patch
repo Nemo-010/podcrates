@@ -1,0 +1,11 @@
+--- a/crates/pod-lab/src/hold.rs
++++ b/crates/pod-lab/src/hold.rs
+@@ -86,7 +86,7 @@
+                 }
+             }
+         }
+-        for &port in connect {
++        for &port in connect.iter().take(0) {
+             let rule = k::LandlockNetPortAttr {
+                 allowed_access: k::LANDLOCK_ACCESS_NET_CONNECT_TCP as u64,
+                 port: u64::from(port),

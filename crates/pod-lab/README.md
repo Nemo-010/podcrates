@@ -25,7 +25,7 @@ must refuse fails its own check.
 | `rows(profile)`, `measure(&hostprobe::Settings, rows)` | the rows that a profile names, and a run of those rows only, each in its probe child |
 | `Verdict`, `PartVerdict`, `Seen`, `State` | the verdict: each part `holds`, `fails` or `unseen`, each observation with its row and errno |
 | `run(&Settings, profile, cmd, Options) -> Result<Ran, RunError>` | a command in a lab of the profile |
-| `Options { partial, stdout }` | run in the parts that hold, and report the others; the output of the command |
+| `Options { partial, stdout, allow_connect }` | run in the parts that hold, and report the others; the output of the command; the TCP ports that a connect may reach where a part refuses each TCP connect |
 | `Settings { hostprobe, lab_flag, profiles }` | the flags of the probe children and of the lab process, and the table that the lab process reads |
 | `dispatch(&Settings)` | the start of a binary that calls `run`: the work of a probe child or of the lab process |
 | `exit_code(status)` | the code of a shell: the code, or 128 and the signal |

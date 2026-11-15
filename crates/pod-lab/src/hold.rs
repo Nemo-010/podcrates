@@ -69,8 +69,9 @@ pub fn fds(last: i32) -> Result<(), String> {
     Ok(())
 }
 
-/// A ruleset of `rights` (file) and `net`, restricted on this process.
-fn ruleset(fs: u64, net: u64, rules: &[(i64, u64)]) -> Result<(), String> {
+/// A ruleset of `rights` (file) and `net`, restricted on this process; a
+/// TCP connect to each port of `connect` stays allowed.
+fn ruleset(fs: u64, net: u64, rules: &[(i64, u64)], connect: &[u16]) -> Result<(), String> {
     let attr = k::LandlockRulesetAttr { handled_access_fs: fs, handled_access_net: net, scoped: 0 };
     let set = k::landlock_create_ruleset(&attr).map_err(|e| words("landlock_create_ruleset", e))?;
     let out = (|| {
@@ -85,6 +86,13 @@ fn ruleset(fs: u64, net: u64, rules: &[(i64, u64)]) -> Result<(), String> {
                 }
             }
         }
+        for &port in connect {
+            let rule = k::LandlockNetPortAttr {
+                allowed_access: k::LANDLOCK_ACCESS_NET_CONNECT_TCP as u64,
+                port: u64::from(port),
+            };
+            k::landlock_add_port_rule(set, &rule).map_err(|e| words("landlock_add_rule(port)", e))?;
+        }
         k::set_no_new_privs().map_err(|e| words("prctl(PR_SET_NO_NEW_PRIVS)", e))?;
         k::landlock_restrict_self(set).map_err(|e| words("landlock_restrict_self", e))
     })();
@@ -93,14 +101,16 @@ fn ruleset(fs: u64, net: u64, rules: &[(i64, u64)]) -> Result<(), String> {
 }
 
 /// Each TCP bind and each TCP connect fails with `EACCES` (Landlock ABI 4,
-/// a ruleset that handles both rights and has no port rule).
-pub fn landlock_tcp() -> Result<(), String> {
+/// a ruleset that handles both rights), but a connect to a port of
+/// `connect`: the way out of a host that refuses each bind and lets a
+/// connect reach its proxy (PodUtils/podssh#278).
+pub fn landlock_tcp(connect: &[u16]) -> Result<(), String> {
     let abi = k::landlock_abi().map_err(|e| words("Landlock", e))?;
     if abi < 4 {
         return Err(format!("the Landlock ABI is {abi}; a TCP rule needs ABI 4"));
     }
     let net = (k::LANDLOCK_ACCESS_NET_BIND_TCP | k::LANDLOCK_ACCESS_NET_CONNECT_TCP) as u64;
-    ruleset(0, net, &[])
+    ruleset(0, net, &[], connect)
 }
 
 /// `rights` on each path except `path` and the directories above it: for
@@ -145,7 +155,7 @@ pub fn hide(path: &str, rights: u64) -> Result<(), String> {
                 dir = format!("{}/{next}", dir.trim_end_matches('/'));
             }
         }
-        ruleset(rights, 0, &rules)
+        ruleset(rights, 0, &rules, &[])
     })();
     for (fd, _) in rules {
         let _ = k::close(fd);

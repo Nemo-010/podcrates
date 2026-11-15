@@ -30,6 +30,10 @@ pub struct Options {
     pub partial: bool,
     /// The standard output of the command; `None`: the one of the caller.
     pub stdout: Option<Stdio>,
+    /// The TCP ports that a connect may reach where a part refuses each
+    /// TCP connect (`bind-denied`): the proxy of a host whose only way
+    /// out is that proxy.
+    pub allow_connect: Vec<u16>,
 }
 
 /// The run of a command in a lab.
@@ -94,6 +98,7 @@ pub fn run(settings: &Settings, profile: &Profile, cmd: &[OsString], opts: Optio
         .arg(&settings.lab_flag)
         .arg(profile.name)
         .arg(if opts.partial { "partial" } else { "whole" })
+        .arg(opts.allow_connect.iter().map(u16::to_string).collect::<Vec<_>>().join(","))
         .arg(w.to_string())
         .arg("--")
         .args(cmd);
@@ -176,8 +181,9 @@ fn decode(profile: &Profile, text: &str) -> Result<(Verdict, End), String> {
 }
 
 /// The work of the lab process: `args` are the arguments after the lab
-/// flag (the profile, `whole` or `partial`, the descriptor of the verdict,
-/// `--` and the command). It does not return.
+/// flag (the profile, `whole` or `partial`, the ports of a connect that
+/// stays allowed, the descriptor of the verdict, `--` and the command). It
+/// does not return.
 pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
     let text = |i: usize| args.get(i).and_then(|a| a.to_str()).unwrap_or("");
     // A lab process with no verdict descriptor cannot speak: the caller
@@ -185,8 +191,13 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
     let fail = |_why: &str| -> ! { std::process::exit(crate::codes::EXIT_REFUSED) };
     let Some(profile) = table::find(settings.profiles, text(0)) else { fail("no such profile") };
     let partial = text(1) == "partial";
-    let Ok(given) = text(2).parse::<i64>() else { fail("no descriptor of the verdict") };
-    if text(3) != "--" || args.len() < 5 {
+    let Ok(connect) =
+        text(2).split(',').filter(|p| !p.is_empty()).map(str::parse::<u16>).collect::<Result<Vec<_>, _>>()
+    else {
+        fail("no list of ports")
+    };
+    let Ok(given) = text(3).parse::<i64>() else { fail("no descriptor of the verdict") };
+    if text(4) != "--" || args.len() < 6 {
         fail("no command");
     }
     // The verdict goes on a descriptor above each one that a part opens,
@@ -198,7 +209,7 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
         let _ = k::write(out, line.as_bytes());
     };
 
-    let set = setup(profile);
+    let set = setup(profile, &connect);
     let findings = inside::measure(&settings.hostprobe, &inside::rows(profile));
     let mut verdict = check_with(profile, &findings, &inside::lab_fact);
     for (part, why) in verdict.parts.iter_mut().zip(&set) {
@@ -216,8 +227,8 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
         std::process::exit(crate::codes::EXIT_REFUSED);
     }
     say("go\n");
-    let mut c = Command::new(&args[4]);
-    c.args(&args[5..]);
+    let mut c = Command::new(&args[5]);
+    c.args(&args[6..]);
     if profile.parts.iter().any(|p| matches!(p.hold, Hold::Tmpfs { .. })) {
         c.env("TMPDIR", "/tmp");
     }
@@ -232,7 +243,7 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
 /// capabilities, then the one seccomp filter last, so that the filter does
 /// not refuse a call of the setup. One entry for each part: `Some(why)`
 /// where the part could not be set.
-fn setup(profile: &Profile) -> Vec<Option<String>> {
+fn setup(profile: &Profile, connect: &[u16]) -> Vec<Option<String>> {
     let mut why: Vec<Option<String>> = profile.parts.iter().map(|p| hold::cannot(p.hold)).collect();
     // Each mount in one namespace.
     let at: Vec<usize> =
@@ -264,7 +275,7 @@ fn setup(profile: &Profile) -> Vec<Option<String>> {
         _ => None,
     });
     each(2, &|h| match h {
-        Hold::LandlockTcp => Some(hold::landlock_tcp()),
+        Hold::LandlockTcp => Some(hold::landlock_tcp(connect)),
         Hold::Hide { path, rights } => Some(hold::hide(path, rights)),
         Hold::NoNewPrivs => Some(k::set_no_new_privs().map(|_| ()).map_err(|e| format!("prctl: {}", e.name()))),
         _ => None,
