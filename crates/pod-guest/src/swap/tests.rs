@@ -122,7 +122,8 @@ fn a_fixed_mailbox_cannot_take_a_next_command() {
 
 /// Each next command goes to the other file, on a new mailbox with
 /// another volume id, and the emulator gets `blockdev-change-medium` of
-/// that file for the drive `mbox`.
+/// that file for the device `wqmbox`, by `id` and not by the deprecated
+/// `device`.
 #[test]
 fn each_next_command_is_a_new_medium_in_the_other_file() {
     let (d, plan, s, mut swap) = staged("swap-next");
@@ -145,7 +146,8 @@ fn each_next_command_is_a_new_medium_in_the_other_file() {
     let sent = lines(&seen);
     let change = sent.last().unwrap();
     assert_eq!(qmp::json_member(change, "execute").as_deref(), Some("blockdev-change-medium"));
-    assert_eq!(qmp::json_member(change, "device").as_deref(), Some("mbox"));
+    assert_eq!(qmp::json_member(change, "id").as_deref(), Some("wqmbox"));
+    assert!(!change.contains("\"device\""), "{change}");
     assert_eq!(qmp::json_member(change, "filename").as_deref(), other.to_str());
 
     // The last command: no keep-alive file, so the agent shuts down after it.
@@ -187,15 +189,26 @@ fn no_swap_before_the_result_is_settled_and_a_refusal_keeps_the_medium() {
 const LOCKED: &str = "{\"error\": {\"class\": \"GenericError\", \"desc\": \"Device 'mbox' is locked and force was not \
                       specified, wait for tray to open and try again\"}}";
 
+const DEPRECATED: &str =
+    "{\"error\": {\"class\": \"GenericError\", \"desc\": \"Deprecated parameter device disabled by policy\"}}";
+
 /// A QMP stand-in of a drive whose medium the guest locks, as QEMU 8.2
 /// answers (`do_open_tray` of `block/qapi-sysemu.c`): a change with no
 /// `force` and no open tray is refused, and a `blockdev-open-tray` with no
 /// `force` leaves the tray closed. The guest locks each new medium again.
+/// As QEMU with `-compat deprecated-input=reject`, it refuses the
+/// argument `device`, and it knows only the device `wqmbox`.
 fn locked_drive() -> impl FnMut(&str) -> String + Send + 'static {
     let mut open = false;
     move |line| {
         let force = line.contains("\"force\":true");
         let ok = "{\"return\": {}}".to_string();
+        if line.contains("\"device\"") {
+            return DEPRECATED.to_string();
+        }
+        if line.contains("\"arguments\"") && qmp::json_member(line, "id").as_deref() != Some("wqmbox") {
+            return "{\"error\": {\"class\": \"DeviceNotFound\", \"desc\": \"Device not found\"}}".to_string();
+        }
         match qmp::json_member(line, "execute").as_deref() {
             Some("blockdev-open-tray") => {
                 open |= force;
@@ -213,14 +226,17 @@ fn locked_drive() -> impl FnMut(&str) -> String + Send + 'static {
 
 /// Windows locks the medium that it has mounted. Each swap changes the
 /// locked medium, and a change with no `force` gets the refusal of QEMU.
+/// A change that names the drive by `device` is refused.
 #[test]
 fn a_swap_changes_a_medium_that_the_guest_locked() {
     let (d, plan, s, mut swap) = staged("swap-locked");
     let seen = stand_with(&plan.monitor, locked_drive());
     let mut monitor = qmp::Monitor::connect(&plan.monitor, Duration::from_secs(5)).unwrap();
-    let plain = "{\"execute\":\"blockdev-change-medium\",\"arguments\":{\"device\":\"mbox\",\"filename\":\"x\"}}";
+    let plain = "{\"execute\":\"blockdev-change-medium\",\"arguments\":{\"id\":\"wqmbox\",\"filename\":\"x\"}}";
     let e = monitor.ask(plain).unwrap_err();
     assert!(e.to_string().contains("is locked and force was not specified"), "the stand-in holds the lock: {e}");
+    let e = monitor.ask(&plain.replace("\"id\":\"wqmbox\"", "\"device\":\"mbox\"")).unwrap_err();
+    assert!(e.to_string().contains("Deprecated parameter device"), "the stand-in refuses `device`: {e}");
     for token in ["tok-2", "tok-3"] {
         agent_done(swap.current(), swap.token(), true);
         swap.next(&mut monitor, &s, agent::AGENT_CMD, &request("ver", token, Mode::KeepAlive))
@@ -228,42 +244,48 @@ fn a_swap_changes_a_medium_that_the_guest_locked() {
         assert_eq!(swap.token(), token);
     }
     assert_eq!(swap.current(), plan.mailbox.as_path(), "two swaps: back to the first file");
-    assert_eq!(lines(&seen).iter().filter(|l| l.contains("blockdev-change-medium")).count(), 3);
+    let changes = lines(&seen).iter().filter(|l| l.contains("blockdev-change-medium")).count();
+    assert_eq!(changes, 4, "two refused, two swaps");
     let _ = std::fs::remove_dir_all(&d);
 }
 
-/// The lock comes from the entry of the drive `mbox`: QEMU writes the
+/// The lock comes from the entry of the device `wqmbox`: QEMU writes the
 /// members of an entry in no fixed order.
 #[test]
 fn the_lock_of_the_mailbox_is_read_from_its_entry_of_query_block() {
-    let block = "{\"return\": [{\"device\": \"root\", \"locked\": false, \"removable\": false}, {\"io-status\": \"ok\", \
-                 \"device\": \"mbox\", \"locked\": true, \"removable\": true, \"inserted\": {\"ro\": true, \"file\": \
-                 \"a.img\"}, \"tray_open\": false}]}";
+    let block = "{\"return\": [{\"device\": \"root\", \"locked\": false, \"removable\": false, \"qdev\": \"/machine/peripheral-anon/device[1]\"}, \
+                 {\"io-status\": \"ok\", \"device\": \"mbox\", \"locked\": true, \"removable\": true, \"inserted\": {\"ro\": true, \
+                 \"file\": \"a.img\"}, \"qdev\": \"wqmbox\", \"tray_open\": false}]}";
     assert_eq!(mailbox_locked(block), Some(true));
     assert_eq!(mailbox_locked(&block.replace("\"locked\": true", "\"locked\": false")), Some(false));
-    assert_eq!(mailbox_locked(&block.replace("mbox", "usb0")), None, "no mailbox drive");
+    assert_eq!(mailbox_locked(&block.replace("wqmbox", "usb0")), None, "no mailbox device");
     assert_eq!(mailbox_locked("{\"return\": []}"), None);
 }
 
 #[test]
-fn the_change_request_names_the_drive_and_the_file_as_json() {
+fn the_change_request_names_the_device_and_the_file_as_json() {
     let r = change_request(Path::new("/run/a \"b\".img")).unwrap();
     assert_eq!(
         r,
-        "{\"execute\":\"blockdev-change-medium\",\"arguments\":{\"device\":\"mbox\",\"filename\":\"/run/a \\\"b\\\".img\",\"format\":\"raw\",\"force\":true}}"
+        "{\"execute\":\"blockdev-change-medium\",\"arguments\":{\"id\":\"wqmbox\",\"filename\":\"/run/a \\\"b\\\".img\",\"format\":\"raw\",\"force\":true}}"
     );
     let bad = <std::ffi::OsStr as std::os::unix::ffi::OsStrExt>::from_bytes(b"/run/\xff.img");
     assert_eq!(change_request(Path::new(bad)).unwrap_err().class, Class::Usage);
 }
 
+/// The arguments of a QEMU that refuses each deprecated argument of QMP.
+const NO_DEPRECATED: [&str; 2] = ["-compat", "deprecated-input=reject"];
+
 /// The QEMU of the host takes the line of a USB mailbox and changes its
-/// medium two times. The firmware is 2 MiB of `hlt`: no OS runs.
+/// medium two times, with no deprecated argument. The firmware is 2 MiB
+/// of `hlt`: no OS runs.
 #[test]
 fn a_real_emulator_changes_the_medium_of_a_usb_mailbox() {
     pod_testkit::need_tool!("qemu-system-x86_64");
     pod_testkit::need_tool!("qemu-img");
     let d = dir("swap-live");
-    let plan = plan_in(&d, MailboxBus::Usb);
+    let mut plan = plan_in(&d, MailboxBus::Usb);
+    plan.emu_args = NO_DEPRECATED.map(String::from).to_vec();
     std::fs::write(&plan.firmware_code, vec![0xf4u8; 2 << 20]).unwrap();
     std::fs::write(&plan.firmware_vars, vec![0u8; 128 << 10]).unwrap();
     let base = d.join("base.img");
@@ -337,25 +359,26 @@ fn wait_locked(monitor: &mut qmp::Monitor) -> std::result::Result<(), String> {
     Err("the guest did not lock the medium within 30 s".into())
 }
 
-/// The QEMU of the host with a guest that locks the medium of the drive
-/// `mbox` (an ATAPI drive of the same tray code as the USB stick): a
+/// The QEMU of the host with a guest that locks the medium of the device
+/// `wqmbox` (an ATAPI drive of the same tray code as the USB disk): a
 /// change with no `force` gets the refusal of the run on Windows, and two
-/// swaps change the locked medium.
+/// swaps change the locked medium. The emulator refuses each deprecated
+/// argument.
 #[test]
 fn a_real_emulator_changes_a_medium_that_the_guest_locked() {
     pod_testkit::need_tool!("qemu-system-x86_64");
     let (d, plan, s, mut swap) = staged("swap-live-locked");
     let rom = d.join("lock.rom");
     std::fs::write(&rom, lock_firmware()).unwrap();
-    let mut args: Vec<String> = Vec::new();
-    for x in ["-machine", "pc", "-accel", "tcg", "-display", "none", "-nodefaults", "-bios"] {
-        args.push(x.into());
-    }
+    let mut args: Vec<String> =
+        ["-machine", "pc", "-accel", "tcg", "-display", "none", "-nodefaults"].map(String::from).to_vec();
+    args.extend(NO_DEPRECATED.map(String::from));
+    args.push("-bios".into());
     args.push(crate::plan::options::escape(&rom));
     args.push("-drive".into());
     args.push(format!("if=none,id=mbox,file={},format=raw,media=cdrom", crate::plan::options::escape(&plan.mailbox)));
     args.push("-device".into());
-    args.push("ide-cd,drive=mbox,bus=ide.0,unit=0".into());
+    args.push("ide-cd,drive=mbox,bus=ide.0,unit=0,id=wqmbox".into());
     args.push("-qmp".into());
     args.push(format!("unix:{},server=on,wait=off", plan.monitor.display()));
     let child = emulator::spawn_emulator(&plan, &args, Stdio::null()).expect("the emulator starts");

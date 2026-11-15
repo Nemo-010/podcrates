@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**517 entries: 106 open, 8 partial, 6 blocked, 397 done.**
+**518 entries: 105 open, 8 partial, 6 blocked, 399 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 105 | 119 |
-| P2 | 50 | 2 | 4 | 208 | 264 |
-| P3 | 45 | 3 | 2 | 82 | 132 |
-| **All** | 106 | 8 | 6 | 397 | 517 |
+| P2 | 49 | 2 | 4 | 209 | 264 |
+| P3 | 45 | 3 | 2 | 83 | 133 |
+| **All** | 105 | 8 | 6 | 399 | 518 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -558,9 +558,10 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-625](podvm.md) | P3 | S | M6 | chore | done | `pod-hostprobe`: the test of the report runs the probes in a child that libtest refuses |
 | [T-626](podvm.md) | P3 | M | M7 | chore | open | `pod-udf`: the metadata partition of UDF 2.50 against an image of a real tool |
 | [T-627](relay.md) | P3 | S | M2 | feature | done | `pod-link`: the stand-in of the S3 API behind the feature `s3-standin` (PodUtils/podnet#564) |
-| [T-628](podvm.md) | P2 | S | M7 | defect | open | `pod-guest`: the warm restore gives the next command on a new mailbox medium after the load |
+| [T-628](podvm.md) | P2 | S | M7 | defect | done | `pod-guest`: the warm restore gives the next command on a new mailbox medium after the load |
 | [T-629](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: a plan with a boot medium gives the root disk no `bootindex`, so OVMF deletes the boot entry of the installed system |
 | [T-630](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: the swap of a USB mailbox fails while Windows locks the medium |
 | [T-631](transport.md) | P3 | M | M1 | chore | done | `pod-turn`: the check of a MESSAGE-INTEGRITY-SHA256 answer against a server of another party |
-| [T-632](podvm.md) | P3 | S | M7 | chore | open | `pod-guest`: the QMP commands of the mailbox name the drive by `id`, not by the deprecated `device` |
+| [T-632](podvm.md) | P3 | S | M7 | chore | done | `pod-guest`: the QMP commands of the mailbox name the drive by `id`, not by the deprecated `device` |
 | [T-633](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: the screen sign of the readiness fails on Validation OS, so the provision never types into a Windows guest |
+| [T-635](podvm.md) | P3 | S | M7 | feature | open | `pod-guest`: a setting of the bus of the root disk, so that a warm start runs on QEMU 8.2 |

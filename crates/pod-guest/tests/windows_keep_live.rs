@@ -9,7 +9,12 @@
 //!    `blockdev-change-medium` with `force` (`swap::Swap::next`): Windows
 //!    locks the medium that it has mounted. The test prints the lock before
 //!    each swap and checks each outcome.
-//! 3. controls: a command that the host writes into the image of the
+//! 3. warm start (T-628): a save of the idle guest of step 2
+//!    (`warm::save`), and after the control of step 4 a restore with a
+//!    fourth command on a new medium (`warm::start`). It runs only where
+//!    the emulator saves the plan (QEMU 11: QEMU 8.2 refuses the NVMe root
+//!    disk); else the test prints the refusal and goes on.
+//! 4. controls: a command that the host writes into the image of the
 //!    mounted mailbox, on the USB mailbox of step 2 and on an NVMe mailbox
 //!    (the line of a run before T-602). The test prints if each one
 //!    reached the agent; it does not fail on them.
@@ -25,8 +30,10 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
+use pod_core::Class;
 use pod_guest::plan::{MailboxBus, Options};
 use pod_guest::swap::{self, Swap};
+use pod_guest::warm::{self, Start, Warm};
 use pod_guest::{Accel, Fat16, Mode, Outcome, Plan, Request, Settings, agent, emulator, qmp};
 
 const ANSWER: &str = include_str!("fixtures/windows/autounattend.xml");
@@ -37,6 +44,8 @@ const BOOT: Duration = Duration::from_secs(20 * 60);
 const COMMAND: Duration = Duration::from_secs(5 * 60);
 /// How long a control waits for the agent to take its command.
 const CONTROL: Duration = Duration::from_secs(150);
+/// The limit of the save and of the load of 4 GiB of RAM.
+const SAVE: Duration = Duration::from_secs(10 * 60);
 
 struct Env {
     iso: PathBuf,
@@ -288,12 +297,17 @@ fn a_windows_guest_takes_each_next_command_on_a_new_medium() {
         assert!(text(&o.stdout).contains("Microsoft Windows"), "{word}: {o:?}");
     }
     env.say("RESULT: the swap gave two next commands to the agent, and both outcomes are right");
+    // The save connects to QMP itself, and QEMU serves one client.
+    drop(m);
+    let saved = save(&env, &mut g, &sw);
 
     let ctl = request("echo pod-guest-control", "tok-control-usb", Mode::KeepAlive);
     let reached = control(&env, &mut g, sw.current(), &ctl, "USB mailbox, no swap");
     env.say(&format!("RESULT: a write into the mounted USB mailbox reached the agent: {}", yes(reached)));
-    drop(m);
     drop(g);
+    if let Some(w) = saved {
+        restore(&env, &p, &disk, &w);
+    }
 
     let p = plan(&env, &env.work.join("nvme"), MailboxBus::Nvme);
     let first = request("echo pod-guest-nvme", "tok-nvme", Mode::KeepAlive);
@@ -305,6 +319,50 @@ fn a_windows_guest_takes_each_next_command_on_a_new_medium() {
     let reached = control(&env, &mut g, &p.mailbox, &ctl, "NVMe mailbox");
     env.say(&format!("RESULT: a write into the mounted NVMe mailbox reached the agent: {}", yes(reached)));
     drop(g);
+}
+
+/// Step 3, the save: the idle guest of the swap into `WORK/warm`. `None`
+/// where the emulator cannot save the plan.
+fn save(env: &Env, guest: &mut Guest, sw: &Swap) -> Option<Warm> {
+    let p = guest.plan;
+    let start = Instant::now();
+    while !read(sw.current()).is_some_and(|m| warm::idle(&m).is_ok()) {
+        assert!(start.elapsed() < COMMAND, "the agent did not go idle on {}", sw.current().display());
+        std::thread::sleep(Duration::from_secs(2));
+    }
+    let fingerprint = warm::fingerprint(p, "sha256:the-disk-of-this-run", agent::AGENT_CMD).expect("the fingerprint");
+    let dir = env.work.join("warm");
+    env.say(&format!("warm: save of the idle guest ({})", fingerprint.qemu));
+    match warm::save(p, &fingerprint, &dir, SAVE) {
+        Ok(()) => {
+            env.say("warm: the state is saved, and the guest goes on");
+            Some(Warm { dir, fingerprint, wait: SAVE })
+        }
+        Err(e) if e.class == Class::Unavailable => {
+            env.say(&format!("RESULT: warm start: not run, the emulator cannot save the plan: {e}"));
+            None
+        }
+        Err(e) => panic!("the save: {e}"),
+    }
+}
+
+/// Step 3, the restore: a warm start of the saved guest with a fourth
+/// command, which must come on a new medium after the load.
+fn restore(env: &Env, p: &Plan, disk: &Path, w: &Warm) {
+    let st = Settings::new(&env.work);
+    let next = request("echo pod-guest-warm& ver", "tok-warm", Mode::KeepAlive);
+    env.say("warm: restore with the command tok-warm");
+    let started = warm::start(&st, Path::new("qemu-img"), disk, p, agent::AGENT_CMD, &next, w).expect("the start");
+    let how = started.how.clone();
+    let file = started.swap.current().to_path_buf();
+    env.say(&format!("warm: the guest started {how:?}; the command is on {}", file.display()));
+    let mut g = Guest { plan: p, child: started.child };
+    assert_eq!(how, Start::Warm, "the saved state must restore");
+    let o = settled(env, &mut g, &file, "tok-warm", COMMAND).expect("the result of the command after the restore");
+    env.say(&format!("warm: code {}, stdout {:?}", o.code, text(&o.stdout)));
+    assert_eq!(o.code, 0, "{o:?}");
+    assert!(text(&o.stdout).contains("pod-guest-warm"), "{o:?}");
+    env.say("RESULT: warm start: the restored agent took the command on a new medium after the load");
 }
 
 fn yes(b: bool) -> &'static str {

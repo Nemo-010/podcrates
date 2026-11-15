@@ -34,33 +34,31 @@ fn major(qemu: &str) -> u32 {
     version.split('.').next().and_then(|v| v.parse().ok()).unwrap_or(0)
 }
 
-/// A line with no NVMe disk, which each QEMU with `file:` migrates: the
-/// save writes a stream that a second emulator loads, the guest runs after
-/// both, and a stream cut short is a failed load.
+/// The plan line with the root disk on AHCI in place of NVMe, which each
+/// QEMU with `file:` migrates (QEMU 8.2 refuses only the NVMe disk): the
+/// save writes a stream with the USB mailbox, a second emulator loads it
+/// with the saved mailbox as it is, the guest runs after both, and the
+/// command comes on a new medium after the load, by `id`, with no
+/// deprecated argument. A stream cut short is a failed load.
 #[test]
 fn a_real_emulator_saves_and_loads_a_stream() {
     pod_testkit::need_tool!("qemu-system-x86_64");
     pod_testkit::need_tool!("qemu-img");
     let d = dir("warm-live-stream");
-    let (plan, base) = live_plan(&d);
+    let (mut plan, base) = live_plan(&d);
+    plan.emu_args = ["-compat", "deprecated-input=reject"].map(String::from).to_vec();
     let s = Settings::new(std::env::temp_dir());
-    stage_idle(&s, Path::new("qemu-img"), &base, &plan, agent::AGENT_CMD).unwrap();
+    let qemu_img = Path::new("qemu-img");
+    stage_idle(&s, qemu_img, &base, &plan, agent::AGENT_CMD).unwrap();
     // The agent of a real guest writes the marker; this guest has none.
     std::fs::write(&plan.mailbox, idle_mailbox().image()).unwrap();
-    let line = |root: &Path| -> Vec<String> {
-        let mut a: Vec<String> =
-            ["-M", "q35", "-accel", "tcg", "-cpu", "max", "-m", "64", "-nodefaults"].map(String::from).to_vec();
-        a.extend(["-display", "none", "-no-reboot", "-drive"].map(String::from));
-        a.push(format!("if=pflash,format=raw,readonly=on,file={}", plan.firmware_code.display()));
-        a.push("-drive".into());
-        a.push(format!("if=pflash,format=raw,file={}", plan.firmware_vars.display()));
-        a.push("-drive".into());
-        a.push(format!("if=none,id=root,file={},format=qcow2", root.display()));
-        a.extend(["-device", "virtio-blk-pci,drive=root", "-qmp"].map(String::from));
-        a.push(format!("unix:{},server=on,wait=off", plan.monitor.display()));
-        a
-    };
-    let child = emulator::spawn_emulator(&plan, &line(&plan.root), Stdio::null()).expect("the emulator starts");
+    let nvme = "nvme,drive=root,serial=wqroot";
+    let line: Vec<String> = crate::argv(&plan)
+        .into_iter()
+        .map(|a| if a == nvme { "ide-hd,drive=root,bus=ide.0".into() } else { a })
+        .collect();
+    assert!(!line.iter().any(|a| a.starts_with("nvme")), "{line:?}");
+    let child = emulator::spawn_emulator(&plan, &line, Stdio::null()).expect("the emulator starts");
     let mut child = Alive(child);
     let state = d.join("state");
     let f = print_of(&plan);
@@ -73,18 +71,29 @@ fn a_real_emulator_saves_and_loads_a_stream() {
         assert!(state.join(file).is_file(), "{file}");
     }
 
-    let restored = d.join("restored.qcow2");
-    emulator::run_steps(&overlay_argv(Path::new("qemu-img"), &state.join(ROOT), &restored)).unwrap();
+    // The steps of `restore` on this line.
+    let _ = std::fs::remove_file(&plan.root);
+    emulator::run_steps(&overlay_argv(qemu_img, &state.join(ROOT), &plan.root)).unwrap();
+    std::fs::copy(state.join(MAILBOX), &plan.mailbox).unwrap();
     let _ = std::fs::remove_file(&plan.monitor);
-    let mut args = line(&restored);
+    let mut args = line.clone();
     args.extend(["-incoming".to_string(), format!("file:{}", state.join(STATE).display())]);
     let child = emulator::spawn_emulator(&plan, &args, Stdio::null()).expect("the emulator starts");
     let mut child = Alive(child);
-    let loaded = load(&plan, &mut child.0, Duration::from_secs(60));
+    let loaded = load(&plan, &mut child.0, Duration::from_secs(60)).and_then(|()| {
+        let mut swap = crate::swap::Swap::restored(&plan)?;
+        let mut m = qmp::Monitor::connect(&plan.monitor, Duration::from_secs(30))?;
+        swap.next(&mut m, &s, agent::AGENT_CMD, &request("tok-live"))?;
+        let block = m.ask("{\"execute\":\"query-block\"}")?;
+        Ok((swap, crate::swap::mailbox_file(&block)))
+    });
     let after = if loaded.is_ok() { status(&plan) } else { String::new() };
     emulator::stop_emulator(&plan, &mut child.0);
-    loaded.expect("the load");
+    let (swap, inside) = loaded.expect("the load and the swap");
     assert_eq!(after, "running", "the guest runs after the load");
+    assert_eq!(inside.as_deref().map(Path::new), Some(swap.current()), "the new medium is in the guest");
+    assert_eq!(swap.current(), crate::swap::other_file(&plan));
+    assert!(std::fs::read(&plan.mailbox).unwrap() == std::fs::read(state.join(MAILBOX)).unwrap(), "the saved mailbox");
 
     let cut = std::fs::read(state.join(STATE)).unwrap();
     std::fs::write(state.join(STATE), &cut[..cut.len().min(1000)]).unwrap();
@@ -102,9 +111,10 @@ fn print_of(plan: &Plan) -> Fingerprint {
     fingerprint(plan, "sha256:the-test-base", agent::AGENT_CMD).expect("the fingerprint")
 }
 
-/// The machine line of the plan, with its NVMe disks: QEMU 11 saves it and
-/// [`start`] restores it; an older QEMU refuses the save with its reasons
-/// and the guest goes on, and [`start`] boots cold.
+/// The machine line of the plan with a USB mailbox and its NVMe root disk:
+/// QEMU 11 saves it and [`start`] restores it with the command on a new
+/// medium; an older QEMU refuses the save with its reasons and the guest
+/// goes on, and [`start`] boots cold.
 #[test]
 fn a_real_emulator_saves_the_plan_from_qemu_11_and_boots_cold_before() {
     pod_testkit::need_tool!("qemu-system-x86_64");
@@ -138,14 +148,16 @@ fn a_real_emulator_saves_the_plan_from_qemu_11_and_boots_cold_before() {
         Err(e) => panic!("{}: the save of the plan: {e}", f.qemu),
     }
     let w = Warm { dir: state.clone(), fingerprint: f.clone(), wait: Duration::from_secs(60) };
-    let (child, how) = start(&s, qemu_img, &base, &plan, agent::AGENT_CMD, &request("tok-live"), &w).unwrap();
-    let mut child = Alive(child);
+    let st = start(&s, qemu_img, &base, &plan, agent::AGENT_CMD, &request("tok-live"), &w).unwrap();
+    let (how, swap) = (st.how, st.swap);
+    let mut child = Alive(st.child);
     let after = status(&plan);
     emulator::stop_emulator(&plan, &mut child.0);
     drop(child);
     assert_eq!(after, "running");
     if saved.is_ok() {
         assert_eq!(how, Start::Warm, "{}", f.qemu);
+        assert_eq!(swap.current(), crate::swap::other_file(&plan), "the command is on a new medium");
     } else {
         assert_eq!(how, Start::Cold(Cold::Missing));
     }

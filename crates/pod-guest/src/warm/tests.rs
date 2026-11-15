@@ -5,10 +5,11 @@ use std::os::unix::net::UnixListener;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use crate::plan::{Medium, MediumKind, Virtio};
+use crate::plan::{MailboxBus, Medium, MediumKind, Options, Virtio};
 use crate::{Accel, Mode, scratch_dir};
 
-/// A plan whose files are in the per-run directory `dir`.
+/// A plan with a USB mailbox whose files are in the per-run directory
+/// `dir`.
 pub(super) fn plan_in(dir: &Path) -> Plan {
     Plan {
         emulator: "/bin/sh".into(),
@@ -22,9 +23,20 @@ pub(super) fn plan_in(dir: &Path) -> Plan {
         monitor: dir.join("qmp.sock"),
         memory_mib: 512,
         cpus: 1,
-        options: Default::default(),
+        options: Options { mailbox: MailboxBus::Usb, ..Options::default() },
         emu_args: Vec::new(),
     }
+}
+
+/// A `query-block` response with the root disk and the mailbox device
+/// `wqmbox` with `medium` in it, as QEMU 8.2 writes it.
+pub(super) fn block_with(medium: &Path) -> String {
+    format!(
+        "{{\"return\": [{{\"device\": \"root\", \"inserted\": {{\"file\": \"/run/run.qcow2\"}}, \"qdev\": \
+         \"/machine/peripheral-anon/device[0]\"}}, {{\"io-status\": \"ok\", \"device\": \"mbox\", \"locked\": true, \
+         \"inserted\": {{\"image\": {{\"filename\": \"x.img\"}}, \"ro\": false, \"file\": {}}}, \"qdev\": \"wqmbox\"}}]}}",
+        qmp::json_text(medium.to_str().unwrap())
+    )
 }
 
 pub(super) fn dir(tag: &str) -> PathBuf {
@@ -229,17 +241,27 @@ fn only_an_idle_agent_in_keep_alive_mode_is_saved() {
 }
 
 /// The save stops the guest, writes the stream and the files, names the
-/// directory at the end, and lets the guest go on.
+/// directory at the end, and lets the guest go on. The mailbox of the
+/// state is the medium in the guest, which after a swap is the other file.
 #[test]
 fn a_save_writes_each_file_and_lets_the_guest_go_on() {
     pod_testkit::need_loopback!();
     let d = dir("warm-save");
     let plan = plan_in(&d);
     run_files(&plan);
-    let seen = stand(&plan.monitor, |name, n| match (name, n) {
+    let medium = crate::swap::other_file(&plan);
+    let mut inside = idle_mailbox();
+    inside.set_volume_id(0x1234_5679);
+    std::fs::write(&medium, inside.image()).unwrap();
+    let mut old = idle_mailbox();
+    old.put(agent::GO, b"tok-old").unwrap();
+    std::fs::write(&plan.mailbox, old.image()).unwrap();
+    let block = block_with(&medium);
+    let seen = stand(&plan.monitor, move |name, n| match (name, n) {
         ("query-migrate", 1) => OK.into(),
         ("query-migrate", 2) => "{\"return\": {\"status\": \"active\"}}".into(),
         ("query-migrate", _) => "{\"return\": {\"status\": \"completed\", \"total-time\": 7}}".into(),
+        ("query-block", _) => block.clone(),
         _ => OK.into(),
     });
     let state = d.join("state");
@@ -248,13 +270,18 @@ fn a_save_writes_each_file_and_lets_the_guest_go_on() {
     let f = print("QEMU 11.0.0");
     save(&plan, &f, &state, Duration::from_secs(30)).unwrap();
     let names = names(&seen);
-    assert_eq!(names[..5], ["qmp_capabilities", "query-migrate", "stop", "migrate-set-parameters", "migrate"]);
+    assert_eq!(
+        names[..6],
+        ["qmp_capabilities", "query-migrate", "stop", "query-block", "migrate-set-parameters", "migrate"]
+    );
     assert_eq!(names.last().map(String::as_str), Some("cont"));
     assert_eq!(std::fs::read_to_string(state.join(FINGERPRINT)).unwrap(), f.text());
     assert_eq!(std::fs::read(state.join(STATE)).unwrap(), b"QEVM stream");
     assert_eq!(std::fs::read(state.join(ROOT)).unwrap(), std::fs::read(&plan.root).unwrap());
     assert_eq!(std::fs::read(state.join(VARS)).unwrap(), b"vars of the guest");
-    assert!(idle(&Fat16::from_image(std::fs::read(state.join(MAILBOX)).unwrap()).unwrap()).is_ok());
+    let kept = Fat16::from_image(std::fs::read(state.join(MAILBOX)).unwrap()).unwrap();
+    assert_eq!(kept.volume_id(), inside.volume_id(), "the state keeps the medium in the guest");
+    assert!(idle(&kept).is_ok());
     assert!(!state.join("old").exists(), "the new state replaces the old one");
     assert!(!d.join("state.part").exists());
     let _ = std::fs::remove_dir_all(&d);
@@ -262,17 +289,19 @@ fn a_save_writes_each_file_and_lets_the_guest_go_on() {
 
 /// A save that cannot be made leaves the state before it, and the guest
 /// goes on: a device that the emulator cannot migrate, a command on the
-/// mailbox, a failed migration, a base with a relative name.
+/// mailbox, a failed migration, a base with a relative name, no medium in
+/// the mailbox device.
 #[test]
 fn a_failed_save_keeps_the_state_before_and_the_guest_goes_on() {
     pod_testkit::need_loopback!();
     let blocked = "{\"return\": {\"blocked-reasons\": [\"non-migratable device: 0000:00:02.0/nvme\"]}}";
     let failed = "{\"return\": {\"status\": \"failed\", \"error-desc\": \"no space\"}}";
-    let cases: [(&str, &str, Class, &str); 4] = [
+    let cases: [(&str, &str, Class, &str); 5] = [
         ("blocked", blocked, Class::Unavailable, "nvme"),
         ("command", OK, Class::Usage, "a command waits"),
         ("failed", failed, Class::Protocol, "no space"),
         ("relative", OK, Class::Usage, "relative path"),
+        ("nomedium", OK, Class::Protocol, "no medium of the mailbox"),
     ];
     for (case, migrate, class, text) in cases {
         let d = dir(&format!("warm-fail-{case}"));
@@ -289,9 +318,11 @@ fn a_failed_save_keeps_the_state_before_and_the_guest_goes_on() {
         let done = "{\"return\": {\"status\": \"completed\"}}".to_string();
         let first = if case == "blocked" { blocked } else { OK }.to_string();
         let later = if case == "relative" { done } else { migrate.to_string() };
+        let block = if case == "nomedium" { "{\"return\": []}".to_string() } else { block_with(&plan.mailbox) };
         let seen = stand(&plan.monitor, move |name, n| match (name, n) {
             ("query-migrate", 1) => first.clone(),
             ("query-migrate", _) => later.clone(),
+            ("query-block", _) => block.clone(),
             _ => OK.into(),
         });
         let state = d.join("state");

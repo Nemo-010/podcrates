@@ -1,0 +1,9 @@
+# The restore puts the next command on the saved mailbox before the load
+# and swaps no medium (T-628), so the restored guest reads the mailbox
+# from its cache and does not see the command. The test of the warm
+# start must fail.
+ENTRY=T-628
+GROUP=guest
+EXPECT='test warm::tests::start_tests::a_state_that_loads_starts_warm_with_the_next_command \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- warm::tests::start_tests::a_state_that_loads_starts_warm_with_the_next_command'
+LIMIT=1800

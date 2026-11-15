@@ -23,7 +23,8 @@ use pod_hostprobe::machine::Profile;
 pub mod options;
 
 pub use options::{
-    Channel, Forward, MAILBOX_DRIVE, MailboxBus, Medium, MediumKind, Nic, NicModel, Options, Proto, UserNet, Virtio,
+    Channel, Forward, MAILBOX_DRIVE, MAILBOX_ID, MAILBOX_USB, MailboxBus, Medium, MediumKind, Nic, NicModel, Options,
+    Proto, UserNet, Virtio,
 };
 
 /// Which accelerator to ask the emulator for.

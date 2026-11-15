@@ -1,0 +1,13 @@
+diff --git a/crates/pod-guest/src/warm/state.rs b/crates/pod-guest/src/warm/state.rs
+--- a/crates/pod-guest/src/warm/state.rs
++++ b/crates/pod-guest/src/warm/state.rs
+@@ -60,7 +60,8 @@ pub fn idle(m: &Fat16) -> Result<()> {
+ /// guest holds the saved mailbox in its cache, and only a new medium
+ /// gives it the next command.
+ fn usb_mailbox(plan: &Plan) -> Result<()> {
+-    if plan.options.mailbox == MailboxBus::Usb {
++    if plan.options.mailbox == MailboxBus::Usb || plan.options.mailbox == MailboxBus::Nvme {
++
+         return Ok(());
+     }
+     Err(failure(

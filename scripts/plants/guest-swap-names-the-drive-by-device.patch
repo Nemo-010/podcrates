@@ -1,0 +1,14 @@
+diff --git a/crates/pod-guest/src/swap.rs b/crates/pod-guest/src/swap.rs
+--- a/crates/pod-guest/src/swap.rs
++++ b/crates/pod-guest/src/swap.rs
+@@ -62,8 +62,8 @@ pub fn settled(m: &Fat16, token: &str) -> Option<Outcome> {
+ pub fn change_request(file: &Path) -> Result<String> {
+     let path = file.to_str().ok_or_else(|| failure(Class::Usage, format!("{}: not a UTF-8 path", file.display())))?;
+     Ok(format!(
+-        "{{\"execute\":\"blockdev-change-medium\",\"arguments\":{{\"id\":{},\"filename\":{},\"format\":\"raw\",\"force\":true}}}}",
+-        qmp::json_text(MAILBOX_ID),
++        "{{\"execute\":\"blockdev-change-medium\",\"arguments\":{{\"device\":{},\"filename\":{},\"format\":\"raw\",\"force\":true}}}}",
++        qmp::json_text(crate::plan::MAILBOX_DRIVE),
+         qmp::json_text(path)
+     ))
+ }

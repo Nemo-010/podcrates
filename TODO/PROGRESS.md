@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 517 entries: 106 open, 8 partial, 6 blocked, 397 done.
+`TODO/INDEX.md` holds 518 entries: 105 open, 8 partial, 6 blocked, 399 done.
 
 ## State
 
@@ -76,7 +76,7 @@ First: the takes of `v0.46.0` (#159), `v0.47.0` (#160) and `v0.48.0`
 (#162). Then the move of podssh's waves 3 and 4 (the ruling "The move
 of podssh", PodUtils/podssh#248): T-027, T-034, T-032, T-033, T-031;
 T-035; T-038, T-037, T-029, T-030, T-039; T-036.
-The Windows guest of podvm (#152): T-628, T-632. Then the link carriers of M2
+Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
 
 1. **The defects and asks of the consumers:** T-378 (`pod-devtunnel`, GitHub #94 and

@@ -1,0 +1,9 @@
+# The swap names the mailbox by the deprecated argument `device` of
+# `blockdev-change-medium` (T-632), so a QEMU that drops it, or refuses
+# it with `-compat deprecated-input=reject`, refuses each swap. The test
+# of the swap of a locked medium must fail.
+ENTRY=T-632
+GROUP=guest
+EXPECT='test swap::tests::a_swap_changes_a_medium_that_the_guest_locked \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- swap::tests::a_swap_changes_a_medium_that_the_guest_locked'
+LIMIT=1800

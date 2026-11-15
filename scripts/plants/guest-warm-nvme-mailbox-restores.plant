@@ -1,0 +1,8 @@
+# The save and the restore take an NVMe mailbox (T-628), whose restored
+# guest reads the saved mailbox from its cache and never sees a command.
+# The test of the refusal must fail.
+ENTRY=T-628
+GROUP=guest
+EXPECT='test warm::tests::start_tests::a_warm_start_needs_a_usb_mailbox \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- warm::tests::start_tests::a_warm_start_needs_a_usb_mailbox'
+LIMIT=1800

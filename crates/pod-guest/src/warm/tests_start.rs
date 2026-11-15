@@ -1,5 +1,5 @@
 //! The fallback of [`start`]: a missing, stale or failed state boots
-//! cold; a state that loads starts warm.
+//! cold; a state that loads starts warm, with the command on a new medium.
 
 use super::*;
 
@@ -21,19 +21,22 @@ fn warm(dir: PathBuf, f: &Fingerprint) -> Warm {
 }
 
 /// The mailbox of the cold boot: the command and the token of the request,
-/// as `stage` writes them, and no marker of a restored agent.
-fn assert_cold_mailbox(plan: &Plan, token: &str) {
+/// as `stage` writes them, and no marker of a restored agent; the swap
+/// starts at the file of the plan.
+fn assert_cold_mailbox(plan: &Plan, swap: &crate::swap::Swap, token: &str) {
     let m = Fat16::from_image(std::fs::read(&plan.mailbox).unwrap()).unwrap();
     assert_eq!(m.get(agent::GO).as_deref(), Some(token.as_bytes()));
     assert!(!agent::ready(&m), "the mailbox of the cold boot is new");
+    assert_eq!((swap.current(), swap.token()), (plan.mailbox.as_path(), token));
 }
 
 /// `true` stands for `qemu-img`; `/bin/sh` is an emulator that refuses the
 /// machine line and exits.
-fn start_in(d: &Path, plan: &Plan, w: &Warm) -> (Child, Start) {
+fn start_in(d: &Path, plan: &Plan, w: &Warm) -> (Child, Start, crate::swap::Swap) {
     let s = Settings::new(std::env::temp_dir());
     let out = start(&s, Path::new("true"), &d.join("base.vhdx"), plan, agent::AGENT_CMD, &request("tok-2"), w);
-    out.expect("a cold boot starts the emulator")
+    let st = out.expect("a cold boot starts the emulator");
+    (st.child, st.how, st.swap)
 }
 
 #[test]
@@ -45,25 +48,25 @@ fn no_state_and_a_stale_state_boot_cold_and_leave_the_store_of_the_caller() {
     std::fs::write(&plan.firmware_vars, b"fresh vars").unwrap();
     let now = print("QEMU emulator version 11.0.0");
 
-    let (mut child, how) = start_in(&d, &plan, &warm(d.join("none"), &now));
+    let (mut child, how, swap) = start_in(&d, &plan, &warm(d.join("none"), &now));
     let _ = child.wait();
     assert_eq!(how, Start::Cold(Cold::Missing));
-    assert_cold_mailbox(&plan, "tok-2");
+    assert_cold_mailbox(&plan, &swap, "tok-2");
 
     let state = saved(&d, &print("QEMU emulator version 10.2.1"));
-    let (mut child, how) = start_in(&d, &plan, &warm(state.clone(), &now));
+    let (mut child, how, swap) = start_in(&d, &plan, &warm(state.clone(), &now));
     let _ = child.wait();
     let stale = Cold::Stale {
         saved: "qemu \"QEMU emulator version 10.2.1\"".into(),
         now: "qemu \"QEMU emulator version 11.0.0\"".into(),
     };
     assert_eq!(how, Start::Cold(stale));
-    assert_cold_mailbox(&plan, "tok-2");
+    assert_cold_mailbox(&plan, &swap, "tok-2");
     assert_eq!(std::fs::read(&plan.firmware_vars).unwrap(), b"fresh vars");
 
     // A state with a file missing is no state.
     std::fs::remove_file(state.join(VARS)).unwrap();
-    let (mut child, how) = start_in(&d, &plan, &warm(state, &print("QEMU emulator version 10.2.1")));
+    let (mut child, how, _) = start_in(&d, &plan, &warm(state, &print("QEMU emulator version 10.2.1")));
     let _ = child.wait();
     assert_eq!(how, Start::Cold(Cold::Missing));
     let _ = std::fs::remove_dir_all(&d);
@@ -80,11 +83,11 @@ fn a_state_that_does_not_load_boots_cold() {
     std::fs::write(&plan.firmware_vars, b"fresh vars").unwrap();
     let f = print("QEMU emulator version 11.0.0");
     let state = saved(&d, &f);
-    let (mut child, how) = start_in(&d, &plan, &warm(state.clone(), &f));
+    let (mut child, how, swap) = start_in(&d, &plan, &warm(state.clone(), &f));
     let _ = child.wait();
     let Start::Cold(Cold::Failed { why }) = how else { panic!("{how:?}") };
     assert!(why.contains("exited"), "{why}");
-    assert_cold_mailbox(&plan, "tok-2");
+    assert_cold_mailbox(&plan, &swap, "tok-2");
     assert_eq!(std::fs::read(&plan.firmware_vars).unwrap(), b"fresh vars");
     assert_eq!(std::fs::read(state.join(VARS)).unwrap(), b"saved vars", "the state stays");
     let _ = std::fs::remove_dir_all(&d);
@@ -105,9 +108,43 @@ fn a_bad_plan_is_a_failure_and_not_a_cold_boot() {
     let _ = std::fs::remove_dir_all(&d);
 }
 
+/// A plan with an NVMe mailbox has no warm start: the restored guest reads
+/// the saved mailbox from its cache. The save, the restore and the start
+/// refuse it with no request to the emulator and no cold boot.
+#[test]
+fn a_warm_start_needs_a_usb_mailbox() {
+    pod_testkit::need_loopback!();
+    let d = dir("warm-nvme");
+    let mut plan = plan_in(&d);
+    plan.options.mailbox = crate::plan::MailboxBus::Nvme;
+    run_files(&plan);
+    let seen = stand(&plan.monitor, |_, _| OK.into());
+    let f = print("QEMU 11.0.0");
+    let state = saved(&d, &f);
+    let s = Settings::new(std::env::temp_dir());
+    let fails = [
+        save(&plan, &f, &d.join("new"), Duration::from_secs(30)).map(drop).unwrap_err(),
+        restore(&s, Path::new("true"), &plan, agent::AGENT_CMD, &request("t"), &warm(state.clone(), &f))
+            .map(drop)
+            .unwrap_err(),
+        start(&s, Path::new("true"), &d.join("base"), &plan, agent::AGENT_CMD, &request("t"), &warm(state, &f))
+            .map(drop)
+            .unwrap_err(),
+    ];
+    for e in fails {
+        assert_eq!(e.class, Class::Usage, "{e}");
+        assert!(e.to_string().contains("USB mailbox"), "{e}");
+        assert!(cold(&e).is_none(), "{e}");
+    }
+    assert!(names(&seen).is_empty(), "no request: {:?}", names(&seen));
+    assert!(!d.join("new").exists() && !d.join("new.part").exists());
+    let _ = std::fs::remove_dir_all(&d);
+}
+
 /// A state that loads starts warm: the emulator gets the machine line and
-/// `-incoming`, the restored mailbox holds the next command, the saved
-/// variable store is in place, and the guest goes on.
+/// `-incoming` with the saved mailbox as it is, the saved variable store is
+/// in place, the guest goes on, and then the command comes on a new medium
+/// with the next volume id, swapped in by `id`.
 #[test]
 fn a_state_that_loads_starts_warm_with_the_next_command() {
     use std::os::unix::fs::PermissionsExt;
@@ -144,18 +181,25 @@ fn a_state_that_loads_starts_warm_with_the_next_command() {
             _ => OK.into(),
         })
     });
-    let (child, how) = start_in(&d, &plan, &warm(state.clone(), &f));
+    let (child, how, swap) = start_in(&d, &plan, &warm(state.clone(), &f));
     let child = Alive(child);
     assert_eq!(how, Start::Warm);
     let seen = served.join().expect("the stand-in");
-    assert_eq!(names(&seen).last().map(String::as_str), Some("cont"));
+    let names = names(&seen);
+    let cont = names.iter().position(|n| n == "cont").expect("cont");
+    assert_eq!(names[cont + 1..], ["qmp_capabilities", "blockdev-change-medium"], "the swap comes after the load");
     let line = std::fs::read_to_string(&args).unwrap();
     let line: Vec<&str> = line.lines().collect();
     assert_eq!(line[line.len() - 2..], ["-incoming", &format!("file:{}", state.join(STATE).display())]);
-    let m = Fat16::from_image(std::fs::read(&plan.mailbox).unwrap()).unwrap();
-    assert!(agent::ready(&m), "the mailbox of the saved agent");
+    let saved_box = std::fs::read(state.join(MAILBOX)).unwrap();
+    assert!(std::fs::read(&plan.mailbox).unwrap() == saved_box, "the emulator loads the saved mailbox as it is");
+    let other = crate::swap::other_file(&plan);
+    assert_eq!((swap.current(), swap.token()), (other.as_path(), "tok-2"));
+    let m = Fat16::from_image(std::fs::read(&other).unwrap()).unwrap();
     assert_eq!(m.get(agent::GO).as_deref(), Some(&b"tok-2"[..]));
     assert!(m.get(agent::KEEP).is_some(), "a keep-alive request keeps the guest");
+    let saved_id = Fat16::from_image(saved_box).unwrap().volume_id();
+    assert_eq!(m.volume_id(), saved_id.wrapping_add(1), "Windows reads a medium again only for another volume id");
     assert_eq!(std::fs::read(&plan.firmware_vars).unwrap(), b"saved vars");
     drop(child);
     let _ = std::fs::remove_dir_all(&d);

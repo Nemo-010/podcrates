@@ -5,18 +5,22 @@
 //! * [`save`]: QMP `stop`, `migrate` to `file:DIR/state.bin`, a copy of the
 //!   overlay, the mailbox and the variable store, the [`Fingerprint`] last;
 //!   then `cont`, so that the guest goes on.
-//! * [`restore`]: a thin overlay over the saved one, the saved mailbox with
-//!   the next command on it, the saved variable store, and the emulator
-//!   with `-incoming file:DIR/state.bin`; then `cont`.
+//! * [`restore`]: a thin overlay over the saved one, the saved mailbox as
+//!   it is, the saved variable store, and the emulator with
+//!   `-incoming file:DIR/state.bin`; then `cont`, and the next command on
+//!   a new medium of the mailbox ([`crate::swap::Swap::next`]).
 //! * [`start`]: a restore, or a cold boot ([`crate::stage`]) when the state
 //!   is missing, has another fingerprint, or does not load ([`Cold`]).
 //!
 //! A wrong or stale state boots cold. It never gives the answer of another
 //! guest: the fingerprint holds each input that the state depends on.
 //!
-//! The emulator must be able to migrate each device of the plan: QEMU
-//! before 11 refuses the NVMe disks of [`crate::argv`], and [`save`] then
-//! fails with [`Class::Unavailable`] and the reasons of the emulator.
+//! The mailbox must be a USB stick ([`crate::plan::MailboxBus::Usb`]): the
+//! restored RAM holds the cache of the saved mailbox, and Windows reads a
+//! mounted volume again only after a change of its medium. The emulator
+//! must be able to migrate each device of the plan: QEMU before 11 refuses
+//! the NVMe root disk of [`crate::argv`], and [`save`] then fails with
+//! [`Class::Unavailable`] and the reasons of the emulator.
 
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
@@ -25,6 +29,7 @@ use std::time::Duration;
 use pod_core::{Class, Failure, Stage};
 use sha2::{Digest, Sha256};
 
+use crate::swap::Swap;
 use crate::{Accel, Fat16, Plan, Request, Result, Settings, agent, emulator, failure, io_at, overlay_argv, qmp};
 
 mod state;
@@ -205,8 +210,8 @@ pub enum Cold {
     /// The state has another fingerprint: the first line that differs, of
     /// the state and of this run.
     Stale { saved: String, now: String },
-    /// The state did not load: the emulator refused it, exited, or did not
-    /// end the load within the limit.
+    /// The state did not load: the emulator refused it, exited, did not
+    /// end the load within the limit, or refused the medium of the command.
     Failed { why: String },
 }
 
@@ -243,22 +248,39 @@ pub fn cold(f: &Failure) -> Option<&Cold> {
 /// How [`start`] started the guest.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Start {
-    /// From the saved state: the next command is on the mailbox.
+    /// From the saved state: the command is on a new medium, swapped in
+    /// after the load.
     Warm,
     /// With a boot, for this reason: the command is on the mailbox before
     /// the boot, as [`crate::stage`] puts it.
     Cold(Cold),
 }
 
+/// A guest that [`start`] started.
+#[derive(Debug)]
+pub struct Started {
+    /// The emulator that runs.
+    pub child: Child,
+    /// Warm, or cold and why.
+    pub how: Start,
+    /// The media of the mailbox, with the command of the request on the
+    /// medium in the guest ([`Swap::current`]): the file to poll, and the
+    /// way to each next command.
+    pub swap: Swap,
+}
+
 /// Start the guest of `plan` for `request`: warm from `warm` when it
 /// restores, else with a boot over `base`. Each path ends with a running
-/// emulator and the command of `request` on the mailbox; the caller polls
-/// it ([`crate::poll_outcome`]), or waits for the power-off of a
+/// emulator and the command of `request` on the medium in the guest
+/// ([`Started::swap`]); the caller polls it ([`Swap::poll`]), gives the
+/// next command ([`Swap::next`]), or waits for the power-off of a
 /// [`agent::Mode::Once`] request, and stops the emulator.
 ///
-/// A failure of the cold boot is a failure of the start; a failure of the
-/// restore is only the reason of a cold boot. The error stream of each
-/// emulator goes to `emulator.log` in the per-run directory.
+/// A plan whose mailbox is not [`crate::plan::MailboxBus::Usb`] is
+/// [`Class::Usage`]. A failure of the cold boot is a failure of the start;
+/// a failure of the restore is only the reason of a cold boot. The error
+/// stream of each emulator goes to `emulator.log` in the per-run
+/// directory.
 pub fn start(
     s: &Settings,
     qemu_img: &Path,
@@ -267,17 +289,18 @@ pub fn start(
     agent_cmd: &str,
     request: &Request,
     warm: &Warm,
-) -> Result<(Child, Start)> {
-    let why = match restore(s, qemu_img, plan, request, warm) {
-        Ok(child) => return Ok((child, Start::Warm)),
+) -> Result<Started> {
+    let why = match restore(s, qemu_img, plan, agent_cmd, request, warm) {
+        Ok((child, swap)) => return Ok(Started { child, how: Start::Warm, swap }),
         Err(e) => match cold(&e) {
             Some(why) => why.clone(),
             None => return Err(e),
         },
     };
     crate::stage(s, qemu_img, base, plan, agent_cmd, request)?;
+    let swap = Swap::new(plan, &request.token)?;
     let child = emulator::spawn_uefi(plan, log_stream(s, plan)?)?;
-    Ok((child, Start::Cold(why)))
+    Ok(Started { child, how: Start::Cold(why), swap })
 }
 
 /// Stage a guest to save: the overlay over `base`, and a mailbox with the

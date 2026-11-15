@@ -1,0 +1,8 @@
+# The save copies the mailbox file of the plan, not the medium in the
+# guest (T-628), so a state saved after a swap holds an old medium. The
+# test of the save must fail.
+ENTRY=T-628
+GROUP=guest
+EXPECT='test warm::tests::a_save_writes_each_file_and_lets_the_guest_go_on \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- warm::tests::a_save_writes_each_file_and_lets_the_guest_go_on'
+LIMIT=1800
