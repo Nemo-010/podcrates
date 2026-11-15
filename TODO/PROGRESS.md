@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 517 entries: 107 open, 8 partial, 6 blocked, 396 done.
+`TODO/INDEX.md` holds 517 entries: 106 open, 8 partial, 6 blocked, 397 done.
 
 ## State
 
@@ -79,8 +79,7 @@ T-035; T-038, T-037, T-029, T-030, T-039; T-036.
 The Windows guest of podvm (#152): T-628, T-632. Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
 
-1. **The defects and asks of the consumers:** T-631 (the check of a
-   SHA-256 answer against xturn); T-378 (`pod-devtunnel`, GitHub #94 and
+1. **The defects and asks of the consumers:** T-378 (`pod-devtunnel`, GitHub #94 and
    PodUtils/podssh#216: partial: the client side is in `v0.33.0` for
    PodUtils/podssh@T-755; the second part is the creation of tunnels, the
    logins and the token store; then T-386 and T-385); T-330 (podvm's pair
@@ -184,6 +183,9 @@ for podnet (item 3c): T-526. Then the items below, in order.
 - The owner reserved `pod-devtunnel` and `podswarm` on crates.io (T-387).
 - Send `docs/upstream/kcp-0.6.0-wrapping.patch` to the crate `kcp`
   upstream as a pull request (T-526).
+- Report to `Lazarus404/xsockets` that `recverr: true` is an option that
+  no Erlang/OTP release takes (C588); `scripts/ci/xturn-recverr.patch`
+  removes it for the CI of T-631 until a release of xsockets drops it.
 - For the live client of `pod-devtunnel` with no account (T-489, row L45
   of `docs/live-calls.md`): set the repository secrets
   `POD_DEVTUNNEL_TUNNEL` and `POD_DEVTUNNEL_PORT` (and

@@ -46,5 +46,13 @@ jobs:
           sh scripts/retry.sh sudo apt-get update
           sh scripts/retry.sh sudo apt-get install -y --no-install-recommends qemu-utils busybox-static
           qemu-img --version
+      # The plants of the group turn run scripts/ci/turn-tests.sh, which
+      # builds xturn with the Erlang/OTP and the Elixir of ci.yml.
+      - name: Erlang/OTP 29.0.5 and Elixir 1.20.3
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+        with:
+          otp-version: "29.0.5"
+          elixir-version: "1.20.3-otp-29"
+          version-type: strict
       - name: Each plant is caught
         run: sh scripts/plant-each.sh

@@ -1,0 +1,8 @@
+# The tests of pod-turn against xturn: with POD_TURN_TEST_XTURN=required, a
+# host with no xturn must fail, not skip. RUN names no xturn.
+ENTRY=T-631
+GROUP=turn
+EXPECT='POD_TURN_TEST_XTURN=required: no xturn here'
+RUN='POD_TURN_TEST_XTURN=required POD_TURN_TEST_XTURN_UDP= cargo test -p pod-turn --all-features --test xturn'
+LIMIT=1800
+SWITCH=1

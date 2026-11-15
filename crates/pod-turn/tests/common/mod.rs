@@ -5,6 +5,7 @@
 pub mod coturn;
 pub mod mock;
 pub mod mock_alloc;
+pub mod recorded;
 
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};

@@ -9,13 +9,18 @@
 # the first (--alternate-server, --tls-alternate-server). libjuice's TURN
 # server (T-403, call C576), built from its source at a pinned commit with
 # scripts/ci/juice-turn.c, offers SHA-256 and announces USERHASH on UDP.
-# POD_TURN_TEST_COTURN=required, POD_TURN_TEST_JUICE=required and
+# xturn (T-631, call C587), built with mix from its source at a pinned
+# commit and the packages of its mix.lock, signs each answer with
+# MESSAGE-INTEGRITY-SHA256 on UDP. POD_TURN_TEST_COTURN=required,
+# POD_TURN_TEST_JUICE=required, POD_TURN_TEST_XTURN=required and
 # POD_PROXY_TEST_STUN=required make a skip a failure, and the run must say
 # each line below, so the check cannot pass by a skip. It needs docker,
-# openssl, git and a C compiler. POD_TURN_TEST_COTURN_BIN names a
-# turnserver program of the host to run in place of the image.
+# openssl, git, curl, a C compiler, and the Erlang/OTP and Elixir of the
+# .tool-versions of xturn (ci.yml installs them). POD_TURN_TEST_COTURN_BIN
+# names a turnserver program of the host to run in place of the image.
 set -eu
 cd "$(dirname "$0")/../.." || exit 71
+root=$(pwd)
 udp=3478
 tls=5349
 # The ports of the coturn that redirects; not the alternative ports of the
@@ -32,6 +37,13 @@ juice_commit=b89c792e3612faf2f12cf35bcc56857313a06be3
 juice=3498
 juice_password=made-up-juice-password
 juice_realm=juice.test
+# xturn 2.0.0, its port (UDP and TCP), the port of its API, and the made-up
+# password of tests/xturn.rs of pod-turn. Its realm is the one of its own
+# configuration.
+xturn_commit=28662bedbf1acfe25d374c49fbf31daa6ef015fe
+xturn=3508
+xturn_api=8881
+xturn_password=made-up-xturn-password
 dir=$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/coturn-tests.XXXXXX")
 chmod 755 "$dir"
 
@@ -48,8 +60,51 @@ src=$dir/libjuice
 "${CC:-cc}" -O2 -std=gnu11 -DJUICE_STATIC -DUSE_NETTLE=0 -I"$src/include" -I"$src/include/juice" -I"$src/src" \
     "$src"/src/*.c scripts/ci/juice-turn.c -lpthread -o "$dir/juice-turn"
 "$dir/juice-turn" "$juice" "$user" "$juice_password" "$juice_realm" > "$dir/juice.log" 2>&1 &
-juice_pid=$!
-trap 'kill $juice_pid 2> /dev/null || true; rm -rf "$dir"' EXIT
+pids=$!
+names=
+finish() {
+    for n in $names; do docker logs "$n" 2>&1 | tail -n 40; done
+    for log in coturn redirect juice xturn; do
+        if [ -f "$dir/$log.log" ]; then tail -n 40 "$dir/$log.log"; fi
+    done
+    # shellcheck disable=SC2086  # lists of names and of process ids
+    if [ -n "$names" ]; then docker rm -f $names > /dev/null 2>&1 || true; fi
+    # shellcheck disable=SC2086
+    kill $pids 2> /dev/null || true
+    rm -rf "$dir"
+}
+trap finish EXIT
+
+# The source of xturn at the pinned commit, checked by its id, with the
+# Erlang/OTP and the Elixir of its .tool-versions. `mix deps.get
+# --check-locked` takes each package of its mix.lock, checked by its hash.
+git init -q "$dir/xturn"
+sh scripts/retry.sh git -C "$dir/xturn" fetch -q --depth 1 https://github.com/Lazarus404/xturn.git "$xturn_commit"
+git -C "$dir/xturn" -c advice.detachedHead=false checkout -q FETCH_HEAD
+if [ "$(git -C "$dir/xturn" rev-parse HEAD)" != "$xturn_commit" ]; then
+    echo "turn-tests: xturn is not at $xturn_commit" >&2
+    exit 1
+fi
+export LANG=C.UTF-8 MIX_ENV=prod
+otp=$(erl -noshell -eval 'R = erlang:system_info(otp_release),
+    {ok, V} = file:read_file(filename:join([code:root_dir(), "releases", R, "OTP_VERSION"])),
+    io:format("~s", [string:trim(V)]), halt().')
+elixir=$(elixir -e 'IO.write(System.version())')
+want_otp=$(sed -n 's/^erlang \([^ ]*\).*/\1/p' "$dir/xturn/.tool-versions")
+want_elixir=$(sed -n 's/^elixir \([0-9.]*\).*/\1/p' "$dir/xturn/.tool-versions")
+if [ "$otp" != "$want_otp" ] || [ "$elixir" != "$want_elixir" ]; then
+    echo "turn-tests: xturn takes Erlang/OTP $want_otp and Elixir $want_elixir; here: $otp and $elixir" >&2
+    exit 1
+fi
+(cd "$dir/xturn" && sh "$root/scripts/retry.sh" mix deps.get --check-locked --only prod)
+# xsockets 1.0.0 opens each relay socket on Linux with the option recverr,
+# which no gen_udp of Erlang/OTP knows (badarg): each Allocate fails. The
+# patch removes that option alone (call C588).
+git -C "$dir/xturn" apply "$root/scripts/ci/xturn-recverr.patch"
+(cd "$dir/xturn" && mix compile) > "$dir/xturn-build.log" 2>&1 || { tail -n 40 "$dir/xturn-build.log"; exit 1; }
+(cd "$dir/xturn" && XTURN_SERVER_IP=127.0.0.1 XTURN_STUN_PORT=$xturn XTURN_API_PORT=$xturn_api \
+    exec mix run --no-halt --no-compile) > "$dir/xturn.log" 2>&1 &
+pids="$pids $!"
 
 # A root and a certificate of coturn.test and 127.0.0.1 from it, P-256.
 printf '[req]\ndistinguished_name=dn\n[dn]\n' > "$dir/req.cnf"
@@ -78,12 +133,10 @@ if [ -n "${POD_TURN_TEST_COTURN_BIN:-}" ]; then
     # CLI with no password beside --allow-loopback-peers.
     # shellcheck disable=SC2086  # $first and $redirect are lists of options
     "$POD_TURN_TEST_COTURN_BIN" "$@" $first --no-cli > "$dir/coturn.log" 2>&1 &
-    pid=$!
+    pids="$pids $!"
     # shellcheck disable=SC2086
     "$POD_TURN_TEST_COTURN_BIN" "$@" $redirect --no-cli > "$dir/redirect.log" 2>&1 &
-    pid="$pid $!"
-    trap 'tail -n 40 "$dir/coturn.log" "$dir/redirect.log" "$dir/juice.log"; kill $pid $juice_pid 2> /dev/null || true
-        rm -rf "$dir"' EXIT
+    pids="$pids $!"
 else
     ref=$(tr -d '\r' < images/coturn/Dockerfile | sed -n 's/^FROM[[:space:]]\{1,\}\([^[:space:]]\{1,\}\).*/\1/p')
     case "$ref" in
@@ -95,19 +148,18 @@ else
     # The entrypoint of the image passes each argument through `eval echo`,
     # which takes `-n` as its own option: turnserver itself is the program.
     docker run --rm --entrypoint turnserver "$image" --version
+    names=$name
     # shellcheck disable=SC2086  # $first and $redirect are lists of options
     docker run -d --name "$name" --network host -v "$dir:$dir:ro" --entrypoint turnserver "$image" "$@" $first > /dev/null
+    names="$name $name-redirect"
     # shellcheck disable=SC2086
     docker run -d --name "$name-redirect" --network host -v "$dir:$dir:ro" --entrypoint turnserver "$image" \
         "$@" $redirect > /dev/null
-    trap 'for n in "$name" "$name-redirect"; do docker logs "$n" 2>&1 | tail -n 40; done; tail -n 40 "$dir/juice.log"
-        docker rm -f "$name" "$name-redirect" > /dev/null 2>&1 || true; kill $juice_pid 2> /dev/null || true
-        rm -rf "$dir"' EXIT
 fi
 
-# Wait for a Binding answer on each UDP port and for each TLS port (0: no
-# TLS), at most 60 s.
-python3 -I - "$udp" "$tls" "$redirect_udp" "$redirect_tls" "$juice" 0 <<'EOF'
+# Wait for a Binding answer on each UDP port and for each TCP port (0:
+# none), at most 60 s: TLS of coturn, the API of xturn.
+python3 -I - "$udp" "$tls" "$redirect_udp" "$redirect_tls" "$juice" 0 "$xturn" "$xturn_api" <<'EOF'
 import socket, sys, time
 ports = [int(p) for p in sys.argv[1:]]
 deadline = time.monotonic() + 60
@@ -124,16 +176,22 @@ while True:
         break
     except OSError:
         if time.monotonic() > deadline:
-            sys.exit("turn-tests: coturn or libjuice did not listen within 60 s")
+            sys.exit("turn-tests: coturn, libjuice or xturn did not listen within 60 s")
         time.sleep(0.5)
 EOF
 
 export POD_TURN_TEST_COTURN=required POD_TURN_TEST_COTURN_UDP=127.0.0.1:$udp \
     POD_TURN_TEST_COTURN_TLS=127.0.0.1:$tls POD_TURN_TEST_COTURN_CA="$dir/ca.pem" \
     POD_TURN_TEST_COTURN_REDIRECT_UDP=127.0.0.1:$redirect_udp POD_TURN_TEST_COTURN_REDIRECT_TLS=127.0.0.1:$redirect_tls \
-    POD_TURN_TEST_JUICE=required POD_TURN_TEST_JUICE_UDP=127.0.0.1:$juice
-out=$(cargo test --locked -p pod-turn --all-features --test coturn --test coturn_options --test juice -- --nocapture 2>&1) ||
-    { printf '%s\n' "$out"; exit 1; }
+    POD_TURN_TEST_JUICE=required POD_TURN_TEST_JUICE_UDP=127.0.0.1:$juice \
+    POD_TURN_TEST_XTURN=required POD_TURN_TEST_XTURN_UDP=127.0.0.1:$xturn
+set -- --locked -p pod-turn --all-features --test coturn --test coturn_options --test juice --test xturn
+cargo test "$@" --no-run
+# xturn forgets a user 300 s after it was given, so the build comes first.
+curl -qfsS -X POST -H 'content-type: application/json' "http://127.0.0.1:$xturn_api/auth" \
+    -d "{\"username\":\"$user\",\"password\":\"$xturn_password\"}" > /dev/null
+# Each test binary runs, so that the output names each failed test.
+out=$(cargo test "$@" --no-fail-fast -- --nocapture 2>&1) || { printf '%s\n' "$out"; exit 1; }
 printf '%s\n' "$out"
 stun=$(POD_PROXY_TEST_STUN=required POD_PROXY_TEST_STUN_SERVER=127.0.0.1:$udp \
     cargo test --locked -p pod-proxy --all-features --test stun_coturn -- --nocapture 2>&1) ||
@@ -154,7 +212,11 @@ for line in 'coturn: an allocation over UDP relayed a Send and ChannelData' \
     'coturn: a redirect that the way out refuses failed with its words' \
     'juice: an Allocate with SHA-256 and USERHASH got a success' \
     'juice: a success signed with MD5 alone was refused' \
-    'juice: a wrong password with SHA-256 got 401'; do
+    'juice: a wrong password with SHA-256 got 401' \
+    'xturn: an allocation with SHA-256 relayed a Send and ChannelData' \
+    'xturn: each answer to a signed request had MESSAGE-INTEGRITY-SHA256 alone' \
+    'xturn: a success of the Allocate with a changed MESSAGE-INTEGRITY-SHA256 was refused' \
+    'xturn: a success of a Refresh with a changed MESSAGE-INTEGRITY-SHA256 was refused'; do
     if ! printf '%s\n' "$out" | grep -qxF "$line"; then
         echo "turn-tests: the run did not say: $line" >&2
         exit 1

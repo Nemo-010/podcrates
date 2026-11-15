@@ -168,12 +168,22 @@ jobs:
       # made-up key that the script gives the server. A skip fails the step.
       - name: pod-link against SeaweedFS
         run: sh scripts/ci/s3-tests.sh
+      # The Erlang/OTP and the Elixir of the .tool-versions of xturn, for the
+      # step below (T-631, call C587); mix of Elixir gets Hex and rebar3.
+      - name: Erlang/OTP 29.0.5 and Elixir 1.20.3
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+        with:
+          otp-version: "29.0.5"
+          elixir-version: "1.20.3-otp-29"
+          version-type: strict
       # The TURN client of pod-turn over UDP and over TLS with the options of
       # T-381, and the STUN codec of pod-proxy, against coturn on 127.0.0.1
       # (T-380, T-358): the image of images/coturn/, pinned to a digest, with
       # a made-up user and a certificate that the script makes, and a second
-      # coturn that redirects to the first. A skip fails the step.
-      - name: pod-turn and pod-proxy against coturn
+      # coturn that redirects to the first. The SHA-256 credentials against
+      # libjuice and xturn, each built from its source at a pinned commit
+      # (T-403, T-631). A skip fails the step.
+      - name: pod-turn and pod-proxy against coturn, libjuice and xturn
         run: sh scripts/ci/turn-tests.sh
       # The drop of the capabilities of a root payload (T-221) skips as
       # another user: run that test as root, and fail on a skip.
