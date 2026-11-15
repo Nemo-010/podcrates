@@ -194,7 +194,7 @@ kinds and the rules.
 | #187 | request | [gh action] requested: the gates of main at 32f7a72 and the release v0.54.0 | open | T-692, T-700, T-710, T-711, T-712 |
 | #188 | coord | COORD-113: v0.54.0: pod-lab and pod-manual part 1; run your release in the labs, and take your help and manual from pod-manual (to all) | open | T-692, T-700 |
 | #189 | request | [gh action] requested: the checks of main at aec056d and a dry run of issue-sync.yml | closed (its SHA moved before it ran; replaced by #190) | T-703 |
-| #190 | request | [gh action] requested: the checks of main at bf13591 and a dry run of issue-sync.yml | open | T-703 |
+| #190 | request | [gh action] requested: the checks of main at bf13591 and a dry run of issue-sync.yml | closed (deny 43762144799 and secrets 43762148637 passed; adoption 43762137913 failed: T-703; issue-sync dry run 43762153730: one fault, #190 unmapped; ci and plants cancelled by #191) | T-703 |
 | #191 | request | [gh action] requested: the checks of main at 320ebdf (the rules of the issues opt in) and a dry run of issue-sync.yml | open | T-703 |
 
 #79 to #81 are pull requests.
