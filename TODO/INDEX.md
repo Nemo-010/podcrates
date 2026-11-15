@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**534 entries: 107 open, 9 partial, 6 blocked, 412 done.**
+**534 entries: 106 open, 9 partial, 6 blocked, 413 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 12 | 3 | 0 | 108 | 123 |
+| P1 | 11 | 3 | 0 | 109 | 123 |
 | P2 | 45 | 3 | 4 | 217 | 269 |
 | P3 | 50 | 3 | 2 | 85 | 140 |
-| **All** | 107 | 9 | 6 | 412 | 534 |
+| **All** | 106 | 9 | 6 | 413 | 534 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -575,7 +575,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-642](roads.md) | P3 | S | M4 | chore | open | `pod-egress`: the Python packages of `forwarder-live.yml` by a hashed lock |
 | [T-643](relay.md) | P2 | S | M1 | defect | done | `pod-quic`: a way whose reads keep failing spins a core, and the drop of the endpoint hangs (PodUtils/podssh#253) |
 | [T-644](podvm.md) | P3 | S | M6 | feature | open | `pod-enter`: a form of `run_ladder` that gives the caller the child before its wait (PodUtils/podvm#384) |
-| [T-645](upkeep.md) | P1 | S | M5 | defect | open | `secrets.yml` is red on each push: three made-up URLs of `pod-broker` read as unknown |
+| [T-645](upkeep.md) | P1 | S | M5 | defect | done | `secrets.yml` is red on each push: three made-up URLs of `pod-broker` read as unknown |
 | [T-646](upkeep.md) | P1 | S | M5 | defect | done | `adoption.yml`: the trial of `pod-egress` in podssh fails, as podssh's record cites the files that leave podssh |
 | [T-647](podvm.md) | P2 | S | M6 | feature | done | `pod-services`: the host `api.ghcr.pkgforge.dev` of the static QEMU of podvm's store (PodUtils/podvm#389) |
 | [T-648](podvm.md) | P2 | S | M6 | feature | done | `pod-hostprobe`: a leg that reports a delegated cgroup2 subtree with no root (PodUtils/podvm#390) |

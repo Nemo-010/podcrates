@@ -1766,7 +1766,7 @@ behaviour.
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1788,6 +1788,11 @@ python3 scripts/secrets-report.py --allow .github/secrets-allow.txt found.jsonl
 ```
 
 The run of `secrets.yml` on the push of the fix is green.
+
+## Done
+
+2026-11-15, commit `a34fa71`. Three lines in `.github/secrets-allow.txt` allow the URI findings of `crates/pod-broker/src/words.rs` at `7cbcfffa` (lines 47, 114, 118). `secrets-report.py` with the allowlist gave "3 findings, 0 verified or unknown" on the three findings. The run of `secrets.yml` 43683783577 at `a634d3a` (by a dispatch, #168) passed.
+
 
 # T-646: `adoption.yml`: the trial of `pod-egress` in podssh fails, as podssh's record cites the files that leave podssh
 
