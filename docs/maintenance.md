@@ -64,6 +64,11 @@ the tools.
     of each issue in `STATE_DIR/issues/NUMBER.json`.
   * `watch-runs.sh FULL_SHA [MIN_RUNS]`: each run of a commit when it
     ends, with the failed jobs and steps (`runs.py` reads the run list).
+  * `watch-actions.py OWNER/REPO [STATE_FILE] [SECONDS]`: one line for each
+    run of the repository that starts, ends (with its failed jobs) or runs
+    again. Keep it under a Monitor beside `watch-org.sh`: a run that the
+    owner's agent starts shows at once, before its comment. `--self-test`
+    checks it. podssh wrote it (PodUtils/podssh#270).
     Give the full SHA (`git rev-parse HEAD`).
   * Run the watchers under the Monitor tool (a monitor stops after 30
     min: start it again when it ends).
