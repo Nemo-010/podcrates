@@ -17,20 +17,15 @@ is done. Git and the record keep finished work.
    its commit: push nothing to `main` between the open of a request and
    the start of its runs; keep the record of it on a local branch. Read the
    answer of #177 (the checks of `main` at `3ee1988`: T-686, T-687, T-684).
-3. Record the takes of `v0.52.0` on #176 (COORD-106). podssh takes parts 2
-   and 3 of `pod-egress` there; when it took both, T-035 is done (write
-   the `taken` lines in `crates/pod-egress/SOURCES`; the trial
-   `adoption/podssh/pod-egress.patch` leaves with parts 2 and 3, as their
-   `.needs` name it).
-4. The next tag carries T-686 and T-687 (PodUtils/podssh#262) and tells
-   podssh that `node-trojan-149-28-130-108` left `pod-services` (T-684).
-5. Run the lint scripts of `ci.yml` before each push, not only the four
+3. The next tag carries T-686, T-687 (PodUtils/podssh#262) and T-688
+   (PodUtils/podvm#414), and tells podssh that `node-trojan-149-28-130-108` left `pod-services` (T-684).
+4. Run the lint scripts of `ci.yml` before each push, not only the four
    checks of `AGENTS.md`: `check-design-paths.py`, `check-probe.py`,
    `check-workflows.py`, `check-size.py`, `plant-each.sh --apply`, and
    `cargo doc` with `RUSTDOCFLAGS="-D warnings"`. This session runs as root:
    a test that needs no root must also pass as a user (`ci.yml` runs the
    tests as one).
-6. Then step 3 of the move of podssh (PodUtils/podssh#248): `pod-tor`,
+5. Then step 3 of the move of podssh (PodUtils/podssh#248): `pod-tor`,
    `pod-iroh`, `pod-cloudflare`, `pod-ts`; then `pod-relay-serve`. Then the
    work order of `TODO/PROGRESS.md`.
 

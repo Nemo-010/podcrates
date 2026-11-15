@@ -1809,11 +1809,11 @@ The run of `secrets.yml` on the push of the fix is green.
 
 ## Problem
 
-The job "adoption (podssh)" fails at the first step of `adoption/podssh/pod-egress.run`: `podssh-todo remap Cargo.lock` reports 6 problems. Five citations of podssh's record name files that the patch removes from podssh: `.github/workflows/forwarder-live.yml` (four) and `PodUtils/podssh:scripts/plants/t439-via-no-credential.plant` (one). One citation of `PodUtils/podssh:crates/podssh-cli/src/doctor/forwarder.rs` moves by one line, as the patch changes that file. The trial must pass before `v0.51.0`, which carries the patch to podssh.
+The job "adoption (podssh)" fails at the first step of adoption/podssh/pod-egress.run: `podssh-todo remap Cargo.lock` reports 6 problems. Five citations of podssh's record name files that the patch removes from podssh: `.github/workflows/forwarder-live.yml` (four) and `PodUtils/podssh:scripts/plants/t439-via-no-credential.plant` (one). One citation of `PodUtils/podssh:crates/podssh-cli/src/doctor/forwarder.rs` moves by one line, as the patch changes that file. The trial must pass before `v0.51.0`, which carries the patch to podssh.
 
 ## Premise
 
-- Read: the log of the job; `adoption/podssh/pod-egress.patch` and `.run`; podssh at `2ffb7cd7` with the patch applied.
+- Read: the log of the job; adoption/podssh/pod-egress.patch and `.run`; podssh at `2ffb7cd7` with the patch applied.
 - Measured: the same 6 problems in a scratch copy of podssh at `2ffb7cd7` with the patch.
 
 ## Approach
@@ -1828,7 +1828,7 @@ sh scripts/adoption.sh podssh pod-egress
 
 ## Done
 
-2026-11-15, the commit of the fix. `adoption/podssh/pod-egress.patch` changes the five citations to the bare name of the file and its new place in PodUtils/podcrates (`forwarder-live.yml`, `egress-via-no-credential.plant`), and moves the citation of `forwarder.rs` to 28-45 with `podssh-todo remap`. The patch is made again with `git diff --cached HEAD --abbrev=8`; the old patch made the same way gave the same bytes. `sh scripts/adoption.sh podssh pod-egress` passed each step of the `.run` here: the record (743 entries), `check-repo.py`, clippy and the tests of `podssh-ws`, `podssh-cli` and `podssh-tor`, rustfmt, the toolchains and the 15 test targets. The run of `adoption.yml` on the push proves it in CI.
+2026-11-15, the commit of the fix. adoption/podssh/pod-egress.patch changes the five citations to the bare name of the file and its new place in PodUtils/podcrates (`forwarder-live.yml`, `egress-via-no-credential.plant`), and moves the citation of `forwarder.rs` to 28-45 with `podssh-todo remap`. The patch is made again with `git diff --cached HEAD --abbrev=8`; the old patch made the same way gave the same bytes. `sh scripts/adoption.sh podssh pod-egress` passed each step of the `.run` here: the record (743 entries), `check-repo.py`, clippy and the tests of `podssh-ws`, `podssh-cli` and `podssh-tor`, rustfmt, the toolchains and the 15 test targets. The run of `adoption.yml` on the push proves it in CI.
 
 # T-668: `pod-oci`: the token of the manifest for the parallel blob fetches of a pull (PodUtils/podvm#395)
 

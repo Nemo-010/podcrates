@@ -329,7 +329,7 @@ adoption trial); call C601.
 **Milestone:** M4
 **Priority:** P2
 **Effort:** L
-**Status:** partial
+**Status:** done
 
 ## Problem
 
@@ -390,7 +390,7 @@ adaptation), `640b76e` (the tests, the plants, the fuzz target), `3092df8`
   t438, t439, t441), `egress-via-dial-untyped`,
   `egress-forwarder-close-untyped`, `egress-wstunnel-refusal-untyped`,
   `egress-wisp-blocked-untyped`. The fuzz target `wisp_packet`.
-- The trial `adoption/podssh/pod-egress.patch` (`.run`, `.commit`), on a
+- The trial adoption/podssh/pod-egress.patch (`.run`, `.commit`), on a
   scratch copy of podssh at `2ffb7cd7` with this tree: `podssh-todo check`
   (but the lines of `Cargo.lock`, which the run remaps first),
   `check-repo.py`, clippy and the tests of podssh-ws (all features: 166
@@ -399,7 +399,7 @@ adaptation), `640b76e` (the tests, the plants, the fuzz target), `3092df8`
   `forwarder_public` (16), `cloudflare_cli` (1), rustfmt, the two consumer
   checks. The tests of podssh-tor run in `adoption.yml`.
 
-What podssh must do: take `adoption/podssh/pod-egress.patch` with the tag
+What podssh must do: take adoption/podssh/pod-egress.patch with the tag
 that carries the crate (the patch names `v0.51.0`), and drop its own copies
 of the moved tests, plants and `forwarder-live.yml`.
 
@@ -423,7 +423,7 @@ to C625; finding T-652.
 - The plants (group `egress`), each caught by hand:
   `egress-vless-refusal-unsaid` (podssh's t440), `egress-vless-dial-untyped`,
   `egress-trojan-dial-untyped`, `egress-shadowsocks-dial-untyped`.
-- The trial `adoption/podssh/pod-egress-part2.patch` (`.run`, `.commit`,
+- The trial adoption/podssh/pod-egress-part2.patch (`.run`, `.commit`,
   `.needs`: after `pod-egress.patch`), on a scratch copy of podssh at
   `2ffb7cd7` with this tree: `podssh-todo check` (the moved Prove targets
   named in a `## Correction` of PodUtils/podssh@T-440, PodUtils/podssh@T-456,
@@ -434,7 +434,7 @@ to C625; finding T-652.
   (127), `one_road` (3), `shadowsocks_cli` (2), `proxy_lists` (9), rustfmt,
   the two consumer checks.
 
-What podssh must do: take `adoption/podssh/pod-egress-part2.patch` after
+What podssh must do: take adoption/podssh/pod-egress-part2.patch after
 `pod-egress.patch` with the tag that carries part 2 (the patch names
 `v0.52.0`), and drop its own copies of the moved tests, the plant t440 and
 `vmess-interop.yml`.
@@ -462,7 +462,7 @@ adoption trial); calls C631 to C634.
   `egress-eice-refusal-shows-credential`,
   `egress-eice-credential-unchecked`, `egress-iap-refusal-untyped`,
   `egress-iap-refusal-shows-token`. The fuzz target `iap_message`.
-- The trial `adoption/podssh/pod-egress-part3.patch` (`.run`, `.commit`,
+- The trial adoption/podssh/pod-egress-part3.patch (`.run`, `.commit`,
   `.needs`: after `pod-egress.patch`), on a scratch copy of podssh at
   `2ffb7cd7` with this tree, each step passed: `podssh-todo check` (the
   citations of the moved files name PodUtils/podcrates), `check-repo.py`,
@@ -471,13 +471,16 @@ adoption trial); calls C631 to C634.
   and `cp::link` (29), `iap_cli` (6) and `eice_cli` (5) through the
   stand-in proxy, rustfmt, the two consumer checks.
 
-What podssh must do for part 3: take `adoption/podssh/pod-egress-part3.patch`
+What podssh must do for part 3: take adoption/podssh/pod-egress-part3.patch
 with the tag that carries it (the patch names `v0.52.0`).
 
 Left (part 2): `vless/`, `vmess/`, `trojan/` and `shadowsocks/` (with
 podssh's `vless` interop), by the procedure of `docs/design.md`, section
 8, onto the shared parts of part 1; its trial in podssh; then the entry is
 done.
+
+2026-11-15, done: podssh took the crate. Part 1 at `3f6a9fe` with `v0.51.0` (PodUtils/podssh#260), parts 2 and 3 at `94ee6ac` with `v0.52.0` (PodUtils/podssh#263): each step of the three `.run` files passed there, and `cargo test --workspace` of podssh passed (3837 tests). `crates/pod-egress/SOURCES` has the `taken` lines; the trials left `adoption/podssh/`. The tag `v0.52.0` (`7998b72`, ci 43711409358, adoption 43711411992) carries the whole crate.
+
 
 # T-036: `pod-relay-serve`: the relay role and its mailbox
 

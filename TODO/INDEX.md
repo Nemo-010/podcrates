@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**555 entries: 107 open, 9 partial, 6 blocked, 433 done.**
+**555 entries: 107 open, 8 partial, 6 blocked, 434 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 118 | 132 |
-| P2 | 45 | 3 | 4 | 227 | 279 |
+| P2 | 45 | 2 | 4 | 228 | 279 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 107 | 9 | 6 | 433 | 555 |
+| **All** | 107 | 8 | 6 | 434 | 555 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -81,7 +81,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-032](roads.md) | P3 | S | M4 | feature | done | `pod-piping`: the Piping Server carrier |
 | [T-033](roads.md) | P3 | S | M4 | feature | done | `pod-opentunnel`: the OpenTunnel carrier |
 | [T-034](roads.md) | P2 | S | M4 | feature | done | `pod-acme`: the ACME client |
-| [T-035](roads.md) | P2 | L | M4 | feature | partial | `pod-egress`: the other roads out (via, VLESS, wstunnel, Wisp, Shadowsocks and more) |
+| [T-035](roads.md) | P2 | L | M4 | feature | done | `pod-egress`: the other roads out (via, VLESS, wstunnel, Wisp, Shadowsocks and more) |
 | [T-036](roads.md) | P2 | L | M4 | feature | open | `pod-relay-serve`: the relay role and its mailbox |
 | [T-037](roads.md) | P2 | M | M4 | feature | open | `pod-iroh`: the iroh road |
 | [T-038](roads.md) | P3 | S | M4 | feature | open | `pod-tor`: the Tor road through arti |
