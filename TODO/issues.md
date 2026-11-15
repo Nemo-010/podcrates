@@ -177,7 +177,7 @@ numbers. `TODO/RULES.md` gives the rules.
 | #172 | COORD-105: v0.51.0: pod-egress part 1; the fixes of podnet#572, podvm#380, podssh#253; the asks of podvm#389, #390, #393, #394 (to all) | closed (each consumer took it: podnet `ee6ea13`, podrunner `800f6d4`, podssh `3f6a9fe`, podvm `3f92dab3`) | T-035, T-639, T-640, T-643, T-647, T-648, T-650, T-651 |
 | #173 | [gh action] requested: ci, adoption, plants, secrets and deny on main at 2f23632 (v0.52.0) | closed (secrets, deny passed; ci failed on a test of T-669; adoption, plants cancelled by #174) | T-035, T-668, T-669, T-670, T-671, T-672, T-676, T-678 |
 | #174 | [gh action] requested: the gates of main at a866f99 and the release v0.52.0; the reruns of services.yml | closed (ci 43708818874 at 2f23632 failed on a test of T-669; replaced by #175) | T-035, T-668, T-669, T-670, T-676, T-679, T-684, T-685 |
-| #175 | [gh action] requested: the gates of main at 7998b72 and the release v0.52.0; the reruns of services.yml | open | T-035, T-668, T-669, T-670, T-676, T-679, T-684, T-685 |
+| #175 | [gh action] requested: the gates of main at 7998b72 and the release v0.52.0; the reruns of services.yml | closed (ci 43711409358, adoption 43711411992, release 43715190817; services 43715593746 failed, 43715625889 passed) | T-035, T-668, T-669, T-670, T-676, T-679, T-684, T-685 |
 | #176 | COORD-106: v0.52.0: pod-egress parts 2 and 3; the asks of podvm#395, #403, #406, #407 (to all) | open | T-035, T-668, T-669, T-670, T-671, T-672, T-676 |
 
 #79 to #81 are pull requests.
