@@ -3132,7 +3132,8 @@ A user spends about 20 minutes to set up a project of PodUtils. The owner's ruli
 ## Premise
 
 - Read: PodUtils/podrunner#183 (`PodUtils/podrunner:scripts/install.sh`, about 320 lines, with `PodUtils/podrunner:scripts/install-pins.py`, `PodUtils/podrunner:scripts/make-bundle.sh` and `PodUtils/podrunner:scripts/test-install.sh`), PodUtils/podnet#586 (`PodUtils/podnet:scripts/install.sh`, 501 lines, `PodUtils/podnet:docs/install.md`), PodUtils/podssh#269 (no installer: three commands in its README).
-- Not read: podvm's installer; the code of each installer.
+- Read: PodUtils/podvm#427: podvm has no installer (five lines of its README); its release gives `podvm-ARCH` with a `.sha256` beside each (it can also publish one `SHA256SUMS`); after the binary, links `docker` and `podman` to it (optional; ask before it shadows a `docker` on `PATH`); the end check is `podvm version --verbose` and `podvm probe` (no network, under a second); under QEMU user mode `uname -m` gives the emulated machine, which is the right binary.
+- Not read: the code of each installer.
 - The 20 minutes of podrunner: five sources (one a workflow artifact that needs `gh` and a token, and expires), a SHA-256 and an attestation for each by hand, an image that the pinned podvm could not load, a first command of about eight flags, then the host (a small `/tmp`, no loopback bind, a proxy with a credential).
 
 ## Approach
@@ -3170,7 +3171,7 @@ The open issues of the projects of PodUtils and their comments go stale and drif
 
 - Read: `scripts/check-github-numbers.py`, `crates/pod-todo/src/github.rs`.
 - Read: PodUtils/podssh#269, PodUtils/podnet#586, PodUtils/podrunner#184. Each maps an issue in `TODO/issues.md` (a row `| #N | Subject | State | Entries |`, or a bold head `**#N, ...**` for an issue of many asks) and lists each number in `TODO/github.txt`; each entry's `**Source:**` names the issue. The State column is written by hand: it is the part that drifts. `record-issues.yml` (`check-github-numbers.py`) compares `github.txt` with GitHub each day.
-- Not read: podvm's map.
+- Read: PodUtils/podvm#428: the same map (`podvm-gate` checks each number against `github.txt`, by hand); it asks for a kind field (`report`, `coord`, `request`; a request has no entry), the tool's block in place of the `state:` lines of a COORD issue, and a dry run that prints each change before the workflow closes or reopens an issue.
 
 ## Approach
 
