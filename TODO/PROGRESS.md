@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 557 entries: 107 open, 8 partial, 6 blocked, 436 done.
+`TODO/INDEX.md` holds 558 entries: 108 open, 8 partial, 6 blocked, 436 done.
 
 ## State
 
@@ -71,7 +71,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
    logins and the token store; then T-386 and T-385); T-330 (podvm's pair
    commands, after its take of the blocking facade, PodUtils/podvm#285;
    it waits for podvm).
-2. **podrunner** (PodUtils/podrunner#1): no crate ask is open. T-146
+2. **podrunner** (PodUtils/podrunner#1): T-692 (`pod-lab`, PodUtils/podrunner#180; part 1 for the tag after `v0.53.0`). T-146
    tracks the plan. Each new ask of the podrunner session becomes an
    entry here, in the order of its need. T-280 (the live run of
    `pod-actions-expr` and `pod-actions-workflow` against GitHub) waits.

@@ -2806,3 +2806,31 @@ by hand: `actions-store-local-reference-locked`,
 faults. The pins move to podrunner `9dbefd1`; `check-sources.py`:
 `pod-actions-store` 6 files, `pod-actions-results` 4 files, 0 changes
 each, through the mirror and with a clone.
+
+# T-692: `pod-lab`: the hostile host classes as shared profiles, `podlab check` and `podlab run` (PodUtils/podrunner#180)
+
+**Source:** PodUtils/podrunner#180 (COORD-061 of podrunner); PodUtils/podvm#424 (COORD-140 of podvm, its answer; PodUtils/podvm@T-1916).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P1
+**Effort:** L
+**Status:** open
+
+## Problem
+
+The first user runs of podrunner `v0.1.0-beta.6` found about 30 defects that CI did not find (podrunner #153, #155 to #178): most come from a host class that the runners of GitHub do not have, as they allow each operation. podrunner asks for a crate `pod-lab` and a static CLI `podlab`: the profiles as data, `podlab check PROFILE` (the profile holds, proved with the rows of `pod-hostprobe`, so a lab that allows what it should refuse fails its own check), `podlab run PROFILE -- CMD` (the exit code and the output of CMD in the lab), and a step of GitHub Actions that brings up a profile on a runner. The profiles of the ask: `userns-off`, `bind-denied` (`bind` and `connect` of AF_INET and AF_INET6 give EACCES, AF_UNIX holds), `getsockname-denied` (EOPNOTSUPP), `proxy-only`, `small-tmp` (`TMPDIR` on a tmpfs of 1 GiB), `root-unreadable` (`readdir("/")` gives EACCES), `nonroot-nocaps` (no capability, `NoNewPrivs`, a seccomp filter), `no-kvm`, `arm64-tcg`, `inherited-fds` (descriptors 3 to N open). podvm adds `chroot-denied`, `userns-mount-denied` (AppArmor's `apparmor_restrict_unprivileged_userns`), `cgroup-v1`, `landlock-old` (ABI below 4), `proc-masked` (no `/proc`, or `hidepid`), `noexec-tmp`; podvm holds the machine-tier form of each (a guest with the knobs of a profile) and the parts that a rung with no root can hold (a seccomp filter, a tmpfs, inherited descriptors). podnet holds the network profiles (`proxy-only`, `bind-denied`).
+
+## Premise
+
+- Read: PodUtils/podrunner#180, PodUtils/podvm#424; `pod-hostprobe` (the probe rows), `pod-confine` (seccomp and Landlock), `pod-enter` (the rungs), `pod-netlab`.
+- Not measured: a profile on a runner.
+
+## Approach
+
+Part 1 (the next tag after `v0.53.0`): the crate `pod-lab` with the profiles as data (a name, the parts, the rows of `pod-hostprobe` that each part makes refuse or allow), `check` of a profile against a `pod_hostprobe` report, and `run` of the parts that a host with no root holds (a seccomp filter of chosen calls with their errno through `pod-confine`, a tmpfs or a `TMPDIR`, inherited descriptors, a user namespace with a mount where the host has it); `podlab` as a static binary. Part 2: the Actions step (`lab/action.yml`) and the profiles of podvm's machine tier (a guest form that podvm drives) and of podnet. The name `pod-lab` on crates.io is an owner action. A call names the form and the order.
+
+## Prove
+
+```sh
+cargo test -p pod-lab --all-features
+```
