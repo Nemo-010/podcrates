@@ -33,7 +33,7 @@ caller's protocol over a `Wormhole`; the exchange of podssh goes to
 | `mqtt::broker` | `Broker`: `connect(&point, &config, side, topic, role, resend)`, `add`, `message(wait)`, `disconnect`, `end`, `appid`, `inbox`, `shown`; `client_id`, `refusal`, `PING_EVERY`, `KEPT_MOST` |
 | `mqtt::packet` | the pure codec of MQTT 3.1.1: `Packet` (`Connect`, `ConnAck`, `Publish` with its `retain` flag, `Subscribe`, `SubAck`, `PingReq`, `PingResp`, `Disconnect`), `Connect`, `encode`, `decode(bytes, most)`, `encode_length`, `kind_name`, `Malformed`, `LENGTH_MOST`, `REFUSED` |
 | `nostr` | `Relays { points, config, resend }`, `Relays::new(points, config)`, `opened(&relays, versions)` (a new code at the first relay that answers, the giver subscribed), `joined(&relays, &code, versions, giver_wait)` (the taker's wormhole, the key made), `KIND` (25431), `TAG` (`t`), `RESEND`, `SINCE_SLACK`, `CONTENT_MOST` |
-| `nostr::relay` | `Relay` (also `nostr::Relay`): `connect(&url, &config, side, tag, role, resend)`, `add`, `message(wait)`, `close`, `end`, `appid`, `inbox`, `pubkey`, `shown`; `KEPT_MOST` |
+| `nostr::relay` | `Relay` (also `nostr::Relay`): `connect(&url, &config, side, tag, role, resend)`, `add`, `message(wait)`, `close` (after the relay answered each event of this end, within the answer limit), `end`, `appid`, `inbox`, `pubkey`, `shown`; `KEPT_MOST`, `UNANSWERED_MOST` |
 | `nostr::event` | the pure events of NIP-01: `Key` (`new`, `drawn`, `from_secret`, `pubkey`, `sign(created_at, kind, tags, content)`), `id_of`, `checked(&event)` (the id and the BIP-340 signature checked), `Checked` (`tag`), `said(text)`, `Said` (`Event`, `Ok`, `Eose`, `Closed`, `Notice`, `Auth`, `Other`), `harmless(message)` |
 | `tracker` | `Trackers { points, config, resend }`, `Trackers::new(points, config)`, `opened(&trackers, versions)` (a new code at the first tracker that answers, the giver announced), `joined(&trackers, &code, versions, giver_wait)` (the taker's wormhole, the key made), `info_hash(tag)`, `RESEND`, `SDP_MOST`, `LINGER`, `ANNOUNCE_LEAST`, `ANNOUNCE_MOST` |
 | `tracker::link` | `Tracker` (also `tracker::Tracker`): `connect(&url, &config, side, tag, role, resend)`, `add`, `message(wait)`, `close(mood)`, `end`, `appid`, `info_hash`, `peer_id`, `shown`; `KEPT_MOST` |
@@ -122,6 +122,12 @@ before the brokers, as `pod-relay`'s runs do.
   messages again each `Relays::resend` (2 s) until it hears the giver,
   each time as a new event (a later `created_at`), so that no relay drops
   it as a duplicate.
+* A public relay checks an event in its own time, and drops one that it
+  had not passed on when the connection of its sender ends. So an end
+  closes the subscription only after the relay answered (`OK`) each of
+  its events, within the answer limit (T-634, PodUtils/podssh#247): the
+  giver's last word reaches the taker. At most 64 events wait for an
+  answer (`UNANSWERED_MOST`).
 * A content is at most 64,000 bytes (`CONTENT_MOST`): the event stays
   under the 65,536 bytes that strfry takes.
 
@@ -372,11 +378,14 @@ login. A code of 5 words over each mailbox and of 6 words over each
 broker meets; a count out of bounds fails before a dial.
 `tests/nostr.rs` runs the Nostr meeting point over a stand-in relay in
 Rust (`tests/harness/nostr.rs`), which keeps no event and passes each
-event to the subscriptions of the moment that hold it: two ends pair and
+event to the subscriptions of the moment that hold it; as a public relay,
+it takes each message 20 ms after it came and drops the messages of a
+connection that ended before then: two ends pair and
 move a message each way, each with a key of its own, two new keys at a
 second pairing; an event with the tag of another code is not delivered;
 the taker sends its first message again, each time as a new event, until
-the giver answers; a relay that closes the `REQ`, refuses the events, or
+the giver answers; the last word of an end that closes at once reaches
+the other end; a relay that closes the `REQ`, refuses the events, or
 says a `NOTICE` and no `EOSE` is passed over with its words; an event that
 does not check is refused by the stand-in and dropped by an end; each
 public relay takes the largest event. No Nostr relay of another party
@@ -426,13 +435,14 @@ The plants `wormhole-version-unchecked`, `wormhole-held-unbounded`,
 `wormhole-derived-key-salted`, `wormhole-code-words-fixed`,
 `wormhole-standin-not-crowded`, `wormhole-nostr-tag-constant`,
 `wormhole-nostr-no-resend`, `wormhole-nostr-refusal-ignored`,
-`wormhole-nostr-signature-unchecked`, `wormhole-tracker-empty-answer`,
+`wormhole-nostr-signature-unchecked`, `wormhole-nostr-close-unanswered`,
+`wormhole-tracker-empty-answer`,
 `wormhole-tracker-no-resend`, `wormhole-tracker-info-hash-constant`,
 `wormhole-tracker-refusal-ignored`, `wormhole-tracker-stranger-heard`,
 `wormhole-ntfy-topic-of-code`, `wormhole-ntfy-size-unchecked`,
 `wormhole-ntfy-since-start`, `wormhole-ntfy-limit-fails`,
 `wormhole-ntfy-polls-on-h2` and `wormhole-ntfy-connection-each-request`
-(`scripts/plants/`) prove twenty-two of the tests. The fuzz target
+(`scripts/plants/`) prove twenty-five of the tests. The fuzz target
 `mailbox_message` runs the pure reading of a mailbox's messages and the
 parser of a typed code; `mqtt_packet` runs the codec of MQTT and the topic; `nostr_message` runs
 the reading of a Nostr relay's messages and the check of an event;

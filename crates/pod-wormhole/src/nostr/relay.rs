@@ -16,6 +16,11 @@
 //! until the taker is heard, and the taker sends its messages again each
 //! `resend` until the giver is heard, each time as a new event (a later
 //! `created_at`, so a new id that no relay drops as a duplicate).
+//!
+//! A public relay checks an event in its own time, and drops one that it
+//! had not passed on when the connection of its sender ends. So an end
+//! closes only after the relay answered each of its events (`OK`), within
+//! the answer limit: the giver's last word reaches the taker.
 
 use std::collections::VecDeque;
 use std::sync::Arc;
@@ -38,6 +43,9 @@ use crate::mqtt::Role;
 
 /// The most messages kept while a step waits for its answer, as a mailbox.
 pub const KEPT_MOST: usize = crate::mailbox::KEPT_MOST;
+/// The most events of this end that wait for the relay's `OK`: a relay
+/// that does not answer holds the close no longer for more.
+pub const UNANSWERED_MOST: usize = 64;
 
 /// A connection to one relay, subscribed to the tag of one code.
 pub struct Relay {
@@ -60,6 +68,8 @@ pub struct Relay {
     unanswered: Vec<String>,
     heard: bool,
     next_resend: Instant,
+    /// The ids of this end's events that the relay did not answer yet.
+    pending: VecDeque<String>,
     /// The `created_at` of the last event: each new one is later.
     last_created: u64,
     answer_limit: Duration,
@@ -101,6 +111,7 @@ impl Relay {
             unanswered: Vec::new(),
             heard: false,
             next_resend: Instant::now(),
+            pending: VecDeque::new(),
             last_created: 0,
             answer_limit: config.answer_limit,
             events: config.events.clone(),
@@ -237,8 +248,20 @@ impl Relay {
         }
     }
 
-    /// End the subscription.
+    /// End the subscription, once the relay answered each event of this
+    /// end, within the answer limit: an event that it had not passed on is
+    /// lost when the connection ends.
     pub async fn close(&mut self) {
+        let deadline = Instant::now() + self.answer_limit;
+        while !self.pending.is_empty() {
+            let Ok(Ok(said)) = tokio::time::timeout_at(deadline, self.read_said()).await else { break };
+            // A refusal ends nothing now: its event is answered.
+            if let Ok(Some(message)) = self.heed(said).await
+                && self.kept.len() < KEPT_MOST
+            {
+                self.kept.push_back(message);
+            }
+        }
         let _ = self.send(&json!(["CLOSE", self.sub])).await;
     }
 
@@ -250,6 +273,9 @@ impl Relay {
     /// What one message of the relay means: a message of the other end, a
     /// refusal, or nothing.
     async fn heed(&mut self, said: Said) -> Result<Option<Message>, Failed> {
+        if let Said::Ok { id, .. } = &said {
+            self.pending.retain(|pending| pending != id);
+        }
         match said {
             Said::Event { sub, event } if sub == self.sub => self.take(&event).await,
             Said::Ok { accepted: false, message, .. } if !harmless(&message) => {
@@ -296,6 +322,10 @@ impl Relay {
     async fn publish(&mut self, content: &str) -> Result<(), Failed> {
         let created_at = self.stamp();
         let event = self.key.sign(created_at, KIND, &json!([[TAG, self.outbox]]), content)?;
+        if self.pending.len() >= UNANSWERED_MOST {
+            self.pending.pop_front();
+        }
+        self.pending.push_back(event["id"].as_str().unwrap_or_default().to_string());
         self.send(&json!(["EVENT", event])).await
     }
 

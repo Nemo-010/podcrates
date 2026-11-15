@@ -1,0 +1,7 @@
+# The giver at a Nostr relay closes before the relay answered its last
+# word: the stand-in, as a public relay, drops it, and the taker waits a
+# step; the test of the run over a relay must fail.
+ENTRY=T-634
+GROUP=relay
+EXPECT='test where_no_mailbox_answers_the_ends_meet_at_a_nostr_relay_before_a_broker \.\.\. FAILED'
+RUN='cargo test -p pod-relay --all-features --test pair_code -- where_no_mailbox_answers_the_ends_meet_at_a_nostr_relay_before_a_broker --exact'

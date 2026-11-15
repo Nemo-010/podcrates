@@ -7706,3 +7706,68 @@ turns it on), the API, the tests and the row of PodUtils/podnet@T-279;
 `link-s3-standin-runs-after-drop` and `link-s3-standin-escape-panics`,
 each caught by hand; `sh scripts/plant-each.sh --apply`: 0 stale. podnet
 can remove tests/link_s3_standin/mod.rs (the hand-off).
+
+# T-634: `pod-relay`: the run of a code fails over the Nostr relays alone, though `pod_wormhole::nostr` pairs (PodUtils/podssh#247)
+
+**Source:** PodUtils/podssh#247 (COORD-070 of podssh), a defect of T-550.
+**Category:** defect
+**Milestone:** M2
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+podssh with `v0.47.0`: `pod_relay::code::run::give` and `run::take` with
+one mailbox that nobody serves and `Ends::relays` filled from
+`pod_services::of_kind("nostr-relay")` fail, with each relay alone
+(`relay.primal.net`, `offchain.pub`) and with both. The taker says "the
+other end said nothing for 60 s" with `Waits::default()`. From the same
+container, `nostr::opened` and `nostr::joined` pair directly at both
+relays, the live test `two_ends_meet_at_each_public_nostr_relay` passes,
+and the same run over `Ends::ntfy` alone or `Ends::trackers` alone
+pairs. podssh leaves `Ends::relays` empty until a tag fixes the run
+(PodUtils/podssh@T-545). The stand-in relay of `pair_code.rs` pairs where
+the public relays fail.
+
+## Premise
+
+- Read: `crates/pod-relay/src/code/run.rs`,
+  `crates/pod-wormhole/src/nostr.rs`, `crates/pod-wormhole/src/nostr/relay.rs`,
+  `crates/pod-wormhole/src/wormhole.rs`, `crates/pod-wormhole/tests/nostr.rs`,
+  `crates/pod-wormhole/tests/harness/nostr.rs`, `crates/pod-wormhole/tests/live.rs`,
+  `crates/pod-relay/tests/pair_code.rs`. podssh's reproduction
+  (crates/podssh-relay/tests/pair_meet_live.rs of podssh) is not on its
+  `main` branch: not read.
+- Measured from a cloud session through its HTTPS proxy, with each message
+  of the relay connection printed: at `relay.primal.net` the key, both
+  versions, the offer and the answer go through. The giver sends its last
+  word (phase `1`), then at once `CLOSE` and the Close of the WebSocket.
+  The relay sends no `OK` for that event, and the taker never gets it: the
+  taker fails after a step. The giver's run succeeds. The live test of
+  `pod-wormhole` passes because no end closes right after its last
+  message.
+- The stand-in takes each message of a connection before it reads the
+  next, so it passes the last word of an end that closes at once. Not
+  measured: whether the relay or the proxy drops the event.
+
+## Approach
+
+1. `nostr::Relay` keeps the ids of its events that the relay did not
+   answer (`OK`). `close` reads the relay until each one has its answer,
+   within the answer limit, and then sends `CLOSE` (call C595).
+2. The stand-in takes each message `LAG` (20 ms) after it came, and drops
+   the messages of a connection that ended before then, as a public relay
+   does (call C596). The run of `pair_code.rs` over the stand-in relay then
+   fails on the old code with the symptom of podssh.
+3. A test in `tests/nostr.rs`: the last word of an end that closes at once
+   reaches the other end. Two plants. A live test of the run at each public
+   relay after a dead mailbox in `pair_code_live.rs` (call C597).
+
+## Prove
+
+```sh
+cargo test -p pod-wormhole --features standin --test nostr
+cargo test -p pod-relay --all-features --test pair_code
+cargo test -p pod-relay --all-features --test pair_code_live -- --ignored --nocapture nostr
+```

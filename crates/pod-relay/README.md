@@ -431,7 +431,9 @@ grants, the pairing by code at a stand-in mailbox, at a stand-in ntfy
 server before a stand-in Nostr relay (the plant
 `relay-code-ntfy-after-relays`) and before a mailbox where the upgrade is
 refused (the plant `relay-code-ntfy-not-first`), at a stand-in Nostr
-relay before a stand-in broker (the plant `relay-code-nostr-after-brokers`),
+relay before a stand-in broker (the plant `relay-code-nostr-after-brokers`;
+the giver's last word that the relay answered before the close, the plant
+`relay-code-nostr-last-word-lost`),
 at a stand-in WebTorrent tracker before a stand-in broker (the plant
 `relay-code-trackers-after-brokers`), and at the broker after a mailbox, a
 relay or a tracker with no giver, the limits of a pool's
@@ -439,8 +441,10 @@ body, the failover, the forward opener over plain `ws://` to a stand-in
 relay (podnet's `bytes_go_through_a_local_relay`), the HTTP road against a
 stand-in role in memory (its invariants 6 to 10, and the one-POST form
 through a hop that streams and one that holds a body), and the one-POST
-form over HTTP/2 against a stand-in of TLS with `h2`. The tests that reach the live relay or the public
-mailboxes are `#[ignore]` (19). `live.yml` runs `pair_code_live` each
+form over HTTP/2 against a stand-in of TLS with `h2`. The tests that reach the live relay, the public
+mailboxes or the public Nostr relays are `#[ignore]` (21): `pair_code_live`
+pairs by a code at each public mailbox, and at each public Nostr relay
+after a mailbox that nobody serves. `live.yml` runs `pair_code_live` each
 Thursday, and one of the others by hand (its input `relay`; `until` for
 `reverse_drops_live`). It runs `pair_code` each day against
 magic-wormhole's own mailbox server (`POD_WORMHOLE_TEST_SERVER=required`).

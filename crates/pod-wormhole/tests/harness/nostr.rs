@@ -8,11 +8,16 @@
 //! event that no subscription holds gets `OK` false `mute:`. A test can
 //! make the next events that hold a message reach nobody, and reads each
 //! event; a relay of a [`Script`] refuses as some public relays do.
+//! As a public relay, it takes each message [`LAG`] after it came, and
+//! drops each message of a connection that ended before then: an end that
+//! closes at once after an event loses it.
 //! No relay of another party publishes a static release (call C549):
 //! strfry and nostr-rs-relay have tags alone.
 
 use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use pod_proxy::http::request;
 use pod_wormhole::nostr::event::{self, Checked};
@@ -23,6 +28,11 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use tokio::task::JoinHandle;
+use tokio::time::Instant;
+
+/// How long after it came the stand-in takes a message of a client, as a
+/// public relay checks an event in another thread.
+pub const LAG: Duration = Duration::from_millis(20);
 
 /// How a stand-in answers.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -118,6 +128,20 @@ async fn serve(mut tcp: TcpStream, state: Arc<Mutex<State>>, script: Script) {
         state.connections += 1;
         state.connections
     };
+    let open = Arc::new(AtomicBool::new(true));
+    let (queue, mut queued) = unbounded_channel::<(Instant, Vec<Value>)>();
+    let taker = {
+        let (state, tx, open) = (state.clone(), tx.clone(), open.clone());
+        tokio::spawn(async move {
+            while let Some((came, message)) = queued.recv().await {
+                tokio::time::sleep_until(came + LAG).await;
+                if !open.load(Ordering::SeqCst) {
+                    break;
+                }
+                handle(&state, id, &tx, &script, &message);
+            }
+        })
+    };
     while let Ok(f) = session.read_frame().await {
         if f.opcode != frame::OPCODE_TEXT {
             break;
@@ -126,8 +150,11 @@ async fn serve(mut tcp: TcpStream, state: Arc<Mutex<State>>, script: Script) {
             let _ = tx.send(json!(["NOTICE", "ERROR: bad msg: not a JSON array"]).to_string());
             continue;
         };
-        handle(&state, id, &tx, &script, &message);
+        let _ = queue.send((Instant::now(), message));
     }
+    open.store(false, Ordering::SeqCst);
+    drop(queue);
+    let _ = taker.await;
     state.lock().unwrap().subs.retain(|(conn, ..)| *conn != id);
     // Let the writer send what is queued, then end.
     drop(tx);

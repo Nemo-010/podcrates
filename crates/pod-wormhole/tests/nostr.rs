@@ -4,7 +4,8 @@
 //! the tag of a code and move a message each way, each with a key of its
 //! own for the pairing; an event with the tag of another code is not
 //! delivered; the taker sends its first message again until the giver
-//! answers, each time as a new event; a relay that closes the `REQ`,
+//! answers, each time as a new event; the last word of an end that closes
+//! at once reaches the other end (T-634); a relay that closes the `REQ`,
 //! refuses the events, or says a `NOTICE` and nothing more is passed over
 //! with its words; an event that does not check is dropped; no event holds
 //! the words of the code.
@@ -117,6 +118,27 @@ async fn an_event_with_the_tag_of_another_code_is_not_delivered() {
     assert!(heard);
     assert_eq!(taker.confirm(LIMIT).await.unwrap(), versions());
     giver.close(Mood::Happy).await;
+    taker.close(Mood::Happy).await;
+}
+
+/// The giver says its last word and closes at once, as the run of a code
+/// does; the stand-in, as a public relay, drops an event of a connection
+/// that ended before it took the event.
+#[tokio::test]
+async fn the_last_word_of_an_end_that_closes_at_once_reaches_the_other_end() {
+    need_loopback!();
+    let relay = stand::start().await;
+    let ends = ends(vec![relay.url.clone()], &Seen::default());
+    let (mut giver, code) = nostr::opened(&ends, versions()).await.expect("a code");
+    let (taker, heard) = meet(&ends, &mut giver, &code, LIMIT).await;
+    let mut taker = taker.expect("the taker");
+    assert!(heard);
+    assert_eq!(giver.confirm(LIMIT).await.unwrap(), versions());
+    assert_eq!(taker.confirm(LIMIT).await.unwrap(), versions());
+    giver.send(b"the last word").await.unwrap();
+    giver.close(Mood::Happy).await;
+    let heard = taker.receive(stand::LAG * 50).await;
+    assert_eq!(heard.as_deref(), Ok(&b"the last word"[..]), "the relay took the last word before the close");
     taker.close(Mood::Happy).await;
 }
 
