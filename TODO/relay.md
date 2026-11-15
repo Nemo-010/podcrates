@@ -7714,7 +7714,7 @@ can remove tests/link_s3_standin/mod.rs (the hand-off).
 **Milestone:** M2
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7771,3 +7771,48 @@ cargo test -p pod-wormhole --features standin --test nostr
 cargo test -p pod-relay --all-features --test pair_code
 cargo test -p pod-relay --all-features --test pair_code_live -- --ignored --nocapture nostr
 ```
+
+## Done
+
+2026-11-14, commit `6db015a`. Calls C595 to C597.
+
+- The cause: the giver sent its last word and closed at once (`CLOSE`, then
+  the Close of the WebSocket). The public relay sent no `OK` for that event
+  and did not pass it on, so the taker waited a step for it. The live test
+  of `pod-wormhole` closes no end right after its last message, and the
+  stand-in took each message of a connection before it read the next.
+- `pod_wormhole::nostr::Relay::close` reads the relay until it answered
+  each event of this end, within the answer limit, then sends `CLOSE`;
+  `nostr::relay::UNANSWERED_MOST` (64). The stand-in of
+  `crates/pod-wormhole/tests/harness/nostr.rs` takes each message `LAG`
+  (20 ms) after it came and drops the messages of a connection that ended
+  before then.
+- Tests: `cargo test -p pod-wormhole --features standin --test nostr`: 8
+  passed (1 new:
+  `the_last_word_of_an_end_that_closes_at_once_reaches_the_other_end`), 30
+  runs in a loop with no failure; on the old code the new test fails
+  ("the other end said nothing for 1 s"). `cargo test -p pod-relay
+  --all-features --test pair_code`: 16 passed; on the old code
+  `where_no_mailbox_answers_the_ends_meet_at_a_nostr_relay_before_a_broker`
+  fails ("the taker: the other end said nothing for 20 s"), the symptom of
+  podssh. `cargo test -p pod-wormhole -p pod-relay --all-features`: each
+  passes.
+- Live, from a cloud session through its HTTPS proxy: the new
+  `two_ends_pair_through_each_public_nostr_relay_after_a_dead_mailbox` of
+  `crates/pod-relay/tests/pair_code_live.rs` failed before the fix
+  (`relay.primal.net`: "the other end said nothing for 60 s"); after it,
+  `relay.primal.net` pairs in 3.2 s and `offchain.pub` in 1.9 s. The
+  mailboxes of `pair_code_live` and `two_ends_meet_at_each_public_nostr_relay`
+  of `pod-wormhole` pass. The run at the one public MQTT broker
+  (`public.cloud.shiftr.io`) after a dead mailbox pairs in 3.0 s, so the
+  brokers do not have the defect.
+- Plants `wormhole-nostr-close-unanswered` and
+  `relay-code-nostr-last-word-lost`, each caught by hand (15 of 15 runs of
+  the first); the patch of `wormhole-nostr-refusal-ignored` follows the
+  new `heed`, caught by hand; `wormhole-nostr-no-resend`,
+  `wormhole-nostr-tag-constant`, `wormhole-nostr-signature-unchecked` and
+  `relay-code-nostr-after-brokers` still caught on the new stand-in.
+  `sh scripts/plant-each.sh --apply`: 0 stale.
+- The READMEs of `pod-wormhole` and `pod-relay` give the close, the
+  stand-in, the tests and the plants; their counts of plants (25) and of
+  ignored tests (21) are corrected.
