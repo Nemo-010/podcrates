@@ -5,13 +5,12 @@
 ## State
 
 - `docs/HANDOFF.md` has what is in flight and what waits.
-- Last release: `v0.52.0` at `7998b72` (`docs/releases/v0.52.0.md`; ci
-  43711409358, adoption 43711411992, release 43715190817; the hand-off
-  #176, COORD-106): parts 2 and 3 of `pod-egress` (T-035), T-668 to
-  T-672, T-676, T-678, T-679 to T-683.
-- In release: `v0.53.0` (`docs/releases/v0.53.0.md`): T-686, T-687
-  (PodUtils/podssh#262), T-688 (PodUtils/podvm#414), T-691
-  (PodUtils/podvm#422), T-684.
+- Last release: `v0.53.0` at `d0f38a6` (`docs/releases/v0.53.0.md`; ci
+  43757793413, adoption 43757796978, release 43759694248; the hand-off
+  #185, COORD-111): T-686, T-687 (PodUtils/podssh#262), T-688
+  (PodUtils/podvm#414), T-691 (PodUtils/podvm#422), T-684, T-713.
+- In release: `v0.54.0` (`docs/releases/v0.54.0.md`): `pod-lab` part 1
+  (T-692), `pod-manual` part 1 (T-700), the watcher (T-710 to T-712).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.51.0` (`3f6a9fe`, PodUtils/podssh#260): part 1 of

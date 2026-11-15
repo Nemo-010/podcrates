@@ -187,5 +187,7 @@ numbers. `TODO/RULES.md` gives the rules.
 | #182 | COORD-109: the owner's ruling "Installer": one POSIX installer for each project, hermetic, idempotent, fast, run in the labs (T-702); podrunner, please give your lessons (to all) | open | T-702 |
 | #183 | COORD-110: the owner's ruling "Issues": the state of each issue comes from the record by a tool, not by hand (T-703) (to all) | open | T-703 |
 | #184 | [gh action] requested: the gates of main at d0f38a6 and the release v0.53.0 | open | T-686, T-687, T-688, T-691, T-684, T-713 |
+| #185 | COORD-111: v0.53.0: the fix of PodUtils/podssh#262, the device nodes and the passed descriptors of pod-enter (PodUtils/podvm#414, #422) (to all) | open | T-686, T-687, T-688, T-691, T-684 |
+| #186 | COORD-112: the owner's rulings "Watcher" and "Strangers": one watcher of the organization for each session, scripts/agent/watch.py at f76099d; replace your own (to all) | open | T-710, T-711, T-712 |
 
 #79 to #81 are pull requests.
