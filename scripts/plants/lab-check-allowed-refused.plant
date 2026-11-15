@@ -1,0 +1,6 @@
+# A row that must be allowed holds when the kernel refuses it: a profile
+# whose check lets a refused part pass. The test must fail.
+ENTRY=T-692
+GROUP=lab
+EXPECT='test check::tests::an_allowed_row_that_is_refused_fails_the_part \.\.\. FAILED'
+RUN='cargo test -p pod-lab --all-features --lib -- check::tests::an_allowed_row_that_is_refused_fails_the_part --exact'

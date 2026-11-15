@@ -1,0 +1,14 @@
+diff --git a/crates/pod-lab/src/hold.rs b/crates/pod-lab/src/hold.rs
+index ab87a623..f6bfa7c6 100644
+--- a/crates/pod-lab/src/hold.rs
++++ b/crates/pod-lab/src/hold.rs
+@@ -136,7 +136,8 @@ pub fn landlock_tcp() -> Result<(), String> {
+         return Err(format!("the Landlock ABI is {abi}; a TCP rule needs ABI 4"));
+     }
+     let net = (k::LANDLOCK_ACCESS_NET_BIND_TCP | k::LANDLOCK_ACCESS_NET_CONNECT_TCP) as u64;
+-    ruleset(0, net, &[])
++    let _ = net;
++    Ok(())
+ }
+ 
+ /// `rights` on each path except `path` and the directories above it: for

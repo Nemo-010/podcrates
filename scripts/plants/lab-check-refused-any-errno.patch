@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/check.rs b/crates/pod-lab/src/check.rs
+index 6306d104..c0121751 100644
+--- a/crates/pod-lab/src/check.rs
++++ b/crates/pod-lab/src/check.rs
+@@ -168,7 +168,7 @@ pub fn judge(row: &str, expect: Expect, outcome: &Outcome) -> Seen {
+     let refused = outcome.verdict == Row::Denied;
+     match expect {
+         Expect::Refused(want) => match errno {
+-            Some(e) if refused && want.contains(&e) => seen(State::Holds, format!("refused with {}", errno_words(e))),
++            Some(e) if refused => seen(State::Holds, format!("refused with {}", errno_words(e))),
+             Some(e) if refused => {
+                 seen(State::Fails, format!("refused with {}; the profile wants {}", errno_words(e), list(want)))
+             }

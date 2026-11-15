@@ -1,0 +1,6 @@
+# The lab takes each part as held and ignores its check from inside; a
+# part whose row contradicts it must stop the command.
+ENTRY=T-692
+GROUP=lab
+EXPECT='ran a command with a part that does not hold'
+RUN='cargo test -p pod-lab --all-features --test lab'

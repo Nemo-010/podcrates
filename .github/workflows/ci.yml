@@ -9,7 +9,8 @@ name: ci
 #   of the fuzz targets.
 # * record: the tests of pod-todo, and `cargo todo check`.
 # * static: the probe of each crate (examples/static-probe) on each target
-#   of the consumers, checked by scripts/check-static.sh.
+#   of the consumers, and podlab of pod-lab on each Linux target, checked
+#   by scripts/check-static.sh.
 # * all: the one status to require. It fails when a job failed or was
 #   skipped.
 #
@@ -319,6 +320,8 @@ jobs:
           for p in static-probe static-probe-lean; do
             cargo zigbuild --locked --release --target ${{ matrix.target }} -p "$p"
           done
+          # The binary podlab of pod-lab (Linux only), with its feature cli.
+          cargo zigbuild --locked --release --target ${{ matrix.target }} -p pod-lab --features cli --bin podlab
       # The OpenSSL of pod-gsr builds from source: its Configure needs a
       # perl of Windows, not the perl of Git Bash.
       - name: A perl for OpenSSL
@@ -349,6 +352,13 @@ jobs:
             sh scripts/check-static.sh "$exe"
             echo "| ${{ matrix.target }} $p | $(wc -c < "$exe") bytes |" >> "$GITHUB_STEP_SUMMARY"
           done
+      - name: podlab is static
+        if: matrix.zig
+        run: |
+          set -eu
+          exe=target/${{ matrix.target }}/release/podlab
+          sh scripts/check-static.sh "$exe"
+          echo "| ${{ matrix.target }} podlab | $(wc -c < "$exe") bytes |" >> "$GITHUB_STEP_SUMMARY"
 
   all:
     runs-on: ubuntu-24.04

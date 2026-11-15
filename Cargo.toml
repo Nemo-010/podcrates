@@ -46,6 +46,7 @@ pod-hostprobe = { path = "crates/pod-hostprobe", version = "0.53.0" }
 pod-identity = { path = "crates/pod-identity", version = "0.53.0" }
 pod-incus = { path = "crates/pod-incus", version = "0.53.0" }
 pod-job = { path = "crates/pod-job", version = "0.53.0" }
+pod-lab = { path = "crates/pod-lab", version = "0.53.0" }
 pod-link = { path = "crates/pod-link", version = "0.53.0" }
 pod-netlab = { path = "crates/pod-netlab", version = "0.53.0" }
 pod-netstack = { path = "crates/pod-netstack", version = "0.53.0" }
@@ -92,6 +93,9 @@ serde = { version = "1", features = ["derive"] }
 # types (ruling Q-A8), and a validator of them. Tests only: no binary of a
 # consumer carries them.
 schemars = "1.2"
+# The command lines of the binaries of the crates (`podlab` of pod-lab): the
+# derive, the help and the usage; no colour, no suggestion.
+clap = { version = "4.6", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 boon = "0.6"
 # DNS over HTTPS over HTTP/2 (pod-dns), for a resolver that serves no
 # HTTP/1.1: the client of h2, and the request of http.

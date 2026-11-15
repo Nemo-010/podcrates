@@ -112,6 +112,7 @@ fn main() {
     lines.extend(guest());
     lines.extend(enter());
     lines.extend(confine());
+    lines.extend(lab());
     lines.extend(oci(tls));
     lines.extend(extract());
     lines.extend(rootfs());
@@ -276,6 +277,21 @@ fn confine() -> Option<String> {
 #[cfg(not(target_os = "linux"))]
 fn confine() -> Option<String> {
     None
+}
+
+/// pod-lab is Linux only: on another target the crate holds its exit
+/// codes alone. A check of a profile against an empty set: the table, the
+/// check and the BPF program of a filter link in.
+#[cfg(target_os = "linux")]
+fn lab() -> Option<String> {
+    let p = pod_lab::find(pod_lab::PROFILES, "chroot-denied")?;
+    let v = pod_lab::check(p, &pod_hostprobe::Findings::empty());
+    Some(format!("pod-lab: {} profiles, {} {}", pod_lab::PROFILES.len(), v.profile, v.parts[0].state.word()))
+}
+
+#[cfg(not(target_os = "linux"))]
+fn lab() -> Option<String> {
+    Some(format!("pod-lab: {} exit codes", pod_lab::codes::EXITS.len()))
 }
 
 /// pod-oci is Linux only: on another target the crate is empty. A client

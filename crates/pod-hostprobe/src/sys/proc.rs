@@ -154,6 +154,8 @@ pub fn ppoll(fds: &mut [PollFd], timeout_ms: i64) -> Sysres {
 #[derive(Default, Clone, Copy)]
 pub struct Statfs {
     pub f_bsize: i64,
+    /// The size of the file system, in blocks of `f_bsize`.
+    pub f_blocks: u64,
     pub f_bavail: u64,
     pub f_files: u64,
     pub f_ffree: u64,
@@ -235,6 +237,7 @@ pub fn statfs(path: &CBuf) -> Result<Statfs, Errno> {
     #[allow(clippy::unnecessary_cast)]
     Ok(Statfs {
         f_bsize: raw.f_bsize as i64,
+        f_blocks: raw.f_blocks as u64,
         f_bavail: raw.f_bavail as u64,
         f_files: raw.f_files as u64,
         f_ffree: raw.f_ffree as u64,
@@ -270,6 +273,9 @@ pub fn prlimit(resource: u64) -> Result<(u64, u64), Errno> {
 pub const SYS_SOCKET: i64 = nr!(socket, __NR_socket);
 pub const SYS_BIND: i64 = nr!(bind, __NR_bind);
 pub const SYS_LISTEN: i64 = nr!(listen, __NR_listen);
+/// `getsockname(2)`: a filter that refuses it gives a lab of the class of
+/// hosts that answer `EOPNOTSUPP` (`pod-lab`).
+pub const SYS_GETSOCKNAME: i64 = nr!(getsockname, __NR_getsockname);
 /// `AF_INET`, 2 in every Linux `socket.h`. The probe speaks IPv4 loopback.
 pub const AF_INET: u64 = 2;
 /// `SOCK_STREAM`, 1 in every Linux `socket.h`.
@@ -284,6 +290,16 @@ pub fn socket(domain: u64, stype: u64, protocol: u64) -> Sysres {
 
 pub fn bind(fd: i64, addr: u64, addrlen: u64) -> Sysres {
     unsafe { sys(SYS_BIND, [fd as u64, addr, addrlen, 0, 0, 0]) }
+}
+
+/// `getsockname(2)` into `addr`; the kernel writes at most `addr.len()`
+/// bytes and gives the length of the address.
+pub fn getsockname(fd: i64, addr: &mut [u8]) -> Sysres {
+    let mut len = addr.len() as u32;
+    // SAFETY: `addr` and `len` live until the call returns; the kernel
+    // writes at most `len` bytes into `addr`.
+    unsafe { sys(SYS_GETSOCKNAME, [fd as u64, addr.as_mut_ptr() as u64, &mut len as *mut u32 as u64, 0, 0, 0]) }
+        .map(|_| i64::from(len))
 }
 
 pub fn listen(fd: i64, backlog: u64) -> Sysres {

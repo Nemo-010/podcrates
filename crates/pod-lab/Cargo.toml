@@ -1,0 +1,44 @@
+[package]
+name = "pod-lab"
+description = "The classes of hostile hosts as profiles: the rows of pod-hostprobe that each part refuses or allows, the check of a profile against a report, and a run of a command in the parts that a host with no root can hold."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+# The command line `podlab`. It needs the feature `cli`, so that a consumer
+# of the library links no clap.
+[[bin]]
+name = "podlab"
+path = "src/bin/podlab.rs"
+required-features = ["cli"]
+
+[features]
+# `check_report`: the check of a profile against the JSON report of
+# pod-hostprobe (its module `report`).
+report = ["pod-hostprobe/report"]
+# The binary `podlab`: clap, and the check of a report.
+cli = ["report", "dep:clap"]
+
+[dependencies]
+clap = { workspace = true, optional = true }
+
+# Linux only: on another target the library is empty.
+[target.'cfg(target_os = "linux")'.dependencies]
+# The probe rows, their children, the raw system calls (Landlock, seccomp,
+# the user namespace, the mounts).
+pod-hostprobe = { workspace = true }
+# The BPF program of a seccomp deny list, and its default list.
+pod-confine = { workspace = true }
+# The errno numbers of the build target.
+linux-raw-sys = { workspace = true, features = ["errno"] }
+
+[dev-dependencies]
+pod-testkit = { workspace = true }
+
+# The runs of a lab: a test binary with no libtest, so that it reads the
+# flag of a lab child and of a probe child before anything else.
+[[test]]
+name = "lab"
+harness = false

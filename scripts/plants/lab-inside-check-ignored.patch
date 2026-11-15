@@ -1,0 +1,12 @@
+diff --git a/crates/pod-lab/src/lab.rs b/crates/pod-lab/src/lab.rs
+index 19c296f4..82ce4d6c 100644
+--- a/crates/pod-lab/src/lab.rs
++++ b/crates/pod-lab/src/lab.rs
+@@ -201,6 +201,7 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
+     let set = setup(profile);
+     let findings = inside::measure(&settings.hostprobe, &inside::rows(profile));
+     let mut verdict = check_with(profile, &findings, &inside::lab_fact);
++    verdict.parts.iter_mut().for_each(|p| p.state = State::Holds);
+     for (part, why) in verdict.parts.iter_mut().zip(&set) {
+         if let Some(why) = why {
+             part.state = State::Fails;

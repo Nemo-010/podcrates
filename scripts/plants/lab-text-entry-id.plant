@@ -1,0 +1,6 @@
+# A printed text of a profile names an entry of the record; the test of
+# the printed texts must fail.
+ENTRY=T-692
+GROUP=lab
+EXPECT='test text::each_text_of_each_profile_keeps_the_rules \.\.\. FAILED'
+RUN='cargo test -p pod-lab --all-features --lib -- text::each_text_of_each_profile_keeps_the_rules --exact'

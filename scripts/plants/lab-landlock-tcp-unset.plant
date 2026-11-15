@@ -1,0 +1,6 @@
+# The lab does not set the Landlock ruleset of bind-denied; its check from
+# inside must refuse the run.
+ENTRY=T-692
+GROUP=lab
+EXPECT='bind-denied: the lab bind-denied does not hold'
+RUN='cargo test -p pod-lab --all-features --test lab'

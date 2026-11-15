@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/table.rs b/crates/pod-lab/src/table.rs
+index f48d5837..147f3875 100644
+--- a/crates/pod-lab/src/table.rs
++++ b/crates/pod-lab/src/table.rs
+@@ -260,7 +260,7 @@ pub static PROFILES: &[Profile] = &[
+         parts: &[Part {
+             name: "chroot-refused",
+             about: "chroot(/tmp) gives EPERM",
+-            observe: &[row("chroot(/tmp)", Expect::Refused(&[EPERM]))],
++            observe: &[row("chroot(/tmp/)", Expect::Refused(&[EPERM]))],
+             hold: Hold::Seccomp(CHROOT),
+         }],
+     },

@@ -1,0 +1,6 @@
+# The lab runs the command although a part does not hold; the run of a
+# profile that the lab cannot hold must fail.
+ENTRY=T-692
+GROUP=lab
+EXPECT='ran with no proxy part|ran a command with a part that does not hold'
+RUN='cargo test -p pod-lab --all-features --test lab'

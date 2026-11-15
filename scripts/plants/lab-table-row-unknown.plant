@@ -1,0 +1,6 @@
+# A profile names a row that pod-hostprobe does not have; the test of the
+# table must fail.
+ENTRY=T-692
+GROUP=lab
+EXPECT='test table::tests::each_row_name_is_a_row_of_pod_hostprobe \.\.\. FAILED'
+RUN='cargo test -p pod-lab --all-features --lib -- table::tests::each_row_name_is_a_row_of_pod_hostprobe --exact'

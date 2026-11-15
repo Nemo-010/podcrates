@@ -1,0 +1,5 @@
+# A row that did not run holds its part; the test of a skip must fail.
+ENTRY=T-692
+GROUP=lab
+EXPECT='test check::tests::a_skipped_row_is_unseen_and_never_holds \.\.\. FAILED'
+RUN='cargo test -p pod-lab --all-features --lib -- check::tests::a_skipped_row_is_unseen_and_never_holds --exact'

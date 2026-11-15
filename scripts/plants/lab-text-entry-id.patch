@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/table.rs b/crates/pod-lab/src/table.rs
+index f48d5837..a9859e28 100644
+--- a/crates/pod-lab/src/table.rs
++++ b/crates/pod-lab/src/table.rs
+@@ -227,7 +227,7 @@ pub static PROFILES: &[Profile] = &[
+             },
+         ],
+     },
+-    Profile { name: "no-kvm", about: "no /dev/kvm", source: "podrunner", parts: &[NO_KVM] },
++    Profile { name: "no-kvm", about: "no /dev/kvm (T-695)", source: "podrunner", parts: &[NO_KVM] },
+     Profile {
+         name: "arm64-tcg",
+         about: "an arm64 host with no KVM: each guest runs on TCG",

@@ -1,0 +1,6 @@
+# A refusal with any errno holds a part that wants one errno; the test of
+# another errno must fail.
+ENTRY=T-692
+GROUP=lab
+EXPECT='test check::tests::a_refusal_with_another_errno_fails \.\.\. FAILED'
+RUN='cargo test -p pod-lab --all-features --lib -- check::tests::a_refusal_with_another_errno_fails --exact'
