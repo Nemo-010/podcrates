@@ -2834,3 +2834,31 @@ Part 1 (the next tag after `v0.53.0`): the crate `pod-lab` with the profiles as 
 ```sh
 cargo test -p pod-lab --all-features
 ```
+
+# T-700: `pod-manual`: one crate for the help and the manual of each command line of PodUtils (PodUtils/podnet#584)
+
+**Source:** PodUtils/podnet#584 (COORD-090 of podnet; PodUtils/podnet@T-359); the owner's ruling "Discipline" (2026-11-15).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P1
+**Effort:** L
+**Status:** open
+
+## Problem
+
+Each command line of PodUtils writes its help and its manual by hand. The agents hardcode the text in many places and forget to change it, and users read the code to find a flag, a variable or an exit code. The owner's ruling "Discipline" (2026-11-15): each command line takes one shared crate for its help and its manual; each has `CLI man` (with `--no-pager`); the help comes from the model of the command tree, and a mechanical check finds each drift. podnet's `src/manual/` (about 1,970 lines at `78a3911`, tested by `tests/cli/manual.rs`) has the parts: `model.rs` (the command tree read from `clap`), `roff.rs` (the man page), `text.rs` and `pager.rs` (`podnet man`, a pager on a terminal, `--no-pager`, `--json`), `facts.rs` (a typed table of the environment variables and the exit codes), `inventory.rs` (the component inventory) and `PodUtils/podnet:scripts/gen-llms.py` (`llms.txt` and `llms-full.txt` from `podnet man --json`). podnet freezes these files for fixes until the take.
+
+## Premise
+
+- Read: PodUtils/podnet#584.
+- Not read: podnet's `src/manual/` at `78a3911` (the read of its contents through the mirror gave 403 from this session); the help of podssh, podvm, podrunner and `podlab`.
+
+## Approach
+
+Take podnet's `src/manual/` and `PodUtils/podnet:scripts/gen-llms.py` at `78a3911` as the crate `pod-manual` (call C681), by the procedure of `docs/design.md`, section 3, with `SOURCES`. The crate holds the model, the roff, text and JSON writers, the pager, and the typed table of variables and exit codes that each program fills; the program keeps only its facts. The crate gives a test helper that each program calls in its own tests: the help, the man page, the JSON manual and the `llms` files are generated, and a test fails when a checked-in file differs from the generated one or when a variable or an exit code that the code reads has no fact. `podlab` (T-692) is the first command line of podcrates that takes it. The asks of podssh, podvm and podrunner in PodUtils/podnet#584 (aliases, a page for each subcommand, translations) become parts of this entry. The handoff of the tag names the step of each consumer: its help and its manual come from `pod-manual`, `CLI man --no-pager` works, and the drift test runs in its CI.
+
+## Prove
+
+```sh
+cargo test -p pod-manual --all-features
+```

@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**558 entries: 108 open, 8 partial, 6 blocked, 436 done.**
+**559 entries: 109 open, 8 partial, 6 blocked, 436 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 12 | 3 | 0 | 118 | 133 |
+| P1 | 13 | 3 | 0 | 118 | 134 |
 | P2 | 45 | 2 | 4 | 230 | 281 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 108 | 8 | 6 | 436 | 558 |
+| **All** | 109 | 8 | 6 | 436 | 559 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -605,3 +605,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-689](upkeep.md) | P2 | S | M5 | defect | done | the plant `enter-userns-proc-no-remount` misses where the host's `/proc` has `nosuid`, `nodev` and `noexec` already |
 | [T-691](podvm.md) | P2 | S | M6 | defect | done | `pod-enter`: the root directory and the memfd move clear of the numbers of the passed descriptors (PodUtils/podvm#422) |
 | [T-692](fleet.md) | P1 | L | M8 | feature | open | `pod-lab`: the hostile host classes as shared profiles, `podlab check` and `podlab run` (PodUtils/podrunner#180) |
+| [T-700](fleet.md) | P1 | L | M8 | feature | open | `pod-manual`: one crate for the help and the manual of each command line of PodUtils (PodUtils/podnet#584) |

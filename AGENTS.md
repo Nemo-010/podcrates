@@ -55,6 +55,10 @@ everything must be statically compiled." (the owner, 2026-11-05)
   match podcrates; podcrates does not hold back for a consumer.
 * A public API, a name or a format of the wire can change in any
   version. No compatibility with released binaries is necessary.
+* Discipline (the owner, 2026-11-15): each project of PodUtils runs its
+  release in the labs of `pod-lab` (T-692), and each command line takes
+  its help and its manual from `pod-manual` (T-700): `CLI man
+  --no-pager`, a generated help, and a test of each drift.
 
 ## 3. Git
 
