@@ -1,9 +1,10 @@
 diff --git a/crates/pod-enter/src/launch.rs b/crates/pod-enter/src/launch.rs
+index ef368114..78fcfc13 100644
 --- a/crates/pod-enter/src/launch.rs
 +++ b/crates/pod-enter/src/launch.rs
-@@ -206,6 +206,9 @@
+@@ -224,6 +224,9 @@ pub(crate) fn spawn_with(
              {
-                 report(NS_JOIN_STEP, e);
+                 report(step, e);
              }
 +            if let Some(c) = confined.as_mut() {
 +                let _ = c.open_paths();

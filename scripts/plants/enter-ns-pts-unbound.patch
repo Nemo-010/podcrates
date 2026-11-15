@@ -1,12 +1,13 @@
 diff --git a/crates/pod-enter/src/ns_optional.rs b/crates/pod-enter/src/ns_optional.rs
+index 4374e8ae..600af562 100644
 --- a/crates/pod-enter/src/ns_optional.rs
 +++ b/crates/pod-enter/src/ns_optional.rs
-@@ -65,7 +65,7 @@
-         let refused = ns_proc_refused(names).into_bytes();
-         out.push(Optional { source: lit("proc"), target, fstype: lit("proc"), flags: PROC_FLAGS, refused });
+@@ -75,7 +75,7 @@ pub(crate) fn optional_mounts(root: &str, names: &Names) -> Vec<Optional> {
+         let fallback = crate::ns_proc_bind::fallback(names);
+         out.push(Optional { source: lit("proc"), target, fstype: lit("proc"), flags: PROC_FLAGS, refused, fallback });
      }
 -    if let Some(target) = ns_pts_target(root).and_then(|t| CBuf::new(&t)) {
 +    if let Some(target) = ns_pts_target(root).and_then(|t| CBuf::new(&t)).filter(|_| false) {
          let refused = ns_refused_line(names, "/dev/pts", NS_PTS_STEP).into_bytes();
          let flags = sys::MS_BIND | sys::MS_REC;
-         out.push(Optional { source: lit("/dev/pts"), target, fstype: sys::cempty(), flags, refused });
+         let fallback = Fallback::None;

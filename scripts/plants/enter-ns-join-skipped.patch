@@ -1,11 +1,13 @@
+diff --git a/crates/pod-enter/src/launch.rs b/crates/pod-enter/src/launch.rs
+index ef368114..b0e61822 100644
 --- a/crates/pod-enter/src/launch.rs
 +++ b/crates/pod-enter/src/launch.rs
-@@ -195,7 +195,7 @@
+@@ -219,7 +219,7 @@ pub(crate) fn spawn_with(
              }
              // The join comes before the passed descriptors, so a pass onto
              // the number of the pidfd cannot replace it.
--            if let Some(NsEntry::Join(pidfd, _)) = ns
-+            if let Some(NsEntry::Join(pidfd, _)) = ns.filter(|_| false)
-                 && let Err(e) = sys::setns(pidfd, sys::CLONE_NEWNS)
+-            if let Some(NsEntry::Join(j)) = ns
++            if let Some(NsEntry::Join(j)) = ns.filter(|_| false)
+                 && let Err((step, e)) = j.enter()
              {
-                 report(NS_JOIN_STEP, e);
+                 report(step, e);
