@@ -1,12 +1,12 @@
 //! wisp-server-python, Mercury Workshop's own Wisp server, on the loopback:
-//! software that podssh did not write (AGPL-3.0: run here, never copied).
+//! software that this crate did not write (AGPL-3.0: run here, never copied).
 //! Its version 0.9.0 speaks version 1 of the protocol, gives each stream a
 //! credit of 128 packets and a CONTINUE after each 32 that it wrote to the
 //! target, and closes a stream that it cannot open with 0x42 (read in its
 //! source, MercuryWorkshop/wisp-server-python:src/wisp/server/connection.py).
-//! `PODSSH_TEST_WISP_PYTHON` names the Python that has it (default
+//! `POD_EGRESS_TEST_WISP_PYTHON` names the Python that has it (default
 //! `python3`); where none has it, each test says that it did not run, and
-//! fails instead when `PODSSH_TEST_WISP_REQUIRED` is set, as in CI.
+//! fails instead when `POD_EGRESS_TEST_WISP_REQUIRED` is set, as in CI.
 
 use std::io::Read;
 use std::process::{Child, Command, Stdio};
@@ -36,7 +36,7 @@ impl Drop for Reference {
 }
 
 fn python() -> String {
-    std::env::var("PODSSH_TEST_WISP_PYTHON").unwrap_or_else(|_| "python3".into())
+    std::env::var("POD_EGRESS_TEST_WISP_PYTHON").unwrap_or_else(|_| "python3".into())
 }
 
 /// The reference server on a free port of the loopback, which may dial the
@@ -46,9 +46,9 @@ pub fn start() -> Option<Reference> {
     let mut here = Command::new(&python);
     here.args(["-c", "import wisp.server"]).stdout(Stdio::null()).stderr(Stdio::null());
     if !here.status().is_ok_and(|s| s.success()) {
-        let why = "no wisp-server-python here (pip install wisp-python==0.9.0; PODSSH_TEST_WISP_PYTHON names the \
+        let why = "no wisp-server-python here (pip install wisp-python==0.9.0; POD_EGRESS_TEST_WISP_PYTHON names the \
                    Python that has it)";
-        assert!(std::env::var_os("PODSSH_TEST_WISP_REQUIRED").is_none(), "{why}");
+        assert!(std::env::var_os("POD_EGRESS_TEST_WISP_REQUIRED").is_none(), "{why}");
         eprintln!("did not run: {why}");
         return None;
     }
@@ -63,7 +63,7 @@ pub fn start() -> Option<Reference> {
         cmd.process_group(0);
     }
     // Its words go to a file, which no pipe can fill to stop it.
-    let log = std::env::temp_dir().join(format!("podssh-wisp-reference-{}-{port}.log", std::process::id()));
+    let log = std::env::temp_dir().join(format!("pod-egress-wisp-reference-{}-{port}.log", std::process::id()));
     let err = std::fs::File::create(&log).unwrap();
     let child = cmd.stdin(Stdio::null()).stdout(Stdio::null()).stderr(err).spawn().unwrap();
     let mut server = Reference { child, port, log: log.clone() };

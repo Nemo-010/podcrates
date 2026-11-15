@@ -1,4 +1,4 @@
-//! A target for the tests of each road's end of input (T-699). It sends a
+//! A target for the tests of each road's end of input. It sends a
 //! first piece at once, so that the road is ready and this side ends its
 //! input, then waits, then sends the rest of 1 MiB and closes: the rest is
 //! in flight while this side's input has ended. A road that ends the

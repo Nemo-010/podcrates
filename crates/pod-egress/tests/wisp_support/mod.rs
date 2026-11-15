@@ -1,6 +1,6 @@
-//! A stand-in Wisp server on the loopback, for the tests of T-438, written
+//! A stand-in Wisp server on the loopback, for the tests of the Wisp client, written
 //! from the protocol's document (MercuryWorkshop/wisp-protocol:protocol.md,
-//! branch v2) with its own reading of each byte, not podssh's codec. It
+//! branch v2) with its own reading of each byte, not the codec of this crate. It
 //! speaks version 1 (its CONTINUE first) or version 2 (its INFO, the
 //! client's INFO, then its CONTINUE or its CLOSE). A CONNECT's host says
 //! what the stream does: `hold.test` takes DATA and forwards none, so that
@@ -19,7 +19,7 @@ use std::collections::{HashMap, HashSet};
 use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex};
 
-use podssh_ws::{RelaySession, frame};
+use pod_ws::{RelaySession, frame};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::net::{TcpListener, TcpStream};
@@ -151,19 +151,19 @@ async fn serve(
     seen: Arc<Mutex<Seen>>,
     conns: Arc<Mutex<Vec<Arc<Conn>>>>,
 ) {
-    let Ok((head, pending)) = podssh_ws::http::read_request(&mut tcp, Vec::new()).await else { return };
+    let Ok((head, pending)) = pod_proxy::http::read_request(&mut tcp, Vec::new()).await else { return };
     let protocol = head.headers.iter().find(|(n, _)| n == "sec-websocket-protocol").map(|(_, v)| v.clone());
     {
         let mut seen = seen.lock().unwrap();
         seen.headers.push(head.headers.iter().map(|(n, _)| n.clone()).collect());
         seen.protocols.push(protocol.clone());
     }
-    let Ok(key) = podssh_ws::server::check_upgrade(&head) else {
+    let Ok(key) = pod_ws::server::check_upgrade(&head) else {
         let _ = tcp.write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n").await;
         return;
     };
-    tcp.write_all(&podssh_ws::server::switching(&key)).await.unwrap();
-    let session = Arc::new(podssh_ws::server::session(tcp, pending, None));
+    tcp.write_all(&pod_ws::server::switching(&key)).await.unwrap();
+    let session = Arc::new(pod_ws::server::session(tcp, pending, None));
     let mut confirm = false;
     // Version 2 only where the upgrade offered a protocol.
     if let (Speaks::V2 { extensions, refuse }, true) = (&speaks, protocol.is_some()) {

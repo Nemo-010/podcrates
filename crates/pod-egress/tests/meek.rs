@@ -1,28 +1,30 @@
-//! meek_lite (T-385) against a stand-in of meek-server 0.38.0 written here,
+//! meek_lite against a stand-in of meek-server 0.38.0 written here,
 //! which reads each request as meek-server does: a `POST` whose
 //! `X-Session-Id` has 8 characters at least (else 400), a body of 64 KiB at
 //! most, and an answer of 200 with the session's bytes; its "bridge" echoes
 //! what each session sent. Plain HTTP, and TLS for a front, the stand-in's
-//! root in a file as `--ca-file` gives it, the names pinned to the loopback
+//! root in a file as a CA file gives it, the names pinned to the loopback
 //! (no DNS). The control of the stand-in's check: a POST with no id gets 400.
 
 use std::collections::HashMap;
-use std::net::IpAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use podssh_ws::meek::{self, Args, Ended, MAX_PAYLOAD};
-use podssh_ws::pt::Reach;
-use podssh_ws::{ProxyChoice, Trust};
+use pod_egress::meek::{self, Args, Ended, MAX_PAYLOAD};
+use pod_egress::pt::Reach;
+use pod_tls::Trust;
 use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _};
 use tokio::net::{TcpListener, TcpStream};
 
 // Shared test support; this file uses part of it.
 #[allow(dead_code)]
 mod cert {
-    include!("common/cert_for_test.rs");
+    include!("../../pod-tls/tests/common/cert_for_test.rs");
 }
+
+#[path = "common/way.rs"]
+mod way;
 
 const LIMIT: Duration = Duration::from_secs(20);
 
@@ -53,20 +55,14 @@ fn settings(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
     pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
 }
 
+/// The way of each test, the names of the fronted tests at the loopback.
 fn reach(trust: Trust) -> Reach {
-    Reach { proxy: ProxyChoice::Direct, trust, wait: Duration::from_secs(5) }
-}
-
-/// The names of the fronted tests, on the loopback; the same list in each
-/// test, as the pins are the process's.
-fn pins() {
-    let lo: IpAddr = "127.0.0.1".parse().unwrap();
-    podssh_ws::resolve::set_pins(vec![("front.meek.test".into(), lo), ("real.meek.test".into(), lo)]);
+    Reach { way: way::loopback(&["front.meek.test", "real.meek.test"]), trust, wait: Duration::from_secs(5) }
 }
 
 /// The root of the stand-in's certificate for `name`, in a file.
 fn root_file(name: &str, tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("podssh-meek-{}-{tag}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("pod-egress-meek-{}-{tag}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("root.pem");
     let der = cert::encoding::self_signed_inner(&cert::encoding::anchor_name(name), true).der;
@@ -206,6 +202,7 @@ async fn through(args: &Args, trust: Trust, bytes: &[u8]) -> (Vec<u8>, tokio::ta
 /// local side.
 #[tokio::test]
 async fn bytes_go_both_ways_in_posts_of_64_kib_at_most_on_one_connection() {
+    pod_testkit::need_loopback!();
     let (port, state) = stand_in(None, false).await;
     let url = format!("http://127.0.0.1:{port}/");
     let args = Args::parse(&settings(&[("url", url.as_str())])).unwrap();
@@ -232,7 +229,7 @@ async fn bytes_go_both_ways_in_posts_of_64_kib_at_most_on_one_connection() {
 /// `Host` names the URL's host, which TLS never sees.
 #[tokio::test]
 async fn fronting_sends_the_front_to_tls_and_the_url_s_host_to_host() {
-    pins();
+    pod_testkit::need_loopback!();
     let (port, state) = stand_in(Some("front.meek.test"), false).await;
     let root = root_file("front.meek.test", "front");
     let front = format!("front.meek.test:{port}");
@@ -251,7 +248,7 @@ async fn fronting_sends_the_front_to_tls_and_the_url_s_host_to_host() {
 /// any POST: there is no bypass of the check.
 #[tokio::test]
 async fn a_front_whose_certificate_names_another_host_is_refused() {
-    pins();
+    pod_testkit::need_loopback!();
     let (port, state) = stand_in(Some("other.meek.test"), false).await;
     let root = root_file("other.meek.test", "other");
     let front = format!("front.meek.test:{port}");
@@ -266,6 +263,7 @@ async fn a_front_whose_certificate_names_another_host_is_refused() {
 /// session ends and says the status.
 #[tokio::test]
 async fn ten_refusals_end_the_session_and_say_the_status() {
+    pod_testkit::need_loopback!();
     let (port, state) = stand_in(None, true).await;
     let url = format!("http://127.0.0.1:{port}/");
     let args = Args::parse(&settings(&[("url", url.as_str())])).unwrap();
@@ -284,6 +282,7 @@ async fn ten_refusals_end_the_session_and_say_the_status() {
 /// 1.32 s, each with no body, the gaps growing.
 #[tokio::test]
 async fn with_nothing_to_send_the_polls_back_off() {
+    pod_testkit::need_loopback!();
     let (port, state) = stand_in(None, false).await;
     let url = format!("http://127.0.0.1:{port}/");
     let args = Args::parse(&settings(&[("url", url.as_str())])).unwrap();
@@ -305,6 +304,7 @@ async fn with_nothing_to_send_the_polls_back_off() {
 /// meek-server, so that a client which sent none would fail above.
 #[tokio::test]
 async fn the_stand_in_refuses_a_post_with_no_session_id() {
+    pod_testkit::need_loopback!();
     let (port, _) = stand_in(None, false).await;
     let mut tcp = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
     tcp.write_all(b"POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 2\r\n\r\nhi").await.unwrap();

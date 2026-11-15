@@ -1,4 +1,4 @@
-//! wstunnel's protocol (T-441) against stand-ins on the loopback that read
+//! wstunnel's protocol against stand-ins on the loopback that read
 //! a client as wstunnel's server does, from its source at v11.1.0
 //! (`erebe/wstunnel:wstunnel/src/tunnel/server/server.rs`,
 //! `handle_tunnel_request`, and `utils.rs`): the path prefix of
@@ -13,13 +13,14 @@
 //! under wstunnel's default, unless it is told to apply it
 //! (`--websocket-mask-frame`). The target sends a version line and echoes.
 //! A pipe's end of input sends no Close until the server's end, so that 1 MiB
-//! still on its way comes whole (T-699). The run against wstunnel's own
-//! server is `scripts/interop-wstunnel.sh`.
+//! still on its way comes whole. The run against wstunnel's own server is
+//! podssh's `scripts/interop-wstunnel.sh`, which drives its binary.
 
 #[path = "common/talker.rs"]
 mod talker;
+#[path = "common/way.rs"]
+mod way;
 
-use std::net::IpAddr;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -27,9 +28,9 @@ use std::time::Duration;
 
 use base64::Engine as _;
 use hmac::{Hmac, KeyInit, Mac};
-use podssh_ws::frame::{self, Frame, Role};
-use podssh_ws::wstunnel::{self, AtEnd, Dial, Ended, Secret, Server, WstunnelError};
-use podssh_ws::{ProxyChoice, Trust};
+use pod_egress::wstunnel::{self, AtEnd, Dial, Ended, Secret, Server, WstunnelError};
+use pod_tls::Trust;
+use pod_ws::frame::{self, Frame, Role};
 use sha2::Sha256;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -37,7 +38,7 @@ use tokio::net::{TcpListener, TcpStream};
 // Shared test support; this file uses part of it.
 #[allow(dead_code)]
 mod cert {
-    include!("common/cert_for_test.rs");
+    include!("../../pod-tls/tests/common/cert_for_test.rs");
 }
 
 const NAME: &str = "wst.wstunnel.test";
@@ -68,7 +69,7 @@ struct Wst {
     unmask: bool,
     answer: Answer,
     /// A client's Close answered at once, and nothing sent after it, as RFC
-    /// 6455 allows a server (T-699); else the target's bytes go on.
+    /// 6455 allows a server; else the target's bytes go on.
     answers_close: bool,
 }
 
@@ -140,7 +141,7 @@ fn refusal(words: &str) -> String {
 /// The target of a request, or the refusal, in the order of
 /// `handle_tunnel_request`: the path prefix and its restriction, the JWT,
 /// then the restrictions' `Authorization`.
-fn admit(head: &podssh_ws::http::Request, wst: &Wst) -> Option<(String, u16)> {
+fn admit(head: &pod_proxy::http::Request, wst: &Wst) -> Option<(String, u16)> {
     let rest = head.target.strip_prefix('/')?;
     let (prefix, tail) = rest.split_once('/')?;
     if !tail.ends_with("events") || wst.restrict.is_some_and(|r| r != prefix) {
@@ -173,7 +174,7 @@ async fn serve<S>(mut stream: S, wst: Wst, seen: Arc<Mutex<Seen>>)
 where
     S: AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {
-    let Ok((head, pending)) = podssh_ws::http::read_request(&mut stream, Vec::new()).await else { return };
+    let Ok((head, pending)) = pod_proxy::http::read_request(&mut stream, Vec::new()).await else { return };
     let protocol = head.header("sec-websocket-protocol").unwrap_or_default().to_string();
     let auth = head.header("authorization").map(String::from);
     seen.lock().unwrap().requests.push((head.target.clone(), protocol, auth));
@@ -188,11 +189,11 @@ where
     seen.lock().unwrap().targets.push(aim.clone());
     // The target is dialed before the upgrade is answered, as exec_tunnel.
     let conn = TcpStream::connect((aim.0.as_str(), aim.1)).await;
-    let (Ok(conn), Ok(key)) = (conn, podssh_ws::server::check_upgrade(&head)) else {
+    let (Ok(conn), Ok(key)) = (conn, pod_ws::server::check_upgrade(&head)) else {
         let _ = stream.write_all(refusal("Invalid request").as_bytes()).await;
         return;
     };
-    let accept = podssh_ws::handshake::accept_key(&key);
+    let accept = pod_ws::handshake::accept_key(&key);
     let sub = if wst.answer == Answer::NoSubprotocol { "" } else { "sec-websocket-protocol: v1\r\n" };
     let head = format!(
         "HTTP/1.1 101 Switching Protocols\r\nupgrade: websocket\r\nconnection: upgrade\r\n\
@@ -285,10 +286,13 @@ where
     let _ = up.await;
 }
 
-fn dial() -> Dial<'static> {
-    static TRUST: Trust = Trust::Default;
-    static PROXY: ProxyChoice = ProxyChoice::Direct;
-    Dial { trust: &TRUST, proxy: &PROXY, timeout: LIMIT, at_end: AtEnd::Now }
+fn dial() -> Dial {
+    Dial {
+        way: way::loopback(&[NAME, "other.wstunnel.test"]),
+        trust: Trust::Default,
+        timeout: LIMIT,
+        at_end: AtEnd::Now,
+    }
 }
 
 async fn open(server: &Server, secret: &Secret, aim: u16) -> Result<wstunnel::Carried, WstunnelError> {
@@ -322,6 +326,7 @@ fn plain(port: u16) -> Server {
 /// applies the mask. Each frame bears the mask bit with a key of zero.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_banner_and_the_bytes_come_back_through_each_server_of_9_1_to_11() {
+    pod_testkit::need_loopback!();
     let aim = target().await;
     for wst in [V11, Wst { checks_signature: true, ..V11 }, Wst { unmask: true, ..V11 }] {
         let (port, seen) = stand_in(wst.clone(), false).await;
@@ -340,6 +345,7 @@ async fn the_banner_and_the_bytes_come_back_through_each_server_of_9_1_to_11() {
 /// the refusal says so in the words of its version, with no secret in them.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_secret_goes_in_the_path_and_a_wrong_one_is_refused_in_its_words() {
+    pod_testkit::need_loopback!();
     let aim = target().await;
     let wst = Wst { restrict: Some("s3cr3t"), authorization: Some("Basic YWxpY2U6cHc="), ..V11 };
     let (port, seen) = stand_in(wst, false).await;
@@ -360,6 +366,7 @@ async fn the_secret_goes_in_the_path_and_a_wrong_one_is_refused_in_its_words() {
 /// cannot read the token; a 101 without `v1` is no wstunnel server.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn another_version_and_another_server_are_said_in_their_words() {
+    pod_testkit::need_loopback!();
     let aim = target().await;
     let (port, _) = stand_in(Wst { answer: Answer::Refuse9, ..V11 }, false).await;
     match open(&plain(port), &Secret::default(), aim).await.expect_err("a refusal") {
@@ -375,13 +382,14 @@ async fn another_version_and_another_server_are_said_in_their_words() {
     assert!(line.contains("is no wstunnel server that podssh speaks to") && line.contains("9.1 to 11"), "{line}");
 }
 
-/// A pipe's end of input (T-699): this side's input ends at once, while the
+/// A pipe's end of input: this side's input ends at once, while the
 /// target's 1 MiB is still on its way. A Close is no half-close, and this
 /// stand-in answers one at once and sends nothing after it; so the pipe
 /// sends its Close only after the server's, and each byte comes. Planted, a
 /// Close at the first end, the rest is lost.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_pipe_s_end_of_input_waits_for_the_server_s_end_and_loses_no_byte() {
+    pod_testkit::need_loopback!();
     let aim = talker::talker().await;
     let (port, _) = stand_in(Wst { answers_close: true, ..V11 }, false).await;
     let pipe = Dial { at_end: AtEnd::AfterPeer, ..dial() };
@@ -396,7 +404,7 @@ async fn a_pipe_s_end_of_input_waits_for_the_server_s_end_and_loses_no_byte() {
 }
 
 fn root_file(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("podssh-wstunnel-{}-{tag}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("pod-egress-wstunnel-{}-{tag}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("root.pem");
     let der = cert::encoding::self_signed_inner(&cert::encoding::anchor_name(NAME), true).der;
@@ -408,13 +416,12 @@ fn root_file(tag: &str) -> PathBuf {
 /// root, and the tunnel carries the session; another name is refused.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn wss_checks_the_server_s_name_and_carries_the_session() {
-    let lo: IpAddr = "127.0.0.1".parse().unwrap();
-    podssh_ws::resolve::set_pins(vec![(NAME.into(), lo), ("other.wstunnel.test".into(), lo)]);
+    pod_testkit::need_loopback!();
     let (root, aim) = (root_file("tls"), target().await);
     let (port, _) = stand_in(Wst { restrict: Some("p"), ..V11 }, true).await;
     let trust = Trust::File(root.clone());
     let secret = Secret::parse("p").unwrap();
-    let dial = Dial { trust: &trust, ..dial() };
+    let dial = Dial { trust, ..dial() };
     let server = Server::parse(&format!("wss://{NAME}:{port}")).unwrap();
     let opened = tokio::time::timeout(LIMIT * 2, wstunnel::open(&server, &secret, "127.0.0.1", aim, &dial)).await;
     carries(opened.expect("an answer within the limit").unwrap()).await;
@@ -422,4 +429,35 @@ async fn wss_checks_the_server_s_name_and_carries_the_session() {
     let why = wstunnel::open(&other, &secret, "127.0.0.1", aim, &dial).await.expect_err("a refusal");
     assert!(why.line(&other.shown()).starts_with("TLS with the wstunnel server wss://other"), "{why:?}");
     let _ = std::fs::remove_dir_all(root.parent().unwrap());
+}
+
+/// A tunnel is a dialer: a dial of a target is a tunnel to it; a refusal is
+/// a failure of the WebSocket's stage, of the class refused, in the line
+/// that names the server, with no secret in it.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_tunnel_is_a_dialer_and_a_refusal_is_a_typed_failure() {
+    pod_testkit::need_loopback!();
+    let aim = target().await;
+    let (port, _) = stand_in(Wst { restrict: Some("s3cr3t"), ..V11 }, false).await;
+    let secret = Secret::parse("s3cr3t").unwrap();
+    let tunnel = wstunnel::Tunnel { server: plain(port), secret, dial: dial() };
+    let dialer: &dyn pod_core::Dial = &tunnel;
+    assert!(dialer.names_inside());
+    let deadline = tokio::time::Instant::now() + LIMIT;
+    let target = pod_core::Target::new("127.0.0.1", aim);
+    let mut io = dialer.dial(&target, deadline).await.unwrap_or_else(|e| panic!("{e}")).io;
+    let mut banner = vec![0u8; BANNER.len()];
+    let mut back = [0u8; 9];
+    let both = async {
+        io.read_exact(&mut banner).await.unwrap();
+        io.write_all(b"a dialer!").await.unwrap();
+        io.read_exact(&mut back).await.unwrap();
+    };
+    tokio::time::timeout(LIMIT, both).await.expect("the bytes within the limit");
+    assert_eq!((banner.as_slice(), &back), (BANNER, b"a dialer!"));
+    let wrong = wstunnel::Tunnel { secret: Secret::default(), ..tunnel.clone() };
+    let failure = (&wrong as &dyn pod_core::Dial).dial(&target, deadline).await.err().expect("a refusal");
+    assert_eq!((failure.stage, failure.class), (pod_core::Stage::WebSocket, pod_core::Class::Refused), "{failure}");
+    let words = format!("the wstunnel server ws://127.0.0.1:{port} refused the tunnel: 400 Invalid request");
+    assert!(failure.text().starts_with(&words) && !failure.text().contains("s3cr3t"), "{failure}");
 }

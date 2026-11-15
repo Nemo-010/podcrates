@@ -1,9 +1,9 @@
-//! The road to a service that `cloudflared` publishes (T-264), against a
+//! The road to a service that `cloudflared` publishes, against a
 //! stand-in on 127.0.0.1 for Cloudflare's edge and cloudflared's origin
 //! (feature `plain-ws`). The upgrade is checked line by line against the one
 //! that `cloudflared access tcp` sends, read in its source at `bf4f502` with
 //! gorilla/websocket 1.5.3; a capture of the program itself waits for a
-//! service that the operator publishes. Messages up are cut at 16 KiB, as
+//! service that podssh's operator publishes. Messages up are cut at 16 KiB, as
 //! the origin reads them; no Ping goes up; a refusal of Cloudflare Access is
 //! told apart and quotes no credential; and a request with a token in its
 //! URL fails the check.
@@ -11,15 +11,17 @@
 
 use std::time::Duration;
 
-use podssh_ws::client::ConnectError;
-use podssh_ws::cloudflare::{self, Access};
-use podssh_ws::frame::{self, Frame, Role};
-use podssh_ws::plain::connect_loopback;
+use pod_egress::cloudflare::{self, Access};
+use pod_ws::client::ConnectError;
+use pod_ws::frame::{self, Frame, Role};
+use pod_ws::plain::connect_loopback;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use zeroize::Zeroizing;
 
 const TIMEOUT: Duration = Duration::from_secs(5);
+/// The user agent of the road, as podssh's binary gives it.
+const AGENT: &str = "podssh/0.0.0-test";
 const ID: &str = "made-up-client-id.access";
 const SECRET: &str = "made-up-client-secret-of-this-test";
 const JWT: &str = "made.up-token-of.this-test";
@@ -120,7 +122,7 @@ async fn stand_in(then: Then) -> (u16, tokio::task::JoinHandle<Seen>) {
             Then::Answer(answer) => tcp.write_all(answer.as_bytes()).await.unwrap(),
             Then::Carry { bytes } => {
                 let key = head.lines().find_map(|l| l.strip_prefix("Sec-WebSocket-Key: ")).expect("a key");
-                let accept = podssh_ws::handshake::accept_key(key.trim());
+                let accept = pod_ws::handshake::accept_key(key.trim());
                 let answer = format!(
                     "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
                      Sec-WebSocket-Accept: {accept}\r\n\r\n"
@@ -168,11 +170,13 @@ async fn read_head(tcp: &mut TcpStream) -> String {
 
 #[tokio::test]
 async fn cloudflare_upgrade_is_the_one_of_cloudflared() {
+    pod_testkit::need_loopback!();
     for (service, token) in [(false, false), (true, false), (false, true), (true, true)] {
         let (port, edge) = stand_in(Then::Carry { bytes: 1 }).await;
-        let session = cloudflare::connect_loopback("127.0.0.1", port, &access(service, token), TIMEOUT, Some(TIMEOUT))
-            .await
-            .expect("the upgrade");
+        let session =
+            cloudflare::connect_loopback("127.0.0.1", port, &access(service, token), AGENT, TIMEOUT, Some(TIMEOUT))
+                .await
+                .expect("the upgrade");
         session.send_binary(b"x").await.expect("a send");
         let seen = tokio::time::timeout(TIMEOUT, edge).await.expect("in time").unwrap();
         check_head(&seen.head, "127.0.0.1", service, token).unwrap_or_else(|why| panic!("{why}:\n{}", seen.head));
@@ -208,9 +212,10 @@ fn cloudflare_check_refuses_a_token_in_the_url() {
 /// which the origin would cut: the check sees it.
 #[tokio::test]
 async fn cloudflare_messages_up_are_cut_at_16_kib() {
+    pod_testkit::need_loopback!();
     let data: Vec<u8> = (0..256 * 1024).map(|i| (i % 251) as u8).collect();
     let (port, edge) = stand_in(Then::Carry { bytes: data.len() }).await;
-    let session = cloudflare::connect_loopback("127.0.0.1", port, &Access::default(), TIMEOUT, Some(TIMEOUT))
+    let session = cloudflare::connect_loopback("127.0.0.1", port, &Access::default(), AGENT, TIMEOUT, Some(TIMEOUT))
         .await
         .expect("the upgrade");
     session.send_binary(&data).await.expect("a send");
@@ -233,8 +238,9 @@ async fn cloudflare_messages_up_are_cut_at_16_kib() {
 /// own: its liveness watch never ends.
 #[tokio::test]
 async fn cloudflare_sends_no_ping() {
+    pod_testkit::need_loopback!();
     let (port, edge) = stand_in(Then::Carry { bytes: 1 }).await;
-    let session = cloudflare::connect_loopback("127.0.0.1", port, &Access::default(), TIMEOUT, Some(TIMEOUT))
+    let session = cloudflare::connect_loopback("127.0.0.1", port, &Access::default(), AGENT, TIMEOUT, Some(TIMEOUT))
         .await
         .expect("the upgrade");
     let reading = tokio::time::timeout(Duration::from_millis(300), session.read_frame());
@@ -252,10 +258,12 @@ async fn cloudflare_sends_no_ping() {
 /// query of its Location, which the page fills, is left out.
 #[tokio::test]
 async fn cloudflare_redirect_to_the_login_of_access() {
+    pod_testkit::need_loopback!();
     let answer = "HTTP/1.1 302 Found\r\nLocation: https://team.cloudflareaccess.com/cdn-cgi/access/login/h.test?kid=k1\
                   &redirect_url=%2F\r\nContent-Length: 0\r\n\r\n";
     let (port, _edge) = stand_in(Then::Answer(answer.into())).await;
-    let refused = cloudflare::connect_loopback("127.0.0.1", port, &Access::default(), TIMEOUT, Some(TIMEOUT)).await;
+    let refused =
+        cloudflare::connect_loopback("127.0.0.1", port, &Access::default(), AGENT, TIMEOUT, Some(TIMEOUT)).await;
     let Err(ConnectError::Refused { status, body }) = refused else { panic!("{refused:?}") };
     assert_eq!(status, 302);
     assert!(body.contains(cloudflare::LOGIN_PATH) && !body.contains("kid="), "{body}");
@@ -265,10 +273,12 @@ async fn cloudflare_redirect_to_the_login_of_access() {
 /// A refusal that quotes what it was sent shows no credential.
 #[tokio::test]
 async fn cloudflare_refusal_quotes_no_credential() {
+    pod_testkit::need_loopback!();
     let body = format!("forbidden: {SECRET} and {JWT} are not good");
     let answer = format!("HTTP/1.1 403 Forbidden\r\nContent-Length: {}\r\n\r\n{body}", body.len());
     let (port, _edge) = stand_in(Then::Answer(answer)).await;
-    let refused = cloudflare::connect_loopback("127.0.0.1", port, &access(true, true), TIMEOUT, Some(TIMEOUT)).await;
+    let refused =
+        cloudflare::connect_loopback("127.0.0.1", port, &access(true, true), AGENT, TIMEOUT, Some(TIMEOUT)).await;
     let Err(ConnectError::Refused { status, body }) = refused else { panic!("{refused:?}") };
     assert_eq!(status, 403);
     assert!(!body.contains(SECRET) && !body.contains(JWT), "{body}");

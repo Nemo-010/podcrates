@@ -1,4 +1,4 @@
-//! The forwarders of T-369 against stand-ins on the loopback: one that
+//! The forwarders against stand-ins on the loopback: one that
 //! takes the target from its query, as Mudlet's Worker does, and one from a
 //! first frame of JSON, answered with `{"status":"ok"}` in a binary frame,
 //! as ssheasy's proxy does. Through each, 1 MiB each way to an echo server
@@ -8,17 +8,20 @@
 //! token; a template with one placeholder, or one twice, and a target with
 //! `&`, are refused before anything is dialed. A pipe's end of input sends no
 //! Close until the forwarder's end, so that 1 MiB still on its way comes
-//! whole (T-699).
+//! whole.
 
 #[path = "common/talker.rs"]
 mod talker;
+#[path = "common/way.rs"]
+mod way;
 
 use std::net::Ipv4Addr;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use podssh_ws::forwarder::{self, AtEnd, Dial, Ended, Form, ForwarderError, Template};
-use podssh_ws::{ProxyChoice, RelaySession, Trust, frame};
+use pod_egress::forwarder::{self, AtEnd, Dial, Ended, Form, ForwarderError, Template};
+use pod_tls::Trust;
+use pod_ws::{RelaySession, frame};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -87,14 +90,14 @@ fn query_target(target: &str) -> (String, u16) {
 }
 
 async fn serve(mut tcp: TcpStream, form: Form, act: Act, seen: Arc<Mutex<Seen>>) {
-    let Ok((head, pending)) = podssh_ws::http::read_request(&mut tcp, Vec::new()).await else { return };
+    let Ok((head, pending)) = pod_proxy::http::read_request(&mut tcp, Vec::new()).await else { return };
     seen.lock().unwrap().requests.push((head.target.clone(), head.headers.clone()));
-    let Ok(key) = podssh_ws::server::check_upgrade(&head) else {
+    let Ok(key) = pod_ws::server::check_upgrade(&head) else {
         let _ = tcp.write_all(b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n").await;
         return;
     };
-    tcp.write_all(&podssh_ws::server::switching(&key)).await.unwrap();
-    let session = Arc::new(podssh_ws::server::session(tcp, pending, None));
+    tcp.write_all(&pod_ws::server::switching(&key)).await.unwrap();
+    let session = Arc::new(pod_ws::server::session(tcp, pending, None));
     let target = match form {
         Form::Query => query_target(&head.target),
         Form::Frame => {
@@ -104,7 +107,7 @@ async fn serve(mut tcp: TcpStream, form: Form, act: Act, seen: Arc<Mutex<Seen>>)
             let doc: serde_json::Value = serde_json::from_str(&text).unwrap_or_default();
             (doc["Host"].as_str().unwrap_or_default().to_string(), doc["Port"].as_u64().unwrap_or(0) as u16)
         }
-        // A Wisp server's stand-ins are those of tests/wisp.rs (T-438).
+        // A Wisp server's stand-ins are those of tests/wisp.rs.
         Form::Wisp => return,
     };
     seen.lock().unwrap().targets.push(target.clone());
@@ -186,20 +189,18 @@ async fn echo() -> u16 {
 }
 
 /// The road's settings for a test, its notes kept: an SSH session's end.
-fn dial(notes: &Arc<Mutex<Vec<String>>>) -> Dial<'static> {
+fn dial(notes: &Arc<Mutex<Vec<String>>>) -> Dial {
     dial_ending(notes, AtEnd::Now)
 }
 
-fn dial_ending(notes: &Arc<Mutex<Vec<String>>>, at_end: AtEnd) -> Dial<'static> {
-    static TRUST: Trust = Trust::Default;
-    static PROXY: ProxyChoice = ProxyChoice::Direct;
+fn dial_ending(notes: &Arc<Mutex<Vec<String>>>, at_end: AtEnd) -> Dial {
     let kept = notes.clone();
     Dial {
-        trust: &TRUST,
-        proxy: &PROXY,
+        way: way::direct(),
+        trust: Trust::Default,
         timeout: LIMIT,
         at_end,
-        note: Arc::new(move |text: &str| kept.lock().unwrap().push(text.to_string())),
+        note: Arc::new(move |event: pod_core::Event| kept.lock().unwrap().push(event.text)),
     }
 }
 
@@ -245,6 +246,7 @@ fn no_token(seen: &Arc<Mutex<Seen>>) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_query_form_carries_a_mebibyte_each_way_and_its_notes_stay_out() {
+    pod_testkit::need_loopback!();
     let target = echo().await;
     let (port, seen) = stand_in(Form::Query, Act::Carry(vec![r#"{"type":"game.connected"}"#])).await;
     let notes = Arc::default();
@@ -262,6 +264,7 @@ async fn the_query_form_carries_a_mebibyte_each_way_and_its_notes_stay_out() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_frame_form_sends_the_target_first_and_keeps_the_answer_out() {
+    pod_testkit::need_loopback!();
     let target = echo().await;
     let (port, seen) = stand_in(Form::Frame, Act::Carry(Vec::new())).await;
     let notes = Arc::default();
@@ -276,6 +279,7 @@ async fn the_frame_form_sends_the_target_first_and_keeps_the_answer_out() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_close_before_the_target_s_bytes_names_the_forwarder_and_its_reason() {
+    pod_testkit::need_loopback!();
     let (port, _) = stand_in(Form::Query, Act::Close(1011, "Connections to port 25 are prohibited")).await;
     let template = Template::parse(&format!("ws://127.0.0.1:{port}/?host={{host}}&port={{port}}")).unwrap();
     let notes = Arc::default();
@@ -293,6 +297,7 @@ async fn a_close_before_the_target_s_bytes_names_the_forwarder_and_its_reason() 
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_failed_answer_says_why_and_the_session_does_not_start() {
+    pod_testkit::need_loopback!();
     let (port, _) = stand_in(Form::Frame, Act::Fail("dial tcp 192.0.2.1:22: i/o timeout")).await;
     let template = Template::parse(&format!("ws://127.0.0.1:{port}/p")).unwrap();
     let notes = Arc::default();
@@ -302,7 +307,7 @@ async fn a_failed_answer_says_why_and_the_session_does_not_start() {
     assert!(line.starts_with(&format!("the forwarder ws://127.0.0.1:{port}/p")), "{line}");
 }
 
-/// A pipe's end of input (T-699): this side's input ends at once, while the
+/// A pipe's end of input: this side's input ends at once, while the
 /// target's 1 MiB is still on its way. A Close is no half-close, and the
 /// stand-in answers one at once and sends nothing after it, as RFC 6455
 /// allows; so the pipe sends its Close only after the forwarder's, and each
@@ -310,6 +315,7 @@ async fn a_failed_answer_says_why_and_the_session_does_not_start() {
 /// first end, the rest is lost.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_pipe_s_end_of_input_waits_for_the_forwarder_s_end_and_loses_no_byte() {
+    pod_testkit::need_loopback!();
     for (form, path) in [(Form::Query, "/?host={host}&port={port}"), (Form::Frame, "/p")] {
         let target = talker::talker().await;
         let (port, _) = stand_in(form, Act::Carry(Vec::new())).await;
@@ -330,6 +336,7 @@ async fn a_pipe_s_end_of_input_waits_for_the_forwarder_s_end_and_loses_no_byte()
 /// refused before anything is dialed: no stand-in sees a request.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_bad_template_or_target_dials_nothing() {
+    pod_testkit::need_loopback!();
     let (port, seen) = stand_in(Form::Query, Act::Carry(Vec::new())).await;
     for bad in [format!("ws://127.0.0.1:{port}/?host={{host}}"), format!("ws://127.0.0.1:{port}/{{port}}/{{port}}")] {
         assert!(Template::parse(&bad).is_err(), "{bad}");
@@ -339,4 +346,37 @@ async fn a_bad_template_or_target_dials_nothing() {
     let refused = forwarder::open(&template, "a&port=25", 22, &dial(&notes)).await.unwrap_err();
     assert!(matches!(refused, ForwarderError::Target(_)), "{refused:?}");
     assert!(seen.lock().unwrap().requests.is_empty(), "nothing was dialed");
+}
+
+/// A forwarder is a dialer: a dial of a target is a session through it; a
+/// Close before the target's bytes is a failure of the origin's stage, of
+/// the class unavailable, in the line that names the forwarder.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_forwarder_is_a_dialer_and_its_close_is_a_typed_failure() {
+    pod_testkit::need_loopback!();
+    let target = echo().await;
+    let (port, _) = stand_in(Form::Frame, Act::Carry(Vec::new())).await;
+    let notes = Arc::default();
+    let template = Template::parse(&format!("ws://127.0.0.1:{port}/p")).unwrap();
+    let carrying = forwarder::Forwarder { template, dial: dial(&notes) };
+    let dialer: &dyn pod_core::Dial = &carrying;
+    assert!(dialer.names_inside());
+    let deadline = tokio::time::Instant::now() + LIMIT;
+    let aim = pod_core::Target::new("127.0.0.1", target);
+    let mut io = dialer.dial(&aim, deadline).await.unwrap_or_else(|e| panic!("{e}")).io;
+    let mut back = [0u8; 9];
+    let both = async {
+        io.write_all(b"a dialer!").await.unwrap();
+        io.read_exact(&mut back).await.unwrap();
+    };
+    tokio::time::timeout(LIMIT, both).await.expect("the bytes within the limit");
+    assert_eq!(&back, b"a dialer!");
+    let (port, _) = stand_in(Form::Query, Act::Close(1011, "Connections to port 25 are prohibited")).await;
+    let template = Template::parse(&format!("ws://127.0.0.1:{port}/?host={{host}}&port={{port}}")).unwrap();
+    let closing = forwarder::Forwarder { template, dial: dial(&notes) };
+    let smtp = pod_core::Target::new("github.com", 25);
+    let failure = (&closing as &dyn pod_core::Dial).dial(&smtp, deadline).await.err().expect("a Close");
+    assert_eq!((failure.stage, failure.class), (pod_core::Stage::Origin, pod_core::Class::Unavailable), "{failure}");
+    let words = format!("the forwarder ws://127.0.0.1:{port}/ closed the WebSocket before the target's bytes: 1011");
+    assert!(failure.text().starts_with(&words), "{failure}");
 }

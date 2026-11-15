@@ -1,4 +1,4 @@
-//! WebTunnel (T-385) against a stand-in of the WebTunnel server 0.0.7
+//! WebTunnel against a stand-in of the WebTunnel server 0.0.7
 //! written here, which reads the request as its `httpupgrade.Server` does:
 //! `Connection: upgrade` and `Upgrade: websocket` in any case, else the
 //! connection closes; then `101 Switching Protocols` with the two headers,
@@ -8,22 +8,24 @@
 //! the loopback; `cert=` is checked after the chain's own check, never in
 //! its place. The control: a GET with no upgrade gets no 101.
 
-use std::net::IpAddr;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use podssh_ws::pt::Reach;
-use podssh_ws::webtunnel::{self, Args};
-use podssh_ws::{ProxyChoice, Trust};
+use pod_egress::pt::Reach;
+use pod_egress::webtunnel::{self, Args};
+use pod_tls::Trust;
 use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _};
 use tokio::net::{TcpListener, TcpStream};
 
 // Shared test support; this file uses part of it.
 #[allow(dead_code)]
 mod cert {
-    include!("common/cert_for_test.rs");
+    include!("../../pod-tls/tests/common/cert_for_test.rs");
 }
+
+#[path = "common/way.rs"]
+mod way;
 
 const LIMIT: Duration = Duration::from_secs(20);
 const SWITCHED: &str = "HTTP/1.1 101 Switching Protocols\r\nConnection: upgrade\r\nUpgrade: websocket\r\n\r\n";
@@ -36,16 +38,11 @@ fn settings(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
 }
 
 fn reach(trust: Trust) -> Reach {
-    Reach { proxy: ProxyChoice::Direct, trust, wait: Duration::from_secs(5) }
-}
-
-fn pins() {
-    let lo: IpAddr = "127.0.0.1".parse().unwrap();
-    podssh_ws::resolve::set_pins(vec![("bridge.wt.test".into(), lo), ("front.wt.test".into(), lo)]);
+    Reach { way: way::loopback(&["bridge.wt.test", "front.wt.test"]), trust, wait: Duration::from_secs(5) }
 }
 
 fn root_file(name: &str, tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("podssh-webtunnel-{}-{tag}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("pod-egress-webtunnel-{}-{tag}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("root.pem");
     let der = cert::encoding::self_signed_inner(&cert::encoding::anchor_name(name), true).der;
@@ -136,6 +133,7 @@ async fn echo(args: &Args, trust: Trust, sent: &[u8]) {
 /// after the 101.
 #[tokio::test]
 async fn bytes_go_both_ways_after_the_upgrade_at_the_secret_path() {
+    pod_testkit::need_loopback!();
     let (port, seen) = stand_in(None, SWITCHED).await;
     let url = format!("http://127.0.0.1:{port}/s3cret-path?x=1");
     let args = Args::parse(&settings(&[("url", url.as_str())])).unwrap();
@@ -152,7 +150,7 @@ async fn bytes_go_both_ways_after_the_upgrade_at_the_secret_path() {
 /// a `cert=` of the chain that the server sent passes after that check.
 #[tokio::test]
 async fn tls_for_the_server_name_and_a_pin_of_its_chain_pass() {
-    pins();
+    pod_testkit::need_loopback!();
     let (port, seen) = stand_in(Some("front.wt.test"), SWITCHED).await;
     let root = root_file("front.wt.test", "pinned");
     let leaf = cert::encoding::self_signed_inner("front.wt.test", false).der;
@@ -170,7 +168,7 @@ async fn tls_for_the_server_name_and_a_pin_of_its_chain_pass() {
 /// A pin of another chain is refused, after TLS passed and before the GET.
 #[tokio::test]
 async fn a_pin_of_another_chain_is_refused_before_the_upgrade() {
-    pins();
+    pod_testkit::need_loopback!();
     let (port, seen) = stand_in(Some("bridge.wt.test"), SWITCHED).await;
     let root = root_file("bridge.wt.test", "other-pin");
     let pin = base64_of(&[7u8; 32]);
@@ -186,7 +184,7 @@ async fn a_pin_of_another_chain_is_refused_before_the_upgrade() {
 /// `cert=` never stands in for the chain's check.
 #[tokio::test]
 async fn a_pin_does_not_take_the_place_of_the_chain_s_check() {
-    pins();
+    pod_testkit::need_loopback!();
     let (port, _) = stand_in(Some("bridge.wt.test"), SWITCHED).await;
     let leaf = cert::encoding::self_signed_inner("bridge.wt.test", false).der;
     let pin = base64_of(&webtunnel::chain_hash(&[leaf]));
@@ -202,6 +200,7 @@ async fn a_pin_does_not_take_the_place_of_the_chain_s_check() {
 /// An answer other than lyrebird's 101 ends the upgrade, and says it.
 #[tokio::test]
 async fn an_answer_that_is_not_101_is_refused() {
+    pod_testkit::need_loopback!();
     let (port, _) = stand_in(None, "HTTP/1.1 200 OK\r\nConnection: upgrade\r\nUpgrade: websocket\r\n\r\n").await;
     let url = format!("http://127.0.0.1:{port}/p");
     let args = Args::parse(&settings(&[("url", url.as_str())])).unwrap();
@@ -215,6 +214,7 @@ async fn an_answer_that_is_not_101_is_refused() {
 /// fail above.
 #[tokio::test]
 async fn the_stand_in_answers_no_get_without_the_upgrade() {
+    pod_testkit::need_loopback!();
     let (port, _) = stand_in(None, SWITCHED).await;
     let mut tcp = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
     tcp.write_all(b"GET /p HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: upgrade\r\n\r\n").await.unwrap();

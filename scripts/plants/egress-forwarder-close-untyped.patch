@@ -1,0 +1,13 @@
+diff --git a/crates/pod-egress/src/forwarder/mod.rs b/crates/pod-egress/src/forwarder/mod.rs
+index 3212dc7..1f785ce 100644
+--- a/crates/pod-egress/src/forwarder/mod.rs
++++ b/crates/pod-egress/src/forwarder/mod.rs
+@@ -151,7 +151,7 @@ impl ForwarderError {
+             ForwarderError::Target(_) => (Stage::Connect, Class::Usage),
+             ForwarderError::Connect(e) => e.stage_and_class(),
+             ForwarderError::Answer(_) => (Stage::WebSocket, Class::Protocol),
+-            ForwarderError::Closed { .. } => (Stage::Origin, Class::Unavailable),
++            ForwarderError::Closed { .. } => (Stage::WebSocket, Class::Protocol),
+         }
+     }
+ }

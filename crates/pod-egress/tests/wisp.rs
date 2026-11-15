@@ -1,4 +1,4 @@
-//! The Wisp client of T-438, against a stand-in written from the protocol's
+//! The Wisp client, against a stand-in written from the protocol's
 //! document (`wisp_support`) and against wisp-server-python, Mercury
 //! Workshop's own server, on the loopback where it is installed. Two
 //! streams at once on one WebSocket each carry their bytes; the client
@@ -8,20 +8,21 @@
 //! opens with both INFOs, and a server that requires a credential is
 //! refused; the forwarder's road `wisp+ws://` carries a session with no
 //! token. Wisp has no half-close: a pipe's end of input sends no CLOSE, and
-//! 1 MiB still on its way comes whole once the server's CLOSE ends it
-//! (T-699).
+//! 1 MiB still on its way comes whole once the server's CLOSE ends it.
 
 #[path = "common/talker.rs"]
 mod talker;
+#[path = "common/way.rs"]
+mod way;
 mod wisp_support;
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use podssh_ws::forwarder::{self, Dial, Ended, Template};
-use podssh_ws::url::WsUrl;
-use podssh_ws::wisp::{AtEnd, Connect, End, Reason, Wisp, WispError, WispStream};
-use podssh_ws::{ProxyChoice, Trust};
+use pod_egress::forwarder::{self, Dial, Ended, Template};
+use pod_egress::wisp::{AtEnd, Connect, End, Reason, Wisp, WispError, WispStream};
+use pod_tls::Trust;
+use pod_ws::url::WsUrl;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use wisp_support::{Speaks, StandIn, closed_port, echo, greeter, reference};
@@ -29,15 +30,16 @@ use wisp_support::{Speaks, StandIn, closed_port, echo, greeter, reference};
 const LIMIT: Duration = Duration::from_secs(30);
 const MIB: usize = 1 << 20;
 
-static TRUST: Trust = Trust::Default;
-static PROXY: ProxyChoice = ProxyChoice::Direct;
-
 type Notes = Arc<Mutex<Vec<String>>>;
 
-fn how(notes: &Notes) -> Connect<'static> {
+/// Where the notes of a test go: each event's text, kept.
+fn noting(notes: &Notes) -> pod_egress::Note {
     let kept = notes.clone();
-    let note = Arc::new(move |text: &str| kept.lock().unwrap().push(text.to_string()));
-    Connect { trust: &TRUST, proxy: &PROXY, timeout: LIMIT, note }
+    Arc::new(move |event: pod_core::Event| kept.lock().unwrap().push(event.text))
+}
+
+fn how(notes: &Notes) -> Connect {
+    Connect { way: way::direct(), trust: Trust::Default, timeout: LIMIT, note: noting(notes) }
 }
 
 async fn connect(port: u16, notes: &Notes) -> Result<Wisp, WispError> {
@@ -75,6 +77,7 @@ async fn until(what: &str, ready: impl Fn() -> bool) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn two_streams_at_once_on_one_websocket_each_carry_their_bytes() {
+    pod_testkit::need_loopback!();
     // A credit of 4 packets: each MiB needs the server's CONTINUE often.
     let stand = StandIn::start(Speaks::V1, 4).await;
     let notes = Notes::default();
@@ -100,6 +103,7 @@ async fn two_streams_at_once_on_one_websocket_each_carry_their_bytes() {
 /// Planted: the credit ignored, and this test fails.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_client_sends_no_data_past_the_server_s_credit() {
+    pod_testkit::need_loopback!();
     let stand = StandIn::start(Speaks::V1, 4).await;
     let notes = Notes::default();
     let wisp = connect(stand.port, &notes).await.unwrap();
@@ -125,6 +129,7 @@ async fn the_client_sends_no_data_past_the_server_s_credit() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_stream_that_the_server_closes_gives_its_reason() {
+    pod_testkit::need_loopback!();
     let stand = StandIn::start(Speaks::V1, 16).await;
     let notes = Notes::default();
     let wisp = connect(stand.port, &notes).await.unwrap();
@@ -148,6 +153,7 @@ async fn a_stream_that_the_server_closes_gives_its_reason() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn version_2_opens_with_both_infos_and_confirms_each_stream() {
+    pod_testkit::need_loopback!();
     let extensions = vec![(0x01, Vec::new()), (0x04, b"demo and testing only\r\n".to_vec()), (0x05, Vec::new())];
     let stand = StandIn::start(Speaks::V2 { extensions, refuse: None }, 16).await;
     let notes = Notes::default();
@@ -169,6 +175,7 @@ async fn version_2_opens_with_both_infos_and_confirms_each_stream() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn version_2_refusals_say_why() {
+    pod_testkit::need_loopback!();
     // A server that requires a password: this side's CLOSE 0x04 on stream 0.
     let password = StandIn::start(Speaks::V2 { extensions: vec![(0x02, vec![1])], refuse: None }, 16).await;
     let notes = Notes::default();
@@ -182,16 +189,15 @@ async fn version_2_refusals_say_why() {
     assert_eq!(e, WispError::Refused(Reason::THROTTLED));
 }
 
-fn dial(notes: &Notes, at_end: AtEnd) -> Dial<'static> {
-    let kept = notes.clone();
-    let note = Arc::new(move |text: &str| kept.lock().unwrap().push(text.to_string()));
-    Dial { trust: &TRUST, proxy: &PROXY, timeout: LIMIT, at_end, note }
+fn dial(notes: &Notes, at_end: AtEnd) -> Dial {
+    Dial { way: way::direct(), trust: Trust::Default, timeout: LIMIT, at_end, note: noting(notes) }
 }
 
 /// The forwarder's road: a session of 1 MiB each way, no token, and this
 /// side's CLOSE at its end, which is an ordinary one.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_forwarder_s_road_carries_a_session_and_closes_its_stream_at_the_end() {
+    pod_testkit::need_loopback!();
     let stand = StandIn::start(Speaks::V1, 8).await;
     let notes = Notes::default();
     let template = Template::parse(&format!("wisp+ws://127.0.0.1:{}/", stand.port)).unwrap();
@@ -218,13 +224,14 @@ async fn the_forwarder_s_road_carries_a_session_and_closes_its_stream_at_the_end
     assert!(seen.headers[0].iter().all(|h| h != "x-relay-token" && h != "authorization"), "{:?}", seen.headers);
 }
 
-/// A pipe's end of input on the forwarder's road (T-699): this side's input
+/// A pipe's end of input on the forwarder's road: this side's input
 /// ends at once, while the target's 1 MiB is still on its way. Wisp has no
 /// half-close: a stream that this side closed takes no more DATA. So the
 /// pipe sends no CLOSE, the server's CLOSE ends the stream, and each byte
 /// comes. Planted, a CLOSE at the first end, the rest is lost.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_pipe_s_end_of_input_sends_no_close_and_loses_no_byte() {
+    pod_testkit::need_loopback!();
     let stand = StandIn::start(Speaks::V1, 8).await;
     let notes = Notes::default();
     let template = Template::parse(&format!("wisp+ws://127.0.0.1:{}/", stand.port)).unwrap();
@@ -242,6 +249,7 @@ async fn a_pipe_s_end_of_input_sends_no_close_and_loses_no_byte() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn reference_two_streams_at_once_each_carry_their_bytes() {
+    pod_testkit::need_loopback!();
     let Some(server) = reference::start() else { return };
     let notes = Notes::default();
     let wisp = connect(server.port, &notes).await.unwrap();
@@ -259,6 +267,7 @@ async fn reference_two_streams_at_once_each_carry_their_bytes() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn reference_a_stream_that_the_server_closes_gives_its_reason() {
+    pod_testkit::need_loopback!();
     let Some(server) = reference::start() else { return };
     let notes = Notes::default();
     let wisp = connect(server.port, &notes).await.unwrap();
@@ -275,4 +284,34 @@ async fn reference_a_stream_that_the_server_closes_gives_its_reason() {
     let template = Template::parse(&format!("wisp+ws://127.0.0.1:{}/", server.port)).unwrap();
     let e = forwarder::open(&template, "127.0.0.1", closed_port(), &dial(&notes, AtEnd::Now)).await.unwrap_err();
     assert!(e.line(template.shown()).contains("closed the stream: 0x42"), "{}", e.line(template.shown()));
+}
+
+/// A Wisp road is a dialer: a dial of a target is a stream to it, open once
+/// the server confirms it; a CLOSE of a stream that the server blocks is a
+/// failure of the origin's stage, of the class policy, with its reason.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_wisp_road_is_a_dialer_and_a_blocked_target_is_a_typed_failure() {
+    pod_testkit::need_loopback!();
+    let extensions = vec![(0x05, Vec::new())];
+    let stand = StandIn::start(Speaks::V2 { extensions, refuse: None }, 16).await;
+    let notes = Notes::default();
+    let wisp = connect(stand.port, &notes).await.unwrap();
+    assert!(wisp.confirms());
+    let road = pod_egress::wisp::Road { wisp, at_end: AtEnd::Now, shown: format!("ws://127.0.0.1:{}/", stand.port) };
+    let dialer: &dyn pod_core::Dial = &road;
+    assert!(dialer.names_inside());
+    let deadline = tokio::time::Instant::now() + LIMIT;
+    let aim = pod_core::Target::new("127.0.0.1", echo().await);
+    let mut io = dialer.dial(&aim, deadline).await.unwrap_or_else(|e| panic!("{e}")).io;
+    let mut back = [0u8; 9];
+    let both = async {
+        io.write_all(b"a dialer!").await.unwrap();
+        io.read_exact(&mut back).await.unwrap();
+    };
+    tokio::time::timeout(LIMIT, both).await.expect("the bytes within the limit");
+    assert_eq!(&back, b"a dialer!");
+    let blocked = pod_core::Target::new("close-48.test", 22);
+    let failure = dialer.dial(&blocked, deadline).await.err().expect("a CLOSE");
+    assert_eq!((failure.stage, failure.class), (pod_core::Stage::Origin, pod_core::Class::Policy), "{failure}");
+    assert!(failure.text().contains("closed the stream: 0x48"), "{failure}");
 }

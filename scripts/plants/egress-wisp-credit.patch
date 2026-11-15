@@ -1,0 +1,26 @@
+diff --git a/crates/pod-egress/src/wisp/mux.rs b/crates/pod-egress/src/wisp/mux.rs
+index 86ae06e..df2b21a 100644
+--- a/crates/pod-egress/src/wisp/mux.rs
++++ b/crates/pod-egress/src/wisp/mux.rs
+@@ -264,20 +264,11 @@ async fn up(
+         if credit.has_changed().unwrap_or(false) {
+             left = *credit.borrow_and_update();
+         }
+-        while left == 0 {
+-            tokio::select! {
+-                changed = credit.changed() => match changed {
+-                    Ok(()) => left = *credit.borrow_and_update(),
+-                    Err(_) => return,
+-                },
+-                () = ended(&mut word) => return,
+-            }
+-        }
+         if let Err(e) = shared.session.send_binary(&packet::data(id, &buf[..n])).await {
+             shared.end_all(End::Failed(format!("sending to the Wisp server failed: {e}")));
+             return;
+         }
+-        left -= 1;
++        left = left.saturating_sub(1);
+     }
+ }
+ 

@@ -1,12 +1,13 @@
-//! A second proxy over TLS (T-439) against stand-ins on the loopback: one
+//! A second proxy over TLS against stand-ins on the loopback: one
 //! that speaks HTTP/1.1's CONNECT after TLS, as squid's `https_port` does,
-//! and one whose HTTP/2 is h2's own server, which podssh did not write, as
+//! and one whose HTTP/2 is h2's own server, which this crate did not write, as
 //! Caddy's forwardproxy answers a CONNECT over HTTP/2. Each asks for Basic
 //! and answers `407` with `Proxy-Authenticate` without it, then carries the
 //! target: an SSH-like server that sends its version line and echoes. The
 //! TLS is checked for the proxy's name with the test's root; the host's own
 //! proxy, a plain CONNECT stand-in, carries the TCP first where one is set.
-//! The tests against Caddy and squid themselves are `scripts/interop-via.sh`.
+//! The tests against Caddy and squid themselves are podssh's
+//! `scripts/interop-via.sh`, which drive its binary.
 
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
@@ -15,16 +16,20 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use bytes::Bytes;
-use podssh_ws::via::{Client, Dial, Offer, Version, Via};
-use podssh_ws::{DialError, Proxy, ProxyChoice, Trust};
+use pod_egress::via::{Client, Dial, Offer, Version, Via};
+use pod_proxy::{DialError, Proxy, ProxyChoice};
+use pod_tls::Trust;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
 // Shared test support; this file uses part of it.
 #[allow(dead_code)]
 mod cert {
-    include!("common/cert_for_test.rs");
+    include!("../../pod-tls/tests/common/cert_for_test.rs");
 }
+
+#[path = "common/way.rs"]
+mod way;
 
 const NAME: &str = "proxy.via.test";
 const LIMIT: Duration = Duration::from_secs(20);
@@ -59,13 +64,22 @@ struct Seen {
     connects: Mutex<Vec<(&'static str, String, Option<String>)>>,
 }
 
-fn pins() {
+/// The way out through `proxy`, with the names of the stand-ins at the
+/// loopback.
+fn pinned(proxy: ProxyChoice) -> pod_ws::Way {
     let lo: IpAddr = "127.0.0.1".parse().unwrap();
-    podssh_ws::resolve::set_pins(vec![(NAME.into(), lo), ("other.via.test".into(), lo)]);
+    way::through(proxy, &[(NAME, lo), ("other.via.test", lo)])
+}
+
+/// How the client reaches the second proxy through `proxy`, with podssh's
+/// place of the credentials file.
+fn dial(root: &Path, offer: Offer, proxy: ProxyChoice) -> Dial {
+    let trust = Trust::File(root.to_path_buf());
+    Dial { way: pinned(proxy), trust, timeout: LIMIT, offer, auth_file: "--via-auth-file FILE".into() }
 }
 
 fn root_file(tag: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("podssh-via-{}-{tag}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("pod-egress-via-{}-{tag}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("root.pem");
     let der = cert::encoding::self_signed_inner(&cert::encoding::anchor_name(NAME), true).der;
@@ -281,11 +295,11 @@ async fn host_proxy() -> (u16, Arc<Mutex<Vec<String>>>) {
 fn client(port: u16, root: &Path, offer: Offer, credentials: bool, proxy: ProxyChoice) -> Client {
     let via = Via::parse(&format!("https://{NAME}:{port}")).unwrap();
     let via = if credentials { via.with_credentials(&format!("{USER}:{}\n", password())).unwrap() } else { via };
-    Client::new(via, Dial { trust: Trust::File(root.to_path_buf()), proxy, timeout: LIMIT, offer })
+    Client::new(via, dial(root, offer, proxy))
 }
 
 /// A tunnel's version line, then `sent` echoed back.
-async fn carries(opened: &mut podssh_ws::via::Opened, sent: &[u8]) {
+async fn carries(opened: &mut pod_egress::via::Opened, sent: &[u8]) {
     let mut banner = vec![0u8; BANNER.len()];
     let mut back = vec![0u8; sent.len()];
     let both = async {
@@ -298,7 +312,7 @@ async fn carries(opened: &mut podssh_ws::via::Opened, sent: &[u8]) {
     assert!(back == sent, "the bytes came back changed");
 }
 
-async fn open(client: &Client, port: u16) -> Result<podssh_ws::via::Opened, DialError> {
+async fn open(client: &Client, port: u16) -> Result<pod_egress::via::Opened, DialError> {
     tokio::time::timeout(LIMIT * 2, client.open("127.0.0.1", port)).await.expect("an answer within the limit")
 }
 
@@ -307,7 +321,7 @@ async fn open(client: &Client, port: u16) -> Result<podssh_ws::via::Opened, Dial
 /// words: what the proxy asks for, and that podssh sent none.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_credential_goes_with_each_connect_and_a_407_says_what_is_missing() {
-    pins();
+    pod_testkit::need_loopback!();
     let (root, aim) = (root_file("credential"), target().await);
     for (alpn, version) in [(H1, Version::Http1), (H2, Version::Http2)] {
         let (port, seen) = proxy(alpn, Mode::Carry).await;
@@ -331,7 +345,7 @@ async fn the_credential_goes_with_each_connect_and_a_407_says_what_is_missing() 
 /// each with its own bytes.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn two_tunnels_share_one_http2_connection() {
-    pins();
+    pod_testkit::need_loopback!();
     let (root, aim) = (root_file("shared"), target().await);
     let (port, seen) = proxy(BOTH, Mode::Carry).await;
     let client = client(port, &root, Offer::Both, true, ProxyChoice::Direct);
@@ -351,7 +365,7 @@ async fn two_tunnels_share_one_http2_connection() {
 /// and the CONNECT go inside, and the host's proxy sees neither.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_host_s_proxy_carries_the_tls_to_the_second_proxy() {
-    pins();
+    pod_testkit::need_loopback!();
     let (root, aim) = (root_file("hop"), target().await);
     let (port, seen) = proxy(BOTH, Mode::Carry).await;
     let (hop, asked) = host_proxy().await;
@@ -368,7 +382,7 @@ async fn the_host_s_proxy_carries_the_tls_to_the_second_proxy() {
 /// of its own, and says why; with HTTP/2 alone asked, it is refused.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_connect_that_http2_resets_goes_over_http1() {
-    pins();
+    pod_testkit::need_loopback!();
     let (root, aim) = (root_file("reset"), target().await);
     let (port, seen) = proxy(BOTH, Mode::ResetHttp2).await;
     let mut opened = open(&client(port, &root, Offer::Both, true, ProxyChoice::Direct), aim).await.unwrap();
@@ -388,7 +402,7 @@ async fn a_connect_that_http2_resets_goes_over_http1() {
 /// another name each fail with what failed.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_refusal_an_unreachable_target_and_another_name_fail_with_their_words() {
-    pins();
+    pod_testkit::need_loopback!();
     let (root, aim) = (root_file("refusals"), target().await);
     for alpn in [H1, H2] {
         let (port, _) = proxy(alpn, Mode::Forbid).await;
@@ -401,9 +415,39 @@ async fn a_refusal_an_unreachable_target_and_another_name_fail_with_their_words(
     }
     let (port, _) = proxy(H2, Mode::Carry).await;
     let via = Via::parse(&format!("https://other.via.test:{port}")).unwrap();
-    let trust = Trust::File(root.clone());
-    let dial = Dial { trust, proxy: ProxyChoice::Direct, timeout: LIMIT, offer: Offer::Both };
-    let e = Client::new(via, dial).open("127.0.0.1", aim).await.err().unwrap();
+    let e = Client::new(via, dial(&root, Offer::Both, ProxyChoice::Direct)).open("127.0.0.1", aim).await.err().unwrap();
     assert!(matches!(&e, DialError::ProxyUnreachable { detail, .. } if detail.starts_with("TLS")), "{e}");
+    let _ = std::fs::remove_dir_all(root.parent().unwrap());
+}
+
+/// The client is a dialer: a dial of a target is a tunnel to it, which the
+/// far end names; a refusal is a failure of the proxy's stage, of the class
+/// refused, in the proxy's words.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn the_client_is_a_dialer_and_a_refusal_is_a_typed_failure() {
+    pod_testkit::need_loopback!();
+    let (root, aim) = (root_file("dialer"), target().await);
+    let (port, _) = proxy(BOTH, Mode::Carry).await;
+    let carrying = client(port, &root, Offer::Both, true, ProxyChoice::Direct);
+    let dialer: &dyn pod_core::Dial = &carrying;
+    let target = pod_core::Target::new("127.0.0.1", aim);
+    assert!(dialer.names_inside());
+    assert_eq!(dialer.proxy_label(&target), Some(format!("https://{NAME}:{port}")));
+    let deadline = tokio::time::Instant::now() + LIMIT;
+    let mut io = dialer.dial(&target, deadline).await.unwrap_or_else(|e| panic!("{e}")).io;
+    let mut banner = vec![0u8; BANNER.len()];
+    let mut back = [0u8; 9];
+    let both = async {
+        io.read_exact(&mut banner).await.unwrap();
+        io.write_all(b"a dialer!").await.unwrap();
+        io.read_exact(&mut back).await.unwrap();
+    };
+    tokio::time::timeout(LIMIT, both).await.expect("the bytes within the limit");
+    assert_eq!((banner.as_slice(), &back), (BANNER, b"a dialer!"));
+    let (forbids, _) = proxy(H1, Mode::Forbid).await;
+    let refusing = client(forbids, &root, Offer::Both, true, ProxyChoice::Direct);
+    let failure = (&refusing as &dyn pod_core::Dial).dial(&target, deadline).await.err().expect("a refusal");
+    assert_eq!((failure.stage, failure.class), (pod_core::Stage::Proxy, pod_core::Class::Refused), "{failure}");
+    assert!(failure.text().contains(&format!("refused CONNECT 127.0.0.1:{aim}: 403")), "{failure}");
     let _ = std::fs::remove_dir_all(root.parent().unwrap());
 }
