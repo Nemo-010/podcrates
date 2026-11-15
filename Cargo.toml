@@ -24,6 +24,7 @@ crates-io = false
 [workspace.dependencies]
 # No default feature here: a crate that needs the async parts of pod-core
 # (its feature `async`) names it, so that pod-tls builds with no tokio.
+pod-acme = { path = "crates/pod-acme", version = "0.48.0" }
 pod-actions-expr = { path = "crates/pod-actions-expr", version = "0.48.0" }
 pod-actions-results = { path = "crates/pod-actions-results", version = "0.48.0" }
 pod-actions-store = { path = "crates/pod-actions-store", version = "0.48.0" }

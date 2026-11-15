@@ -1,18 +1,17 @@
-//! ACME's requests (RFC 8555, sections 6 and 7): each one a connection of
-//! its own through HTTPS_PROXY, with the TLS of podssh-ws, as `podssh update`
-//! fetches a file; a JWS POST with the nonce of the last answer, sent again
-//! with a new one when the CA says `badNonce`, as RFC 8555, section 6.5, asks;
+//! ACME's requests (RFC 8555, sections 6 and 7): each one through the
+//! caller's HTTPS client of `pod-proxy` (its way out, its TLS context, its
+//! user agent); a JWS POST with the nonce of the last answer, sent again with
+//! a new one when the CA says `badNonce`, as RFC 8555, section 6.5, asks;
 //! and a problem document said in one line.
 
 use std::time::Duration;
 
-use podssh_ws::client::open_tls;
-use podssh_ws::http::{self, Response};
-use podssh_ws::{ProxyChoice, Trust};
+use pod_proxy::client::Request;
+use pod_proxy::http::Response;
+use pod_tls::Trust;
 use serde_json::{Value, json};
 
-use super::jws::Account;
-use crate::update::fetch::Url;
+use crate::jws::Account;
 
 /// The type of each JWS POST (RFC 8555, section 6.2).
 const JOSE: &str = "application/jose+json";
@@ -31,34 +30,30 @@ pub type Answer = Result<Response, String>;
 /// How the CA is reached.
 #[derive(Debug, Clone)]
 pub struct Http {
+    /// The caller's HTTPS client: the way out, the TLS context, the user
+    /// agent.
+    pub client: pod_proxy::Client,
+    /// The roots that the CA's certificate is checked against.
     pub trust: Trust,
-    pub proxy: ProxyChoice,
-    /// The limit of the connection and of each answer.
+    /// The limit of each request, its answer included.
     pub timeout: Duration,
 }
 
 impl Http {
-    /// One request to `url`, on a connection of its own.
-    pub async fn send(&self, method: &str, url: &str, jose: bool, accept: &str, body: &[u8]) -> Answer {
-        let u = Url::parse(url).map_err(|why| format!("{url}: {why}"))?;
-        let shown = u.shown();
-        let mut tls = open_tls(&u.host, u.port, &u.host, &self.trust, &self.proxy, self.timeout)
-            .await
-            .map_err(|e| format!("{shown}: {e}"))?;
-        let host = match u.port {
-            443 => u.host.clone(),
-            port => podssh_ws::dial::authority(&u.host, port),
-        };
-        let mut headers = vec![("Accept", accept)];
+    /// One request to `url`, with no redirect.
+    pub async fn send(&self, method: &'static str, url: &str, jose: bool, accept: &str, body: &[u8]) -> Answer {
+        let mut request = Request::new(method, url)
+            .header("Accept", accept)
+            .timeout(self.timeout)
+            .trust(self.trust.clone())
+            .max_body(MAX_ANSWER);
         if jose {
-            headers.push(("Content-Type", JOSE));
+            request = request.header("Content-Type", JOSE);
         }
-        let exchange = http::exchange(&mut tls, method, &host, &u.path, &headers, body, MAX_ANSWER);
-        match tokio::time::timeout(self.timeout, exchange).await {
-            Ok(Ok(response)) => Ok(response),
-            Ok(Err(e)) => Err(format!("{shown}: {e}")),
-            Err(_) => Err(format!("{shown}: no answer within {} s", self.timeout.as_secs())),
+        if method != "GET" {
+            request = request.body(body.to_vec());
         }
+        self.client.send(request).await.map_err(|e| e.to_string())
     }
 }
 
@@ -77,7 +72,7 @@ impl Directory {
         let v: Value = serde_json::from_slice(body).map_err(|e| format!("the directory is not JSON: {e}"))?;
         let url = |key: &str| v[key].as_str().map(str::to_string).ok_or_else(|| format!("the directory has no {key}"));
         if v["meta"]["externalAccountRequired"].as_bool() == Some(true) {
-            return Err("the CA asks for an external account binding, which podssh does not give".into());
+            return Err("the CA asks for an external account binding, which this client does not give".into());
         }
         let terms = v["meta"]["termsOfService"].as_str().map(str::to_string);
         let (new_nonce, new_account, new_order) = (url("newNonce")?, url("newAccount")?, url("newOrder")?);
@@ -188,7 +183,7 @@ pub fn problem(answer: &Response) -> String {
     if text.is_empty() {
         text = format!("HTTP {} {}", answer.status, answer.reason);
     }
-    cut(podssh_ws::text::one_line(&text), 400)
+    cut(pod_core::text::one_line(&text), 400)
 }
 
 /// The type and detail of a problem, and of up to three subproblems.
@@ -225,7 +220,7 @@ fn seconds_of(value: &str, now_secs: i64) -> Option<u64> {
     if let Ok(secs) = value.parse::<u64>() {
         return Some(secs);
     }
-    let at = podssh_ws::clock::parse_http_date(value)?;
+    let at = pod_core::clock::parse_http_date(value)?;
     Some(u64::try_from(at.saturating_sub(now_secs)).unwrap_or(0))
 }
 

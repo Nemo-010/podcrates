@@ -1,8 +1,9 @@
 //! The CSR and the challenge's certificate, read by x509-parser and checked
 //! with p256, neither of them the code that wrote them.
 
-use super::*;
 use p256::ecdsa::signature::Verifier as _;
+
+use super::*;
 
 const NAME: &str = "relay.podssh.test";
 /// 2026-11-02T12:00:00Z.
@@ -14,7 +15,7 @@ const NOW: i64 = 1_793_620_800;
 pub(crate) fn plain(name: &str) -> (String, Zeroizing<String>) {
     let key = Key::generate().unwrap();
     let mut params = rcgen::CertificateParams::new(vec![name.to_string()]).unwrap();
-    params.serial_number = Some(rcgen::SerialNumber::from_slice(&rand::random::<[u8; 16]>()));
+    params.serial_number = Some(serial().unwrap());
     let cert = params.self_signed(&key).unwrap();
     (pem("CERTIFICATE", cert.der()), key.pem())
 }
@@ -46,7 +47,7 @@ fn a_csr_names_its_name_alone_and_its_key_signs_it() {
     assert!(verifies(public, info.raw, &request.signature_value.data), "the CSR's signature");
 }
 
-/// The CSR of an OpenTunnel tunnel (T-531): its name as the common name,
+/// The CSR of an OpenTunnel tunnel: its name as the common name,
 /// and the name and its wildcard alone, as the service checks before each
 /// order.
 #[test]
@@ -95,7 +96,7 @@ fn the_challenge_certificate_holds_one_name_and_the_digest_of_the_key_authorizat
     // Self-signed: its own key verifies its signature.
     let public = &cert.public_key().subject_public_key.data;
     assert!(verifies(public, cert.tbs_certificate.as_ref(), &cert.signature_value.data));
-    // podssh's server takes the pair, and the facts of its leaf.
+    // pod-tls's server takes the pair, and the facts of its leaf.
     let (_, facts) = load(cert_pem.as_bytes(), key_pem.as_bytes()).expect("the server loads the pair");
     assert_eq!(facts.names, vec![NAME.to_string()]);
     assert!(facts.not_before <= NOW && facts.not_after > NOW + 6 * 86_400, "{facts:?}");

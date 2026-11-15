@@ -1,6 +1,6 @@
-//! Where ACME's state is kept (T-447), so that a restart asks the CA for
-//! nothing: in the cache, under `acme/HOST-DIGEST/` for each directory URL
-//! (mode 0700), `account.key`, the account's key, made once and never
+//! Where ACME's state is kept, so that a restart asks the CA for nothing:
+//! in a cache directory of the caller's, under `acme/HOST-DIGEST/` for each
+//! directory URL (mode 0700), `account.key`, the account's key, made once and never
 //! replaced; and `NAME.pem`, the certificate's key and its chain in one file
 //! of mode 0600, replaced whole by a rename at each renewal, so that no
 //! reader ever takes the key of one certificate with the chain of another.
@@ -8,15 +8,13 @@
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
-use podssh_relay::cache::{self, Chosen, Others};
+use pod_core::files::{self as cache, Others};
 use sha2::Digest as _;
 use zeroize::Zeroizing;
 
-use super::certs::{self, Key};
-use super::jws::Account;
-use crate::exitmap::sysexits::EX_CANTCREAT;
-use crate::relay_settings::Refusal;
-use crate::update::fetch::Url;
+use crate::certs::{self, Key};
+use crate::jws::Account;
+use crate::url::Url;
 
 /// The directory under the cache.
 pub const DIR: &str = "acme";
@@ -40,19 +38,13 @@ pub fn tag(directory: &str) -> String {
 }
 
 impl Store {
-    /// The state of `name` at the CA of `directory`: in the cache's
-    /// directory that holds this CA's account already, else in the first
-    /// one that can be made private.
-    pub fn open(directory: &str, name: &str) -> Result<Store, Refusal> {
-        if cache::chosen() == Chosen::Nothing {
-            return Err(Refusal::config(format!(
-                "{}=none: --acme keeps its account and certificate in the cache, so that a restart asks the CA \
-                 for nothing; name a directory, or leave it unset",
-                cache::DIR_ENV
-            )));
-        }
+    /// The state of `name` at the CA of `directory`, under the caller's
+    /// cache directories `places`, in their order: in the one that holds
+    /// this CA's account already, else in the first one that can be made
+    /// private. With no place, none.
+    pub fn open(directory: &str, name: &str, places: &[PathBuf]) -> Result<Store, String> {
         let ca = tag(directory);
-        let dirs: Vec<PathBuf> = cache::candidate_dirs().into_iter().map(|d| d.join(DIR).join(&ca)).collect();
+        let dirs: Vec<PathBuf> = places.iter().map(|d| d.join(DIR).join(&ca)).collect();
         let held = dirs.iter().find(|d| d.join(ACCOUNT).is_file());
         let mut tried = Vec::new();
         for dir in held.into_iter().chain(dirs.iter()) {
@@ -61,8 +53,7 @@ impl Store {
                 Err(e) => tried.push(format!("{}: {e}", dir.display())),
             }
         }
-        let message = format!("no private directory for ACME's state: {}", tried.join("; "));
-        Err(Refusal { message, code: EX_CANTCREAT })
+        Err(format!("no private directory for ACME's state: {}", tried.join("; ")))
     }
 
     /// The file of the certificate's key and its chain.
@@ -145,7 +136,8 @@ mod tests {
     }
 
     fn scratch(tag: &str) -> Scratch {
-        let name = format!("podssh-acme-{tag}-{}-{:08x}", std::process::id(), rand::random::<u32>());
+        let at = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_nanos();
+        let name = format!("pod-acme-{tag}-{}-{at:x}", std::process::id());
         let dir = std::env::temp_dir().join(name);
         cache::private_dir(&dir).unwrap();
         Scratch(dir)

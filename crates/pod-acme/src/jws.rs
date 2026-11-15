@@ -1,19 +1,18 @@
 //! The account's key and its signatures (RFC 8555, section 6.2; RFC 7515):
-//! ES256 with a P-256 key of aws-lc-rs, the JWK of its public half, and its
-//! thumbprint (RFC 7638), which each key authorization ends with.
+//! ES256 with a P-256 key of [`crate::key`], the JWK of its public half, and its thumbprint (RFC 7638), which each key
+//! authorization ends with.
 
-use aws_lc_rs::rand::SystemRandom;
-use aws_lc_rs::signature::{ECDSA_P256_SHA256_FIXED_SIGNING, EcdsaKeyPair, KeyPair};
 use base64::Engine as _;
 use serde_json::{Value, json};
 use sha2::Digest as _;
 use zeroize::Zeroizing;
 
+use crate::key::Key;
+
 /// The account's key: a P-256 key that signs each request to the CA.
 pub struct Account {
-    pkcs8: Zeroizing<Vec<u8>>,
     /// Signs in the fixed form of JWS, r and s of 32 bytes each.
-    pair: EcdsaKeyPair,
+    key: Key,
     x: String,
     y: String,
 }
@@ -26,26 +25,25 @@ pub fn b64url(bytes: &[u8]) -> String {
 impl Account {
     /// A new key, from the system's source of randomness.
     pub fn generate() -> Result<Account, String> {
-        let document = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, &SystemRandom::new())
-            .map_err(|_| "no P-256 key could be made for the account".to_string())?;
-        Account::from_pkcs8(document.as_ref())
+        let key = Key::generate().map_err(|why| format!("the account's key: {why}"))?;
+        Ok(Account::of(key))
     }
 
     pub fn from_pkcs8(der: &[u8]) -> Result<Account, String> {
-        let pair = EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_FIXED_SIGNING, der)
-            .map_err(|e| format!("the account's key is not a P-256 key in PKCS #8: {e}"))?;
+        let key = Key::from_pkcs8(der).map_err(|why| format!("the account's key is {why}"))?;
+        Ok(Account::of(key))
+    }
+
+    fn of(key: Key) -> Account {
         // The uncompressed point: 0x04, then x and y of 32 bytes each.
-        let point = pair.public_key().as_ref().to_vec();
-        if point.len() != 65 || point[0] != 0x04 {
-            return Err("the account's public key is not an uncompressed P-256 point".into());
-        }
+        let point = key.public();
         let (x, y) = (b64url(&point[1..33]), b64url(&point[33..]));
-        Ok(Account { pkcs8: Zeroizing::new(der.to_vec()), pair, x, y })
+        Account { key, x, y }
     }
 
     /// The key as PEM, as `account.key` keeps it.
     pub fn pem(&self) -> Zeroizing<String> {
-        Zeroizing::new(super::certs::pem("PRIVATE KEY", &self.pkcs8))
+        self.key.pem()
     }
 
     /// The JWK of the public key.
@@ -76,11 +74,8 @@ impl Account {
         let protected = b64url(protected.to_string().as_bytes());
         let payload = payload.map(|p| b64url(p.to_string().as_bytes())).unwrap_or_default();
         let signed = format!("{protected}.{payload}");
-        let signature = self
-            .pair
-            .sign(&SystemRandom::new(), signed.as_bytes())
-            .map_err(|_| "the account's key could not sign".to_string())?;
-        Ok(json!({"protected": protected, "payload": payload, "signature": b64url(signature.as_ref())}).to_string())
+        let signature = self.key.sign_fixed(signed.as_bytes());
+        Ok(json!({"protected": protected, "payload": payload, "signature": b64url(&signature)}).to_string())
     }
 }
 
@@ -93,8 +88,9 @@ pub fn thumbprint(x: &str, y: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use p256::ecdsa::signature::Verifier as _;
+
+    use super::*;
 
     fn b64url_decode(text: &str) -> Vec<u8> {
         base64::engine::general_purpose::URL_SAFE_NO_PAD.decode(text).expect("base64url")
@@ -152,7 +148,7 @@ mod tests {
     #[test]
     fn a_key_authorization_is_the_token_and_the_thumbprint_of_the_key() {
         let account = Account::generate().unwrap();
-        let again = Account::from_pkcs8(&account.pkcs8).unwrap();
+        let again = Account::from_pkcs8(account.key.pkcs8()).unwrap();
         assert_eq!(account.thumbprint(), again.thumbprint(), "the kept key is the same account");
         let jwk = account.jwk();
         let want = thumbprint(jwk["x"].as_str().unwrap(), jwk["y"].as_str().unwrap());

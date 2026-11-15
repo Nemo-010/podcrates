@@ -6,11 +6,11 @@
 use std::time::{Duration, Instant};
 
 use base64::Engine as _;
-use podssh_ws::tls_server::Served;
+use pod_tls::server::Served;
 use serde_json::{Value, json};
 
-use super::certs::{self, Key, Leaf};
-use super::client::{self, Client, PEM_CHAIN};
+use crate::certs::{self, Key, Leaf};
+use crate::client::{self, Client, PEM_CHAIN};
 
 /// How long one authorization, or one stage of the order, may wait for the CA.
 const STAGE: Duration = Duration::from_secs(180);
@@ -39,7 +39,7 @@ pub async fn order(client: &mut Client, name: &str, served: &Served) -> Result<I
     }
     let ready = poll(client, &order_url, "the order", &["ready", "valid"]).await?;
     if ready["status"] != "ready" {
-        return Err("the CA gave an order that was finalized before, whose key podssh does not hold".into());
+        return Err("the CA gave an order that was finalized before, whose key this client does not hold".into());
     }
     let finalize = ready["finalize"].as_str().ok_or("the order has no finalize URL")?.to_string();
     let key = Key::generate()?;
@@ -79,7 +79,8 @@ async fn authorize(client: &mut Client, url: &str, name: &str, served: &Served) 
     };
     let authorization = client.key().key_authorization(token);
     let (cert, key) = certs::challenge(name, &authorization, now_secs())?;
-    served.set_challenge(name, podssh_ws::tls_server::certified(cert.as_bytes(), key.as_bytes())?);
+    let pair = pod_tls::server::certified(cert.as_bytes(), key.as_bytes()).map_err(|e| e.to_string())?;
+    served.set_challenge(name, pair);
     // The challenge's certificate goes when this does, on each path out.
     let _served = Answering { served, name };
     let answer = client.post(at, Some(&json!({})), "application/json").await?;
@@ -127,7 +128,7 @@ pub fn reason(v: &Value) -> String {
         .filter(|e| e.is_object())
         .or_else(|| v["challenges"].as_array()?.iter().map(|c| &c["error"]).find(|e| e.is_object()));
     match error.map(client::describe) {
-        Some(text) if !text.is_empty() => podssh_ws::text::one_line(&text),
+        Some(text) if !text.is_empty() => pod_core::text::one_line(&text),
         _ => "the CA gave no reason".into(),
     }
 }
@@ -137,8 +138,10 @@ fn strings(v: &Value) -> Vec<String> {
     v.as_array().into_iter().flatten().filter_map(|s| s.as_str().map(str::to_string)).collect()
 }
 
+/// The seconds since the Unix epoch, by the wall clock; 0 before it.
 pub fn now_secs() -> i64 {
-    crate::pairs::now_ms().div_euclid(1000)
+    let since = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH);
+    since.map(|d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX)).unwrap_or(0)
 }
 
 #[cfg(test)]

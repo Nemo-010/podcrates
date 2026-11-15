@@ -1,69 +1,22 @@
-//! The keys and certificates of ACME (T-447): P-256 keys of aws-lc-rs, kept
-//! as PKCS #8 in PEM, which podssh-ws's server reads as it reads `--key`;
-//! the CSR of a name; the self-signed certificate of TLS-ALPN-01 (RFC 8737,
-//! section 3); and what a leaf says, its names and its life. rcgen writes
-//! the DER with no crypto of its own: each signature is aws-lc-rs's.
+//! The certificates of ACME: PEM; the CSR of a name; the self-signed
+//! certificate of TLS-ALPN-01 (RFC 8737, section 3); and what a leaf says,
+//! its names and its life. rcgen writes the DER with no crypto of its own:
+//! each signature is the key's ([`crate::key`]). A pair that a server takes
+//! is `pod-tls`'s.
 
 use std::sync::Arc;
 
-use aws_lc_rs::rand::SystemRandom;
-use aws_lc_rs::signature::{ECDSA_P256_SHA256_ASN1_SIGNING, EcdsaKeyPair, KeyPair};
 use base64::Engine as _;
 use rustls::sign::CertifiedKey;
 use sha2::Digest as _;
 use x509_parser::prelude::*;
 use zeroize::Zeroizing;
 
+pub use crate::key::Key;
+
 /// How long the certificate of a challenge holds: a CA validates within
 /// minutes, and a clock a day off still takes it.
 const CHALLENGE_DAYS: i64 = 7;
-
-/// A P-256 key: its PKCS #8, and its pair for the signatures of X.509.
-pub struct Key {
-    pkcs8: Zeroizing<Vec<u8>>,
-    pair: EcdsaKeyPair,
-    /// The uncompressed point, as a SubjectPublicKeyInfo holds it.
-    public: Vec<u8>,
-}
-
-impl Key {
-    /// A new key, from the system's source of randomness.
-    pub fn generate() -> Result<Key, String> {
-        let document = EcdsaKeyPair::generate_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, &SystemRandom::new())
-            .map_err(|_| "no P-256 key could be made".to_string())?;
-        Key::from_pkcs8(document.as_ref())
-    }
-
-    pub fn from_pkcs8(der: &[u8]) -> Result<Key, String> {
-        let pair = EcdsaKeyPair::from_pkcs8(&ECDSA_P256_SHA256_ASN1_SIGNING, der)
-            .map_err(|e| format!("not a P-256 key in PKCS #8: {e}"))?;
-        let public = pair.public_key().as_ref().to_vec();
-        Ok(Key { pkcs8: Zeroizing::new(der.to_vec()), pair, public })
-    }
-
-    /// The key as PEM (`PRIVATE KEY`), as the files of `--key` hold one.
-    pub fn pem(&self) -> Zeroizing<String> {
-        Zeroizing::new(pem("PRIVATE KEY", &self.pkcs8))
-    }
-}
-
-impl rcgen::PublicKeyData for Key {
-    fn der_bytes(&self) -> &[u8] {
-        &self.public
-    }
-
-    fn algorithm(&self) -> &'static rcgen::SignatureAlgorithm {
-        &rcgen::PKCS_ECDSA_P256_SHA256
-    }
-}
-
-impl rcgen::SigningKey for Key {
-    /// ECDSA with SHA-256, in DER, as X.509 and PKCS #10 carry it.
-    fn sign(&self, message: &[u8]) -> Result<Vec<u8>, rcgen::Error> {
-        let signature = self.pair.sign(&SystemRandom::new(), message).map_err(|_| rcgen::Error::RemoteKeyError)?;
-        Ok(signature.as_ref().to_vec())
-    }
-}
 
 /// `der` as a PEM block of `label`, its lines of 64 characters.
 pub fn pem(label: &str, der: &[u8]) -> String {
@@ -95,7 +48,7 @@ pub fn csr(name: &str, key: &Key) -> Result<Vec<u8>, String> {
     Ok(request.der().as_ref().to_vec())
 }
 
-/// The CSR of an OpenTunnel tunnel's name (T-531), as its service checks one
+/// The CSR of an OpenTunnel tunnel's name, as its service checks one
 /// before each order: `hostname` as its common name, and `hostname` and
 /// `*.hostname` alone in subjectAltName.
 pub fn tunnel_csr(hostname: &str, key: &Key) -> Result<Vec<u8>, String> {
@@ -116,11 +69,10 @@ pub fn challenge(name: &str, key_authorization: &str, now_secs: i64) -> Result<(
     let mut params = rcgen::CertificateParams::new(vec![name.to_string()]).map_err(|e| format!("{name}: {e}"))?;
     params.distinguished_name = rcgen::DistinguishedName::new();
     params.distinguished_name.push(rcgen::DnType::CommonName, name);
-    // With no crypto feature, rcgen draws no serial number of its own.
-    params.serial_number = Some(rcgen::SerialNumber::from_slice(&rand::random::<[u8; 16]>()));
+    params.serial_number = Some(serial()?);
     // The day of a time, at midnight UTC, as rcgen takes it.
     let day = |secs: i64| {
-        let (y, m, d) = podssh_ws::clock::civil_from_days(secs.div_euclid(86_400));
+        let (y, m, d) = pod_core::clock::civil_from_days(secs.div_euclid(86_400));
         rcgen::date_time_ymd(y as i32, m as u8, d as u8)
     };
     params.not_before = day(now_secs - 86_400);
@@ -131,17 +83,26 @@ pub fn challenge(name: &str, key_authorization: &str, now_secs: i64) -> Result<(
     Ok((pem("CERTIFICATE", cert.der()), key.pem()))
 }
 
+/// A serial number of 16 random bytes: with no crypto feature, rcgen draws
+/// none of its own.
+fn serial() -> Result<rcgen::SerialNumber, String> {
+    use pod_core::entropy::Entropy as _;
+    let mut bytes = [0u8; 16];
+    pod_core::entropy::OsEntropy.fill(&mut bytes).map_err(|e| format!("no serial number: {e}"))?;
+    Ok(rcgen::SerialNumber::from_slice(&bytes))
+}
+
 /// A self-signed certificate of `name` and `key`, as PEM, for a TLS whose
-/// client pins the key (the Pinggy road, T-548): a year long, from a day
+/// client pins the key (podssh's Pinggy road): a year long, from a day
 /// before `now_secs`, so that a client's clock a day off takes it.
 pub fn own(name: &str, key: &Key, now_secs: i64) -> Result<String, String> {
     let mut params = rcgen::CertificateParams::new(vec![name.to_string()]).map_err(|e| format!("{name}: {e}"))?;
     params.distinguished_name = rcgen::DistinguishedName::new();
     params.distinguished_name.push(rcgen::DnType::CommonName, name);
-    // With no crypto feature, rcgen draws no serial number of its own.
-    params.serial_number = Some(rcgen::SerialNumber::from_slice(&rand::random::<[u8; 16]>()));
+    params.serial_number = Some(serial()?);
+    // The day of a time, at midnight UTC, as rcgen takes it.
     let day = |secs: i64| {
-        let (y, m, d) = podssh_ws::clock::civil_from_days(secs.div_euclid(86_400));
+        let (y, m, d) = pod_core::clock::civil_from_days(secs.div_euclid(86_400));
         rcgen::date_time_ymd(y as i32, m as u8, d as u8)
     };
     params.not_before = day(now_secs - 86_400);
@@ -178,7 +139,7 @@ pub fn leaf(der: &[u8]) -> Result<Leaf, String> {
 /// A file of a key and a chain (or a chain alone, with its key in
 /// `key_text`), loaded as the server takes it, with the facts of its leaf.
 pub fn load(cert_text: &[u8], key_text: &[u8]) -> Result<(Arc<CertifiedKey>, Leaf), String> {
-    let pair = podssh_ws::tls_server::certified(cert_text, key_text)?;
+    let pair = pod_tls::server::certified(cert_text, key_text).map_err(|e| e.to_string())?;
     let first = pair.cert.first().ok_or("the chain is empty")?;
     let facts = leaf(first.as_ref())?;
     Ok((pair, facts))
