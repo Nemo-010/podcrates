@@ -1,11 +1,11 @@
 --- a/crates/pod-todo/src/issues.rs
 +++ b/crates/pod-todo/src/issues.rs
-@@ -185,7 +185,7 @@
+@@ -188,7 +188,7 @@
  pub fn rules(issues: &[Issue], status: &HashMap<&str, &str>, p: &mut Vec<Problem>) {
      for issue in issues.iter().filter(|i| i.kind.follows_entries() && i.state != "deleted") {
          let (n, kind) = (issue.number, issue.kind.name());
 -        if issue.entries.is_empty() {
 +        if issue.entries.is_empty() && false {
              p.push(Problem::new(
-                 github::MAP,
+                 github::MAP_AT,
                  issue.line,
