@@ -3074,13 +3074,13 @@ the whole blob closes that gap.
 
 ## Premise
 
-- Read (this tree): `crates/pod-oci/src/registry.rs:284-331`.
+- Read (this tree): `crates/pod-oci/src/registry.rs:301-348`.
   `Client::blob<W: Write + Restart>` streams into a sink with a
   `Verifier`. `Restart` sets the sink back for a new try (`:40-42`). The
   retry is around the whole transfer (`ATTEMPTS`, `:75`). The doc comment
-  names the proxy that cuts at a round size (`:289-291`) and refuses a
-  resume: `crates/pod-oci/src/registry.rs:293` says "a resume trusts". The
-  review cites the method from `:288`; its doc comment starts at `:284`.
+  names the proxy that cuts at a round size (`:306-308`) and refuses a
+  resume: `crates/pod-oci/src/registry.rs:310` says "a resume trusts". The
+  review cites the method from `:305`; its doc comment starts at `:301`.
 - Read: `crates/pod-oci/src/registry/http.rs:12`: `get` takes an `Accept`
   value only, so a `Range` header needs a new parameter.
   `crates/pod-oci/src/registry/http.rs:128-130` and
