@@ -2,7 +2,7 @@
 //! ([`super::provision`]); a bridge that claims the node's route alone,
 //! attached again after each loss with the protocol's backoff, from 250 ms
 //! to 30 s with jitter, again from the start after each attach; and each
-//! visitor's connection, whose TLS podssh-ws's server ends with the tunnel's
+//! visitor's connection, whose TLS pod-tls's server ends with the tunnel's
 //! certificate and key, served by the resumable layer's far end with the
 //! node's keeper, which another road may share, so that a session resumes on
 //! either. A new session reaches its target only after its handshake, and
@@ -14,19 +14,20 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
-use podssh_ws::tls_server::{self, Served, TlsAcceptor};
+use pod_tls::server::{self as tls_server, Served, TlsAcceptor};
 use rand::RngExt;
+use rustls::crypto::CryptoProvider;
 use tokio::io::{AsyncRead, AsyncWrite};
 
+use super::Say;
 use super::api::{Api, Cert};
 use super::bridge::{self, Failed};
 use super::conn::Visitor;
-use super::provision::{unexpired, Provision, Provisioned};
-use super::record::{expiry_secs, Credentials, Record, Store};
-use super::Say;
-use crate::session::keep::Keeper;
-use crate::session::record::Role;
-use crate::session::{far, Settings};
+use super::provision::{Provision, Provisioned, unexpired};
+use super::record::{Credentials, Record, Store, expiry_secs};
+use pod_session::keep::Keeper;
+use pod_session::record::Role;
+use pod_session::{Settings, far};
 
 /// How often the sessions whose links are lost are checked for their
 /// deadline.
@@ -52,16 +53,25 @@ pub struct Node {
     pub store: Option<Store>,
     /// The tunnel's certificate and key, as the node's TLS presents them.
     pub served: Arc<Served>,
+    /// The provider of the node's TLS: the caller's.
+    pub provider: Arc<CryptoProvider>,
     pub say: Say,
 }
 
 impl Node {
-    /// The node of `record`, whose certificate is ready.
-    pub fn new(api: Api, record: Record, store: Option<Store>, say: Say) -> Result<Node, String> {
+    /// The node of `record`, whose certificate is ready, with the TLS of
+    /// `provider`.
+    pub fn new(
+        api: Api,
+        record: Record,
+        store: Option<Store>,
+        provider: Arc<CryptoProvider>,
+        say: Say,
+    ) -> Result<Node, String> {
         let chain = record.chain_pem().ok_or("the tunnel's certificate is not ready")?;
         let pair = tls_server::certified(chain.as_bytes(), record.key.as_bytes())
             .map_err(|why| format!("the tunnel's certificate: {why}"))?;
-        Ok(Node { api, record, store, served: Served::new(Some(pair)), say })
+        Ok(Node { api, record, store, served: Served::new(Some(pair)), provider, say })
     }
 
     /// The name that a client dials: the node's route under the tunnel.
@@ -70,22 +80,24 @@ impl Node {
     }
 
     /// The TLS of the tunnel's certificate, offering `alpn`: the node's
-    /// sessions offer none, a funnel's visitors `http/1.1` (T-532). A
+    /// sessions offer none, a funnel's visitors `http/1.1`. A
     /// renewed certificate reaches each acceptor through `served`.
     pub fn acceptor(&self, alpn: &[&[u8]]) -> Result<TlsAcceptor, String> {
-        tls_server::acceptor_for(self.served.clone(), alpn)
+        tls_server::acceptor_for(self.provider.clone(), self.served.clone(), alpn).map_err(|e| e.to_string())
     }
 }
 
-/// The node's tunnel, made or kept by `store`, and the node of it.
+/// The node's tunnel, made or kept by `store`, and the node of it, whose
+/// TLS takes `provider`.
 pub async fn online(
     api: Api,
     store: Store,
     credentials: &dyn Credentials,
+    provider: Arc<CryptoProvider>,
     say: Say,
 ) -> Result<(Node, Provisioned), String> {
     let provisioned = Provision::new(&api, &store, credentials, &say).run().await?;
-    let node = Node::new(api, provisioned.record.clone(), Some(store), say)?;
+    let node = Node::new(api, provisioned.record.clone(), Some(store), provider, say)?;
     Ok((node, provisioned))
 }
 
@@ -96,15 +108,16 @@ fn reconnect_wait(attempt: u32) -> Duration {
     Duration::from_millis(rand::rng().random_range(ms / 2..=ms))
 }
 
-/// Serve the sessions of each visitor of `node`, with a keeper of its own,
-/// until the service refuses the tunnel for good: why.
+/// Serve the sessions of each visitor of `node`, with a keeper of its own
+/// that tells nothing of its budget, until the service refuses the tunnel
+/// for good: why. [`serve_kept`] takes the caller's keeper.
 pub async fn serve<A, O, F>(node: Node, settings: Settings, budget: usize, open: O) -> String
 where
     A: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     O: Fn() -> F + Clone + Send + Sync + 'static,
     F: Future<Output = Result<A, String>> + Send + 'static,
 {
-    let keeper = Arc::new(Keeper::new(settings.resume_deadline).with_tell(crate::session::budget::told()));
+    let keeper = Arc::new(Keeper::new(settings.resume_deadline));
     serve_kept(node, settings, budget, open, keeper).await
 }
 
@@ -160,7 +173,7 @@ where
 /// goes to `opened`, still encrypted, and `attached` is called at each
 /// attach, whose line ends with `reached`. It ends only when the service
 /// refuses the tunnel's token, or knows no tunnel: why. Both the node of the
-/// road and a funnel (T-532) serve their visitors through it.
+/// road and a funnel serve their visitors through it.
 pub async fn bridges<F, T>(node: &Node, routes: &[String], reached: &str, opened: F, attached: T) -> String
 where
     F: Fn(Visitor) + Send + Sync,
@@ -234,10 +247,10 @@ async fn renew(api: Api, mut record: Record, store: Option<Store>, served: Arc<S
             }
         }
         say(format!("the certificate of {} is renewed, to {}", next.hostname, next.expiry.as_deref().unwrap_or("?")));
-        if let Some(store) = &store {
-            if let Err(why) = store.save(&next) {
-                say(format!("the renewed certificate was not kept: {why}"));
-            }
+        if let Some(store) = &store
+            && let Err(why) = store.save(&next)
+        {
+            say(format!("the renewed certificate was not kept: {why}"));
         }
         record = next;
     }

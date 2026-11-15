@@ -5,7 +5,7 @@
 //! `Retry-After` seconds, at most 8 s, for at most 6 retries. A request that
 //! may be repeated (a read, the bind of the CSR that the tunnel has) is
 //! retried on any 429 or 5xx; one that must not be (the making of a tunnel)
-//! only where it cannot have arrived. One change of podssh's: a 429 or a 503
+//! only where it cannot have arrived. One change of the protocol's rule: a 429 or a 503
 //! whose `Retry-After` is longer than the 8 s that a retry waits is said at
 //! once, with its wait, as no retry within the bound would pass.
 
@@ -90,12 +90,8 @@ pub fn status_words(status: u16, body: &str) -> String {
     if let Some(reason) = cloudflare(status) {
         return format!("Cloudflare {status}: {reason}");
     }
-    let body = podssh_ws::text::one_line(body.trim());
-    if body.is_empty() {
-        format!("HTTP {status}")
-    } else {
-        body.chars().take(200).collect()
-    }
+    let body = pod_core::text::one_line(body.trim());
+    if body.is_empty() { format!("HTTP {status}") } else { body.chars().take(200).collect() }
 }
 
 #[cfg(test)]

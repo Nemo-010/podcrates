@@ -1,5 +1,5 @@
 //! OpenTunnel's HTTP API (anomalyco/opentunnel:docs/protocol.md at v0.6.1,
-//! "HTTP API"), one request on each connection over podssh-ws's HTTP/1.1:
+//! "HTTP API"), one request on each connection over the HTTP/1.1 of pod-proxy:
 //! `POST /api/tunnel` makes a tunnel and gives its token once; the bind of a
 //! CSR and the reads of the certificate take that token as a bearer, in a
 //! header alone, which no message quotes. The retries are [`super::retry`]'s.
@@ -10,13 +10,13 @@
 use std::fmt;
 use std::time::Duration;
 
-use podssh_ws::http::Response;
+use pod_proxy::http::Response;
 use serde_json::Value;
 use zeroize::Zeroizing;
 
+use super::Service;
 use super::dial::Dial;
 use super::retry::{self, Repeat};
-use super::Service;
 
 /// The largest answer read: a certificate and its chain fit many times.
 pub const MAX_BODY: usize = 64 * 1024;
@@ -109,13 +109,23 @@ enum Attempt {
 pub struct Api {
     service: Service,
     dial: Dial,
+    /// The `User-Agent` of each request, and the client of a bridge's
+    /// attach: the caller's name, one line.
+    agent: String,
     /// The waits of the retries, divided by this: a test's are short.
     hurry: u32,
 }
 
 impl Api {
-    pub fn new(service: Service, dial: Dial) -> Api {
-        Api { service, dial, hurry: 1 }
+    /// The API of `service` over the connections of `dial`, whose requests
+    /// name `user_agent` (`podssh/VERSION`).
+    pub fn new(service: Service, dial: Dial, user_agent: &str) -> Api {
+        Api { service, dial, agent: pod_core::text::one_line(user_agent), hurry: 1 }
+    }
+
+    /// The `User-Agent` of each request.
+    pub fn user_agent(&self) -> &str {
+        &self.agent
     }
 
     /// The same, with each wait between retries divided by `factor`.
@@ -162,7 +172,7 @@ impl Api {
     }
 
     /// Delete the tunnel `id`: a live test's throwaway tunnel, after its run
-    /// (T-531). A node never deletes its own: one tunnel for its life (Q76).
+    /// A node never deletes its own: one tunnel for its life.
     /// Retried only where it cannot have arrived, as a second would be 404.
     pub async fn remove(&self, token: &str, id: &str) -> Result<(), ApiError> {
         let path = format!("/api/tunnel/{}", checked_id(id)?);
@@ -218,7 +228,7 @@ impl Api {
         let shown = self.service.shown();
         let mut io = match tokio::time::timeout(REQUEST_LIMIT, (self.dial)(&self.service)).await {
             Err(_) => {
-                return Err(Attempt::NotSent(format!("{shown}: no connection within {} s", REQUEST_LIMIT.as_secs())))
+                return Err(Attempt::NotSent(format!("{shown}: no connection within {} s", REQUEST_LIMIT.as_secs())));
             }
             Ok(Err(why)) => return Err(Attempt::NotSent(why)),
             Ok(Ok(io)) => io,
@@ -229,7 +239,7 @@ impl Api {
             headers.push(("Authorization", bearer.as_str()));
         }
         let host = self.service.authority();
-        let asked = podssh_ws::http::exchange(&mut io, method, &host, path, &headers, body, MAX_BODY);
+        let asked = pod_proxy::http::exchange(&mut io, &self.agent, method, &host, path, &headers, body, MAX_BODY);
         match tokio::time::timeout(REQUEST_LIMIT, asked).await {
             Err(_) => Err(Attempt::Lost(format!("{shown}: no answer within {} s", REQUEST_LIMIT.as_secs()))),
             // The error of an exchange names no header, so never the token.
@@ -246,7 +256,7 @@ fn refusal(response: &Response) -> ApiError {
     let body = String::from_utf8_lossy(&response.body);
     let parsed: Option<Value> = serde_json::from_str(&body).ok();
     let field =
-        |name: &str| parsed.as_ref().and_then(|v| v.get(name)).and_then(Value::as_str).map(podssh_ws::text::one_line);
+        |name: &str| parsed.as_ref().and_then(|v| v.get(name)).and_then(Value::as_str).map(pod_core::text::one_line);
     match (field("_tag"), field("message")) {
         (Some(tag), message) => {
             let message = message.unwrap_or_default().chars().take(300).collect();
@@ -277,7 +287,7 @@ fn checked_id(id: &str) -> Result<&str, ApiError> {
 
 /// A `TunnelInfo`: its id, one label, and its name, that label and a domain
 /// of two labels or more.
-fn tunnel(value: &Value) -> Result<Tunnel, ApiError> {
+pub(crate) fn tunnel(value: &Value) -> Result<Tunnel, ApiError> {
     let field = |name: &str| value.get(name).and_then(Value::as_str).unwrap_or_default().to_ascii_lowercase();
     let (id, hostname) = (field("id"), field("hostname"));
     checked_id(&id)?;
@@ -286,14 +296,14 @@ fn tunnel(value: &Value) -> Result<Tunnel, ApiError> {
     if labels.len() < 2 || !labels.iter().all(|label| super::wire::is_route(label) && *label != "@") {
         return Err(ApiError::Unreached(format!(
             "the tunnel's name {:?} is not its id under a domain",
-            podssh_ws::text::one_line(&hostname)
+            pod_core::text::one_line(&hostname)
         )));
     }
     Ok(Tunnel { id, hostname })
 }
 
 /// A `CertificateInfo`'s state.
-fn cert(value: &Value) -> Result<Cert, ApiError> {
+pub(crate) fn cert(value: &Value) -> Result<Cert, ApiError> {
     let state = value.get("state").unwrap_or(&Value::Null);
     let field = |name: &str| state.get(name).and_then(Value::as_str).map(str::to_string);
     match state.get("type").and_then(Value::as_str) {
@@ -305,7 +315,7 @@ fn cert(value: &Value) -> Result<Cert, ApiError> {
             }
             _ => Err(ApiError::Unreached("a ready certificate came with no certificate or no expiry".into())),
         },
-        Some("failed") => Ok(Cert::Failed(podssh_ws::text::one_line(&field("reason").unwrap_or_default()))),
+        Some("failed") => Ok(Cert::Failed(pod_core::text::one_line(&field("reason").unwrap_or_default()))),
         _ => Err(ApiError::Unreached("a certificate's state of no known type".into())),
     }
 }

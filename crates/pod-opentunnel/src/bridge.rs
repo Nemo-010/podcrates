@@ -1,6 +1,6 @@
 //! A bridge (anomalyco/opentunnel:docs/protocol.md at v0.6.1, "Session"):
 //! one WebSocket at `/api/tunnel/ID/connect` on the API's host, offering the
-//! subprotocol `opentunnel`, through `HTTPS_PROXY` as the API is reached;
+//! subprotocol `opentunnel`, through the caller's way out as the API is reached;
 //! `attach` with the token and the node's routes at once, well within the
 //! service's 10 s, and `attached` with the heartbeat and the idle bound, or
 //! `attach_error`. Then each `open` of a route of the node's is a
@@ -14,15 +14,15 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use podssh_ws::session::close_code_and_reason;
-use podssh_ws::{frame, Frame, RelaySession, SessionError};
+use pod_ws::close::close_code_and_reason;
+use pod_ws::{Frame, RelaySession, SessionError, frame};
 use tokio::sync::mpsc;
 
+use super::Service;
 use super::api::Api;
 use super::conn::{self, Held, Inbound, Outbox, Queued, Visitor};
 use super::dial::BoxIo;
-use super::wire::{self, codes, Down, Up};
-use super::Service;
+use super::wire::{self, Down, Up, codes};
 
 /// The bound of the upgrade, and of the answer to `attach`, each.
 pub const ANSWER_LIMIT: Duration = Duration::from_secs(20);
@@ -67,12 +67,13 @@ impl std::fmt::Display for Failed {
 }
 
 /// The upgrade request of the bridge of the tunnel `id`, with `key` as its
-/// `Sec-WebSocket-Key`. No token: it goes in `attach`, inside the socket.
-pub fn request(service: &Service, id: &str, key: &str) -> Vec<u8> {
+/// `Sec-WebSocket-Key` and `agent` as its `User-Agent`. No token: it goes
+/// in `attach`, inside the socket.
+pub fn request(service: &Service, id: &str, key: &str, agent: &str) -> Vec<u8> {
     let mut out = String::with_capacity(256);
     out.push_str(&format!("GET /api/tunnel/{id}/connect HTTP/1.1\r\n"));
     out.push_str(&format!("Host: {}\r\n", service.authority()));
-    out.push_str(&format!("User-Agent: podssh/{}\r\n", env!("CARGO_PKG_VERSION")));
+    out.push_str(&format!("User-Agent: {agent}\r\n"));
     out.push_str("Upgrade: websocket\r\n");
     out.push_str("Connection: Upgrade\r\n");
     out.push_str(&format!("Sec-WebSocket-Key: {key}\r\n"));
@@ -95,19 +96,19 @@ pub async fn attach(
         Ok(Err(why)) => return Err(Failed::Again(why)),
         Ok(Ok(io)) => io,
     };
-    let key = podssh_ws::handshake::generate_key().map_err(|e| Failed::Again(e.to_string()))?;
-    let asked_for = request(service, id, &key);
-    let asked = podssh_ws::client::upgrade_with(io, &asked_for, &key);
+    let key = pod_ws::handshake::generate_key().map_err(|e| Failed::Again(e.to_string()))?;
+    let asked_for = request(service, id, &key, api.user_agent());
+    let asked = pod_ws::client::upgrade_with(io, &asked_for, &key);
     let (io, pending) = match tokio::time::timeout(ANSWER_LIMIT, asked).await {
         Err(_) => return Err(Failed::Again(format!("{service} did not answer the bridge's upgrade"))),
-        Ok(Err(podssh_ws::ConnectError::Refused { status: 404, .. })) => {
+        Ok(Err(pod_ws::ConnectError::Refused { status: 404, .. })) => {
             return Err(Failed::Fatal(format!("{service} knows no tunnel {id} (HTTP 404)")));
         }
         Ok(Err(e)) => return Err(Failed::Again(format!("{service} refused the bridge's upgrade: {e}"))),
         Ok(Ok(upgraded)) => upgraded,
     };
     let session = RelaySession::new(io, pending, Some(READ_IDLE), WRITE_LIMIT).naming("OpenTunnel");
-    let sent = session.send_text(&Up::Attach { token, routes }.text()).await;
+    let sent = session.send_text(&Up::Attach { token, routes, client: api.user_agent() }.text()).await;
     sent.map_err(|e| Failed::Again(format!("the attach of the bridge was not sent: {e}")))?;
     match tokio::time::timeout(ANSWER_LIMIT, answer(&session)).await {
         Err(_) => {
@@ -242,15 +243,15 @@ where
                                 }
                             }
                             Down::End { conn } => {
-                                if let Some(held) = conns.get(&conn) {
-                                    if !held.deliver(Inbound::End).await {
-                                        stalled(&mut conns, conn, &outbox);
-                                    }
+                                if let Some(held) = conns.get(&conn)
+                                    && !held.deliver(Inbound::End).await
+                                {
+                                    stalled(&mut conns, conn, &outbox);
                                 }
                             }
                             Down::Reset { conn, code } => {
                                 if let Some(held) = conns.remove(&conn) {
-                                    let code = podssh_ws::text::one_line(&code);
+                                    let code = pod_core::text::one_line(&code);
                                     held.reset(format!("OpenTunnel reset the connection ({code})"));
                                 }
                             }
@@ -258,7 +259,7 @@ where
                                 outbox.control(&Up::Pong { time_sent });
                             }
                             Down::Drain { reason } => {
-                                let reason = podssh_ws::text::one_line(&reason);
+                                let reason = pod_core::text::one_line(&reason);
                                 break format!("OpenTunnel drains the bridge ({reason})");
                             }
                             Down::Pong { .. } | Down::Attached { .. } | Down::AttachError { .. } => {}
@@ -310,7 +311,9 @@ mod tests {
 
     #[test]
     fn the_upgrade_asks_for_the_subprotocol_at_the_tunnel_s_path_and_names_no_token() {
-        let text = String::from_utf8(request(&Service::hosted(), "abcdefghijkl", "dGhlIHNhbXBsZSBub25jZQ==")).unwrap();
+        let text =
+            String::from_utf8(request(&Service::hosted(), "abcdefghijkl", "dGhlIHNhbXBsZSBub25jZQ==", "podssh/1"))
+                .unwrap();
         assert!(
             text.starts_with("GET /api/tunnel/abcdefghijkl/connect HTTP/1.1\r\nHost: opentunnel.xyz\r\n"),
             "{text}"

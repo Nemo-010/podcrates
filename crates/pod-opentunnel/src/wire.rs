@@ -8,7 +8,7 @@
 
 use std::time::Duration;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// The subprotocol of a bridge: version 1.
 pub const SUBPROTOCOL: &str = "opentunnel";
@@ -42,7 +42,7 @@ pub fn fatal(code: &str) -> bool {
 
 /// The words of an `attach_error`, for the user.
 pub fn attach_words(code: &str) -> String {
-    let code = podssh_ws::text::one_line(code);
+    let code = pod_core::text::one_line(code);
     match code.as_str() {
         codes::BAD_TOKEN => {
             "OpenTunnel refused the tunnel's token (bad_token): the tunnel is gone, or its token is not \
@@ -62,7 +62,7 @@ pub fn attach_words(code: &str) -> String {
 
 /// The words of a Close of a bridge that the server sent.
 pub fn close_words(code: Option<u16>, reason: &str) -> String {
-    let reason = podssh_ws::text::one_line(reason);
+    let reason = pod_core::text::one_line(reason);
     let what = match code {
         Some(1008) => "the service closed the bridge as no attach came in time (1008)".to_string(),
         Some(1009) => "the service closed the bridge for a message too large (1009)".to_string(),
@@ -71,33 +71,43 @@ pub fn close_words(code: Option<u16>, reason: &str) -> String {
         Some(code) => format!("the service closed the bridge ({code})"),
         None => "the service closed the bridge".to_string(),
     };
-    if reason.is_empty() {
-        what
-    } else {
-        format!("{what}: {reason}")
-    }
+    if reason.is_empty() { what } else { format!("{what}: {reason}") }
 }
 
 /// A message of this end, the client of the bridge.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Up<'a> {
-    Attach { token: &'a str, routes: &'a [String] },
-    Ping { time_sent: u64 },
-    Pong { time_sent: u64 },
-    End { conn: u32 },
-    Reset { conn: u32, code: &'a str },
+    /// `client` names the caller in the attach (`podssh/VERSION`).
+    Attach {
+        token: &'a str,
+        routes: &'a [String],
+        client: &'a str,
+    },
+    Ping {
+        time_sent: u64,
+    },
+    Pong {
+        time_sent: u64,
+    },
+    End {
+        conn: u32,
+    },
+    Reset {
+        conn: u32,
+        code: &'a str,
+    },
 }
 
 impl Up<'_> {
     /// The message's text frame.
     pub fn text(&self) -> String {
         let value = match self {
-            Up::Attach { token, routes } => json!({
+            Up::Attach { token, routes, client } => json!({
                 "type": "attach",
                 "token": token,
                 "transport": "ws",
                 "routes": routes,
-                "client": { "version": concat!("podssh/", env!("CARGO_PKG_VERSION")), "max_conns": MAX_CONNS },
+                "client": { "version": client, "max_conns": MAX_CONNS },
             }),
             Up::Ping { time_sent } => json!({ "type": "ping", "time_sent": time_sent }),
             Up::Pong { time_sent } => json!({ "type": "pong", "time_sent": time_sent }),
@@ -266,7 +276,8 @@ mod tests {
     #[test]
     fn this_end_s_messages_hold_the_fields_of_the_protocol() {
         let routes = vec!["@".to_string(), "api".to_string()];
-        let attach: Value = serde_json::from_str(&Up::Attach { token: "tok_123", routes: &routes }.text()).unwrap();
+        let attach: Value =
+            serde_json::from_str(&Up::Attach { token: "tok_123", routes: &routes, client: "podssh/1" }.text()).unwrap();
         assert_eq!(attach["type"], "attach");
         assert_eq!(attach["token"], "tok_123");
         assert_eq!(attach["transport"], "ws");

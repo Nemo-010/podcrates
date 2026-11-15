@@ -47,6 +47,7 @@ pod-link = { path = "crates/pod-link", version = "0.48.0" }
 pod-netlab = { path = "crates/pod-netlab", version = "0.48.0" }
 pod-netstack = { path = "crates/pod-netstack", version = "0.48.0" }
 pod-oci = { path = "crates/pod-oci", version = "0.48.0" }
+pod-opentunnel = { path = "crates/pod-opentunnel", version = "0.48.0" }
 pod-piping = { path = "crates/pod-piping", version = "0.48.0" }
 pod-proxy = { path = "crates/pod-proxy", version = "0.48.0" }
 pod-qga = { path = "crates/pod-qga", version = "0.48.0" }

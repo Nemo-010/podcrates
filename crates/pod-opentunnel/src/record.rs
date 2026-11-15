@@ -5,7 +5,7 @@
 //! client to keep the identity before it binds the CSR, so that a start
 //! that stopped half-way binds the same CSR again; and the service counts
 //! only a new CSR against its 5 certificates a day for a tunnel. So a node
-//! keeps one tunnel for its life, as the operator's ruling Q76 asks. The
+//! keeps one tunnel for its life. The
 //! token and the key never reach a line: [`Record`]'s `Debug` shows neither.
 //!
 //! The key and the CSR come from the binary ([`Credentials`]): its ACME
@@ -14,7 +14,7 @@
 use std::fmt;
 use std::path::PathBuf;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use zeroize::Zeroizing;
 
 use super::Service;
@@ -130,14 +130,16 @@ pub struct Store {
 }
 
 impl Store {
-    /// The record of the node `label` at `service`, in the cache.
-    pub fn cache(service: &Service, label: &str) -> Store {
-        Store::in_dirs(crate::cache::read_dirs(), crate::cache::candidate_dirs(), service, label)
+    /// The record of the node `label` at `service`, in the caller's cache:
+    /// read from each place of `places`, written to the first of its
+    /// directories that takes it.
+    pub fn cache(places: &pod_core::files::Places, service: &Service, label: &str) -> Store {
+        Store::in_dirs(places.read(), places.dirs.clone(), service, label)
     }
 
     /// The same in the directories given (for tests).
     pub fn in_dirs(read: Vec<PathBuf>, write: Vec<PathBuf>, service: &Service, label: &str) -> Store {
-        let safe = crate::cache::safe_name;
+        let safe = pod_core::files::safe_name;
         let name = format!("opentunnel-{}-{}.json", safe(&service.authority()), safe(label));
         Store { read, write, name }
     }
@@ -149,13 +151,13 @@ impl Store {
 
     /// The record kept, when there is one that reads as one, of `service`.
     pub fn load(&self, service: &Service) -> Option<Record> {
-        let text = Zeroizing::new(crate::cache::load_file_from(&self.read, &self.name)?);
+        let text = Zeroizing::new(pod_core::files::load_file_from(&self.read, &self.name)?);
         Record::from_json(&text).filter(|record| record.service == service.shown())
     }
 
     /// Keep `record`, in place of the one before: where it went.
     pub fn save(&self, record: &Record) -> Result<PathBuf, String> {
-        crate::cache::store_file_in_first(&self.write, &self.name, record.to_json().as_bytes())
+        pod_core::files::store_file_in_first(&self.write, &self.name, record.to_json().as_bytes())
     }
 
     /// The file that holds the record, in the first place that has one.
@@ -180,7 +182,7 @@ pub fn expiry_secs(text: &str) -> Option<i64> {
     if h > 23 || min > 59 || s > 60 {
         return None;
     }
-    Some(podssh_ws::clock::days_from_civil(y, m, d) * 86_400 + h * 3600 + min * 60 + s)
+    Some(pod_core::clock::days_from_civil(y, m, d) * 86_400 + h * 3600 + min * 60 + s)
 }
 
 #[cfg(test)]
@@ -203,9 +205,9 @@ mod tests {
     }
 
     fn scratch(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("podssh-opentunnel-record-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("pod-opentunnel-record-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        crate::cache::private_dir(&dir).unwrap();
+        pod_core::files::private_dir(&dir).unwrap();
         dir
     }
 

@@ -15,10 +15,10 @@ use std::time::Duration;
 
 use tokio::time::Instant;
 
-use super::api::{Api, ApiError, Cert};
-use super::record::{expiry_secs, Credentials, Record, Store};
 use super::Say;
-use crate::session::{Entropy, NoRandom, OsEntropy};
+use super::api::{Api, ApiError, Cert};
+use super::record::{Credentials, Record, Store, expiry_secs};
+use pod_session::{Entropy, NoRandom, OsEntropy};
 
 /// How often the certificate is asked for while it is issued.
 pub const POLL_EVERY: Duration = Duration::from_secs(2);

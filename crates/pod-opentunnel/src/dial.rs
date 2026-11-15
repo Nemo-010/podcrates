@@ -1,11 +1,11 @@
-//! The ways to an OpenTunnel service: TLS to its API's host through
-//! `HTTPS_PROXY` when one is set, verified with podssh-ws's provider and
-//! trust store, for the API and the bridges ([`tls`]); and a TCP stream
-//! through the same proxy to a tunnel's name on port 443, before TLS, for a
-//! client, whose TLS goes to the node and is checked there ([`tcp`]). The
-//! proxy gets the name, never an address, so the host needs no DNS. No
-//! credential of podssh's goes to the service: the bearer token of a tunnel
-//! is the service's own, in a header alone.
+//! The ways to an OpenTunnel service, through the caller's [`Way`]: TLS to
+//! its API's host through the way's dialer, verified with the provider and
+//! the trust store of its TLS context, for the API and the bridges
+//! ([`tls`]); and a TCP stream through the same dialer to a tunnel's name on
+//! port 443, before TLS, for a client, whose TLS goes to the node and is
+//! checked there ([`tcp`]). A proxy gets the name, never an address, so the
+//! host needs no DNS. No credential of the caller goes to the service: the
+//! bearer token of a tunnel is the service's own, in a header alone.
 //!
 //! A [`Dial`] and a [`Visit`] give byte streams, so that a test gives pipes
 //! to a stand-in in their place.
@@ -15,7 +15,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
-use podssh_ws::{ProxyChoice, Trust};
+use pod_tls::Trust;
+use pod_ws::Way;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::Service;
@@ -37,28 +38,27 @@ pub type Dial = Arc<dyn Fn(&Service) -> Dialing + Send + Sync>;
 /// or a test's pipe.
 pub type Visit = Arc<dyn Fn(&str) -> Dialing + Send + Sync>;
 
-/// TLS to the service's API host, through `proxy`, verified with `trust`.
-pub fn tls(trust: Trust, proxy: ProxyChoice) -> Dial {
+/// TLS to the service's API host, through `way`, verified with `trust`.
+pub fn tls(way: Arc<Way>, trust: Trust) -> Dial {
     Arc::new(move |service: &Service| -> Dialing {
-        let (service, trust, proxy) = (service.clone(), trust.clone(), proxy.clone());
+        let (service, trust, way) = (service.clone(), trust.clone(), way.clone());
         Box::pin(async move {
             let host = service.host.as_str();
-            let opened = podssh_ws::client::open_tls(host, service.port, host, &trust, &proxy, CONNECT_LIMIT);
-            let tls = opened.await.map_err(|e| format!("{service}: {e}"))?;
+            let opened = way.open_tls(host, service.port, host, &trust, CONNECT_LIMIT, &[]);
+            let (tls, _) = opened.await.map_err(|e| format!("{service}: {e}"))?;
             Ok(Box::new(tls) as BoxIo)
         })
     })
 }
 
-/// TCP to each name on port 443, through `proxy`.
-pub fn tcp(proxy: ProxyChoice) -> Visit {
+/// TCP to each name on port 443, through `way`.
+pub fn tcp(way: Arc<Way>) -> Visit {
     Arc::new(move |name: &str| -> Dialing {
-        let (name, proxy) = (name.to_string(), proxy.clone());
+        let (name, way) = (name.to_string(), way.clone());
         Box::pin(async move {
-            let tcp = podssh_ws::dial::dial(&name, super::PORT, &proxy, CONNECT_LIMIT)
-                .await
-                .map_err(|e| format!("{name}:{}: {e}", super::PORT))?;
-            Ok(Box::new(tcp) as BoxIo)
+            let tcp =
+                way.tcp(&name, super::PORT, CONNECT_LIMIT).await.map_err(|e| format!("{name}:{}: {e}", super::PORT))?;
+            Ok(Box::new(tcp.io) as BoxIo)
         })
     })
 }

@@ -1,5 +1,5 @@
 //! The client of the OpenTunnel road: for each link, a TCP stream to the
-//! node's name on port 443 through `HTTPS_PROXY`, then TLS by that name,
+//! node's name on port 443 through the caller's way out, then TLS by that name,
 //! verified with the host's trust as each name is: the service sends the
 //! bytes on to the node, which ends TLS with the tunnel's certificate. No
 //! upgrade and no account, so a proxy that refuses the WebSocket upgrade
@@ -13,15 +13,16 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use podssh_ws::Trust;
+use pod_tls::Trust;
+use pod_ws::Way;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
-use super::dial::{BoxIo, Visit, CONNECT_LIMIT};
-use super::wire;
 use super::Say;
-use crate::session::client::{self, Outcome};
-use crate::session::resume::{self, Next, Note};
-use crate::session::{Ask, Ended, Hearing, OsEntropy, Settings};
+use super::dial::{BoxIo, CONNECT_LIMIT, Visit};
+use super::wire;
+use pod_session::client::{self, Outcome};
+use pod_session::resume::{self, Next, Note};
+use pod_session::{Ask, Ended, Hearing, OsEntropy, Settings};
 
 /// A node's name: its route under its tunnel's name,
 /// `ROUTE.<id>.opentunnel.xyz`.
@@ -67,15 +68,16 @@ impl std::fmt::Debug for Link {
 pub struct Dialer {
     name: Name,
     visit: Visit,
+    way: Arc<Way>,
     trust: Trust,
     say: Say,
 }
 
 impl Dialer {
     /// The dialer of the node of `name`, through `visit`, whose TLS is
-    /// checked with `trust`.
-    pub fn new(name: Name, visit: Visit, trust: Trust, say: Say) -> Dialer {
-        Dialer { name, visit, trust, say }
+    /// made in the TLS context of `way` and checked with `trust`.
+    pub fn new(name: Name, visit: Visit, way: Arc<Way>, trust: Trust, say: Say) -> Dialer {
+        Dialer { name, visit, way, trust, say }
     }
 
     pub fn name(&self) -> &Name {
@@ -86,11 +88,11 @@ impl Dialer {
     pub async fn link(&self) -> Result<Link, String> {
         let name = self.name.to_string();
         let tcp = (self.visit)(&name).await?;
-        match podssh_ws::tls_over(tcp, &name, &self.trust, CONNECT_LIMIT).await {
+        match self.way.tls_over(tcp, &name, &self.trust, CONNECT_LIMIT).await {
             Ok(tls) => Ok(Link(Box::new(tls))),
             // The service closes a visitor whose route no bridge holds: no
             // node is attached, or its route is another.
-            Err(podssh_ws::ConnectError::Tls(why)) => {
+            Err(pod_ws::ConnectError::Tls(why)) => {
                 (self.say)(format!("TLS with {name} failed: {why}"));
                 Err(format!(
                     "TLS with {name} failed ({why}): no node holds the name at OpenTunnel now, or a proxy ended it"

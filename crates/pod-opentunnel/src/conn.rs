@@ -18,7 +18,7 @@ use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, DuplexStream, ReadBuf};
 use tokio::sync::{mpsc, watch};
 
-use super::wire::{self, codes, Up};
+use super::wire::{self, Up, codes};
 
 /// Each direction of the pipe between the connection and its pumps.
 const PIPE: usize = 256 * 1024;
@@ -80,7 +80,7 @@ impl Outbox {
     /// Send a control message behind the data frames that wait: a
     /// connection's end, which the control queue would let pass its last
     /// frames, and the service would close the visitor's connection before
-    /// the end of its bytes (T-532: an answer cut short). False once the
+    /// the end of its bytes (an answer cut short). False once the
     /// bridge ended.
     pub async fn end_after(&self, up: &Up<'_>) -> bool {
         self.data.send(Queued::Text(up.text())).await.is_ok()
@@ -284,7 +284,7 @@ mod tests {
         assert_eq!(wire::split_frame(&second).map(|(c, p)| (c, p.len())), Some((7, 8 * 1024)));
         visitor.shutdown().await.unwrap();
         // The end comes behind the last frame, in the same queue, never
-        // before it by the control queue (T-532).
+        // before it by the control queue.
         let Queued::Text(text) = out.data.recv().await.unwrap() else { panic!("the end, behind the data") };
         let end: serde_json::Value = serde_json::from_str(&text).unwrap();
         assert_eq!(end, serde_json::json!({ "type": "end", "conn": 7 }));
