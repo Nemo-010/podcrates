@@ -58,7 +58,7 @@ online"): the work for podrunner and podnet comes first, then podssh and
 podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
-First: the hand-off of `v0.51.0`; then `v0.52.0` (parts 2 and 3 of T-035,
+First: the takes of `v0.51.0` (#172); then `v0.52.0` (parts 2 and 3 of T-035,
 and the asks of podvm that wait on the local branch `integ`). Then the move of podssh's waves 3 and 4 (the
 ruling "The move of podssh", PodUtils/podssh#248): T-035 (parts 2 and 3);
 T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2
