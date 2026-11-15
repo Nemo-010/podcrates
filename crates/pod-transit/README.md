@@ -113,7 +113,7 @@ exactly `HELLO` bytes, so the case did not come up).
 | podssh | `far::serve(node, settings, budget, open)` | `far::serve(node, settings, budget, open, session::budget::told())` |
 | podssh | `Dialer::link()`, `carry`, `carry_heard` give `Result<_, String>` | `Result<_, Failed>`: `.map_err(|e| e.to_string())` where a `String` is kept |
 | podssh | `tests/transit.rs`, `tests/transit_server/`, the plant `t436-transit-same-side` | the tests and the harness of this crate; the plant `transit-same-side`; `PODSSH_TRANSIT_TEST_PYTHON` and `PODSSH_TRANSIT_TEST_SERVER` are `POD_WORMHOLE_TEST_PYTHON` and `POD_WORMHOLE_TEST_SERVER`; `PODSSH_TRANSIT_TEST_PLANT` is `POD_TRANSIT_TEST_PLANT` |
-| podssh | `.github/workflows/transit-live.yml` | the loopback tests run on each push (`scripts/ci/mailbox-tests.sh`); the live run and its plant are steps of `live.yml` |
+| podssh | PodUtils/podssh:.github/workflows/transit-live.yml | the loopback tests run on each push (`scripts/ci/mailbox-tests.sh`); the live run and its plant are steps of `live.yml` |
 
 The adoption trial is `adoption/podssh/pod-transit.patch` with its `.run`
 and `.commit`.
