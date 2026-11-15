@@ -7938,3 +7938,32 @@ cargo test -p pod-quic --all-features
 ## Done
 
 2026-11-15, the commit of the fix. `crates/pod-quic/src/bounded.rs`: `Bounded` counts the failed reads in a row of the socket of an endpoint and gives `BrokenPipe` at `FAILED_READS_MOST` (256); a read that succeeds or waits starts the count again. `endpoint::on_socket` wraps the system socket of tokio in it, and `over` wraps the `DatagramSocket`. Two tests: the error at the bound and the reset by a wait; an endpoint over a way that fails each read reads at most 512 times in 300 ms, and its drop returns. With the bound removed, the first test failed, and the second hung (the spin of PodUtils/podssh#253). The plant `quic-failed-reads-unbounded`. `cargo test -p pod-quic --all-features` passed.
+
+# T-686: `pod-relay`: a new link of the resumable layer rides the pooled HTTP/2 connection of the silent link it replaces (PodUtils/podssh#262)
+
+**Source:** PodUtils/podssh#262 (COORD-078 of podssh; PodUtils/podssh@T-789).
+**Category:** defect
+**Milestone:** M2
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+After a cut of the client's leg of 15 s, a session of the forward road in the resumable layer comes back about 12.5 s after the link returns; OpenSSH over plain TCP in the same cell comes back in 0.4 to 0.8 s. `pod-session` opens its spare link in time, but the spare's `open` takes its WebSocket over HTTP/2 from `ctx.h2_pool()` (`h2_road::connect`, then `pod_ws::h2_road::connect`): the same TCP connection that carries the silent link. The spare cannot move until the TCP retransmission of that connection fires, and `beside.rs` then closes the spare as "the link spoke again". podssh measured it with `v0.51.0` at `3f6a9fe` (an iptables DROP of the port of the role in a private network namespace; `feel-netem.yml` runs 43709370293 and 43710388009 showed the same): with HTTP/2 the first byte came 12.7 and 12.6 s after the return; with `PODSSH_H2=no`, 0.40 and 0.19 s; `ss` and `strace` show no new TCP socket for the spare. The ask: a new link of the resumable layer (a spare, and a resume after a loss) does not take a pooled HTTP/2 connection that carries the link it replaces, for example a fresh connection, or one that spoke within the wait of the spare; a test of a session over the HTTP/2 road whose connection goes silent and whose spare takes a new TCP connection and resumes within a round trip of the return. The node roads that ride the HTTP/2 pool may have the same defect.
+
+## Premise
+
+- Read: PodUtils/podssh#262; `crates/pod-relay` (the HTTP/2 road, `h2_road::connect`, the pool of the context), `crates/pod-session` (the spare, `beside.rs`), `crates/pod-ws` (`h2_road::connect`).
+- Not measured here: the cut. podssh's numbers above.
+
+## Approach
+
+The open of a new link of the resumable layer asks the pool for a connection other than the one of the link that it replaces, or a fresh one: the pool takes a key or a mark of the silent connection, and a connection that has not spoken within the wait is not reused for a spare. The same for each road that rides the pool. A test over the HTTP/2 road on the loopback with a connection that stops answering (a stand-in proxy that holds the bytes): the spare opens a second TCP connection and the session resumes. A plant that gives the spare the pooled connection again.
+
+## Prove
+
+```sh
+cargo test -p pod-relay --all-features
+cargo test -p pod-session --all-features
+```

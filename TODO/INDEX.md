@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**552 entries: 109 open, 9 partial, 6 blocked, 428 done.**
+**553 entries: 110 open, 9 partial, 6 blocked, 428 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 3 | 0 | 117 | 131 |
+| P1 | 12 | 3 | 0 | 117 | 132 |
 | P2 | 47 | 3 | 4 | 223 | 277 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 109 | 9 | 6 | 428 | 552 |
+| **All** | 110 | 9 | 6 | 428 | 553 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -599,3 +599,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-683](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `98017c3` is red on ppc64le: the kernel test of `pod-term` gives the numbers of `asm-generic` to a powerpc kernel |
 | [T-684](upkeep.md) | P2 | S | M1 | defect | open | `services.yml` at `98017c3`: the Trojan node `node-trojan-149-28-130-108` ends the TLS handshake |
 | [T-685](upkeep.md) | P2 | S | M1 | defect | open | `services.yml` at `98017c3`: both RDAP servers answer 403 for the `.xyz` names to the runner |
+| [T-686](relay.md) | P1 | S | M2 | defect | open | `pod-relay`: a new link of the resumable layer rides the pooled HTTP/2 connection of the silent link it replaces (PodUtils/podssh#262) |
