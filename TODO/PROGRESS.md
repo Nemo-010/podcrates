@@ -13,8 +13,9 @@
   the issues), T-701 (the host classes of podssh and podnet).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
-  - podssh: `v0.51.0` (`3f6a9fe`, PodUtils/podssh#260): part 1 of
-    `pod-egress`; parts 2 and 3 wait for `v0.52.0`.
+  - podssh: `v0.54.0` (`d00ca78`, PodUtils/podssh#274; it runs the one
+    watcher; `pod-manual` is PodUtils/podssh@T-790; its host classes wait for
+    `v0.55.0`, T-701).
   - podnet: `v0.53.0` (`f2690c5`, PodUtils/podnet#587; it runs the one
     watcher, PodUtils/podcrates#186). It sets the
     profile of `kcp` with its take of the udp carrier (#139, T-526).
