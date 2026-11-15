@@ -24,7 +24,8 @@ label `confirmed` (the ruling "Strangers"): it reports it. It never edits a
 pull request.
 
 It fails on drift that it cannot fix: an open issue on GitHub with no place
-in the record, a number of the record that GitHub does not have as an
+in the record and older than GRACE_DAYS (a newer one is a note: a session
+opens a request or a message before its record can map it), a number of the record that GitHub does not have as an
 issue, and a body with a broken block.
 
 --dry-run prints each change and changes nothing. The API is
@@ -36,6 +37,7 @@ that failed, 2 when the record or GitHub cannot be read.
 """
 
 import argparse
+import datetime
 import json
 import os
 import shlex
@@ -103,16 +105,33 @@ def comment_text(issue):
     )
 
 
-def plan(record, items):
+GRACE_DAYS = 3
+
+
+def age_days(item, now):
+    """The age of an item in days from its `created_at`, or None."""
+    try:
+        made = datetime.datetime.fromisoformat((item.get("created_at") or "").replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return (now - made).total_seconds() / 86400
+
+
+def plan(record, items, now=None):
     """The changes that make GitHub agree with the record: (actions, notes,
     faults). An action is (number, fields to change, comment or None, what)."""
+    now = now or datetime.datetime.now(datetime.timezone.utc)
     actions, notes, faults = [], [], []
     by_number = {int(i["number"]): i for i in items}
     known = {r["number"] for r in record}
     for n in sorted(by_number):
         item = by_number[n]
         if "pull_request" not in item and item.get("state") == "open" and n not in known:
-            faults.append(f"#{n} is open on GitHub and has no place in the record: map it (TODO/RULES.md)")
+            age = age_days(item, now)
+            if age is not None and age < GRACE_DAYS:
+                notes.append(f"#{n} is new and has no place in the record yet: map it (TODO/RULES.md)")
+            else:
+                faults.append(f"#{n} is open on GitHub and has no place in the record: map it (TODO/RULES.md)")
     for issue in sorted(record, key=lambda r: r["number"]):
         n, kind, state = issue["number"], issue["kind"], issue["state"]
         if kind == "pull" or state == "deleted":

@@ -19,8 +19,9 @@ def record(number, kind="report", state="open", date="2026-11-15", entries=None)
     return {"number": number, "kind": kind, "state": state, "entries": entries, "block": block(state, date)}
 
 
-def item(number, body, state="open", association="MEMBER", labels=(), pull=False):
+def item(number, body, state="open", association="MEMBER", labels=(), pull=False, created="2026-01-01T00:00:00Z"):
     out = {
+        "created_at": created,
         "number": number,
         "body": body,
         "state": state,
@@ -130,6 +131,11 @@ def run(sync):
     code, api, lines = run_sync(sync, [record(30)], [item(30, "A."), item(31, "New.")])
     check(code == 1 and any("#31 is open on GitHub and has no place in the record" in x for x in lines),
           "an open issue with no place in the record fails")
+    import datetime as _dt
+    fresh = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(hours=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    code, api, lines = run_sync(sync, [record(30)], [item(30, "A."), item(36, "New.", created=fresh)])
+    check(code == 0 and any("#36 is new and has no place in the record yet" in x for x in lines),
+          "a new issue with no place in the record yet is a note")
     code, api, lines = run_sync(sync, [record(32)], [item(32, "A " + block("open") + " " + block("open"))])
     check(code == 1 and not api.writes, "a body with two blocks fails and is not written")
     code, api, lines = run_sync(sync, [record(33)], [item(33, "", pull=True)])

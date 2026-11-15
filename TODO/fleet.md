@@ -3290,6 +3290,8 @@ column `Kind` where a title does not give the kind, fixes the rows that the
 rules find, and calls the workflow. The State column of the map can then
 become the state alone.
 
+The same day, the dry run of `issue-sync.yml` on GitHub (run 43762153730, PodUtils/podcrates#190): 171 issues would get the block, #1 would close with a comment, 14 closed issues of a tester outside the team stay as they are, and the run failed on #190 alone, which the record did not map yet. A session opens each request and message before its record can map it, and a request freezes `main`, so an unmapped issue younger than `GRACE_DAYS` (3) is now a note, not a fault. The run would also have opened #189 again: a session closed it by hand before the record did. A session closes an issue through the record; the sync closes it on GitHub.
+
 # T-704: `podlab`: the usage errors of clap in the form of `pod_manual::error::fault`
 
 **Source:** T-700 (a finding of part 1).
