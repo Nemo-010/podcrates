@@ -158,15 +158,10 @@ pub(crate) fn spawn_with(
     // ([`crate::confine`]).
     let mut confined = crate::confine::compile(plan, chroot.then_some(root))?;
     // The child puts each passed descriptor onto its number first: the
-    // root descriptor and the memfd must hold no such number.
-    for &(child_fd, _) in &plan.fds.pass {
-        if child_fd == root.fd() || Some(child_fd) == fd_exec {
-            return Err(Error::runtime(
-                Class::Usage,
-                format!("a passed descriptor goes onto {child_fd}, the number of the root file system or of the memfd"),
-            ));
-        }
-    }
+    // root descriptor and the memfd move clear of each such number.
+    let mut moved = crate::pass_clear::Moved::default();
+    let root_fd = crate::pass_clear::keep(plan, root.fd(), "the root file system", &mut moved)?;
+    let fd_exec = fd_exec.map(|fd| crate::pass_clear::keep(plan, fd, "the memfd", &mut moved)).transpose()?;
 
     // The banner before the fork, so it cannot mix with the first output
     // of the payload. It goes to the error writer, never to the standard
@@ -183,10 +178,10 @@ pub(crate) fn spawn_with(
     let (read_end, write_end) = (i64::from(pipe[0]), i64::from(pipe[1]));
     // A report on a number of a passed descriptor would go into that file,
     // and the parent would read the end of the pipe as a success.
-    let read_end = clear_of_passes(plan, read_end).inspect_err(|_| {
+    let read_end = crate::pass_clear::clear_of_passes(plan, read_end).inspect_err(|_| {
         let _ = sys::close(write_end);
     })?;
-    let write_end = clear_of_passes(plan, write_end).inspect_err(|_| {
+    let write_end = crate::pass_clear::clear_of_passes(plan, write_end).inspect_err(|_| {
         let _ = sys::close(read_end);
     })?;
 
@@ -247,7 +242,7 @@ pub(crate) fn spawn_with(
                 // the unshare moves it into the new namespace, and a
                 // descriptor of the old one does not mount there.
                 if m.overlay.is_some()
-                    && let Err(e) = sys::fchdir(root.fd())
+                    && let Err(e) = sys::fchdir(root_fd)
                 {
                     report(crate::ns_overlay::NS_OVERLAY_STEP, e);
                 }
@@ -279,7 +274,7 @@ pub(crate) fn spawn_with(
             // `fchdir` onto the checked descriptor: a path can change after
             // its check, and a descriptor cannot. The working directory is
             // the root file system from here until the `chdir` below.
-            if let Err(e) = sys::fchdir(root.fd()) {
+            if let Err(e) = sys::fchdir(root_fd) {
                 report(1, e);
             }
             if chroot {
@@ -308,7 +303,7 @@ pub(crate) fn spawn_with(
                 // directory can be the `WorkingDir` of the image.
                 // An overlay root lands on an overlay, never on the lower.
                 if let Some(n) = ns {
-                    let anchored = sys::fstatat(root.fd(), &empty, sys::AT_EMPTY_PATH).ok();
+                    let anchored = sys::fstatat(root_fd, &empty, sys::AT_EMPTY_PATH).ok();
                     let ok = match anchored {
                         Some(a) if n.overlay() => crate::ns_overlay::landed(&a, &slash),
                         Some(a) => sys::fstatat(sys::AT_FDCWD as i64, &slash, 0).is_ok_and(|b| chroot_landed(&a, &b)),
@@ -434,19 +429,6 @@ pub(crate) fn spawn_with(
         return Err(Error::NsSetup { step, errno });
     }
     Err(step_failure(plan, buf[0], errno, buf[3]))
-}
-
-/// `fd`, or, where the child puts a passed descriptor onto its number, a
-/// close-on-exec copy above each such number (the original closes).
-fn clear_of_passes(plan: &Plan, fd: i64) -> Result<i64> {
-    let targets = || plan.fds.pass.iter().map(|&(child_fd, _)| child_fd);
-    if !targets().any(|t| t == fd) {
-        return Ok(fd);
-    }
-    let above = targets().max().unwrap_or(0) + 1;
-    let moved = sys::fcntl(fd, sys::F_DUPFD_CLOEXEC, above as u64);
-    let _ = sys::close(fd);
-    moved.map_err(|e| errno_failure("moving the readiness pipe clear of the passed descriptors failed", e))
 }
 
 /// The error for a step that the child reported.

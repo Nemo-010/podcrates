@@ -1,0 +1,13 @@
+diff --git a/crates/pod-enter/src/pass_clear.rs b/crates/pod-enter/src/pass_clear.rs
+index 7d5f0f76..1cccae00 100644
+--- a/crates/pod-enter/src/pass_clear.rs
++++ b/crates/pod-enter/src/pass_clear.rs
+@@ -34,7 +34,7 @@ impl Drop for Moved {
+ /// copy above each passed number. The caller keeps its own descriptor; the
+ /// copy closes with `moved`.
+ pub(crate) fn keep(plan: &Plan, fd: i64, what: &str, moved: &mut Moved) -> Result<i64> {
+-    if !passed(plan, fd) {
++    if true || !passed(plan, fd) {
+         return Ok(fd);
+     }
+     match sys::fcntl(fd, sys::F_DUPFD_CLOEXEC, above(plan) as u64) {
