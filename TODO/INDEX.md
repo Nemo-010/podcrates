@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**517 entries: 107 open, 8 partial, 6 blocked, 396 done.**
+**517 entries: 106 open, 8 partial, 6 blocked, 397 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 105 | 119 |
-| P2 | 50 | 2 | 4 | 208 | 264 |
+| P2 | 49 | 2 | 4 | 209 | 264 |
 | P3 | 46 | 3 | 2 | 81 | 132 |
-| **All** | 107 | 8 | 6 | 396 | 517 |
+| **All** | 106 | 8 | 6 | 397 | 517 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -73,7 +73,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-024](relay.md) | P2 | S | M2 | feature | done | `pod-wg`: the WireGuard initiator |
 | [T-025](relay.md) | P1 | L | M2 | feature | done | `pod-relay`: the relay client, the pool, the roads and the reverse road (the base of podssh) |
 | [T-026](relay.md) | P1 | M | M2 | feature | done | `pod-relay`: podnet's relay client and its plain reverse mode |
-| [T-027](adapters.md) | P2 | S | M3 | feature | open | `pod-transit`: the transit relay carrier |
+| [T-027](adapters.md) | P2 | S | M3 | feature | done | `pod-transit`: the transit relay carrier |
 | [T-028](adapters.md) | P1 | L | M3 | feature | partial | `pod-warp`: the WARP adapter |
 | [T-029](adapters.md) | P1 | L | M3 | feature | open | `pod-cloudflare`: the edge client, the tunnel and the quick tunnels (the base of podnet) |
 | [T-030](adapters.md) | P1 | M | M3 | feature | open | `pod-cloudflare`: podssh's quick tunnels onto the edge client |

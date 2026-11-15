@@ -9,7 +9,7 @@ adapter and the Cloudflare adapter. Each crate follows the procedure of
 **Milestone:** M3
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -36,6 +36,53 @@ sh scripts/agent/check.sh
 ## Start condition
 
 T-020 and T-022 are done.
+
+## Done
+
+2026-11-14. Commits `e3a15c6` (the import of
+PodUtils/podssh:crates/podssh-relay/src/transit at `b9c04657`, frozen
+there for the move: PodUtils/podssh#248, PodUtils/podssh@T-684),
+`0a10589` (the edition), `599a087` (the adaptation), `fc15b29` (the
+plants), `229925f` (the README, the workspace, the static probe) and
+`d11f159` (the adoption trial); calls C598 to C600.
+
+- `crates/pod-transit`: `Config` (the relay, the caller's `pod_ws::Way`,
+  the trust, the bounds, the events), `Dialer`, `carry`, `carry_heard`,
+  `far::{Node, dial, serve, serve_kept}`, `meet` with its sans-IO steps
+  (`answer`, `peer_nonce`, `take_line`), `token::{Keys, Side, line}`,
+  `setting(variable, value)`, `default_url()` of `pod-services`, `Failed`
+  with a stage and a class. No variable of the environment, no output, no
+  process state.
+- Tests: `cargo test -p pod-transit --all-features` with
+  magic-wormhole-transit-relay 0.5.0 of `scripts/ci/wormhole-servers.txt`
+  and `POD_WORMHOLE_TEST_SERVER=required`: 8 unit tests and the 5 loopback
+  tests of podssh passed (1 MiB each way; a session that moves to another
+  road when the relay stops; one side never paired; a side that knows the
+  token alone refused; two clients never taken for the node); 2 live
+  tests ignored (`live.yml`). `scripts/ci/mailbox-tests.sh` runs them on
+  each push.
+- Plants (group `transit`): `transit-same-side` (podssh's), and
+  `transit-proof-any-role`, `transit-hello-own-part`,
+  `transit-refusal-echoes`, `transit-answer-unbounded`; each applied by
+  hand, failed its test with its EXPECT text, and was removed;
+  `sh scripts/plant-each.sh --apply`: 0 stale.
+- `cargo clippy -p pod-transit --all-targets --all-features -- -D warnings`,
+  `cargo doc` of the crate with `-D warnings`, `cargo clippy -p static-probe`:
+  clean.
+- The adoption trial: `adoption/podssh/pod-transit.patch`, `.run` and
+  `.commit` (`b9c04657`). On a scratch copy of podssh at `b9c04657` with
+  the patch and each podcrates dependency on this tree:
+  `cargo check -p podssh-relay --features croc --tests` and
+  `cargo check -p podssh-cli --lib --tests` passed with no warning;
+  rustfmt and podssh's record check passed; `adoption.yml` runs the whole
+  `.run` in CI. podssh must: take the tag of the release (each
+  podcrates tag of the patch is `v0.49.0`); make `transit/mod.rs` the glue
+  (re-exports, `ENV`, `Say`, `setting`, `config`); pass a `Config` to
+  `far::Node`, `Dialer::new` and `far::dial` (`node_transit.rs`,
+  `doctor/carriers.rs`); map a link's `Failed` to its words
+  (`ssh/roads.rs`); remove `tests/transit.rs`, `tests/transit_server/`, the
+  plant `t436-transit-same-side` and `transit-live.yml`; fix the citations
+  of its record (PodUtils/podssh:TODO/mesh.md, PodUtils/podssh:TODO/ssh.md).
 
 # T-028: `pod-warp`: the WARP adapter
 
