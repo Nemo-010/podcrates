@@ -1340,3 +1340,30 @@ A module `standin` of `pod-opentunnel` behind the feature `standin` (its depende
 ```sh
 cargo test -p pod-opentunnel --all-features
 ```
+
+# T-642: `pod-egress`: the Python packages of `forwarder-live.yml` by a hashed lock
+
+**Source:** T-035 (a finding of its work, part 1).
+**Category:** chore
+**Milestone:** M4
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`forwarder-live.yml` installs wisp-server-python 0.9.0 and the packages it needs (asyncudp, python-socks, uvloop) by version alone, as podssh did. The other Python installs of CI (`scripts/ci/wormhole-servers.txt`) check each package by its hash.
+
+## Premise
+
+- Read: `.github/workflows/forwarder-live.yml`; `scripts/ci/wormhole-servers.txt` and `scripts/ci/mailbox-tests.sh` (the form of a hashed install).
+
+## Approach
+
+A requirements file with the hash of each package (`uv pip compile --generate-hashes`, or `pip-compile --generate-hashes`), installed with `pip install --require-hashes`; `scripts/check-workflows.py` refuses a `pip install` with no `--require-hashes` in a workflow.
+
+## Prove
+
+```sh
+python3 scripts/check-workflows.py
+```

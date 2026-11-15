@@ -1,0 +1,8 @@
+# A run that times out takes its screen after the stop, when the emulator
+# has no screen and no QMP socket (T-640, PodUtils/podvm#380). The test of
+# the evidence must fail.
+ENTRY=T-640
+GROUP=guest
+EXPECT='no screen from before the stop'
+RUN='cargo test -p pod-guest --all-features --lib -- evidence::tests::a_run_that_times_out_keeps_a_screen_from_before_the_stop_and_its_logs --exact'
+LIMIT=1800

@@ -56,6 +56,12 @@ impl Ends {
         self.state.send_replace(State::Failed);
     }
 
+    /// A fault ended the session. It is set before the state turns to
+    /// `Failed`, so it is the first sign of a fault.
+    pub fn failed(&self) -> bool {
+        self.fault.lock().unwrap_or_else(|e| e.into_inner()).is_some()
+    }
+
     pub fn fault(&self) -> Option<io::Error> {
         let fault = self.fault.lock().unwrap_or_else(|e| e.into_inner());
         fault.as_ref().map(|make| make())
@@ -120,6 +126,10 @@ impl AsyncRead for Pipes {
 impl AsyncWrite for Pipes {
     fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, data: &[u8]) -> Poll<io::Result<usize>> {
         let this = self.get_mut();
+        // The lanes can still read the pipe: no byte goes after a fault.
+        if let Some(e) = this.ends.fault() {
+            return Poll::Ready(Err(e));
+        }
         match Pin::new(&mut this.to_peer).poll_write(cx, data) {
             Poll::Ready(Err(e)) => Poll::Ready(Err(this.ends.fault().unwrap_or(e))),
             other => other,
@@ -156,6 +166,8 @@ mod tests {
         let ends = Ends::new();
         let (mut io, far) = pipes(64, ends.clone());
         ends.fail(io::ErrorKind::TimedOut, "no answer");
+        assert!(ends.failed());
+        assert_eq!(io.write(b"x").await.unwrap_err().kind(), io::ErrorKind::TimedOut, "no write after a fault");
         drop(far);
         assert_eq!(io.read(&mut [0; 8]).await.unwrap_err().kind(), io::ErrorKind::TimedOut);
         assert_eq!(io.write(b"x").await.unwrap_err().kind(), io::ErrorKind::TimedOut);

@@ -896,14 +896,23 @@ pipes under a switch, and the ARQ over the `Lossy` shim at 3 % loss):
   promotion of the other half:
   `a_silent_up_half_ends_the_session_with_up_carrier_lost_on_each_side`,
   `a_failed_down_half_ends_the_session_with_down_carrier_lost_on_each_side`.
+- [x] A link over each end names the lost half also when the loss races
+  the close of the bytes of the other link (T-639, PodUtils/podnet#572):
+  an end sends no `END` after a loss, as the link closes its bytes then;
+  it sends `LOST`. 240 rounds close the up or the down half, at each end
+  or at one end while the other end sees silence, on the multi-thread
+  runtime with 8 tasks that load it:
+  `a_closed_half_ends_each_link_with_the_loss_of_that_half_in_each_round_under_load`.
+  A write to the byte stream of the poll, s3 and split carriers after a
+  fault gives the fault (`pipes::tests`).
 - [x] The join of the halves of each session, the refusal of halves of two
   keys, the end of the bytes of each side:
   `the_listener_joins_the_halves_of_each_session_and_refuses_halves_of_two_keys`;
   the addresses, the settings and the facts:
   `the_address_the_settings_and_the_facts`; the wire (`split::wire::tests`).
 - [x] A plant for each check: `link-split-silence-unseen`,
-  `link-split-keys-unchecked`, `link-split-end-ignored`
-  (`scripts/plants/`).
+  `link-split-keys-unchecked`, `link-split-end-ignored`,
+  `link-split-end-after-loss` (`scripts/plants/`).
 - The control frames ride down with the bytes of the listener; no half
   takes over the other's direction at a loss (call C493). podnet's flags
   `--up-carrier` and `--down-carrier` and the router's split tests are

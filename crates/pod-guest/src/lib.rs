@@ -16,7 +16,8 @@
 //!    boot, and reads the exit code, stdout and stderr after the guest
 //!    stops. A result with another token is refused ([`outcome`]).
 //! 4. A run that times out is stopped and reported, never `Ok`. The stop
-//!    says if the emulator was reaped ([`Stop`]).
+//!    says if the emulator was reaped ([`Stop`]); the report says what the
+//!    mailbox tells of the agent and keeps the evidence ([`evidence`]).
 //!
 //! Two flavours share the mailbox, the token, QMP, the per-run directory
 //! and the stop: the UEFI flavour ([`plan::argv`]: q35, OVMF, NVMe, a
@@ -46,6 +47,7 @@
 pub mod agent;
 pub mod dos;
 pub mod emulator;
+pub mod evidence;
 pub mod fat16;
 pub mod fetch;
 pub mod modloop;
@@ -91,12 +93,17 @@ pub struct Settings {
     /// The OEM name in the boot sector of the mailbox volume: at most 8
     /// printable ASCII characters.
     pub oem: String,
+    /// The directory where a run that times out keeps its evidence: a
+    /// screen taken before the stop, the serial log, the error stream of
+    /// the emulator and the mailbox, in [`evidence::dir`]. `None` keeps
+    /// none.
+    pub evidence: Option<PathBuf>,
 }
 
 impl Settings {
     /// The settings for per-run directories in `scratch_root`, with the
     /// prefix `pod-guest-`, no keep, the marker `pod-guest` and the OEM
-    /// name `PODGUEST`.
+    /// name `PODGUEST`, and no evidence.
     pub fn new(scratch_root: impl Into<PathBuf>) -> Settings {
         Settings {
             scratch_root: scratch_root.into(),
@@ -104,6 +111,7 @@ impl Settings {
             keep: false,
             marker: b"pod-guest".to_vec(),
             oem: "PODGUEST".to_string(),
+            evidence: None,
         }
     }
 }
@@ -226,7 +234,13 @@ impl std::error::Error for Timeout {}
 impl Timeout {
     /// The failure of a run that reached its limit.
     pub fn failure(self) -> Failure {
-        Failure::caused(Stage::Host, Class::Timeout, self.to_string(), self)
+        self.failure_with("")
+    }
+
+    /// The failure of a run that reached its limit, with `more` after the
+    /// text of the timeout ([`evidence`]).
+    pub fn failure_with(self, more: &str) -> Failure {
+        Failure::caused(Stage::Host, Class::Timeout, format!("{self}{more}"), self)
     }
 }
 
@@ -355,8 +369,11 @@ pub fn stage(
 /// the result.
 ///
 /// The agent powers the machine off only after it wrote the exit code. A
-/// timeout is a command that still runs or a guest that did not reach the
-/// mailbox: both are failures ([`Timeout`]).
+/// timeout is a command that still runs, a guest that did not reach the
+/// mailbox, or a guest that did not power off: each is a failure
+/// ([`Timeout`]). Its text says what the mailbox tells of the agent
+/// ([`evidence::seen`]); with [`Settings::evidence`], a screen taken before
+/// the stop and the logs are kept, and the text names their directory.
 ///
 /// A request of [`agent::Mode::KeepAlive`] is refused with [`Class::Usage`]:
 /// its guest does not power off. The caller of that mode starts the
@@ -388,8 +405,10 @@ pub fn run(s: &Settings, plan: &Plan, request: &Request) -> Result<Outcome> {
         }
     };
     if !exited {
+        let shot = evidence::screen(s, plan, &request.token);
         let stop = running.stop();
-        return Err(Timeout { after: request.timeout, stop }.failure());
+        let more = evidence::after_stop(s, plan, &request.token, log.as_deref(), shot);
+        return Err(Timeout { after: request.timeout, stop }.failure_with(&more));
     }
     drop(running);
     // The exit status of the emulator is not the answer: the mailbox is.
@@ -399,7 +418,8 @@ pub fn run(s: &Settings, plan: &Plan, request: &Request) -> Result<Outcome> {
         .ok_or_else(|| failure(Class::Protocol, format!("{}: not a mailbox", plan.mailbox.display())))?;
     outcome(&back, &request.token)?.ok_or_else(|| {
         let tail = log.as_deref().map(emulator::log_tail).unwrap_or_default();
-        failure(Class::Protocol, format!("the guest powered off with no result{tail}"))
+        let seen = evidence::seen(&back, &request.token);
+        failure(Class::Protocol, format!("the guest powered off with no result; {seen}{tail}"))
     })
 }
 

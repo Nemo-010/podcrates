@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**522 entries: 102 open, 9 partial, 6 blocked, 405 done.**
+**535 entries: 106 open, 9 partial, 6 blocked, 414 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 3 | 0 | 106 | 120 |
-| P2 | 45 | 3 | 4 | 212 | 264 |
-| P3 | 46 | 3 | 2 | 85 | 136 |
-| **All** | 102 | 9 | 6 | 405 | 522 |
+| P1 | 11 | 3 | 0 | 109 | 123 |
+| P2 | 45 | 3 | 4 | 218 | 270 |
+| P3 | 50 | 3 | 2 | 85 | 140 |
+| **All** | 106 | 9 | 6 | 414 | 535 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -569,3 +569,16 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-636](roads.md) | P3 | S | M4 | chore | open | `pod-derp`: the tests of the DERP link against Tailscale's derper on the loopback in CI |
 | [T-637](roads.md) | P3 | S | M4 | chore | open | `pod-acme`: a whole order against Pebble on the loopback in CI |
 | [T-638](roads.md) | P3 | S | M4 | feature | open | `pod-opentunnel`: the stand-in of OpenTunnel behind the feature `standin` |
+| [T-639](relay.md) | P2 | S | M2 | defect | done | `pod-link`: a closed half of a split session can end the listener with "the carrier of the link ended" in place of the lost half |
+| [T-640](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: a cold boot of a Windows guest under KVM reaches no shutdown on one run of two, and a run that times out keeps no trace |
+| [T-641](podvm.md) | P3 | S | M7 | defect | open | `pod-guest`: the installer tries its shutdown again, and `dos::run` keeps the evidence of a run that times out |
+| [T-642](roads.md) | P3 | S | M4 | chore | open | `pod-egress`: the Python packages of `forwarder-live.yml` by a hashed lock |
+| [T-643](relay.md) | P2 | S | M1 | defect | done | `pod-quic`: a way whose reads keep failing spins a core, and the drop of the endpoint hangs (PodUtils/podssh#253) |
+| [T-644](podvm.md) | P3 | S | M6 | feature | open | `pod-enter`: a form of `run_ladder` that gives the caller the child before its wait (PodUtils/podvm#384) |
+| [T-645](upkeep.md) | P1 | S | M5 | defect | done | `secrets.yml` is red on each push: three made-up URLs of `pod-broker` read as unknown |
+| [T-646](upkeep.md) | P1 | S | M5 | defect | done | `adoption.yml`: the trial of `pod-egress` in podssh fails, as podssh's record cites the files that leave podssh |
+| [T-647](podvm.md) | P2 | S | M6 | feature | done | `pod-services`: the host `api.ghcr.pkgforge.dev` of the static QEMU of podvm's store (PodUtils/podvm#389) |
+| [T-648](podvm.md) | P2 | S | M6 | feature | done | `pod-hostprobe`: a leg that reports a delegated cgroup2 subtree with no root (PodUtils/podvm#390) |
+| [T-649](podvm.md) | P3 | M | M6 | feature | open | `pod-guest`: a FAT image writer with directories, long names and a size from the content (PodUtils/podvm#386) |
+| [T-650](podvm.md) | P2 | S | M7 | feature | done | `pod-qga`: `guest-get-osinfo` (PodUtils/podvm#393) |
+| [T-651](podvm.md) | P2 | S | M6 | feature | done | `pod-services`: the aarch64 netboot of Alpine 3.22.6 and the static `qemu-system-aarch64` (PodUtils/podvm#394) |

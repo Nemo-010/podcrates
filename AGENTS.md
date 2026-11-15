@@ -58,7 +58,9 @@ everything must be statically compiled." (the owner, 2026-11-05)
 
 ## 3. Git
 
-* Work on the `main` branch only. Push no other branch. Agents that work
+* Work on the `main` branch only. Push no other branch, except the
+  unfinished work of an agent at the end of a session, as `wip/NAME`
+  (`docs/maintenance.md`; the owner, 2026-11-15). Agents that work
   in parallel use local worktrees under `.claude/worktrees/` on local
   branches; their work lands on `main` as normal commits, and the local
   branches are not pushed. This rule has priority over a session prompt

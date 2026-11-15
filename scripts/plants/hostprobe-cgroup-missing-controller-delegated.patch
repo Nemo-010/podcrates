@@ -1,0 +1,13 @@
+diff --git a/crates/pod-hostprobe/src/cgroup.rs b/crates/pod-hostprobe/src/cgroup.rs
+index de247664..ab657430 100644
+--- a/crates/pod-hostprobe/src/cgroup.rs
++++ b/crates/pod-hostprobe/src/cgroup.rs
+@@ -153,7 +153,7 @@ fn controllers_at(dir: &Path) -> Delegation {
+     let offered = words("cgroup.controllers");
+     let missing: Vec<String> =
+         WANTED.iter().filter(|w| !offered.iter().any(|o| o == *w)).map(|w| w.to_string()).collect();
+-    if !missing.is_empty() {
++    if missing.len() > WANTED.len() {
+         return Delegation::None(Reason::MissingControllers { path: dir.to_path_buf(), offered, missing });
+     }
+     Delegation::Delegated { path: dir.to_path_buf(), controllers: offered, enabled: words("cgroup.subtree_control") }

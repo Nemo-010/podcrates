@@ -21,7 +21,7 @@ use pod_core::entropy::{Entropy, OsEntropy};
 use serde_json::{Value, json};
 
 use crate::error::{Error, ErrorKind, Result, far_text};
-use crate::wire::{self, Answer, Chunk, Exec, ExecStatus, OpenMode, SENTINEL, Shutdown};
+use crate::wire::{self, Answer, Chunk, Exec, ExecStatus, OpenMode, OsInfo, SENTINEL, Shutdown};
 use line::{Line, Stop};
 
 /// The settings of a client. [`Settings::new`] gives the defaults.
@@ -317,6 +317,13 @@ impl Client {
             }
         }
         Ok(())
+    }
+
+    /// `guest-get-osinfo`: the system of the guest.
+    pub fn osinfo(&mut self) -> Result<OsInfo> {
+        const CALL: &str = "guest-get-osinfo";
+        let ret = self.call(CALL, None)?;
+        OsInfo::from_return(&ret).map_err(|why| Error::protocol(CALL, why))
     }
 
     /// `guest-shutdown`. The agent gives no answer when it obeys: the guest

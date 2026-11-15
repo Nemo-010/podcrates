@@ -101,3 +101,14 @@ fn the_bare_returns_are_integers() {
     assert_eq!(written(&json!({"count": 3, "eof": false})).unwrap(), 3);
     assert!(written(&json!({"count": -3})).is_err());
 }
+
+/// A member that the agent leaves out is `None`; a member that is not a
+/// text is named.
+#[test]
+fn osinfo_takes_each_member_that_is_there_and_names_a_wrong_one() {
+    let os = OsInfo::from_return(&json!({"id": "debian", "kernel-release": "6.12.0"})).unwrap();
+    assert_eq!((os.id.as_deref(), os.kernel_release.as_deref(), os.name), (Some("debian"), Some("6.12.0"), None));
+    let e = OsInfo::from_return(&json!({"version-id": 12})).unwrap_err();
+    assert!(e.contains("\"version-id\""), "{e}");
+    assert!(OsInfo::from_return(&json!([])).is_err());
+}

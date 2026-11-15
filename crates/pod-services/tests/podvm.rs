@@ -97,7 +97,16 @@ fn the_inputs_of_podvm_measure_come_from_the_files() {
 #[test]
 fn each_sum_of_a_guest_image_is_a_sha256() {
     let ids: Vec<&str> = pod_services::of_kind("guest-image").map(|s| s.id()).collect();
-    assert_eq!(ids, ["alpine-netboot", "freedos-image", "microsoft-validationos", "microsoft-windows-eval"]);
+    assert_eq!(
+        ids,
+        [
+            "alpine-netboot",
+            "alpine-netboot-aarch64",
+            "freedos-image",
+            "microsoft-validationos",
+            "microsoft-windows-eval"
+        ]
+    );
     for id in ids {
         let sums: Vec<&str> = service(id)
             .facts()
@@ -220,4 +229,44 @@ fn the_archive_of_wasmtime_holds_the_pins_of_podvm() {
     assert_eq!(w.text("bin-member"), Some(format!("wasmtime-v{version}-x86_64-linux/wasmtime").as_str()));
     assert_eq!(w.text("bin-sha256"), Some("983e57573a320cf44c93ccaa571a25640cf38b15e8e14160aa7bb919336caae8"));
     assert_eq!(w.int("bin-bytes"), Some(67_964_264));
+}
+
+/// The static QEMU of pkgforge's bincache for podvm's store
+/// (PodUtils/podvm#389): the pins of podvm.
+#[test]
+fn the_static_qemu_holds_the_pins_of_podvm() {
+    let q = service("pkgforge-qemu");
+    assert_eq!(q.text("version"), Some("9.2.0"));
+    // The name of an endpoint is a word: `_` becomes `-`.
+    for (file, sha, bytes) in [
+        ("qemu-system-x86_64", "b0597850cc3aa3d473410d8da27102eddfcf3f23abbe58bd1efc7a06f197b0a1", 42_899_120),
+        ("qemu-system-aarch64", "1ed86579cf74ecbe4d118b098d96d3e127beebde048b3d8e5bc907781403531b", 46_519_280),
+        ("qemu-img", "7311a2598164b3055097f8f0484c1bbb0cd92463889fd8108c2f40fcc9f597c6", 11_009_488),
+    ] {
+        let name = file.replace('_', "-");
+        let e = q.endpoint(&name).unwrap();
+        assert_eq!(e.host(), "api.ghcr.pkgforge.dev");
+        assert!(e.path().unwrap().ends_with(&format!("/{file}?tag=9.2.0-x86_64-linux&download={file}")), "{name}");
+        assert_eq!(q.text(&format!("{name}-sha256")), Some(sha), "{name}");
+        assert_eq!(q.int(&format!("{name}-bytes")), Some(bytes), "{name}");
+    }
+}
+
+/// The aarch64 netboot of Alpine for podvm's arm64 guest
+/// (PodUtils/podvm#394): the release of the x86_64 pin and podvm's sums.
+#[test]
+fn the_aarch64_netboot_holds_the_pins_of_podvm() {
+    let arm = service("alpine-netboot-aarch64");
+    assert_eq!(arm.text("release"), service("alpine-netboot").text("release"));
+    let archive = arm.endpoint("archive").unwrap().path().unwrap();
+    assert!(archive.ends_with(&format!("/aarch64/alpine-netboot-{}-aarch64.tar.gz", arm.text("release").unwrap())));
+    assert_eq!(
+        arm.text("vmlinuz-virt-sha256"),
+        Some("dd37c4460f933ec909ff022c34944ff7e1a5300aff99750e3bdc02cd4074c332")
+    );
+    assert_eq!(
+        arm.text("modloop-virt-sha256"),
+        Some("da142869626ec9d4543ab46482af10b5ff2c8c1c2e01068ddf32360316a06218")
+    );
+    assert_eq!(arm.int("archive-bytes"), Some(341_396_208));
 }

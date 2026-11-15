@@ -10,7 +10,8 @@
 //! * [`Client::ping`], [`Client::exec`] and [`Client::exec_status`] (and
 //!   [`Client::wait_exec`]), [`Client::file_open`], [`Client::file_read`],
 //!   [`Client::file_write`], [`Client::file_close`] (and
-//!   [`Client::read_file`], [`Client::write_file`]), [`Client::shutdown`].
+//!   [`Client::read_file`], [`Client::write_file`]), [`Client::shutdown`],
+//!   [`Client::osinfo`].
 //! * Each error names its call and its kind ([`ErrorKind`]): no agent, a
 //!   refusal of the agent in its own words, the bound, a closed
 //!   connection, a broken answer, a limit, a bad value.
@@ -30,4 +31,4 @@ mod client;
 #[cfg(unix)]
 pub use client::{Client, Settings};
 pub use error::{Error, ErrorKind, Result};
-pub use wire::{Answer, Chunk, Exec, ExecStatus, OpenMode, Shutdown};
+pub use wire::{Answer, Chunk, Exec, ExecStatus, OpenMode, OsInfo, Shutdown};

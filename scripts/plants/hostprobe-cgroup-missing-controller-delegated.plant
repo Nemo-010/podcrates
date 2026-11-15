@@ -1,0 +1,6 @@
+# pod-hostprobe: the cgroup leg calls a directory with no controller cpu delegated; the test of the nearest writable directory must fail (T-648).
+ENTRY=T-648
+GROUP=hostprobe
+EXPECT='test cgroup::tests::the_nearest_writable_directory_with_each_controller_is_delegated \.\.\. FAILED'
+RUN='cargo test -p pod-hostprobe --lib -- cgroup::tests::the_nearest_writable_directory_with_each_controller_is_delegated --exact'
+LIMIT=1800

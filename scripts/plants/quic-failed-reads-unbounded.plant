@@ -1,0 +1,6 @@
+# pod-quic: the socket of an endpoint passes each failed read through with no bound, so a way that fails each read spins the driver; the test of the bound must fail (T-643).
+ENTRY=T-643
+GROUP=link
+EXPECT='test bounded::tests::the_failed_read_at_the_bound_is_a_broken_pipe \.\.\. FAILED'
+RUN='cargo test -p pod-quic --lib -- bounded::tests::the_failed_read_at_the_bound_is_a_broken_pipe --exact'
+LIMIT=1800

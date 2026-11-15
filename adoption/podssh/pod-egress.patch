@@ -94,7 +94,7 @@ index 2ebf4fde..d26d3d7e 100644
        - "scripts/interop-wstunnel.sh"
        - ".github/workflows/wstunnel-interop.yml"
 diff --git a/TODO/mesh.md b/TODO/mesh.md
-index 577304e3..7e23fa2a 100644
+index 577304e3..bca32545 100644
 --- a/TODO/mesh.md
 +++ b/TODO/mesh.md
 @@ -1839,7 +1839,7 @@ close reasons, and its demo server takes the destination from the client.
@@ -156,6 +156,15 @@ index 577304e3..7e23fa2a 100644
    client that keeps HTTP/2's connection and falls back to HTTP/1.1, and a refusal's words
    (`mod.rs`); HTTP/1.1's CONNECT (`http1.rs`); HTTP/2's CONNECT as `AsyncRead` and `AsyncWrite`
    (`http2.rs`). podssh-cli, `crates/podssh-cli/src/via/`: the road of `ssh`, `proxy` and `pipe`'s
+@@ -2026,7 +2030,7 @@ through the session's own proxy, so the whole run is the runner's.
+   `--test flag_table`, `man_flag_parity`, `man_page`, `man_json`, `leading_dash`, `doctor`,
+   `proxy` and `pipe_http` passed. Clippy (`-D warnings`, one needless borrow repaired) and
+   `cargo fmt --check` of the packages: clean.
+-- Planted (`scripts/plants/t439-via-no-credential.plant`): the test of the credential failed
++- Planted (`t439-via-no-credential.plant`, now `egress-via-no-credential.plant` of PodUtils/podcrates): the test of the credential failed
+   with "refused CONNECT 127.0.0.1:...: 407 Proxy Authentication Required; it asks for Basic".
+ - The first run of `via-interop.yml` (41386992760, at the merge's push) failed on three faults
+   of the script, none of podssh's: forwardproxy's module has no `cmd/caddy` at the pinned
 @@ -2253,7 +2257,7 @@ v10.0.1 and v9.7.4 (read through the services of web.pkgforge.dev):
  - **One token for 9.1 to 11.** wstunnel's client signs its JWT with a key of each process since
    10.1 (its commit 1522882, 2024-08-26), and its server checks no signature since then; 9.1 to
@@ -268,6 +277,15 @@ index 577304e3..7e23fa2a 100644
    forwarder's template is a ws:// or wss:// URL".
  
  ## Approach
+@@ -12676,7 +12682,7 @@ cargo test -p podssh-relay --features piping --test piping_live -- --ignored
+ ```
+ 
+ The rates of both forms through `ppng.io`, three runs each, written with their date; the demo
+-server's runs in `.github/workflows/forwarder-live.yml`, by hand, written the same way.
++server's runs in `forwarder-live.yml` (now of PodUtils/podcrates), by hand, written the same way.
+ 
+ ## Done
+ 
 diff --git a/TODO/pipe.md b/TODO/pipe.md
 index 14348da2..c770cc1d 100644
 --- a/TODO/pipe.md
@@ -293,8 +311,21 @@ index 14348da2..c770cc1d 100644
  value cross both ways unmasked; with no flag it is refused; `--raw-upgrade` with no `ws-listen:` exits
  64. Planted: the version checked before the key, and the keyless test gets `426`; the raw form taken
  with no flag, and the test of the request with no flag gets `101`.
+diff --git a/TODO/relay.md b/TODO/relay.md
+index 14b8f96a..770e8294 100644
+--- a/TODO/relay.md
++++ b/TODO/relay.md
+@@ -3186,7 +3186,7 @@ URL written into each result, and a download target that is no test target of `A
+    rounds in a new random order from a seed that the result keeps; a limit on each run and a
+    budget on the whole; one JSON result, and `--ci` for GitHub's step summary.
+ 2. A workflow by hand only, .github/workflows/relay-measure.yml, from the draft in the report's
+-   section 7, with the pins of `.github/workflows/forwarder-live.yml`.
++   section 7, with the pins of `forwarder-live.yml` (now of PodUtils/podcrates).
+ 3. The stage `dest` in the workflow, with the operator's server of `PODSSH_THROUGHPUT_SSH` and its
+    key from the repository's secrets, as the throughput run takes them; an input names it.
+ 4. `docs/development.md`, "Live tests": the harness, its self-test and the workflow.
 diff --git a/TODO/roads.md b/TODO/roads.md
-index d9d3dde7..8d01622c 100644
+index d9d3dde7..5ec88abb 100644
 --- a/TODO/roads.md
 +++ b/TODO/roads.md
 @@ -1434,7 +1434,7 @@ that the section names.
@@ -351,16 +382,18 @@ index d9d3dde7..8d01622c 100644
    refusal of Approach 2, the target checked by `check_target` and then percent-encoded, the first
    frame `{"Host":HOST,"Port":PORT}`, the URL shown with no query); `open`, the dial of
    `podssh_ws::url::dial` with no token, the first frame and its answer, and the wait of the query
-@@ -6428,7 +6430,7 @@ As the operator's ruling on Q56 allows (2026-10-31, `docs/decisions.md`):
+@@ -6427,8 +6429,8 @@ As the operator's ruling on Q56 allows (2026-10-31, `docs/decisions.md`):
+      none carries stays the relay's. `doctor` says whether the fallback is on, with no dial: Q56
       allows trying them when the relay fails, not on each check; `doctor --forwarder WORDS` asks
       them.
-   6. The watch (Approach 3): `.github/workflows/forwarder-live.yml`, each day and by hand, runs
+-  6. The watch (Approach 3): `.github/workflows/forwarder-live.yml`, each day and by hand, runs
 -     `crates/podssh-ws/tests/live_forwarder.rs`: one connection to each, one at a time, and the
++  6. The watch (Approach 3): `forwarder-live.yml` (now of PodUtils/podcrates), each day and by hand, runs
 +     `PodUtils/podcrates:crates/pod-egress/tests/live_forwarder.rs`: one connection to each, one at a time, and the
       first line of `github.com:22`, GitHub's version line (Q56: Actions only, short). Its plant
       names a host under `.invalid` for each, and must fail. Lost: a daily run of `podssh doctor
       --forwarder`, which builds the binary and asks the relay too.
-@@ -6458,7 +6460,7 @@ of `AGENTS.md:300-324` name the three forwarders now, from GitHub Actions only,
+@@ -6458,14 +6460,14 @@ of `AGENTS.md:300-324` name the three forwarders now, from GitHub Actions only,
  2026-10-31: drafted (branch `draft-forwarder`, `f27fbe2`); merged into `main` on 2026-11-01 at
  `5fa6f81`, built and tested here; closed the same day once its live run passed in GitHub Actions.
  
@@ -369,12 +402,20 @@ index d9d3dde7..8d01622c 100644
    forwarders (`crates/podssh-cli/src/forwarder/mod.rs`), and the fallback
    (`crates/podssh-cli/src/forwarder/fallback.rs`): after each relay host failed, in the relay's
    arm of `crates/podssh-cli/src/ssh/transport.rs` and in `podssh proxy`; `PODSSH_FORWARDER_FALLBACK`
+   and `ForwarderFallback`; the line `fallback` of `doctor`.
+ - The manual (the words in the help and a note of `ssh`, the variable, the settings, an example),
+   `docs/cli.md`, `docs/carriers.md`, the road table of `docs/design.md`, `docs/relay-operator.md`
+-  and `docs/STATUS.md`; the watch, `.github/workflows/forwarder-live.yml`.
++  and `docs/STATUS.md`; the watch, `forwarder-live.yml` (now of PodUtils/podcrates).
+ - `cargo test -p podssh-cli --test forwarder_cli`: 11 passed (2026-11-01), the draft's of the
+   fallback among them (each word in its form; the fallback after each relay host, in order, each
+   named; none for `--relay-host` nor when off; 78 for another word; `proxy`'s fallback);
 @@ -8506,7 +8508,7 @@ puts the fallback in its `ok` column without a probe.
    policy or of a token, or after a 502 whose target's name fails
    (`PodUtils/podssh:crates/podssh-relay/src/open.rs:71-93`, `PodUtils/podssh:crates/podssh-relay/src/open.rs:147-155`).
  - Read: `doctor`'s line of the fallback is `ok`, with "not asked here"
 -  (`crates/podssh-cli/src/doctor/forwarder.rs:30-47`); `doctor` has a mark for what it did not
-+  (`crates/podssh-cli/src/doctor/forwarder.rs:29-46`); `doctor` has a mark for what it did not
++  (`crates/podssh-cli/src/doctor/forwarder.rs:28-45`); `doctor` has a mark for what it did not
    measure (`crates/podssh-cli/src/doctor/report.rs:107-109`).
  - Read: the operator's rulings Q56 and Q65 (`docs/decisions.md`) let the binary try the forwarders,
    and the Wisp demo server last, "when each relay host fails", unasked (T-370, T-438); since T-438

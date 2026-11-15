@@ -5,13 +5,17 @@ name: guest-windows
 # evaluation ISO of the service microsoft-windows-eval (the URL, the size
 # and the SHA-256 of crates/pod-services/services/microsoft-windows-eval.toml),
 # installs Server Core with the agent of pod-guest, and runs the test
-# tests/windows_keep_live.rs: a first command, two next commands on new
+# tests/windows_keep_live.rs: six cold boots of pod_guest::run, each with
+# a command and a limit (T-640, PodUtils/podvm#380), a first command, two
+# next commands on new
 # mailbox media through QMP, a warm start (a save of the idle guest, then
 # a restore with a command on a new medium; only where the QEMU of the
 # runner saves the plan: QEMU 8.2 refuses the NVMe root disk, and the test
 # prints the refusal), and two controls that write into a mounted
 # mailbox. Each stage prints its time. A failed run keeps the screens of
-# the install and the logs of the emulator.
+# the install and the logs of the emulator. A cold boot that times out
+# keeps its screen, its serial log and its mailbox in WORK/evidence, and
+# the job keeps them in each case.
 
 on:
   workflow_dispatch:
@@ -26,7 +30,7 @@ env:
 jobs:
   windows:
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
+    timeout-minutes: 210
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -77,8 +81,8 @@ jobs:
           df -h "$WORK"
       - name: Build the test
         run: cargo test --locked -p pod-guest --test windows_keep_live --no-run
-      - name: Install Windows, then the commands in keep-alive mode and the warm start
-        timeout-minutes: 120
+      - name: Install Windows, then the cold boots, the commands in keep-alive mode and the warm start
+        timeout-minutes: 180
         env:
           POD_GUEST_OVMF_CODE: /usr/share/OVMF/OVMF_CODE_4M.fd
           POD_GUEST_OVMF_VARS: /usr/share/OVMF/OVMF_VARS_4M.fd
@@ -89,18 +93,29 @@ jobs:
           cargo test --locked -p pod-guest --test windows_keep_live -- --ignored --nocapture 2>&1 | tee "$WORK/test.log"
           grep '^\[.*\] RESULT:' "$WORK/test.log"
       - name: Keep the screens and the logs
-        if: failure()
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
         run: |
           set -eu
           mkdir -p "$RUNNER_TEMP/evidence"
-          find "$WORK" -maxdepth 2 \( -name '*.ppm' -o -name '*.log' \) -exec cp --parents {} "$RUNNER_TEMP/evidence" \;
+          # The screens of the install and the logs of the emulator, only
+          # for a job that failed; the evidence of the cold boots that
+          # timed out, in each case.
+          if [ "$JOB_STATUS" != success ]; then
+            find "$WORK" -maxdepth 2 \( -name '*.ppm' -o -name '*.log' \) -exec cp --parents {} "$RUNNER_TEMP/evidence" \;
+          fi
+          if [ -d "$WORK/evidence" ]; then
+            cp -R "$WORK/evidence" "$RUNNER_TEMP/evidence/cold-boots"
+          fi
           ls -R "$RUNNER_TEMP/evidence"
       - name: Upload the evidence
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: guest-windows-evidence
           path: ${{ runner.temp }}/evidence
+          if-no-files-found: ignore
           retention-days: 7
       - name: No emulator stays
         if: always()

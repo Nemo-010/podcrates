@@ -8137,7 +8137,7 @@ Run on this host (QEMU 8.2.2, TCG, `OVMF_CODE_4M.fd` of Ubuntu's `ovmf` 2024.02-
 
 ## Problem
 
-The second run of `.github/workflows/guest-windows.yml` installed Windows in 190 s and booted it with a USB mailbox. The first command passed (`swap: first command: code 3, stdout "pod-guest-one\r\n"`). Then `Swap::next` failed at `crates/pod-guest/tests/windows_keep_live.rs:285`:
+The second run of `.github/workflows/guest-windows.yml` installed Windows in 190 s and booted it with a USB mailbox. The first command passed (`swap: first command: code 3, stdout "pod-guest-one\r\n"`). Then `Swap::next` failed at `crates/pod-guest/tests/windows_keep_live.rs:294`:
 
 ```text
 qmp refused {"execute":"blockdev-change-medium","arguments":{"device":"mbox","filename":".../swap/mailbox.img.swap","format":"raw"}}: {"error": {"class": "GenericError", "desc": "Device 'mbox' is locked and force was not specified, wait for tray to open and try again"}}
@@ -8280,3 +8280,256 @@ The plan always puts the root disk on NVMe (`nvme,drive=root`). QEMU 8.2 refuses
 ```sh
 cargo test -p pod-guest --all-features
 ```
+
+# T-640: `pod-guest`: a cold boot of a Windows guest under KVM reaches no shutdown on one run of two, and a run that times out keeps no trace
+
+**Source:** PodUtils/podvm#380 (COORD-120 of podvm; PodUtils/podvm@T-1864).
+**Category:** defect
+**Milestone:** M7
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+In `kvm.yml` run 43660534832 of podvm, at podcrates `v0.48.0`, three `podvm windows run` cold boots of a provisioned Validation OS 26100.9818 image, each with a limit of 600 s: run 1 (`exit 42`) timed out ("the guest did not power off within 600s", stdout empty); run 2 (`cmd /c exit 42`, the same command file after the drop of `cmd /c`) gave code 42 in 50 s; run 3 (`echo out & exit 7`) timed out. One boot of two reaches no shutdown, and the cause is not the command. `run` keeps no serial log, no screen and no mailbox of a run that times out, so the cause is not visible.
+
+## Premise
+
+- Read: `crates/pod-guest/src/agent.rs` (`AGENT_CMD`, `SETUP_CMD`), `src/lib.rs` (`run`), `src/emulator.rs`, `src/provision.rs`, `src/fat16.rs`, `src/qmp.rs`, `tests/windows_keep_live.rs`, `.github/workflows/guest-windows.yml`, the Done sections of T-592, T-595, T-602, T-622, T-630 and T-633.
+- Each run boots a new overlay of the same provisioned image, with a new mailbox written before the spawn. So the disk state of each boot is the same, and only a race of the boot can give one result of two.
+- Not measured: Windows. This host has no KVM; the live step is the next run of `guest-windows.yml`.
+
+## Approach
+
+Read the agent for each cause of a missed command or power-off, and fix each one that is possible (calls C612, C613). Make the agent log each step on the mailbox, and make `run` say what the mailbox tells after a timeout (call C614). Make `run` keep the evidence of a run that times out in a directory of the caller: a QMP `screendump` before the stop, then the serial log, the error stream of the emulator and the mailbox (call C615). Test the agent with the walk of `AGENT_CMD` and a clock, and `run` with a stand-in emulator and a QMP stand-in. Add six cold boots of `run` to `tests/windows_keep_live.rs`.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features --lib -- agent:: evidence::
+sh scripts/plant-each.sh guest-t640-one-shutdown guest-t640-nap-does-not-wait guest-t640-screen-after-the-stop
+```
+
+## Done
+
+2026-11-14, commit 381b18c; the plants and this record in the next commit. The causes of the ask, read in the agent (call C612): possible are a shutdown that Windows refuses early in the boot (the agent ended after one refusal) and a `ping` that does not wait (the 600 tries of the probe then end in a few seconds, before a slow mailbox disk comes online); not possible are another drive letter (the scan covers D to Z), a task that does not start (`onstart` as `SYSTEM`, the same overlay of the provisioned image at each boot), a shutdown that an update blocks, and the cache of C543 (a cold boot writes the mailbox before the spawn). Fixed: the agent tries `shutdown` again each second for at most 300 tries (C612), waits for two changes of the second of `%TIME%` when `ping` fails (C613), and appends each step to `WQLOG.TXT` (`agent::LOG`, C614). `run` says what the mailbox tells after a timeout and after a power-off with no result (`evidence::seen`). New: `Settings::evidence` (`None` by default) and the module `evidence` (`dir`, `seen`, `SCREEN`, `SERIAL`, `EMULATOR`, `MAILBOX`); a run that times out takes a QMP `screendump` before the stop and copies the serial log, the error stream of the emulator and the mailbox into `DIR/timeout-TOKEN`, and its text names the directory (C615); `Timeout::failure_with`.
+
+`cargo test -p pod-guest --all-features`: 175 unit tests passed, 1 ignored (new: `agent::tests::the_probes_wait_about_one_second_each_also_when_ping_fails`, `agent::tests::a_mailbox_that_comes_online_late_is_found_with_no_ping`, `agent::tests::the_agent_tries_the_shutdown_again_until_windows_takes_it`, `evidence::tests::a_run_that_times_out_keeps_a_screen_from_before_the_stop_and_its_logs`, `evidence::tests::a_run_with_no_evidence_directory_takes_no_screen`, `evidence::tests::the_mailbox_tells_what_the_agent_did`, `evidence::tests::the_directory_of_a_token_is_one_safe_name`); 20 runs of the tests of `agent` and `evidence` in a loop. The walk of the agent has a clock, `call`, and each new line. Plants, each caught by hand: `guest-t640-one-shutdown`, `guest-t640-nap-does-not-wait`, `guest-t640-screen-after-the-stop`; `guest-agent-keep-alive-shuts-down` and `guest-agent-idle-ends-without-the-medium` of T-592 and T-602 are written again for the new agent text and caught. `plant-each.sh --apply`: 0 stale.
+
+The live step: `tests/windows_keep_live.rs` runs six cold boots of `run` on the installed Server 2019 disk, each with its own overlay, variable store, NVMe mailbox, command and limit of 600 s, prints `RESULT: cold boots: N of 6 reached their outcome`, and fails at its end when one did not; `guest-windows.yml` uploads the evidence of each job. The image of the test has the agent of this commit, so the step proves the fix and does not run the agent of `v0.48.0`. The parent dispatches it after the merge.
+
+The live step ran: `guest-windows.yml` run 43683270673 at `1368e49` (by a dispatch, #165) passed, with "RESULT: cold boots: 6 of 6 reached their outcome". The warm start was not run (QEMU 8.2 cannot save the NVMe root disk, T-629), and the two controls of the mounted mailbox gave "no", as before.
+
+# T-641: `pod-guest`: the installer tries its shutdown again, and `dos::run` keeps the evidence of a run that times out
+
+**Source:** T-640 (a finding of its work).
+**Category:** defect
+**Milestone:** M7
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+T-640 made the agent try `shutdown` again each second, as Windows can refuse a shutdown early in a boot, and made `run` keep the evidence of a run that times out. The command of the installer (`SETUP_CMD`) still runs `shutdown` once, and `dos::run` keeps no evidence on a timeout.
+
+## Premise
+
+- Read: the Done section of T-640 and calls C612 to C615; `crates/pod-guest/src/agent.rs` (`SETUP_CMD`), `crates/pod-guest/src/dos.rs`, the module `evidence`.
+
+## Approach
+
+The loop of T-640 around the `shutdown` of `SETUP_CMD`, with a test that walks the text and a plant. `dos::run` takes `Settings::evidence` and keeps the screen and the logs of a run that times out, as `run` does, with a test of the QMP stand-in.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features
+```
+
+# T-644: `pod-enter`: a form of `run_ladder` that gives the caller the child before its wait (PodUtils/podvm#384)
+
+**Source:** PodUtils/podvm#384 (COORD-122 of podvm; PodUtils/podvm@T-1786).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+podvm holds the record of a foreground run with `pod_supervise::foreground` (T-573): it spawns the payload, gives the pid to the hold, then waits. A run that `PODVM_MODE` forces through the ladder calls `pod_enter::run_ladder(root, plan, mode, fd, err)`, which spawns and waits inside and closes the memfd of the parent. podvm gets no pid before the end, so its record reads `Created` while the payload runs, and `ps`, `kill`, `wait` and `stop` do not see it. Not urgent: `PODVM_MODE` is a switch for measurements.
+
+## Premise
+
+- Read: PodUtils/podvm#384; `crates/pod-enter` (`run_ladder`, `spawn_selected`, `spawn_userland`, `Child::wait_forwarding`).
+
+## Approach
+
+A `spawn_ladder` that returns a `Child` (its pid and `wait_forwarding`), as `spawn_selected` does; the memfd of the parent closes after the spawn, as now. `run_ladder` becomes `spawn_ladder` and the wait. A test that reads the pid before the end of the payload, and a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+```
+
+# T-647: `pod-services`: the host `api.ghcr.pkgforge.dev` of the static QEMU of podvm's store (PodUtils/podvm#389)
+
+**Source:** PodUtils/podvm#389 (COORD-124 of podvm; PodUtils/podvm@T-1875).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+PodUtils/podvm@T-1875 fetches a pinned static QEMU 9.2.0 (`qemu-system-x86_64`, `qemu-img`) into its store on a host with no QEMU. The source is the pkgforge `bincache` (package `ppkg.qemu`), at `https://api.ghcr.pkgforge.dev/pkgforge/bincache/qemu/ppkg/<name>?tag=9.2.0-x86_64-linux&download=<name>`. podvm pins each file by size and sha256. podvm's test `hosts_tests::each_host_that_podvm_names_is_in_pod_services` needs each host that podvm names in `pod-services`; podvm keeps the host in its list `WAITING` until a tag of podcrates lists it. The ask: add `api.ghcr.pkgforge.dev` (purpose: the static QEMU of the store; HTTPS; a GET with redirects).
+
+## Premise
+
+- Read: PodUtils/podvm#389; the guest images of `crates/pod-services/services` (`freedos-image.toml`).
+- Not measured: the redirect target of the endpoint and the sizes of the files.
+
+## Approach
+
+A service file `pkgforge-qemu.toml` (kind of a download of a tool): the endpoint of each file at the tag `9.2.0-x86_64-linux`, the size and the sha256 that podvm pins as facts with podvm's commit as the source, and an `http-sha256` watch. The tests of `pod-services` read it.
+
+## Prove
+
+```sh
+cargo test -p pod-services --all-features
+```
+
+## Done
+
+2026-11-15, the commit of the change. `crates/pod-services/services/pkgforge-qemu.toml` (kind `tool`): the endpoints `qemu-system-x86-64` and `qemu-img` (a name is a word, so `_` is `-`), the version and the sha256 and the length of each file, and an `http-sha256` watch of each. A GET of each file from this session gave 42899120 and 11009488 bytes and the sha256 values that podvm pins at `25024cb3`. The test `the_static_qemu_holds_the_pins_of_podvm` of `tests/podvm.rs`; `cargo test -p pod-services --all-features` passed.
+
+
+# T-648: `pod-hostprobe`: a leg that reports a delegated cgroup2 subtree with no root (PodUtils/podvm#390)
+
+**Source:** PodUtils/podvm#390 (COORD-125 of podvm; PodUtils/podvm@T-1747; the ask V-3 of podswarm in #124; G-12 of #36).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+podvm's `run --memory`, `--cpus` and `--pids-limit` need cgroup2 where the host delegates a subtree to the user. The ask: a leg of `pod-hostprobe` that reports, with no root: (1) whether `/sys/fs/cgroup` is cgroup2 (`statfs` magic `CGROUP2_SUPER_MAGIC`); (2) the cgroup of the process (`/proc/self/cgroup`, the line `0::PATH`); (3) the nearest directory at or above it that the user can write, whose `cgroup.subtree_control` the user can write, and the controllers that `cgroup.controllers` offers there (`memory`, `cpu`, `pids`); (4) a verdict: `delegated` with the path and the controllers, or the reason that there is none (cgroup v1, no write access, a missing controller). podvm makes the child cgroup of each run and writes the limits itself. A hosted runner of GitHub and podvm's machine tier can have a delegation; podvm's cloud host has cgroup v1.
+
+## Premise
+
+- Read: PodUtils/podvm#390; `crates/pod-hostprobe/src/probes.rs` and `crates/pod-hostprobe/src/verdict.rs` (the form of a leg).
+- Not measured: a host with a delegation (this sandbox).
+
+## Approach
+
+A module `cgroup` of `pod-hostprobe`: the reads behind a root path, so that a test gives a made-up tree (cgroup v1, no write access, a missing controller, a delegation); the leg in the report with its verdict and reason; a plant that reports a delegation for a tree with no write access.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features
+```
+
+## Done
+
+2026-11-15, the commit of the change. `crates/pod-hostprobe/src/cgroup.rs`: `probe()` (the `statfs` of `/sys/fs/cgroup`, the line `0::` of `/proc/self/cgroup`, the write test of `mkdir` and `rmdir` of a child and an open of `cgroup.subtree_control` for write) and `assess` over a made-up tree; `Delegation::Delegated { path, controllers, enabled }` or `None(Reason)` with `NoMount`, `NotCgroup2`, `NoMembership`, `NotWritable`, `MissingControllers`; `words` for one line. A membership with `..` is refused, and the walk does not leave the root. Six tests in `src/cgroup/tests.rs` (`cargo test -p pod-hostprobe --all-features --lib cgroup`: 6 passed). The plant `hostprobe-cgroup-missing-controller-delegated` (a directory with no `cpu` read as delegated) fails the first test. This session (cgroup v1 or no delegation) gives a verdict of none; a host with a delegation is podvm's run.
+
+
+# T-649: `pod-guest`: a FAT image writer with directories, long names and a size from the content (PodUtils/podvm#386)
+
+**Source:** PodUtils/podvm#386 (COORD-123 of podvm; PodUtils/podvm@T-1872).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+PodUtils/podvm@T-1872: `podvm windows run -v HOST:C:\path[:ro]` as a one-way copy through a USB medium (`Options::media`, `MediumKind::Usb`) with a marker file. `pod_guest::fat16` writes the mailbox only: a fixed volume of 16 MiB, files in the root, 8.3 names and one long name. The ask: a writer of a FAT image (FAT32 above the FAT16 cluster limit) behind an MBR partition, from a directory tree of the host: directories at each depth and VFAT long names (up to 255 UTF-16 units, the case kept); a size from the content with a margin, up to a ceiling of the caller (for example `RLIMIT_FSIZE`); a refusal by name of an entry that the image cannot hold (a symbolic link, a special file, a name that FAT refuses, `<>:"/\|?*`, a trailing dot or space, a file over 4 GiB - 1); the mode 0600 of the image file; a reader for the tests, as `Fat16::from_image` is. The geometry of the mailbox (a partition at LBA 2048) is a good start. Not urgent: `podvm cp` of PodUtils/podvm@T-1868 is the other road.
+
+## Premise
+
+- Read: PodUtils/podvm#386; `crates/pod-guest/src/fat16.rs`.
+- Not measured: the mount of such an image by Windows as a removable medium.
+
+## Approach
+
+A module `fat` of `pod-guest` beside `fat16`: the layout of FAT16 or FAT32 from the count of clusters, the directory entries with their long names, the size from the content, the refusals by name; a reader for the tests; a test of each refusal and a round trip of a tree. podvm's run under Windows proves the mount.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features
+```
+
+# T-650: `pod-qga`: `guest-get-osinfo` (PodUtils/podvm#393)
+
+**Source:** PodUtils/podvm#393 (COORD-127 of podvm; PodUtils/podvm@T-1868).
+**Category:** feature
+**Milestone:** M7
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+podvm asks for a client of the QEMU Guest Agent for a running Windows guest: the sync and `guest-ping` with a bound; `guest-exec` with the output and `guest-exec-status` to the end; the file calls in chunks; `guest-shutdown` and `guest-get-osinfo`; the channel `org.qemu.guest_agent.0` on a socket of the run. `pod-qga` (T-594, in `v0.45.0`) has each call but `guest-get-osinfo`, and `pod_guest::plan` has the channel (`QGA_CHANNEL`).
+
+## Premise
+
+- Read: PodUtils/podvm#393; `crates/pod-qga/src/client.rs`, `crates/pod-qga/src/wire.rs`, `crates/pod-guest/src/plan/options.rs`; the schema of `guest-get-osinfo` (`GuestOSInfo` of `qga/qapi-schema.json` of QEMU: each member optional).
+- Not measured: the agent of virtio-win on Windows.
+
+## Approach
+
+`wire::OsInfo` with `from_return` (each member an optional text; a member that is not a text is an error) and `Client::osinfo`. A test of the wire and a test against the stand-in agent. Tell podvm that the rest of the ask is in `v0.45.0`.
+
+## Prove
+
+```sh
+cargo test -p pod-qga --all-features
+```
+
+## Done
+
+2026-11-15, the commit of the change. `wire::OsInfo`, `Client::osinfo`, the answer of the stand-in agent; the tests `osinfo_takes_each_member_that_is_there_and_names_a_wrong_one` and `osinfo_names_the_system_of_the_guest`. `cargo test -p pod-qga --all-features` passed (28 tests); clippy of the crate is clean.
+
+# T-651: `pod-services`: the aarch64 netboot of Alpine 3.22.6 and the static `qemu-system-aarch64` (PodUtils/podvm#394)
+
+**Source:** PodUtils/podvm#394 (COORD-128 of podvm; PodUtils/podvm@T-1890, PodUtils/podrunner#102).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+podvm boots a linux/arm64 guest of the machine tier on an x86_64 host (`qemu-system-aarch64 -M virt` under TCG). The kernel of the x86_64 guest comes from `alpine-netboot`; the arm64 guest has no pin, so podvm reads `PODVM_MACHINE_KERNEL_ARM64` until a tag has one. The ask: a service of the same shape for `alpine-netboot-3.22.6-aarch64.tar.gz` (341 396 208 bytes, sha256 `0a39889547d6fb1b0dc124f4baceadd08fef7a72708d5c92774a207f2bc41728`; `boot/vmlinuz-virt` `dd37c4460f933ec909ff022c34944ff7e1a5300aff99750e3bdc02cd4074c332`; `boot/modloop-virt` `da142869626ec9d4543ab46482af10b5ff2c8c1c2e01068ddf32360316a06218`). The NIC modules can follow. A smaller item: the static `qemu-system-aarch64` 9.2.0 of pkgforge (46 519 280 bytes, sha256 `1ed86579cf74ecbe4d118b098d96d3e127beebde048b3d8e5bc907781403531b`) for podvm's store.
+
+## Premise
+
+- Read: PodUtils/podvm#394; `crates/pod-services/services/alpine-netboot.toml`, `crates/pod-services/services/pkgforge-qemu.toml`.
+- Measured: each size and sum of the ask, from this session.
+- Not measured: the release of the kernel in `boot/initramfs-virt` (this session has no `cpio`); the NIC modules.
+
+## Approach
+
+A service `alpine-netboot-aarch64` (kind `guest-image`) with the archive, its sums and an `http-sha256` watch; the endpoint `qemu-system-aarch64` of `pkgforge-qemu` with its sums and a watch. A test of the pins.
+
+## Prove
+
+```sh
+cargo test -p pod-services --all-features
+```
+
+## Done
+
+2026-11-15, the commit of the change. `crates/pod-services/services/alpine-netboot-aarch64.toml` (the archive, `release`, `vmlinuz-virt-sha256`, `modloop-virt-sha256`, `archive-sha256`, `archive-bytes`, a watch) and the endpoint `qemu-system-aarch64` of `pkgforge-qemu` (its sha256, its length, a watch). Each size and sum of the ask, measured here, is the same. The test `the_aarch64_netboot_holds_the_pins_of_podvm` and the row of `qemu-system-aarch64` in `the_static_qemu_holds_the_pins_of_podvm`; `cargo test -p pod-services --all-features` and `cargo test -p pod-services-watch --all-features` passed. The release of the kernel and the NIC modules wait for podvm's ask.
