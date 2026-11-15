@@ -10,6 +10,9 @@
   43706977883): part 1 of `pod-egress` (T-035), T-639, T-640, T-643,
   T-647, T-648, T-650, T-651. Its `plants` run 43704485014 missed the
   three plants of T-678, whose fix is on `main` after the tag.
+- In release: `v0.52.0` (`docs/releases/v0.52.0.md`): parts 2 and 3 of
+  `pod-egress` (T-035), T-668 to T-672, T-676 (PodUtils/podvm#395, #403,
+  #406, #407), and the test fixes of the nightly (T-679 to T-683).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.50.0` (`13c52be`, PodUtils/podssh#254): step 1 of the move;
