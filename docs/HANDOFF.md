@@ -11,43 +11,41 @@ is done. Git and the record keep finished work.
 
 1. Start the watcher (`sh scripts/agent/watch-org.sh 90` under the Monitor
    tool) and read the open COORD issues `(to podcrates)`.
-2. A push of this session's account starts no workflow: each run comes
-   by a `[gh action] requested` issue (`docs/maintenance.md`, "A run of a
-   workflow"). Read the answers of #165 (`guest-windows.yml`, the proof of
-   T-640: a `RESULT:` line counts six cold boots) and #168 (the checks of a
-   push at `a634d3a`). Then close T-645 with the run of `secrets.yml`.
-3. Release `v0.51.0`: the release commit (the notes
-   `docs/releases/v0.51.0.md`, the bump) waits on the local `main` until
-   #168 is green. Push it, then ask for `ci.yml` on it and `release.yml`
-   (a dry run, then `version=0.51.0`) in one request. Then write the
-   hand-off `(to all)`: it answers PodUtils/podnet#572, PodUtils/podvm#380,
-   PodUtils/podssh#253, PodUtils/podvm#389, #390 and #393 (most of #393 is
-   `pod-qga` of `v0.45.0`; `osinfo` is new), and tells podvm that T-644 and
-   T-649 (PodUtils/podvm#384, #386) are open. Ask podvm there whether its
-   runs of experiment 450 copy the OVMF variable store fresh for each run.
-4. The move of podssh (PodUtils/podssh#248, the ruling "The move of
-   podssh"): parts 2 and 3 of `pod-egress` (T-035, partial) start again
-   from `main`: part 2 is `vless/`, `vmess/`, `trojan/`, `shadowsocks/`;
-   part 3 is `eice/`, `iap/` of podssh-ws at podssh `2ffb7cd7`, which
-   podssh froze. The import and the edition commits of each are on the
-   branches `wip/egress-part2` and `wip/egress-part3` (based on part 1);
-   the adaptation that was not committed is lost. Start each agent from
-   its branch, merge it to `main` as usual, then delete the `wip/` branch.
-   Give each the brief of part 1 (each road behind its own feature, on the
-   shared parts of the crate; an adoption patch with `.needs` =
-   pod-egress). podssh's map of the glue is in the body of
-   PodUtils/podssh#248. Then step 3 of the move: `pod-tor`, `pod-iroh`,
-   `pod-cloudflare`, `pod-ts`; then `pod-relay-serve`.
-5. Then the work order of `TODO/PROGRESS.md`.
+2. A push of this session's account starts no workflow: each run comes by
+   a `[gh action] requested` issue (`docs/maintenance.md`, "A run of a
+   workflow"). The block of a request starts with a test that `main` is at
+   its commit: push nothing to `main` between the open of a request and
+   the start of its runs; keep the record of it on a local branch. Read the
+   answer of #177 (the checks of `main` at `3ee1988`: T-686, T-687, T-684).
+3. Record the takes of `v0.52.0` on #176 (COORD-106). podssh takes parts 2
+   and 3 of `pod-egress` there; when it took both, T-035 is done (write
+   the `taken` lines in `crates/pod-egress/SOURCES`; the trial
+   `adoption/podssh/pod-egress.patch` leaves with parts 2 and 3, as their
+   `.needs` name it).
+4. The next tag carries T-686 and T-687 (PodUtils/podssh#262) and tells
+   podssh that `node-trojan-149-28-130-108` left `pod-services` (T-684).
+5. Run the lint scripts of `ci.yml` before each push, not only the four
+   checks of `AGENTS.md`: `check-design-paths.py`, `check-probe.py`,
+   `check-workflows.py`, `check-size.py`, `plant-each.sh --apply`, and
+   `cargo doc` with `RUSTDOCFLAGS="-D warnings"`. This session runs as root:
+   a test that needs no root must also pass as a user (`ci.yml` runs the
+   tests as one).
+6. Then step 3 of the move of podssh (PodUtils/podssh#248): `pod-tor`,
+   `pod-iroh`, `pod-cloudflare`, `pod-ts`; then `pod-relay-serve`. Then the
+   work order of `TODO/PROGRESS.md`.
 
 ## In flight
 
-- The last tags: `v0.50.0` at `26fb91f` (ci 43669018284, adoption 43669018236,
-  release 43672638621; the hand-off #164, COORD-104): step 1 of the move.
-- The moved crates of step 1 (`pod-transit`, `pod-acme`, `pod-piping`,
-  `pod-opentunnel`, `pod-derp`) are in `v0.50.0`; their trial patches in
-  `adoption/podssh/` name `v0.50.0`. Part 1 of `pod-egress` is on `main`;
-  its patch names `v0.51.0`.
+- The last tags: `v0.52.0` at `7998b72` (ci 43711409358, adoption
+  43711411992, release 43715190817; the hand-off #176, COORD-106).
+  `v0.51.0` at `7119770` (#172, each consumer took it, closed).
+- `plants.yml` runs in six shards (T-677). Its run on the tag of `v0.51.0`
+  missed the three plants of T-678, whose fix is on `main` after it.
+- The branches `wip/egress-part2` and `wip/egress-part3` hold work that is
+  merged on `main` (parts 2 and 3 of `pod-egress`); delete them (the owner's
+  rule of `wip/` branches). The proxy of this cloud session cut the
+  connection on `git push origin --delete`: ask the owner's agent by a
+  `[gh action] requested` issue (`git push --delete` there).
 - The owner reserves the names of `pod-actions-store`,
   `pod-actions-results`, `pod-udf`, `pod-qga` and of the crates of the
   move on crates.io ("Owner actions" of `TODO/PROGRESS.md`);
