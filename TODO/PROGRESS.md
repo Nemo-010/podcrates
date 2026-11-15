@@ -20,7 +20,7 @@
   - podnet: `v0.51.0` (`ee6ea13`, PodUtils/podnet#577). It sets the
     profile of `kcp` with its take of the udp carrier (#139, T-526).
   - podvm: `v0.50.0` (`0573bcd8`).
-  - podrunner: `v0.50.0` (`cbb5372`, PodUtils/podrunner#113).
+  - podrunner: `v0.51.0` (`800f6d4`, PodUtils/podrunner#152).
 - Takes that wait: podvm's check of T-208 against `lambda-al2023`, and
   its module set of T-206 with PodUtils/podvm@T-1662 (after `pod-netlab`,
   T-207, #70).
