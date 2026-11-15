@@ -1,8 +1,11 @@
 # The ARQ stream writes only the first buffer of a vectored write: the
 # alert of a failed handshake of the dialer stays out, and the listener of
 # the dns carrier reads the end of the stream (T-557).
+# The check of the listener sees the lost alert only when the last write
+# holds two buffers, which depends on the time of the reads; the test of
+# one vectored write sees it on each run.
 ENTRY=T-557
 GROUP=link
-EXPECT='right: KeyRefused'
-RUN='cargo test -p pod-link --all-features --test dns the_dialer_refuses_a_listener_of_another_key_and_names_it'
+EXPECT='each buffer of a vectored write goes in one call|right: KeyRefused'
+RUN='cargo test -p pod-link --all-features --no-fail-fast --test arq --test dns -- --exact one_vectored_write_takes_each_buffer the_dialer_refuses_a_listener_of_another_key_and_names_it'
 LIMIT=1800

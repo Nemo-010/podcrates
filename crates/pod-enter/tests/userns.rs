@@ -8,7 +8,10 @@
 //! (T-688).
 //!
 //! As root, the test makes the image and starts its own binary again as
-//! uid and gid 65534 with no groups (`pod_testkit::nobody`). The image is
+//! uid and gid 65534 with no groups (`pod_testkit::nobody`). The test of
+//! the run starts again also as another user, in namespaces of its own
+//! over a fresh proc with no `nosuid`, `nodev` or `noexec`: the check of
+//! the remount of the bind then does not depend on the host's proc. The image is
 //! a static `busybox` of the host (`PODVM_T486_BUSYBOX`, or `/bin/busybox`
 //! where it is static). Where the host has none, where the kernel gives
 //! such a caller no user namespace that takes a mount, or where uid 65534
@@ -91,18 +94,30 @@ fn as_nobody(test: &str, tag: &str, body: fn(&Path)) {
     if tag == "dev" {
         dev_of_the_image(&root);
     }
-    if !nobody::is_root() {
+    // The run checks the flags of the bind of /proc: it gets a proc with
+    // none, so that a host whose proc has them already does not hide a
+    // missing remount (T-689).
+    let bare = tag == "run";
+    if !nobody::is_root() && !bare {
         body(&root);
         let _ = fs::remove_dir_all(&root);
         return;
     }
     let env = [(IMAGE, root.to_str().unwrap())];
-    let code = nobody::again(&[test, "--exact", "--nocapture", "--test-threads=1"], &env);
+    let args = [test, "--exact", "--nocapture", "--test-threads=1"];
+    let code = if bare { nobody::again_over_a_bare_proc(&args, &env) } else { nobody::again(&args, &env) };
     let _ = fs::remove_dir_all(&root);
     match code {
-        Ok(code) => assert_eq!(code, 0, "the test as uid {} failed", nobody::NOBODY),
+        Ok(code) => assert_eq!(code, 0, "the test as a caller with no capabilities failed"),
         Err(why) => skip_line(&why),
     }
+}
+
+/// The options of the top mount on `/proc` in `/proc/self/mountinfo`.
+fn proc_options() -> String {
+    let info = fs::read_to_string("/proc/self/mountinfo").unwrap();
+    let top = info.lines().rfind(|l| l.split(' ').nth(4) == Some("/proc"));
+    top.and_then(|l| l.split(' ').nth(5)).unwrap_or_default().to_string()
 }
 
 /// The caller holds no capability and gets a user namespace for the rung;
@@ -136,6 +151,8 @@ fn as_the_caller(root: &Path) {
     if !no_capabilities() {
         return;
     }
+    let host = proc_options();
+    assert!(["nosuid", "nodev", "noexec"].iter().all(|f| !host.split(',').any(|o| o == *f)), "a bare proc: {host}");
     let dir = RootDir::open(root.to_str().unwrap()).unwrap();
     let active = format!("${}", Names::DEFAULT.mode_active);
     let script = format!(

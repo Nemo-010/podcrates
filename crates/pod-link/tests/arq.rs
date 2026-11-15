@@ -1,7 +1,8 @@
 //! The ARQ over a datagram pair in memory with a seeded shim, on a paused
 //! clock: bytes whole and in order at 3 % loss with reorder and duplicates,
 //! a link of streams over it, a peer that goes silent, the rekey before the
-//! wrap, the end of the bytes, and an end that answers after its drop.
+//! wrap, the end of the bytes, an end that answers after its drop, and
+//! one vectored write that takes each buffer.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -274,4 +275,23 @@ async fn a_dropped_end_answers_the_peer_until_it_is_quiet() {
     shut.expect("the peer answers the `FIN` after its drop");
     // The lost `ACK` covered the byte and the `FIN`: each went again.
     assert_eq!(a.handle().stats().retransmitted, 2);
+}
+
+/// One vectored write takes each buffer in the one call. rustls writes the
+/// alert of a failed handshake as the last buffer of one vectored write,
+/// with no second try: the check of the listener in `tests/dns.rs` sees a
+/// lost alert only when that write holds two buffers, which depends on the
+/// time of the reads (T-557).
+#[tokio::test(start_paused = true)]
+async fn one_vectored_write_takes_each_buffer() {
+    let (near, far) = memory::pair(memory::DEFAULT_MTU, memory::DEFAULT_DEPTH);
+    let mut a = ArqStream::new(near, ArqSettings::default()).unwrap();
+    let mut b = ArqStream::new(far, ArqSettings::default()).unwrap();
+    let bufs = [std::io::IoSlice::new(b"ccs"), std::io::IoSlice::new(b""), std::io::IoSlice::new(b"the alert")];
+    let n = a.write_vectored(&bufs).await.unwrap();
+    assert_eq!(n, 12, "each buffer of a vectored write goes in one call");
+    a.shutdown().await.unwrap();
+    let mut got = Vec::new();
+    timeout(limit(), b.read_to_end(&mut got)).await.expect("the bytes in time").unwrap();
+    assert_eq!(got, b"ccsthe alert");
 }
