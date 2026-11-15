@@ -1,0 +1,1878 @@
+diff --git a/.github/workflows/transit-live.yml b/.github/workflows/transit-live.yml
+deleted file mode 100644
+index 10e56877..00000000
+--- a/.github/workflows/transit-live.yml
++++ /dev/null
+@@ -1,57 +0,0 @@
+-name: transit live
+-
+-# The transit road (T-436): first the tests against magic-wormhole's own
+-# transit relay on the loopback, which must run here, not skip; then a short
+-# run through Least Authority's relay, wss://relay.mw.leastauthority.com, by
+-# the operator's ruling Q65: two meetings, 1 MiB each way, and one session of
+-# the resumable layer. Each week, as the watch of a relay that publishes no
+-# limit; and by hand. A planted run gives both ends one side, which the relay
+-# never pairs, and must fail. The token is a test pair's: no credential of
+-# podssh's goes to the relay.
+-
+-on:
+-  schedule:
+-    # Each Wednesday at 05:41 UTC, off the hour.
+-    - cron: "41 5 * * 3"
+-  workflow_dispatch:
+-
+-permissions:
+-  contents: read
+-
+-concurrency:
+-  group: transit-live
+-  cancel-in-progress: false
+-
+-jobs:
+-  live:
+-    runs-on: ubuntu-24.04
+-    timeout-minutes: 45
+-    env:
+-      CARGO_BUILD_JOBS: "4"
+-      PODSSH_TRANSIT_TEST_PYTHON: ${{ github.workspace }}/.work/transit-venv/bin/python
+-      PODSSH_TRANSIT_TEST_SERVER: required
+-    steps:
+-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+-      - name: magic-wormhole's transit relay, in a virtualenv
+-        run: |
+-          python3 -m venv .work/transit-venv
+-          timeout 300 .work/transit-venv/bin/python -m pip install --quiet magic-wormhole-transit-relay
+-      - name: build the test
+-        run: cargo test --locked -p podssh-relay --test transit --no-run
+-      - name: the loopback, against magic-wormhole's own relay
+-        run: timeout 600 cargo test --locked -p podssh-relay --test transit -- --nocapture
+-      - name: one short run through Least Authority's relay
+-        run: timeout 300 cargo test --locked -p podssh-relay --test transit -- --ignored --nocapture --test-threads=1
+-      # The check must see two ends that cannot meet: one side for both.
+-      - name: a planted side fails it
+-        env:
+-          PODSSH_TRANSIT_TEST_PLANT: same-side
+-        run: |
+-          rc=0
+-          timeout 300 cargo test --locked -p podssh-relay --test transit -- --ignored --test-threads=1 \
+-            through_least_authority_two_ends_meet || rc=$?
+-          if [ "$rc" -eq 0 ]; then
+-            echo "the check is vacuous: two ends of one side passed"
+-            exit 1
+-          fi
+-          echo "two ends of one side failed (exit $rc), as they must"
+diff --git a/TODO/mesh.md b/TODO/mesh.md
+index de505f0b..9c214b81 100644
+--- a/TODO/mesh.md
++++ b/TODO/mesh.md
+@@ -1578,6 +1578,10 @@ a session carries 1 MiB each way and survives the carrier's loss by moving to an
+ Live, short (Q65): one session through Least Authority's server from GitHub Actions. Planted:
+ the wrong side's line, and the meeting fails.
+ 
++## Correction
++
++The test target `transit` of `podssh-relay` moved to `pod-transit` of PodUtils/podcrates when podssh took the crate: `cargo test -p pod-transit --all-features --test transit` there runs it, with its name.
++
+ ## Done
+ 
+ 2026-11-02: drafted by an agent of this session in a worktree, then merged, built and measured
+@@ -1611,8 +1615,9 @@ here.
+   two clients never take each other for the node.
+ - `cargo test -p podssh-cli --test node`: 4 passed, with the variable's refusal. The whole suite
+   of podssh-cli passed, as `ssh node://` with a pair now goes through the race.
+-- Planted (`scripts/plants/t436-transit-same-side.patch`, group `host-transit`):
+-  `sh scripts/plant-each.sh --here t436-transit-same-side`: caught, the 1 MiB test FAILED.
++- Planted (scripts/plants/t436-transit-same-side.patch, group `host-transit`):
++  `sh scripts/plant-each.sh --here t436-transit-same-side`: caught, the 1 MiB test FAILED. The
++  plant and the tests went to pod-transit with the code (PodUtils/podcrates@T-027).
+ - Live, short (Q65), from this cloud session's host through its proxy:
+   `cargo test -p podssh-relay --test transit -- --ignored`, ten runs in a row: two ends met at
+   Least Authority's relay and carried 1 MiB each way, and a session of the layer echoed 1 MiB,
+@@ -10448,7 +10453,7 @@ the roads over TCP.
+   with a request of ID 0x401 and the address; `docs/carriers.md:2246` says "UDP alone, which the
+   hosts of podssh's design do not have".
+ - `crates/podssh-relay/src/quick/probe.rs:1` says "The probe of UDP before QUIC (T-400): one QUIC
+-  packet of a reserved", and `crates/podssh-relay/Cargo.toml:56` says "The quick tunnel over
++  packet of a reserved", and `crates/podssh-relay/Cargo.toml:60` says "The quick tunnel over
+   QUIC (src/quick/quic.rs, T-301): noq, the QUIC of the": a probe of UDP and a QUIC with no C
+   exist.
+ 
+@@ -10576,7 +10581,7 @@ road with no relay. podssh does not speak it (Q82).
+ - `docs/carriers.md:2258-2259` says "a token of 32 bytes that the TLS keying material exporter
+   derives", and `docs/carriers.md:2261-2262` says "as the server never answers a command";
+   `docs/carriers.md:2264` says "are mihomo, shoes, sing-box and Itsusinn's tuic".
+-- `crates/podssh-relay/Cargo.toml:56` says "The quick tunnel over QUIC (src/quick/quic.rs,
++- `crates/podssh-relay/Cargo.toml:60` says "The quick tunnel over QUIC (src/quick/quic.rs,
+   T-301): noq, the QUIC of the".
+ 
+ ## Approach
+@@ -10638,7 +10643,7 @@ fixes only, and once podssh takes the crate the work is done in PodUtils/podcrat
+ takes by the next tag; a test of the moved code then runs there.
+ 
+ 2026-11-12. The Premise holds: `docs/decisions.md:30`, `docs/carriers.md:2258-2264` and
+-`crates/podssh-relay/Cargo.toml:56` say what it quotes. `pod-egress` is not taken (`TODO/PROGRESS.md`,
++`crates/podssh-relay/Cargo.toml:60` say what it quotes. `pod-egress` is not taken (`TODO/PROGRESS.md`,
+ State, item 7), so the road is in `podssh-ws` (`tuic/`, behind its feature `quic`) until it is, as T-739's
+ VMess is; podcrates imports it with the other roads of `pod-egress`. The QUIC that it needs is `pod-quic`'s,
+ taken on 2026-11-12 (the endpoint, the connection within its wait, the probe of UDP), used as it is: no
+@@ -12610,7 +12615,7 @@ say of it, need podssh's own number.
+   of 4 MiB that moved no byte (results/http-piping.json); through the demo server, one stream on
+   port 80 moved 5,054,472 bytes in its window, 903 ms of it the upgrade
+   (results/wisp-throughput.json).
+-- T-437's live run measured no rate: `TODO/mesh.md:1800` says "carried 64 KiB each way each time
++- T-437's live run measured no rate: `TODO/mesh.md:1805` says "carried 64 KiB each way each time
+   (about 4 s)".
+ 
+ ## Approach
+@@ -12893,7 +12898,7 @@ podssh's relay role speaks TCP alone.
+ 2026-11-05, with the draft (read in noq 1.4.0 and the crates that `Cargo.lock` holds):
+ 
+ 1. **QUIC is noq in podssh-relay, behind a feature `quic`.** The quick tunnel's QUIC (T-301) is noq
+-   with no ring and no aws-lc (`crates/podssh-relay/Cargo.toml:60`), its TLS on podssh-ws's
++   with no ring and no aws-lc (`crates/podssh-relay/Cargo.toml:64`), its TLS on podssh-ws's
+    provider, so rule 4 holds in the library crate, and Approach 3's other branch, a crate of its
+    own, is needless; `quic` is `quick` with the role's endpoint and the client's race, and takes its
+    noq, its endpoint and its probe. Lost: quinn, which is not in the lock and which noq forks.
+diff --git a/TODO/relay.md b/TODO/relay.md
+index e23190f4..72dcc115 100644
+--- a/TODO/relay.md
++++ b/TODO/relay.md
+@@ -4936,7 +4936,7 @@ Read at `2042200`:
+   (`crates/podssh-relay/tests/opentunnel_stand_in/parse.rs:110` for the record's length, `:120` for the
+   name), and routing by a name's label in OpenTunnel's road (`crates/podssh-relay/src/opentunnel/wire.rs:206`).
+ - A node that ends a visitor's TLS with a name of its own exists for OpenTunnel (T-530):
+-  `crates/podssh-relay/Cargo.toml:143` says "the key and the CSR of its" name come from the binary.
++  `crates/podssh-relay/Cargo.toml:147` says "the key and the CSR of its" name come from the binary.
+ - Publishing a local HTTP service at a public name is T-180 (`podssh funnel`, TLS at the quick tunnel's
+   edge); this entry is the role's form, with TLS at the node.
+ 
+diff --git a/TODO/repo.md b/TODO/repo.md
+index 0ab37a68..61b71327 100644
+--- a/TODO/repo.md
++++ b/TODO/repo.md
+@@ -2699,7 +2699,7 @@ command uses `podssh-probe`.
+ 2. Move `podssh-core` and `podssh-transport` to the dev-dependencies: an
+    example can use a dev-dependency, and the binary does not declare them.
+ 3. Move `libc` to the dependencies for Unix only, as
+-   `crates/podssh-relay/Cargo.toml:223` does; else the lint of step 4 fails on
++   `crates/podssh-relay/Cargo.toml:227` does; else the lint of step 4 fails on
+    Windows.
+ 4. The check: `#![cfg_attr(not(test), deny(unused_crate_dependencies))]` in
+    `crates/podssh-cli/src/lib.rs`. rustc then refuses a dependency that the
+diff --git a/TODO/ssh.md b/TODO/ssh.md
+index a0818fba..674a4023 100644
+--- a/TODO/ssh.md
++++ b/TODO/ssh.md
+@@ -4353,7 +4353,7 @@ Read on 2026-11-03 by the drafting agent, at `e176606` (the tree of `3bb42ea` wi
+   here: the run of item 1 confirms it.
+ - On `main`, `ssh node://NAME` with a good pair goes through the race of the roads
+   (`crates/podssh-cli/src/ssh/node_roads.rs:208-214`, moved from `ssh/mod.rs` by T-531 and to `node_roads.rs` by T-551), not through `node::connect`, as the transit road is
+-  on by default (`crates/podssh-relay/src/transit/mod.rs:61`) since T-436; at `35a0d19`, the
++  on by default (`crates/podssh-relay/src/transit/mod.rs:26`, pod-transit's `setting`) since T-436; at `35a0d19`, the
+   tester's build, it went through `node::connect`. The record is in the login of `podssh-ssh`,
+   which both roads share, and both count what their layer carries.
+ 
+diff --git a/TODO/ws.md b/TODO/ws.md
+index c50be65c..d46a1313 100644
+--- a/TODO/ws.md
++++ b/TODO/ws.md
+@@ -1986,7 +1986,7 @@ command says what to do. Four of the eight release binaries are for Windows and
+ - Read: the release builds two binaries for macOS and two for Windows
+   (`.github/workflows/release.yml:321-337`, `:374-390`).
+ - Read: `windows-sys` 0.61 is already a dependency of `podssh-relay` on Windows
+-  (`crates/podssh-relay/Cargo.toml:230-231`), a crate with no C; `rustls-native-certs` 0.8.4,
++  (`crates/podssh-relay/Cargo.toml:234-235`), a crate with no C; `rustls-native-certs` 0.8.4,
+   `schannel` and `security-framework` are in the lock through other crates
+   (`Cargo.lock:6344-6345`).
+ - Read: one proxy that re-terminates TLS was measured, with its CA in `SSL_CERT_FILE` and in the
+diff --git a/crates/podssh-cli/Cargo.toml b/crates/podssh-cli/Cargo.toml
+index e0b6d23a..77ba6913 100644
+--- a/crates/podssh-cli/Cargo.toml
++++ b/crates/podssh-cli/Cargo.toml
+@@ -98,7 +98,7 @@ podssh-ws = { path = "../podssh-ws", features = ["quic"] }
+ # The services of other parties: the facts of doctor's checks, STUN, the
+ # DERP map, the zone of OpenTunnel, the ACME directory, the relay of
+ # `podssh ts`.
+-pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+ # The leaf of a release's Sigstore bundle, read (T-375): no C, as its
+ # feature `verify` (ring) is off; the signatures are podssh-ws's own.
+ x509-parser = { version = "0.18", default-features = false }
+@@ -176,7 +176,7 @@ zeroize = { workspace = true }
+ futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
+ # `podssh session` (T-186): where a kept stream of output may start, and its
+ # ring (the grammar of T-221), and when the output has stopped.
+-pod-term = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-term = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+ # `podssh session capture`: the screen that a terminal shows after the
+ # session's output. The model of the terminal oracle (T-200), pure Rust over
+ # vte, with no build script that compiles C; the lock has it already.
+@@ -230,7 +230,7 @@ windows-sys = { version = "0.61", features = [
+ ] }
+ 
+ [dev-dependencies]
+-pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0", features = ["screen"] }
++pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0", features = ["screen"] }
+ # `test-util` gives the tests a paused clock: the limit of a stuck write is
+ # 60 s (tests/direct_write_limit.rs).
+ tokio = { workspace = true, features = ["macros", "rt", "test-util"] }
+diff --git a/crates/podssh-cli/src/doctor/carriers.rs b/crates/podssh-cli/src/doctor/carriers.rs
+index c9b72535..89a6c77f 100644
+--- a/crates/podssh-cli/src/doctor/carriers.rs
++++ b/crates/podssh-cli/src/doctor/carriers.rs
+@@ -181,7 +181,8 @@ async fn transit_line(report: &mut Report<'_>, url: &WsUrl, trust: &Trust) {
+     let least = WsUrl::parse(&transit::default_url()).is_ok_and(|least| least == *url);
+     let trust = if least { crate::pairs::trust(None) } else { trust.clone() };
+     let started = Instant::now();
+-    let dialed = tokio::time::timeout(WAIT, transit::far::dial(url, &trust, &ProxyChoice::FromEnvironment)).await;
++    let config = transit::config(url.clone(), &trust, &ProxyChoice::FromEnvironment, std::sync::Arc::new(|_| {}));
++    let dialed = tokio::time::timeout(WAIT, transit::far::dial(&config)).await;
+     match dialed {
+         Ok(Ok(session)) => {
+             let ms = started.elapsed().as_millis();
+@@ -189,7 +190,7 @@ async fn transit_line(report: &mut Report<'_>, url: &WsUrl, trust: &Trust) {
+             let line = format!("the WebSocket opened in {ms} ms, certificate verified; no line said, nothing paired");
+             report.ok(&label, line);
+         }
+-        Ok(Err(why)) => report.fail(&label, why),
++        Ok(Err(why)) => report.fail(&label, why.to_string()),
+         Err(_) => report.fail(&label, format!("no WebSocket within {} s", WAIT.as_secs())),
+     }
+ }
+diff --git a/crates/podssh-cli/src/node_transit.rs b/crates/podssh-cli/src/node_transit.rs
+index 618e40d8..cc72f41d 100644
+--- a/crates/podssh-cli/src/node_transit.rs
++++ b/crates/podssh-cli/src/node_transit.rs
+@@ -113,7 +113,8 @@ pub(crate) fn road(label: &str, pair: &Pair, stored: bool, trust: &Trust, url: W
+     ));
+     let keys = keys_now(label, pair, stored);
+     let trust = trust_for(&url, trust, crate::pairs::trust(None));
+-    Some(far::Node { url, keys, side, trust, proxy: ProxyChoice::FromEnvironment, say })
++    let config = transit::config(url, &trust, &ProxyChoice::FromEnvironment, say);
++    Some(far::Node { config, keys, side })
+ }
+ 
+ /// `pair_road` with the transit road `road` beside it, under `keeper`,
+@@ -247,7 +248,7 @@ pub(crate) fn dialer(url: WsUrl, part: &OperatorPart, trust: &Trust, log: &Arc<L
+     };
+     let keys = Keys::of_pair(&part.name, part.connect_token());
+     let trust = trust_for(&url, trust, crate::pairs::trust(None));
+-    match Dialer::new(url, keys, trust, ProxyChoice::FromEnvironment, say) {
++    match Dialer::new(transit::config(url, &trust, &ProxyChoice::FromEnvironment, say), keys) {
+         Ok(dialer) => Some(dialer),
+         Err(e) => {
+             log.verbose(&format!("{shown}: no transit road: {e}"));
+diff --git a/crates/podssh-cli/src/ssh/roads.rs b/crates/podssh-cli/src/ssh/roads.rs
+index bdafdb8a..7d065d0a 100644
+--- a/crates/podssh-cli/src/ssh/roads.rs
++++ b/crates/podssh-cli/src/ssh/roads.rs
+@@ -178,7 +178,10 @@ impl<'a> Roads<'a> {
+         }
+         if let Some(dialer) = &self.transit {
+             // Q65's fallback: only when each road before it failed.
+-            list.push((Start::WhenAllFailed, Box::pin(async move { dialer.link().await.map(Road::Transit) })));
++            list.push((
++                Start::WhenAllFailed,
++                Box::pin(async move { dialer.link().await.map(Road::Transit).map_err(|e| e.to_string()) }),
++            ));
+             kinds.push(Kind::Transit);
+         }
+         if let Some(croc) = &self.croc {
+diff --git a/crates/podssh-gsr/Cargo.toml b/crates/podssh-gsr/Cargo.toml
+index 9c8a9267..f7db0596 100644
+--- a/crates/podssh-gsr/Cargo.toml
++++ b/crates/podssh-gsr/Cargo.toml
+@@ -15,14 +15,14 @@ publish.workspace = true
+ # pod-services' (PodUtils/podcrates); this crate gives them podssh's dial
+ # and proxy, and the words of podssh's lines.
+ [dependencies]
+-pod-gsr = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
+-pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-gsr = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
++pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+ # The party of the relay's data file, for the line of the third party.
+-pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+ podssh-ws = { path = "../podssh-ws" }
+ tokio = { workspace = true }
+ zeroize = { workspace = true }
+ 
+ [dev-dependencies]
+ tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "net", "io-util", "time", "sync"] }
+-pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+diff --git a/crates/podssh-iroh/Cargo.toml b/crates/podssh-iroh/Cargo.toml
+index 3862196e..f681a450 100644
+--- a/crates/podssh-iroh/Cargo.toml
++++ b/crates/podssh-iroh/Cargo.toml
+@@ -34,7 +34,7 @@ podssh-relay = { path = "../podssh-relay", features = ["derp", "pinggy", "opentu
+ podssh-ws = { path = "../podssh-ws" }
+ # The services of other parties: n0's relays and pkarr, the zone of the
+ # quick tunnel.
+-pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+ tokio = { workspace = true }
+ # The types of iroh's interfaces: the relay's certificate verifier (rustls),
+ # the proxy's URL (url), and the resolver's errors (n0-error), at the
+diff --git a/crates/podssh-relay/Cargo.toml b/crates/podssh-relay/Cargo.toml
+index 794e9cee..2f197667 100644
+--- a/crates/podssh-relay/Cargo.toml
++++ b/crates/podssh-relay/Cargo.toml
+@@ -10,19 +10,19 @@ publish.workspace = true
+ # A library other projects (podvm) use; its crates move to PodUtils/podcrates
+ # (T-684).
+ [dependencies]
+-pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
+-pod-identity = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
++pod-identity = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+ # The relay client: the hosts, the pool, the rank, the failover, the tokens,
+ # the roads to a relay, the pairs, the grants, the reverse road and the
+ # blocking facade (PodUtils/podcrates@T-025): pod-relay, over podssh's
+ # process context (src/context.rs). The dialer of a node's targets is
+ # pod-proxy's, with podssh's settings (podssh-ws's dial.rs).
+-pod-relay = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
+-pod-proxy = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-relay = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
++pod-proxy = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+ # The services of other parties: the relay's host, limits and seed, the
+ # DERP servers, Piping, the mailboxes and transit, OpenTunnel, the edge of
+ # the quick tunnel and its roots.
+-pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+ podssh-ws = { path = "../podssh-ws" }
+ tokio = { workspace = true }
+ serde = { workspace = true }
+@@ -30,9 +30,13 @@ serde_json = { workspace = true }
+ zeroize = { workspace = true }
+ rand = { workspace = true }
+ # The resumable layer (src/session/), UDP in a stream (src/udp/), the link
+-# over a WebSocket (src/transit/link.rs) and the rule of a peer's answer
++# over a WebSocket (pod_transit::link) and the rule of a peer's answer
+ # (src/answer.rs): pod-session of PodUtils/podcrates (T-020 there).
+-pod-session = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-session = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
++# The transit road (src/transit/): pod-transit of PodUtils/podcrates
++# (T-027 there); podssh keeps PODSSH_TRANSIT and the settings of each
++# connection.
++pod-transit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+ # SHA-256, HMAC-SHA-256 and HKDF of the tokens, the mailbox and croc, and
+ # X25519 of the key of DERP. Pure Rust, as in podssh-ws.
+ sha2 = { workspace = true }
+@@ -45,7 +49,7 @@ ed25519-dalek = { workspace = true, features = ["zeroize"] }
+ base64 = { workspace = true }
+ # The channel between two podssh ends (src/e2e/, T-088): Noise XX on snow,
+ # pure Rust: pod-e2e of PodUtils/podcrates (T-021 there).
+-pod-e2e = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-e2e = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+ # A quick tunnel's connection to Cloudflare's edge (src/quick/serve.rs, T-300):
+ # the edge is the client of HTTP/2 on the connection that podssh dialed. Pure
+ # Rust, in the lock already through hyper; only with the features `quick`,
+@@ -62,7 +66,7 @@ rustls = { workspace = true, optional = true }
+ # The QUIC endpoint, its keys, the connection within its wait, the race of
+ # handshakes and the probe of UDP (PodUtils/podcrates, T-019): pod-quic, on
+ # the same noq.
+-pod-quic = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0", optional = true }
++pod-quic = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0", optional = true }
+ # DERP's handshake (src/derp/, T-349): the client's info sealed to the
+ # server's key with NaCl's crypto_box (X25519, XSalsa20, Poly1305). Pure
+ # Rust, RustCrypto's, in the lock already through the vendored tailscale-rs;
+@@ -84,7 +88,7 @@ tokio-rustls = { workspace = true, optional = true }
+ # Pairing by a short code (src/code/, T-086): the mailbox client, SPAKE2, the
+ # sealed phases and the words of a code, which podssh gives its AppID, its
+ # name and its way out; only with the feature `code`.
+-pod-wormhole = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0", optional = true }
++pod-wormhole = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0", optional = true }
+ # croc's relay road (src/croc/, T-694): the curve SIEC of croc's relay
+ # handshake, which no crate implements, on num-bigint's integers (0.5 since
+ # T-754), and AES-256-GCM of croc's crypt, the workspace's.
+@@ -97,7 +101,7 @@ aes-gcm = { workspace = true, optional = true }
+ # pod-devtunnel of PodUtils/podcrates; podssh gives it its way out, its
+ # token file and its lines. Its SSH is russh on ring, beside podssh's
+ # aws-lc-rs: only with the feature `devtunnel`.
+-pod-devtunnel = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0", optional = true }
++pod-devtunnel = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0", optional = true }
+ # The SSH server behind the stand-in's tunnel and the client of the session
+ # through it in tests/devtunnel.rs: the release that vendor/russh patches,
+ # with podssh's own crypto; only with `devtunnel-standin`.
+diff --git a/crates/podssh-relay/src/transit/client.rs b/crates/podssh-relay/src/transit/client.rs
+deleted file mode 100644
+index 95c8922e..00000000
+--- a/crates/podssh-relay/src/transit/client.rs
++++ /dev/null
+@@ -1,148 +0,0 @@
+-//! The client of the transit road: a connection to the transit relay for
+-//! each link, under the pair's token and this run's side, which meets the
+-//! node that waits there. A meeting with another client of the pair, or a
+-//! side that the relay dropped as a spare, is tried again within the wait.
+-//! The meeting proves the pair only: the node's identity is the end-to-end
+-//! channel's to check, above the layer.
+-
+-use std::sync::Arc;
+-use std::time::Duration;
+-
+-use podssh_ws::url::WsUrl;
+-use podssh_ws::{ProxyChoice, Trust};
+-use rand::RngExt;
+-use tokio::io::{AsyncRead, AsyncWrite};
+-use tokio::time::Instant;
+-
+-use super::far::dial;
+-use super::link::Link;
+-use super::meet::{meet, Missed, Part};
+-use super::token::{Keys, Side};
+-use super::Say;
+-use crate::session::client::{self, Outcome};
+-use crate::session::resume::{self, Next, Note};
+-use crate::session::secret::NoRandom;
+-use crate::session::{Ask, Ended, Hearing, OsEntropy, Settings};
+-
+-/// How long a link waits for the node: one that waits at the relay answers
+-/// at once, and one that just met another client opens its next wait in a
+-/// second.
+-pub const MEET_LIMIT: Duration = Duration::from_secs(15);
+-
+-/// The links of one client to the node of one pair.
+-pub struct Dialer {
+-    url: WsUrl,
+-    keys: Keys,
+-    side: Side,
+-    trust: Trust,
+-    proxy: ProxyChoice,
+-    say: Say,
+-    wait: Duration,
+-}
+-
+-impl Dialer {
+-    /// The dialer of the pair whose words are `keys`, at the relay of `url`,
+-    /// with a side of this run's.
+-    pub fn new(url: WsUrl, keys: Keys, trust: Trust, proxy: ProxyChoice, say: Say) -> Result<Dialer, NoRandom> {
+-        let side = Side::random(&mut OsEntropy)?;
+-        Ok(Dialer { url, keys, side, trust, proxy, say, wait: MEET_LIMIT })
+-    }
+-
+-    /// The same, with `side` in place of a random one: a test's two ends of
+-    /// one side, which the relay never pairs.
+-    pub fn with_side(self, side: Side) -> Dialer {
+-        Dialer { side, ..self }
+-    }
+-
+-    /// The same, waiting `wait` for the node in place of [`MEET_LIMIT`].
+-    pub fn with_wait(self, wait: Duration) -> Dialer {
+-        Dialer { wait, ..self }
+-    }
+-
+-    /// The relay.
+-    pub fn url(&self) -> &WsUrl {
+-        &self.url
+-    }
+-
+-    /// A new link to the node, which met this client and proved the pair;
+-    /// else why there is none.
+-    pub async fn link(&self) -> Result<Link, String> {
+-        let (shown, until) = (self.url.shown(), Instant::now() + self.wait);
+-        let mut others: u32 = 0;
+-        loop {
+-            let left = until.saturating_duration_since(Instant::now());
+-            if left.is_zero() {
+-                return Err(self.alone(others));
+-            }
+-            let session = dial(&self.url, &self.trust, &self.proxy).await?;
+-            match meet(&session, &self.keys, &self.side, Part::Client, Some(left), &mut OsEntropy).await {
+-                Ok(first) => return Ok(Link::start(session, first)),
+-                Err(Missed::Alone(_)) => return Err(self.alone(others)),
+-                // Two clients of the pair met while the node's wait was
+-                // taken: each tries again, and the node's next wait comes.
+-                Err(Missed::SamePart) => {
+-                    others = others.saturating_add(1);
+-                    (self.say)(format!("another client of the pair met this one at the transit relay {shown}"));
+-                }
+-                // A spare side that the relay dropped, once another one met.
+-                Err(Missed::Dropped(why)) => (self.say)(format!("the transit relay {shown}: {why}; trying again")),
+-                Err(missed) => return Err(format!("the transit relay {shown}: {missed}")),
+-            }
+-            let _ = session.send_close(1000, "").await;
+-            drop(session);
+-            // Apart, so that two clients that parted do not meet again.
+-            let jitter = rand::rng().random_range(100..600);
+-            tokio::time::sleep(Duration::from_millis(jitter)).await;
+-        }
+-    }
+-
+-    fn alone(&self, others: u32) -> String {
+-        let mut why = format!(
+-            "no node met this client at the transit relay {} within {} s",
+-            self.url.shown(),
+-            self.wait.as_secs()
+-        );
+-        if others > 0 {
+-            why.push_str(&format!(" (another client of the pair met it {others} times)"));
+-        }
+-        why
+-    }
+-}
+-
+-/// Carry `app` to the node of `dialer`: the first link and the layer's
+-/// handshake on it, then a new link after each lost one, until the session
+-/// ends. `note` hears each step of the session across links.
+-pub async fn carry<A, N>(dialer: &Dialer, app: A, settings: Settings, note: N) -> Result<Outcome, String>
+-where
+-    A: AsyncRead + AsyncWrite + Unpin + Send,
+-    N: FnMut(Note),
+-{
+-    carry_heard(dialer, app, settings, note, Arc::default()).await
+-}
+-
+-/// [`carry`], with the session's `hearing`, which a notice of the far end's
+-/// silence reads.
+-pub async fn carry_heard<A, N>(
+-    dialer: &Dialer,
+-    app: A,
+-    settings: Settings,
+-    note: N,
+-    hearing: Arc<Hearing>,
+-) -> Result<Outcome, String>
+-where
+-    A: AsyncRead + AsyncWrite + Unpin + Send,
+-    N: FnMut(Note),
+-{
+-    let first = dialer.link().await?;
+-    let client = client::start(first, Ask::New, settings, &mut OsEntropy).await.map_err(|e| e.to_string())?;
+-    let client = client.with_hearing(hearing);
+-    let connect = |_: &Ended| async move {
+-        match dialer.link().await {
+-            Ok(link) => Next::Link(link),
+-            Err(why) => Next::Retry(why),
+-        }
+-    };
+-    // On the heap: the layer's future is larger than a small thread's stack
+-    // in a debug build.
+-    Ok(Box::pin(resume::run(client, app, connect, note, &mut OsEntropy)).await)
+-}
+diff --git a/crates/podssh-relay/src/transit/far.rs b/crates/podssh-relay/src/transit/far.rs
+deleted file mode 100644
+index 4dca2f34..00000000
+--- a/crates/podssh-relay/src/transit/far.rs
++++ /dev/null
+@@ -1,142 +0,0 @@
+-//! The node of the transit road: one connection at a time that waits at
+-//! the transit relay for an operator of the pair, under the pair's token
+-//! and the node's side for the run; at each meeting the next one opens at
+-//! once, and the link is served by the resumable layer's far end with the
+-//! node's keeper, which the pair's road may share, so that a session
+-//! resumes on either. A new session reaches its target only after its
+-//! handshake, and the end-to-end channel above it. A connection that fails
+-//! is made again with the forward opener's jittered backoff; a peer that
+-//! did not prove the pair costs a wait too, so that a stranger who knows
+-//! the token cannot keep the node busy.
+-
+-use std::future::Future;
+-use std::sync::Arc;
+-use std::time::Duration;
+-
+-use podssh_ws::url::{self, WsUrl};
+-use podssh_ws::{ProxyChoice, Trust};
+-use tokio::io::{AsyncRead, AsyncWrite};
+-use tokio::time::Instant;
+-
+-use super::link::Link;
+-use super::meet::{meet, Missed, Part};
+-use super::token::{Keys, Side};
+-use super::Say;
+-use crate::session::keep::Keeper;
+-use crate::session::record::Role;
+-use crate::session::{far, OsEntropy, Settings};
+-
+-/// How often the sessions whose links are lost are checked for their
+-/// deadline.
+-const SWEEP_EVERY: Duration = Duration::from_secs(10);
+-/// A wait that the relay ended after this long, with no meeting, is the
+-/// relay's own bound on a wait: the next one starts at once.
+-const LONG_WAIT: Duration = Duration::from_secs(60);
+-
+-/// The pair's words now, read before each wait: a node goes on with a later
+-/// pair at an expiry, and its token is that pair's.
+-pub type KeysNow = Arc<dyn Fn() -> Keys + Send + Sync>;
+-
+-/// A node of the transit road.
+-pub struct Node {
+-    /// The relay: Least Authority's, or the one that the user named.
+-    pub url: WsUrl,
+-    pub keys: KeysNow,
+-    /// The node's side for the run, so that its waits never meet each other.
+-    pub side: Side,
+-    pub trust: Trust,
+-    pub proxy: ProxyChoice,
+-    pub say: Say,
+-}
+-
+-/// A connection to the relay, before its meeting.
+-pub async fn dial(
+-    url: &WsUrl,
+-    trust: &Trust,
+-    proxy: &ProxyChoice,
+-) -> Result<podssh_ws::RelaySession<url::Stream>, String> {
+-    let (timeout, idle) = (crate::open::CONNECT_TIMEOUT, Some(podssh_ws::DEFAULT_IDLE_TIMEOUT));
+-    url::dial(url, trust, proxy, timeout, idle).await.map_err(|e| url::failure(url, &e))
+-}
+-
+-/// Serve the sessions of each link of `node`, for ever, with a keeper of its
+-/// own; a new session's target comes from `open`, and the replay buffers of
+-/// all sessions stay within `budget` bytes.
+-pub async fn serve<A, O, F>(node: Node, settings: Settings, budget: usize, open: O)
+-where
+-    A: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+-    O: Fn() -> F + Clone + Send + Sync + 'static,
+-    F: Future<Output = Result<A, String>> + Send + 'static,
+-{
+-    let keeper = Arc::new(Keeper::new(settings.resume_deadline).with_tell(crate::session::budget::told()));
+-    serve_kept(node, settings, budget, open, keeper).await
+-}
+-
+-/// [`serve`] with `keeper`, which another road's far end may share, so that
+-/// a session resumes on either road. It returns never: the caller ends it.
+-pub async fn serve_kept<A, O, F>(node: Node, settings: Settings, budget: usize, open: O, keeper: Arc<Keeper<A>>)
+-where
+-    A: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+-    O: Fn() -> F + Clone + Send + Sync + 'static,
+-    F: Future<Output = Result<A, String>> + Send + 'static,
+-{
+-    // The sweep ends with the keeper, when the node and its sessions end.
+-    {
+-        let keeper = Arc::downgrade(&keeper);
+-        tokio::spawn(async move {
+-            loop {
+-                tokio::time::sleep(SWEEP_EVERY).await;
+-                let Some(keeper) = keeper.upgrade() else { return };
+-                keeper.expire().await;
+-            }
+-        });
+-    }
+-    let shown = node.url.shown();
+-    let (mut retry, mut waiting): (u32, bool) = (0, false);
+-    loop {
+-        let keys = (node.keys)();
+-        let session = match dial(&node.url, &node.trust, &node.proxy).await {
+-            Ok(session) => session,
+-            Err(why) => {
+-                (node.say)(format!("no connection to the transit relay: {why}"));
+-                waiting = false;
+-                retry = retry.saturating_add(1);
+-                pause(&node, retry).await;
+-                continue;
+-            }
+-        };
+-        if !waiting {
+-            (node.say)(format!("waiting at the transit relay {shown} for the pair's operators"));
+-            waiting = true;
+-        }
+-        let started = Instant::now();
+-        match meet(&session, &keys, &node.side, Part::Node, None, &mut OsEntropy).await {
+-            Ok(first) => {
+-                retry = 0;
+-                let link = Link::start(session, first);
+-                let (keeper, open) = (keeper.clone(), open.clone());
+-                tokio::spawn(async move {
+-                    far::serve(link, Role::NODE, settings, &keeper, budget, open).await;
+-                });
+-            }
+-            // The relay's own bound on a wait, or a spare that it dropped:
+-            // the next wait, at once.
+-            Err(Missed::Dropped(_)) if started.elapsed() >= LONG_WAIT => retry = 0,
+-            // Two waits of this node never meet; a node of the same pair
+-            // elsewhere is the user's to stop, as on the pair's road.
+-            Err(missed) => {
+-                (node.say)(format!("a meeting at the transit relay failed: {missed}"));
+-                waiting = false;
+-                retry = retry.saturating_add(1);
+-                pause(&node, retry).await;
+-            }
+-        }
+-    }
+-}
+-
+-/// The jittered backoff of the `retry`th failure in a row, said.
+-async fn pause(node: &Node, retry: u32) {
+-    let wait = crate::open::backoff(retry);
+-    (node.say)(format!("waiting at the transit relay again in {} ms", wait.as_millis()));
+-    tokio::time::sleep(wait).await;
+-}
+diff --git a/crates/podssh-relay/src/transit/meet.rs b/crates/podssh-relay/src/transit/meet.rs
+deleted file mode 100644
+index 66ce78c9..00000000
+--- a/crates/podssh-relay/src/transit/meet.rs
++++ /dev/null
+@@ -1,226 +0,0 @@
+-//! A meeting at the transit relay (T-436): this end's line, the relay's
+-//! answer, then podssh's own words each way through the relay's copy: a
+-//! hello with this end's part and a nonce, then a proof of the pair's
+-//! secret over both nonces. The relay pairs any two sides of one token, so
+-//! two clients of one pair can meet each other: their parts tell them
+-//! apart. The relay sees the token; a side that knows it alone, as the
+-//! relay does, proves nothing, so the node's door stays the pair's.
+-//!
+-//! The relay's words (magic-wormhole/magic-wormhole-transit-relay:
+-//! src/wormhole_transit_relay/transit_server.py and server_state.py): the
+-//! first message is the line alone; `ok\n` once a second side of the token
+-//! came; `bad handshake\n` for a line that it does not read; `impatient\n`
+-//! for bytes sent before `ok`. Over a WebSocket each message is binary, and
+-//! where one ends means nothing, so the answers are read as bytes.
+-
+-use std::fmt;
+-use std::time::Duration;
+-
+-use podssh_ws::session::close_code_and_reason;
+-use podssh_ws::{frame, RelaySession, SessionError};
+-use tokio::io::{AsyncRead, AsyncWrite};
+-
+-use super::token::{line, Keys, Side, PROOF_BYTES};
+-use crate::session::secret::Entropy;
+-
+-/// The version of podssh's words after `ok`.
+-pub const VERSION: u8 = 1;
+-/// The bytes of a nonce.
+-pub const NONCE: usize = 32;
+-/// A hello: the version, the part, the nonce.
+-pub const HELLO: usize = 2 + NONCE;
+-/// The longest answer of the relay that is read for its newline.
+-const ANSWER_MOST: usize = 256;
+-/// How long the hello and the proof of a peer that met this end may take.
+-pub const PROOF_LIMIT: Duration = Duration::from_secs(10);
+-
+-/// Which end of a pair's road this one is.
+-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+-pub enum Part {
+-    Node,
+-    Client,
+-}
+-
+-impl Part {
+-    /// The byte of the part in a hello and a proof.
+-    pub fn byte(self) -> u8 {
+-        match self {
+-            Part::Node => b'N',
+-            Part::Client => b'C',
+-        }
+-    }
+-
+-    pub fn other(self) -> Part {
+-        match self {
+-            Part::Node => Part::Client,
+-            Part::Client => Part::Node,
+-        }
+-    }
+-}
+-
+-/// Why a meeting gave no link.
+-#[derive(Debug, Clone, PartialEq, Eq)]
+-pub enum Missed {
+-    /// No other side of the token came within the wait.
+-    Alone(Duration),
+-    /// The relay ended the connection before `ok`: a spare side of the
+-    /// token, which it drops once another one met, or a limit of its own.
+-    Dropped(String),
+-    /// The relay refused the line, or answered words that are not its.
+-    Refused(String),
+-    /// A peer of this end's own part met it: two clients of one pair.
+-    SamePart,
+-    /// The peer did not prove the pair: a side that knows the token alone,
+-    /// or the end of another pair whose token is the same.
+-    NotProven(String),
+-    /// The connection failed, or the peer said nothing in time.
+-    Broken(String),
+-}
+-
+-impl fmt::Display for Missed {
+-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+-        match self {
+-            Missed::Alone(wait) => write!(f, "no other side came within {} s", wait.as_secs()),
+-            Missed::Dropped(why) => write!(f, "the relay ended the connection before the meeting: {why}"),
+-            Missed::Refused(why) | Missed::Broken(why) => f.write_str(why),
+-            Missed::SamePart => f.write_str("another client of the pair met this one"),
+-            Missed::NotProven(why) => write!(f, "the peer did not prove the pair: {why}"),
+-        }
+-    }
+-}
+-
+-/// Meet the other end at the relay over `session`, as `part`, waiting at
+-/// most `wait` for it (`None`: as long as the connection lives): the bytes
+-/// that came after the peer's proof, which are the first of the link.
+-pub async fn meet<S>(
+-    session: &RelaySession<S>,
+-    keys: &Keys,
+-    side: &Side,
+-    part: Part,
+-    wait: Option<Duration>,
+-    entropy: &mut (dyn Entropy + Send),
+-) -> Result<Vec<u8>, Missed>
+-where
+-    S: AsyncRead + AsyncWrite + Send,
+-{
+-    let mut nonce = [0u8; NONCE];
+-    entropy.fill(&mut nonce).map_err(|e| Missed::Broken(e.to_string()))?;
+-    // The line alone in its message: the relay reads the first message as
+-    // the line, and refuses one with more.
+-    session.send_binary(line(keys, side).as_bytes()).await.map_err(broken)?;
+-    let mut got = Got { bytes: Vec::new() };
+-    let answer = match wait {
+-        Some(wait) => tokio::time::timeout(wait, got.line(session)).await.map_err(|_| Missed::Alone(wait))??,
+-        None => got.line(session).await?,
+-    };
+-    match answer.as_str() {
+-        "ok" => {}
+-        "bad handshake" => return Err(Missed::Refused("the relay did not take the line (bad handshake)".into())),
+-        "impatient" => {
+-            return Err(Missed::Refused("the relay took bytes before its ok for a fault (impatient)".into()))
+-        }
+-        other => {
+-            let shown: String = podssh_ws::text::one_line(other).chars().take(60).collect();
+-            return Err(Missed::Refused(format!("the relay answered {shown:?}, not ok")));
+-        }
+-    }
+-    let mut hello = Vec::with_capacity(HELLO);
+-    hello.extend_from_slice(&[VERSION, part.byte()]);
+-    hello.extend_from_slice(&nonce);
+-    session.send_binary(&hello).await.map_err(broken)?;
+-    let theirs = got.within(session, HELLO).await?;
+-    if theirs[0] != VERSION {
+-        let why = format!("its words are of version {}, and this podssh's of {VERSION}", theirs[0]);
+-        return Err(Missed::NotProven(why));
+-    }
+-    if theirs[1] == part.byte() {
+-        return Err(Missed::SamePart);
+-    }
+-    if theirs[1] != part.other().byte() {
+-        return Err(Missed::NotProven("its hello is not podssh's".into()));
+-    }
+-    let peer = &theirs[2..];
+-    session.send_binary(&keys.prove(part.byte(), &nonce, peer)).await.map_err(broken)?;
+-    let proof = got.within(session, PROOF_BYTES).await?;
+-    if !keys.verify(part.other().byte(), peer, &nonce, &proof) {
+-        return Err(Missed::NotProven("its proof is not of this pair's secret".into()));
+-    }
+-    Ok(got.bytes)
+-}
+-
+-fn broken(e: SessionError) -> Missed {
+-    Missed::Broken(e.to_string())
+-}
+-
+-/// The bytes that came, and are not read yet.
+-struct Got {
+-    bytes: Vec<u8>,
+-}
+-
+-impl Got {
+-    /// The relay's answer: a line, without its newline.
+-    async fn line<S>(&mut self, session: &RelaySession<S>) -> Result<String, Missed>
+-    where
+-        S: AsyncRead + AsyncWrite + Send,
+-    {
+-        loop {
+-            if let Some(at) = self.bytes.iter().position(|b| *b == b'\n') {
+-                let line: Vec<u8> = self.bytes.drain(..=at).collect();
+-                return Ok(String::from_utf8_lossy(&line[..at]).trim_end_matches('\r').to_string());
+-            }
+-            if self.bytes.len() > ANSWER_MOST {
+-                return Err(Missed::Refused(format!("the relay answered {} bytes with no newline", self.bytes.len())));
+-            }
+-            self.more(session).await?;
+-        }
+-    }
+-
+-    /// `n` bytes of the peer, within [`PROOF_LIMIT`].
+-    async fn within<S>(&mut self, session: &RelaySession<S>, n: usize) -> Result<Vec<u8>, Missed>
+-    where
+-        S: AsyncRead + AsyncWrite + Send,
+-    {
+-        let read = async {
+-            while self.bytes.len() < n {
+-                self.more(session).await?;
+-            }
+-            Ok::<Vec<u8>, Missed>(self.bytes.drain(..n).collect())
+-        };
+-        let late = || Missed::Broken(format!("the peer said too little within {} s", PROOF_LIMIT.as_secs()));
+-        tokio::time::timeout(PROOF_LIMIT, read).await.map_err(|_| late())?
+-    }
+-
+-    /// The next message's bytes; the connection pinged meanwhile, so that a
+-    /// dead one is found while this end waits.
+-    async fn more<S>(&mut self, session: &RelaySession<S>) -> Result<(), Missed>
+-    where
+-        S: AsyncRead + AsyncWrite + Send,
+-    {
+-        let liveness = session.watch_liveness(podssh_ws::LIVENESS_EVERY, podssh_ws::LIVENESS_ALLOWED);
+-        let read = tokio::select! {
+-            read = session.read_frame() => read,
+-            dead = liveness => return Err(Missed::Broken(dead.to_string())),
+-        };
+-        let f = match read {
+-            Ok(f) => f,
+-            Err(SessionError::ClosedWithoutClose(why)) => return Err(Missed::Dropped(why)),
+-            Err(e) => return Err(broken(e)),
+-        };
+-        match f.opcode {
+-            frame::OPCODE_BINARY | frame::OPCODE_TEXT => {
+-                self.bytes.extend_from_slice(&f.payload);
+-                Ok(())
+-            }
+-            frame::OPCODE_CLOSE => {
+-                let (code, reason) = close_code_and_reason(&f.payload);
+-                let code = code.map_or_else(|| "no code".to_string(), |c| c.to_string());
+-                let reason = match reason.is_empty() {
+-                    true => String::new(),
+-                    false => format!(" {}", podssh_ws::text::one_line(&reason)),
+-                };
+-                Err(Missed::Dropped(format!("a Close ({code}{reason})")))
+-            }
+-            other => Err(Missed::Broken(format!("an unexpected frame (opcode {other:#x})"))),
+-        }
+-    }
+-}
+diff --git a/crates/podssh-relay/src/transit/mod.rs b/crates/podssh-relay/src/transit/mod.rs
+index fe277e25..be52c68d 100644
+--- a/crates/podssh-relay/src/transit/mod.rs
++++ b/crates/podssh-relay/src/transit/mod.rs
+@@ -1,90 +1,35 @@
+ //! The transit road (T-436): a carrier of a pair's road through a
+ //! magic-wormhole transit relay, by default Least Authority's at
+-//! `wss://relay.mw.leastauthority.com`, a WebSocket on port 443 that needs
+-//! no account (the operator's ruling Q65 lets podssh try it unasked; its
+-//! terms and limits are in docs/carriers.md). The relay pairs two
+-//! connections that name one token and two sides, says `ok` to both, and
+-//! copies the bytes ([`meet`]); it passes `HTTPS_PROXY` as the relay does
+-//! ([`far::dial`]), and it is pure Rust, as this crate must be.
+-//!
+-//! The token and the key of podssh's proof of the pair come from the pair's
+-//! connect token, which both ends hold ([`token`]); a node waits at the
+-//! relay ([`far`]), and a client meets it there for each link ([`client`]).
+-//! A link ([`link`]) is a byte stream: each session over it runs the
+-//! resumable layer and, above the layer, the end-to-end channel
+-//! (`crate::e2e`), so the relay is trusted for availability only: it sees
+-//! the token, the sizes and the times, and a change that it makes ends the
+-//! session.
+-
+-pub mod client;
+-pub mod far;
+-// The link of the transit road, a byte stream over a WebSocket: pod-session
+-// of PodUtils/podcrates.
+-pub use pod_session::ws_link as link;
+-pub mod meet;
+-pub mod token;
++//! `wss://relay.mw.leastauthority.com` (the operator's ruling Q65 lets
++//! podssh try it unasked; its terms and limits are in docs/carriers.md):
++//! `pod-transit` of PodUtils/podcrates. podssh keeps its variable, the place
++//! of the road's lines, and the settings of each connection: its way out and
++//! its trust.
+ 
+ use std::sync::Arc;
+ 
++pub use pod_transit::{
++    client, default_url, far, link, meet, token, Config, Dialer, Failed, Keys, Link, Missed, Node, Part, Setting, Side,
++};
+ use podssh_ws::url::WsUrl;
++use podssh_ws::{ProxyChoice, Trust};
+ 
+-pub use client::Dialer;
+-pub use far::Node;
+-pub use link::Link;
+-pub use meet::{Missed, Part};
+-pub use token::{Keys, Side};
+-
+-/// Least Authority's transit relay, which its Winden and Destiny use, as a
+-/// WebSocket on port 443: the endpoint `relay` of `leastauthority-transit`
+-/// (`pod-services`).
+-pub fn default_url() -> String {
+-    let service = pod_services::get("leastauthority-transit").expect("pod-services holds leastauthority-transit");
+-    service.endpoint("relay").map(|e| e.url()).expect("leastauthority-transit of pod-services has the endpoint relay")
+-}
+ /// `no` turns the road off; a `ws://` or `wss://` URL names another relay.
+ pub const ENV: &str = "PODSSH_TRANSIT";
+ 
+ /// Where the lines of the road go, for the user.
+ pub type Say = Arc<dyn Fn(String) + Send + Sync>;
+ 
+-/// What [`ENV`] asks for.
+-#[derive(Debug, Clone, PartialEq, Eq)]
+-pub enum Setting {
+-    /// No transit road.
+-    Off,
+-    /// The road, through this relay.
+-    On(WsUrl),
+-}
+-
+ /// [`ENV`]'s value: unset, empty or yes, Least Authority's relay; no, none;
+ /// a `ws://` or `wss://` URL, that relay. Another word is refused, and the
+ /// refusal does not echo it, as a URL's query may hold a secret.
+ pub fn setting(value: Option<&str>) -> Result<Setting, String> {
+-    let value = value.map(str::trim).unwrap_or_default();
+-    match value.to_ascii_lowercase().as_str() {
+-        "" | "yes" | "on" | "true" | "1" => WsUrl::parse(&default_url()).map(Setting::On),
+-        "no" | "off" | "false" | "0" => Ok(Setting::Off),
+-        _ => WsUrl::parse(value).map(Setting::On).map_err(|why| format!("{ENV}: yes, no, or a relay's URL: {why}")),
+-    }
++    pod_transit::setting(ENV, value)
+ }
+ 
+-#[cfg(test)]
+-mod tests {
+-    use super::*;
+-
+-    #[test]
+-    fn the_variable_turns_the_road_off_names_a_relay_or_is_refused_without_its_text() {
+-        let least = WsUrl::parse(&default_url()).unwrap();
+-        assert_eq!((least.tls, least.host.as_str(), least.port), (true, "relay.mw.leastauthority.com", 443));
+-        for on in [None, Some(""), Some(" yes "), Some("On"), Some("1")] {
+-            assert_eq!(setting(on), Ok(Setting::On(least.clone())), "{on:?}");
+-        }
+-        for off in ["no", "OFF", "0", "false"] {
+-            assert_eq!(setting(Some(off)), Ok(Setting::Off), "{off}");
+-        }
+-        let own = setting(Some("ws://127.0.0.1:4002/")).unwrap();
+-        assert_eq!(own, Setting::On(WsUrl::parse("ws://127.0.0.1:4002/").unwrap()));
+-        let refused = setting(Some("maybe?key=SECRET")).unwrap_err();
+-        assert!(refused.starts_with("PODSSH_TRANSIT: ") && !refused.contains("SECRET"), "{refused}");
+-    }
++/// The settings of each connection to the relay of `url`: podssh's way out
++/// through `proxy`, the roots of `trust`, and the road's lines to `say`.
++pub fn config(url: WsUrl, trust: &Trust, proxy: &ProxyChoice, say: Say) -> Config {
++    let events = Arc::new(move |event: pod_core::Event| say(event.text));
++    Config::new(url, podssh_ws::client::way(proxy)).with_trust(trust.clone()).with_events(events)
+ }
+diff --git a/crates/podssh-relay/src/transit/token.rs b/crates/podssh-relay/src/transit/token.rs
+deleted file mode 100644
+index eaf8092c..00000000
+--- a/crates/podssh-relay/src/transit/token.rs
++++ /dev/null
+@@ -1,197 +0,0 @@
+-//! The words of a meeting at the transit relay (T-436), from the pair's
+-//! secret: the token by which the relay pairs two sides, and the key of
+-//! podssh's own proof of the pair, each by HKDF-SHA256 from the pair's
+-//! connect token and name, which both ends hold; and this end's side, at
+-//! random. The token is the transit relay's to see: it lets a side meet
+-//! the node and no more, as the proof key cannot be had from it.
+-
+-use std::fmt;
+-
+-use hkdf::Hkdf;
+-use hmac::{Hmac, KeyInit, Mac};
+-use sha2::Sha256;
+-use zeroize::Zeroizing;
+-
+-use crate::session::secret::{Entropy, NoRandom};
+-
+-/// The salt of both derivations: a new version of the words is a new salt.
+-pub const SALT: &[u8] = b"podssh transit, version 1";
+-const TOKEN_LABEL: &[u8] = b"podssh transit token";
+-const PROOF_KEY_LABEL: &[u8] = b"podssh transit proof key";
+-const PROOF_LABEL: &[u8] = b"podssh transit proof";
+-/// The bytes of the token, written as 64 hex digits, as the relay reads it.
+-pub const TOKEN_BYTES: usize = 32;
+-/// The bytes of a side, written as 16 hex digits.
+-pub const SIDE_BYTES: usize = 8;
+-/// The bytes of a proof: HMAC-SHA256.
+-pub const PROOF_BYTES: usize = 32;
+-
+-/// The pair's words at the relay: its token, and its proof key.
+-#[derive(Clone)]
+-pub struct Keys {
+-    token: String,
+-    proof: Zeroizing<[u8; 32]>,
+-}
+-
+-impl Keys {
+-    /// The words of the pair `name` whose connect token is `connect_token`:
+-    /// the node's whole pair and the operator's part give the same.
+-    pub fn of_pair(name: &str, connect_token: &str) -> Keys {
+-        let hkdf = Hkdf::<Sha256>::new(Some(SALT), connect_token.as_bytes());
+-        let mut token = [0u8; TOKEN_BYTES];
+-        let mut proof = Zeroizing::new([0u8; 32]);
+-        // 32 bytes is far below HKDF-SHA256's 8160, so neither can fail; a
+-        // failure would leave zeros, which meet nobody's proof.
+-        let _ = hkdf.expand(&info(TOKEN_LABEL, name), &mut token);
+-        let _ = hkdf.expand(&info(PROOF_KEY_LABEL, name), &mut proof[..]);
+-        Keys { token: hex(&token), proof }
+-    }
+-
+-    /// A side that knows the token alone, as the transit relay does: its
+-    /// proof key is none of the pair's. For a test of the door.
+-    pub fn knowing_only(token: &str) -> Keys {
+-        Keys { token: token.to_string(), proof: Zeroizing::new([0u8; 32]) }
+-    }
+-
+-    /// The token, in the line to the relay. It is no credential of the
+-    /// pair's, but a meeting point: it is never printed.
+-    pub fn token(&self) -> &str {
+-        &self.token
+-    }
+-
+-    /// The proof of the side whose role is `role`, which sent `sender`'s
+-    /// nonce and got `receiver`'s: each role and each order is its own, so
+-    /// the relay cannot send a proof back to the one who made it.
+-    pub fn prove(&self, role: u8, sender: &[u8], receiver: &[u8]) -> [u8; PROOF_BYTES] {
+-        self.mac(role, sender, receiver).finalize().into_bytes().into()
+-    }
+-
+-    /// Whether `proof` is [`Keys::prove`]'s, compared in constant time.
+-    pub fn verify(&self, role: u8, sender: &[u8], receiver: &[u8], proof: &[u8]) -> bool {
+-        self.mac(role, sender, receiver).verify_slice(proof).is_ok()
+-    }
+-
+-    fn mac(&self, role: u8, sender: &[u8], receiver: &[u8]) -> Hmac<Sha256> {
+-        // A key of any length is valid for HMAC; 32 bytes always are.
+-        let mut mac = match Hmac::<Sha256>::new_from_slice(&self.proof[..]) {
+-            Ok(mac) => mac,
+-            Err(_) => <Hmac<Sha256> as KeyInit>::new(&Default::default()),
+-        };
+-        mac.update(PROOF_LABEL);
+-        mac.update(&[0, role]);
+-        mac.update(sender);
+-        mac.update(receiver);
+-        mac
+-    }
+-}
+-
+-impl fmt::Debug for Keys {
+-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+-        // Neither the token nor the key goes into a line.
+-        f.write_str("Keys(..)")
+-    }
+-}
+-
+-/// A side of the relay's line: 16 hex digits. The relay pairs two sides of
+-/// one token that differ, so each end keeps one for its run: two links of
+-/// one end never meet each other.
+-#[derive(Clone, PartialEq, Eq)]
+-pub struct Side(String);
+-
+-impl Side {
+-    /// A side at random.
+-    pub fn random(entropy: &mut dyn Entropy) -> Result<Side, NoRandom> {
+-        let mut bytes = [0u8; SIDE_BYTES];
+-        entropy.fill(&mut bytes)?;
+-        Ok(Side(hex(&bytes)))
+-    }
+-
+-    /// The side of these 16 hex digits, for a test; `None` for another text.
+-    pub fn parse(text: &str) -> Option<Side> {
+-        let ok = text.len() == 2 * SIDE_BYTES && text.bytes().all(|b| b.is_ascii_hexdigit());
+-        ok.then(|| Side(text.to_ascii_lowercase()))
+-    }
+-
+-    pub fn as_str(&self) -> &str {
+-        &self.0
+-    }
+-}
+-
+-impl fmt::Debug for Side {
+-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+-        write!(f, "Side({})", self.0)
+-    }
+-}
+-
+-/// The line that opens a connection to the relay, newline included:
+-/// `please relay TOKEN for side SIDE`, the form with a side
+-/// (magic-wormhole/magic-wormhole-transit-relay:
+-/// src/wormhole_transit_relay/transit_server.py), which a relay matches
+-/// only with another side.
+-pub fn line(keys: &Keys, side: &Side) -> String {
+-    format!("please relay {} for side {}\n", keys.token(), side.as_str())
+-}
+-
+-fn info(label: &[u8], name: &str) -> Vec<u8> {
+-    [label, &[0], name.as_bytes()].concat()
+-}
+-
+-fn hex(bytes: &[u8]) -> String {
+-    use std::fmt::Write;
+-    bytes.iter().fold(String::with_capacity(bytes.len() * 2), |mut out, b| {
+-        let _ = write!(out, "{b:02x}");
+-        out
+-    })
+-}
+-
+-#[cfg(test)]
+-mod tests {
+-    use super::*;
+-
+-    const NAME: &str = "0123456789abcdef0123456789abcdef";
+-    const CONNECT: &str = "connect-token-of-a-test-0123456789abcdef";
+-
+-    // Computed with Python's hmac and hashlib (HKDF by RFC 5869 written out),
+-    // software that podssh did not write.
+-    const TOKEN: &str = "6afbdee96c50e22b2b8909831bb054cc0cd822f84563d2a4cae67552ab1f1ae0";
+-    const PROOF_KEY: &str = "679a267eeb49939a7e39adbef08576e7e4ba798e4afd136d406f2c6f66b12eba";
+-    const PROOF_OF_C: &str = "843a0eb5c6c8386c1ce814c01dc952dfd1b3222b1a4d7558ce96fbdbc1689f67";
+-
+-    #[test]
+-    fn the_token_and_the_proof_key_are_hkdf_sha256_of_the_pair_as_python_computes_them() {
+-        let keys = Keys::of_pair(NAME, CONNECT);
+-        assert_eq!(keys.token(), TOKEN);
+-        assert_eq!(hex(&keys.proof[..]), PROOF_KEY);
+-        let proof = keys.prove(b'C', &[1; 32], &[2; 32]);
+-        assert_eq!(hex(&proof), PROOF_OF_C);
+-        assert!(keys.verify(b'C', &[1; 32], &[2; 32], &proof));
+-    }
+-
+-    #[test]
+-    fn a_proof_holds_for_its_role_and_order_alone_and_never_for_the_token_alone() {
+-        let keys = Keys::of_pair(NAME, CONNECT);
+-        let proof = keys.prove(b'N', &[1; 32], &[2; 32]);
+-        assert!(keys.verify(b'N', &[1; 32], &[2; 32], &proof));
+-        assert!(!keys.verify(b'C', &[1; 32], &[2; 32], &proof), "another role");
+-        assert!(!keys.verify(b'N', &[2; 32], &[1; 32], &proof), "the nonces swapped");
+-        assert!(!keys.verify(b'N', &[1; 32], &[2; 32], &proof[..31]), "a proof cut short");
+-        let stranger = Keys::knowing_only(keys.token());
+-        assert_eq!(stranger.token(), keys.token());
+-        assert!(!keys.verify(b'N', &[1; 32], &[2; 32], &stranger.prove(b'N', &[1; 32], &[2; 32])));
+-        let other_pair = Keys::of_pair(NAME, "another connect token");
+-        assert_ne!(other_pair.token(), keys.token());
+-        assert_ne!(Keys::of_pair("another-name", CONNECT).token(), keys.token());
+-    }
+-
+-    #[test]
+-    fn the_line_is_the_relay_s_form_with_a_side_and_nothing_prints_a_key() {
+-        let keys = Keys::of_pair(NAME, CONNECT);
+-        let side = Side::parse("0123456789ABCDEF").unwrap();
+-        assert_eq!(line(&keys, &side), format!("please relay {TOKEN} for side 0123456789abcdef\n"));
+-        assert_eq!(keys.token().len(), 64);
+-        assert!(Side::parse("0123").is_none() && Side::parse("0123456789abcdeg").is_none());
+-        let random = Side::random(&mut crate::session::OsEntropy).unwrap();
+-        assert_eq!(random.as_str().len(), 16);
+-        assert!(!format!("{keys:?}").contains(TOKEN));
+-    }
+-}
+diff --git a/crates/podssh-relay/tests/transit.rs b/crates/podssh-relay/tests/transit.rs
+deleted file mode 100644
+index 207f8391..00000000
+--- a/crates/podssh-relay/tests/transit.rs
++++ /dev/null
+@@ -1,340 +0,0 @@
+-//! The transit road (T-436) through magic-wormhole's own transit relay on
+-//! the loopback (`transit_server`): two ends of a pair meet and carry
+-//! 1 MiB each way with equal digests; a session of the resumable layer
+-//! moves to another road when the relay stops under it; two ends of one
+-//! side never meet, and a client gives up on a node that is not there
+-//! within its wait; a side that knows the token alone is refused by the
+-//! node, and two clients of one pair never take each other for the node.
+-//! The tests marked `ignore` run one short session through Least
+-//! Authority's relay (Q65), from GitHub Actions (`transit-live.yml`).
+-//! Planted (`scripts/plants/t436-transit-same-side.patch`): each end's line
+-//! names one side, and the meeting fails.
+-
+-mod cleanup;
+-mod transit_server;
+-
+-use std::pin::Pin;
+-use std::sync::atomic::{AtomicUsize, Ordering};
+-use std::sync::{Arc, Mutex};
+-use std::task::{Context, Poll};
+-use std::time::Duration;
+-
+-use podssh_relay::session::keep::Keeper;
+-use podssh_relay::session::resume::{self, Next, Note};
+-use podssh_relay::session::{client, far as layer_far, Ask, OsEntropy, Role, Settings};
+-use podssh_relay::transit::meet::{meet, Missed, Part};
+-use podssh_relay::transit::{self, far, Dialer, Keys, Link, Node, Side};
+-use podssh_ws::url::WsUrl;
+-use podssh_ws::{ProxyChoice, Trust};
+-use sha2::{Digest, Sha256};
+-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, DuplexStream, ReadBuf};
+-use tokio::time::Instant;
+-use transit_server::Relay;
+-
+-const MIB: usize = 1 << 20;
+-const LIMIT: Duration = Duration::from_secs(180);
+-/// The replay buffers that a node keeps, at most, as a node of the CLI does.
+-const BUDGET: usize = 64 << 20;
+-const NAME: &str = "0123456789abcdef0123456789abcdef";
+-
+-fn say(who: &'static str) -> transit::Say {
+-    Arc::new(move |line: String| eprintln!("{who}: {line}"))
+-}
+-
+-/// The words of a pair of this run's, so that two runs never share a token.
+-fn keys() -> Keys {
+-    let side = Side::random(&mut OsEntropy).unwrap();
+-    Keys::of_pair(NAME, &format!("connect-token-of-the-test-{}", side.as_str()))
+-}
+-
+-/// Bytes that a seed fixes (xorshift64*).
+-fn bytes(size: usize, mut seed: u64) -> Vec<u8> {
+-    (0..size)
+-        .map(|_| {
+-            seed ^= seed >> 12;
+-            seed ^= seed << 25;
+-            seed ^= seed >> 27;
+-            (seed.wrapping_mul(0x2545_f491_4f6c_dd1d) >> 56) as u8
+-        })
+-        .collect()
+-}
+-
+-/// Write `out` on `link` while as many bytes are read from it: their
+-/// digest. The relay has no half-close, so each end reads what it expects
+-/// before it ends the link.
+-async fn both_ways(link: Link, out: Vec<u8>) -> Vec<u8> {
+-    let (mut reader, mut writer) = tokio::io::split(link);
+-    let want = out.len();
+-    let writing = async {
+-        writer.write_all(&out).await.expect("the link takes the bytes");
+-    };
+-    let reading = async {
+-        let mut digest = Sha256::new();
+-        let (mut got, mut buf) = (0, vec![0u8; 64 * 1024]);
+-        while got < want {
+-            let n = reader.read(&mut buf[..(want - got).min(64 * 1024)]).await.expect("the link gives the bytes");
+-            assert!(n > 0, "the link ended after {got} bytes");
+-            digest.update(&buf[..n]);
+-            got += n;
+-        }
+-        digest.finalize().to_vec()
+-    };
+-    let ((), read) = tokio::join!(writing, reading);
+-    read
+-}
+-
+-/// A link that a meeting gave, or why it gave none.
+-type Meeting = Result<Link, Missed>;
+-
+-/// A node's meeting at `url`, as `side`, waiting `wait`.
+-async fn node_meets(url: &WsUrl, proxy: &ProxyChoice, keys: &Keys, side: &Side, wait: Duration) -> Meeting {
+-    let session = far::dial(url, &Trust::Default, proxy).await.expect("the relay takes a connection");
+-    let first = meet(&session, keys, side, Part::Node, Some(wait), &mut OsEntropy).await?;
+-    Ok(Link::start(session, first))
+-}
+-
+-fn dialer(url: &WsUrl, keys: &Keys, proxy: ProxyChoice) -> Dialer {
+-    Dialer::new(url.clone(), keys.clone(), Trust::Default, proxy, say("client")).expect("random bytes")
+-}
+-
+-/// 1 MiB each way over one link of two ends that met at `url`.
+-async fn one_mib_each_way(url: &WsUrl, proxy: ProxyChoice) {
+-    let keys = keys();
+-    let node_side = Side::random(&mut OsEntropy).unwrap();
+-    let mut client = dialer(url, &keys, proxy.clone());
+-    // The live run's plant (transit-live.yml): one side for both ends, which
+-    // the relay never pairs, so that the check is seen to fail.
+-    if std::env::var("PODSSH_TRANSIT_TEST_PLANT").is_ok_and(|v| v == "same-side") {
+-        client = client.with_side(node_side.clone());
+-    }
+-    let wait = transit::client::MEET_LIMIT + Duration::from_secs(5);
+-    let (served, link) = tokio::join!(node_meets(url, &proxy, &keys, &node_side, wait), client.link());
+-    // Both ends' results in the message: a live run that fails says which
+-    // end missed, and why.
+-    let (served, link) = match (served, link) {
+-        (Ok(served), Ok(link)) => (served, link),
+-        (served, link) => panic!("no meeting: the node {:?}, the client {:?}", served.err(), link.err()),
+-    };
+-    let (up, down) = (bytes(MIB, 1), bytes(MIB, 2));
+-    let (want_up, want_down) = (Sha256::digest(&up).to_vec(), Sha256::digest(&down).to_vec());
+-    let (got_down, got_up) = tokio::join!(both_ways(link, up), both_ways(served, down));
+-    assert_eq!(got_up, want_up, "the node got the client's bytes");
+-    assert_eq!(got_down, want_down, "the client got the node's bytes");
+-}
+-
+-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+-async fn two_ends_meet_and_carry_one_mib_each_way() {
+-    let Some(relay) = Relay::start("mib") else { return };
+-    let ran = tokio::time::timeout(LIMIT, one_mib_each_way(&relay.url, ProxyChoice::Direct)).await;
+-    assert!(ran.is_ok(), "not in time; the relay said: {}", relay.said());
+-}
+-
+-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+-async fn two_ends_of_one_side_never_meet_and_the_client_gives_up_within_its_wait() {
+-    let Some(relay) = Relay::start("side") else { return };
+-    let (keys, side) = (keys(), Side::random(&mut OsEntropy).unwrap());
+-    let wait = Duration::from_secs(4);
+-    let client = dialer(&relay.url, &keys, ProxyChoice::Direct).with_side(side.clone()).with_wait(wait);
+-    let started = Instant::now();
+-    let (node, link) = tokio::join!(node_meets(&relay.url, &ProxyChoice::Direct, &keys, &side, wait), client.link());
+-    let took = started.elapsed();
+-    assert!(matches!(node, Err(Missed::Alone(_))), "the node met a side of its own: {:?}", node.err());
+-    let why = link.expect_err("the client met a side of its own");
+-    assert!(why.contains("no node met this client"), "{why}");
+-    assert!(took >= wait && took < wait + Duration::from_secs(5), "{took:?}");
+-}
+-
+-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+-async fn a_side_that_knows_the_token_alone_is_refused_by_the_node() {
+-    let Some(relay) = Relay::start("stranger") else { return };
+-    let keys = keys();
+-    let stranger = Keys::knowing_only(keys.token());
+-    let (node_side, its_side) = (Side::random(&mut OsEntropy).unwrap(), Side::random(&mut OsEntropy).unwrap());
+-    let wait = Duration::from_secs(20);
+-    let posing = async {
+-        let session = far::dial(&relay.url, &Trust::Default, &ProxyChoice::Direct).await.unwrap();
+-        meet(&session, &stranger, &its_side, Part::Client, Some(wait), &mut OsEntropy).await
+-    };
+-    let (node, stranger) = tokio::join!(node_meets(&relay.url, &ProxyChoice::Direct, &keys, &node_side, wait), posing);
+-    assert!(matches!(node, Err(Missed::NotProven(_))), "the node let a stranger in: {:?}", node.err());
+-    assert!(matches!(stranger, Err(Missed::NotProven(_))), "{stranger:?}");
+-}
+-
+-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+-async fn two_clients_of_one_pair_never_take_each_other_for_the_node() {
+-    let Some(relay) = Relay::start("clients") else { return };
+-    let keys = keys();
+-    let wait = Duration::from_secs(4);
+-    let (one, two) = (dialer(&relay.url, &keys, ProxyChoice::Direct), dialer(&relay.url, &keys, ProxyChoice::Direct));
+-    let (one, two) = (one.with_wait(wait), two.with_wait(wait));
+-    let (first, second) = tokio::join!(one.link(), two.link());
+-    let (first, second) = (first.expect_err("a client met a client"), second.expect_err("a client met a client"));
+-    assert!(first.contains("no node met") && second.contains("no node met"), "{first}; {second}");
+-    assert!(first.contains("another client") || second.contains("another client"), "they never met: {first}");
+-}
+-
+-/// An echo of each byte, as a node's target.
+-async fn echo() -> Result<DuplexStream, String> {
+-    let (ours, theirs) = tokio::io::duplex(256 * 1024);
+-    tokio::spawn(async move {
+-        let (mut reader, mut writer) = tokio::io::split(theirs);
+-        let _ = tokio::io::copy(&mut reader, &mut writer).await;
+-        let _ = writer.shutdown().await;
+-    });
+-    Ok(ours)
+-}
+-
+-/// A link on either road of the test: the transit relay's, or a pipe to the
+-/// same node's keeper, as the pair's road is in `podssh node`.
+-enum Road {
+-    Transit(Link),
+-    Pipe(DuplexStream),
+-}
+-
+-impl AsyncRead for Road {
+-    fn poll_read(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
+-        match self.get_mut() {
+-            Road::Transit(link) => Pin::new(link).poll_read(cx, buf),
+-            Road::Pipe(pipe) => Pin::new(pipe).poll_read(cx, buf),
+-        }
+-    }
+-}
+-
+-impl AsyncWrite for Road {
+-    fn poll_write(self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<std::io::Result<usize>> {
+-        match self.get_mut() {
+-            Road::Transit(link) => Pin::new(link).poll_write(cx, buf),
+-            Road::Pipe(pipe) => Pin::new(pipe).poll_write(cx, buf),
+-        }
+-    }
+-
+-    fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+-        match self.get_mut() {
+-            Road::Transit(link) => Pin::new(link).poll_flush(cx),
+-            Road::Pipe(pipe) => Pin::new(pipe).poll_flush(cx),
+-        }
+-    }
+-
+-    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+-        match self.get_mut() {
+-            Road::Transit(link) => Pin::new(link).poll_shutdown(cx),
+-            Road::Pipe(pipe) => Pin::new(pipe).poll_shutdown(cx),
+-        }
+-    }
+-}
+-
+-/// A session of the layer through the relay at `url` to a node in front of
+-/// an echo: 1 MiB out and each byte back. With `relay`, the relay stops once
+-/// a third came back, and each later link is a pipe to the node's keeper.
+-/// The notes of the session, and the links of the other road.
+-async fn echo_session(url: &WsUrl, proxy: ProxyChoice, mut relay: Option<&mut Relay>) -> (Vec<Note>, usize) {
+-    let settings = Settings::default();
+-    let keys = keys();
+-    let keeper = Arc::new(Keeper::new(settings.resume_deadline));
+-    let node = Node {
+-        url: url.clone(),
+-        keys: Arc::new({
+-            let keys = keys.clone();
+-            move || keys.clone()
+-        }),
+-        side: Side::random(&mut OsEntropy).unwrap(),
+-        trust: Trust::Default,
+-        proxy: proxy.clone(),
+-        say: say("node"),
+-    };
+-    let serving = tokio::spawn(far::serve_kept(node, settings, BUDGET, echo, keeper.clone()));
+-    let client = dialer(url, &keys, proxy);
+-    let piped = AtomicUsize::new(0);
+-    let first = client.link().await.expect("the client meets the node");
+-    let started = client::start(Road::Transit(first), Ask::New, settings, &mut OsEntropy).await.expect("the layer");
+-    let notes = Mutex::new(Vec::new());
+-    let (app, user) = tokio::io::duplex(256 * 1024);
+-    let out = bytes(MIB, 3);
+-    let want = Sha256::digest(&out).to_vec();
+-    let stopped = AtomicUsize::new(0);
+-    let connect = |_: &podssh_relay::session::Ended| {
+-        let (keeper, client, piped, stopped) = (keeper.clone(), &client, &piped, &stopped);
+-        async move {
+-            if stopped.load(Ordering::SeqCst) == 0 {
+-                if let Ok(link) = client.link().await {
+-                    return Next::Link(Road::Transit(link));
+-                }
+-            }
+-            // The other road: a pipe that the node's far end serves with the
+-            // keeper of the transit road.
+-            piped.fetch_add(1, Ordering::SeqCst);
+-            let (ours, theirs) = tokio::io::duplex(256 * 1024);
+-            tokio::spawn(async move { layer_far::serve(theirs, Role::NODE, settings, &keeper, BUDGET, echo).await });
+-            Next::Link(Road::Pipe(ours))
+-        }
+-    };
+-    let mut entropy = OsEntropy;
+-    // On the heap: the layer's future, polled on the test's own thread, is
+-    // larger than that thread's stack in a debug build.
+-    let carrying =
+-        Box::pin(resume::run(started, app, connect, |note: Note| notes.lock().unwrap().push(note), &mut entropy));
+-    let using = async {
+-        let (mut reader, mut writer) = tokio::io::split(user);
+-        let writing = async {
+-            writer.write_all(&out).await.expect("the layer takes the bytes");
+-        };
+-        let reading = async {
+-            let mut back = Vec::with_capacity(out.len());
+-            let mut buf = vec![0u8; 64 * 1024];
+-            while back.len() < out.len() {
+-                let n = reader.read(&mut buf).await.expect("the echo");
+-                assert!(n > 0, "the session ended after {} bytes", back.len());
+-                back.extend_from_slice(&buf[..n]);
+-                if back.len() >= out.len() / 3 {
+-                    if let Some(relay) = relay.take() {
+-                        stopped.store(1, Ordering::SeqCst);
+-                        relay.stop();
+-                    }
+-                }
+-            }
+-            back
+-        };
+-        let ((), back) = tokio::join!(writing, reading);
+-        drop((reader, writer));
+-        back
+-    };
+-    let both = async { tokio::join!(carrying, using) };
+-    let (_, back) = tokio::time::timeout(LIMIT, both).await.expect("the session ended in time");
+-    assert_eq!(Sha256::digest(&back).to_vec(), want, "each byte came back once, in order");
+-    serving.abort();
+-    (notes.into_inner().unwrap(), piped.load(Ordering::SeqCst))
+-}
+-
+-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+-async fn a_session_moves_to_another_road_when_the_transit_relay_stops() {
+-    let Some(mut relay) = Relay::start("move") else { return };
+-    let url = relay.url.clone();
+-    let (notes, piped) = echo_session(&url, ProxyChoice::Direct, Some(&mut relay)).await;
+-    assert!(notes.iter().any(|n| matches!(n, Note::Resumed { .. })), "a resume: {notes:?}");
+-    assert!(piped >= 1, "the other road carried no link: {notes:?}");
+-}
+-
+-/// Least Authority's relay, or the one of `PODSSH_TRANSIT` (Q65: short
+-/// runs, from GitHub Actions and a session's own host).
+-fn least_authority() -> WsUrl {
+-    let named = std::env::var(transit::ENV).ok();
+-    match transit::setting(named.as_deref()).expect("PODSSH_TRANSIT") {
+-        transit::Setting::On(url) => url,
+-        transit::Setting::Off => WsUrl::parse(&transit::default_url()).unwrap(),
+-    }
+-}
+-
+-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+-#[ignore = "live: Least Authority's transit relay (Q65), a short run: transit-live.yml"]
+-async fn through_least_authority_two_ends_meet_and_carry_one_mib_each_way() {
+-    let url = least_authority();
+-    tokio::time::timeout(LIMIT, one_mib_each_way(&url, ProxyChoice::FromEnvironment)).await.expect("in time");
+-}
+-
+-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+-#[ignore = "live: Least Authority's transit relay (Q65), a short run: transit-live.yml"]
+-async fn through_least_authority_a_session_of_the_layer_echoes_one_mib() {
+-    let url = least_authority();
+-    let (notes, _) = echo_session(&url, ProxyChoice::FromEnvironment, None).await;
+-    eprintln!("the session's notes: {notes:?}");
+-}
+diff --git a/crates/podssh-relay/tests/transit_server/mod.rs b/crates/podssh-relay/tests/transit_server/mod.rs
+deleted file mode 100644
+index 8ca068a7..00000000
+--- a/crates/podssh-relay/tests/transit_server/mod.rs
++++ /dev/null
+@@ -1,118 +0,0 @@
+-//! magic-wormhole's own transit relay (magic-wormhole-transit-relay, in
+-//! Python, on Twisted and Autobahn) on the loopback, for the tests of the
+-//! transit road (T-436): software that podssh did not write. A host with no
+-//! Python, or without the package, skips each test with its reason, unless
+-//! `PODSSH_TRANSIT_TEST_SERVER=required`, which a planted run and the
+-//! workflow set, so that a skip there is a failure.
+-//!
+-//!   python3 -m pip install magic-wormhole-transit-relay
+-//!
+-//! `PODSSH_TRANSIT_TEST_PYTHON` names the interpreter (a virtualenv's).
+-
+-// Each test binary uses a part of it.
+-#![allow(dead_code)]
+-
+-use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
+-use std::path::PathBuf;
+-use std::process::{Child, Command, Stdio};
+-use std::time::{Duration, Instant};
+-
+-use podssh_ws::url::WsUrl;
+-
+-/// How long the server may take to listen.
+-const START_LIMIT: Duration = Duration::from_secs(30);
+-
+-/// A transit relay of magic-wormhole's, listening on the loopback.
+-pub struct Relay {
+-    child: Child,
+-    /// Its WebSocket.
+-    pub url: WsUrl,
+-    /// Its log, for a test that fails to show.
+-    pub log: PathBuf,
+-}
+-
+-/// Each name that the interpreter may have.
+-fn pythons() -> Vec<String> {
+-    match std::env::var("PODSSH_TRANSIT_TEST_PYTHON") {
+-        Ok(named) if !named.trim().is_empty() => vec![named],
+-        _ => vec!["python3".into(), "python".into()],
+-    }
+-}
+-
+-/// Whether `python` imports the relay and what it runs on.
+-fn has_relay(python: &str) -> bool {
+-    let probe = Command::new(python)
+-        .args(["-c", "import wormhole_transit_relay, autobahn, twisted"])
+-        .stdin(Stdio::null())
+-        .stdout(Stdio::null())
+-        .stderr(Stdio::null())
+-        .status();
+-    probe.is_ok_and(|status| status.success())
+-}
+-
+-/// A port of the loopback that nobody holds now.
+-fn free_port() -> u16 {
+-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a port of the loopback");
+-    listener.local_addr().expect("its address").port()
+-}
+-
+-impl Relay {
+-    /// The relay, listening; `None`, with the reason on stderr, when this
+-    /// host cannot run it and the run does not require it.
+-    pub fn start(tag: &str) -> Option<Relay> {
+-        let required = std::env::var("PODSSH_TRANSIT_TEST_SERVER").is_ok_and(|v| v == "required");
+-        let Some(python) = pythons().into_iter().find(|p| has_relay(p)) else {
+-            let why = "no Python with magic-wormhole-transit-relay here (pip install magic-wormhole-transit-relay)";
+-            assert!(!required, "PODSSH_TRANSIT_TEST_SERVER=required: {why}");
+-            eprintln!("did not run: {why}");
+-            return None;
+-        };
+-        let dir = std::env::temp_dir().join(format!("podssh-transit-{}-{tag}", std::process::id()));
+-        std::fs::create_dir_all(&dir).expect("a scratch directory");
+-        crate::cleanup::at_test_end(&dir);
+-        let log = dir.join("relay.log");
+-        let (tcp, ws) = (free_port(), free_port());
+-        // `python -m twisted` is `twist`, which runs the plugin in the
+-        // foreground (the package's docs/running.md); its TCP port too, on
+-        // the loopback, as it always listens on one.
+-        let child = Command::new(&python)
+-            .args(["-m", "twisted", "transitrelay"])
+-            .arg(format!("--port=tcp:{tcp}:interface=127.0.0.1"))
+-            .arg(format!("--websocket=tcp:{ws}:interface=127.0.0.1"))
+-            .arg(format!("--websocket-url=ws://127.0.0.1:{ws}/"))
+-            .current_dir(&dir)
+-            .stdin(Stdio::null())
+-            .stdout(std::fs::File::create(&log).expect("the log"))
+-            .stderr(std::fs::File::create(dir.join("relay.err")).expect("the log of errors"))
+-            .spawn()
+-            .expect("the transit relay starts");
+-        let relay = Relay { child, url: WsUrl::parse(&format!("ws://127.0.0.1:{ws}/")).unwrap(), log };
+-        let at = SocketAddr::from((Ipv4Addr::LOCALHOST, ws));
+-        let deadline = Instant::now() + START_LIMIT;
+-        while TcpStream::connect_timeout(&at, Duration::from_millis(200)).is_err() {
+-            assert!(Instant::now() < deadline, "the transit relay did not listen within 30 s: {}", relay.said());
+-            std::thread::sleep(Duration::from_millis(100));
+-        }
+-        Some(relay)
+-    }
+-
+-    /// What the relay wrote, for a message.
+-    pub fn said(&self) -> String {
+-        let out = std::fs::read_to_string(&self.log).unwrap_or_default();
+-        let err = std::fs::read_to_string(self.log.with_file_name("relay.err")).unwrap_or_default();
+-        format!("{out}{err}")
+-    }
+-
+-    /// Stop the relay at once, as a server that goes away: each of its
+-    /// connections ends with no Close.
+-    pub fn stop(&mut self) {
+-        let _ = self.child.kill();
+-        let _ = self.child.wait();
+-    }
+-}
+-
+-impl Drop for Relay {
+-    fn drop(&mut self) {
+-        self.stop();
+-    }
+-}
+diff --git a/crates/podssh-ssh/Cargo.toml b/crates/podssh-ssh/Cargo.toml
+index 5771c4a1..c6c9a5c6 100644
+--- a/crates/podssh-ssh/Cargo.toml
++++ b/crates/podssh-ssh/Cargo.toml
+@@ -74,7 +74,7 @@ signature = { version = "3", default-features = false }
+ libc = { workspace = true }
+ # serve's line discipline where no pty opens (T-111): the cooked mode of
+ # PodUtils/podcrates' pod-term, the tag of every podcrates crate.
+-pod-term = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-term = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+ 
+ [target.'cfg(windows)'.dependencies]
+ # Security keys (T-229): the WebAuthn API of Windows (webauthn.dll), loaded
+@@ -95,7 +95,7 @@ windows-sys = { version = "0.61", features = [
+ pageant = { version = "0.2.4", default-features = false, features = ["wmmessage"] }
+ 
+ [dev-dependencies]
+-pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0", features = ["screen"] }
++pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0", features = ["screen"] }
+ # `test-util` gives the tests a paused clock: a hop's 10 s of silence (T-462)
+ # and the relay's idle cut at 180 s (T-463) pass at once.
+ tokio = { workspace = true, features = ["macros", "rt", "signal", "process", "test-util"] }
+diff --git a/crates/podssh-todo/Cargo.toml b/crates/podssh-todo/Cargo.toml
+index 792ea8b9..b9d70802 100644
+--- a/crates/podssh-todo/Cargo.toml
++++ b/crates/podssh-todo/Cargo.toml
+@@ -10,4 +10,4 @@ publish.workspace = true
+ # The checker of the record is pod-todo of PodUtils/podcrates; the facts of
+ # podssh are in TODO/todo.toml.
+ [dependencies]
+-pod-todo = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-todo = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+diff --git a/crates/podssh-ts/Cargo.toml b/crates/podssh-ts/Cargo.toml
+index 0223f7c2..7f0aea28 100644
+--- a/crates/podssh-ts/Cargo.toml
++++ b/crates/podssh-ts/Cargo.toml
+@@ -11,7 +11,7 @@ publish.workspace = true
+ # their order (T-103).
+ podssh-ws = { path = "../podssh-ws" }
+ # The services of other parties: the default relay of Tailscale's road.
+-pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+ tokio.workspace = true
+ zeroize.workspace = true
+ # The digest of what the echo of the live test with two nodes got (T-106,
+diff --git a/crates/podssh-warp/Cargo.toml b/crates/podssh-warp/Cargo.toml
+index bb793bd6..244a385c 100644
+--- a/crates/podssh-warp/Cargo.toml
++++ b/crates/podssh-warp/Cargo.toml
+@@ -14,8 +14,8 @@ publish.workspace = true
+ # it podssh's way out and podssh's resolver.
+ [dependencies]
+ podssh-ws = { path = "../podssh-ws" }
+-pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
+-pod-warp = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
++pod-warp = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+ tokio = { workspace = true }
+ 
+ [dev-dependencies]
+diff --git a/crates/podssh-ws/Cargo.toml b/crates/podssh-ws/Cargo.toml
+index cf7c2b30..a13e26a8 100644
+--- a/crates/podssh-ws/Cargo.toml
++++ b/crates/podssh-ws/Cargo.toml
+@@ -10,22 +10,22 @@ publish.workspace = true
+ [dependencies]
+ # TLS: the trust, the configurations, the pure-Rust crypto provider, the
+ # server's side and Encrypted Client Hello, with podssh's settings (tls.rs).
+-pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
+-pod-tls = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0", features = ["pure", "rsa", "ech"] }
++pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
++pod-tls = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0", features = ["pure", "rsa", "ech"] }
+ # The dial, the proxies, the race of addresses, Multipath TCP, the HTTP/1.1
+ # heads, the GET client (sealed with ECH where asked) and STUN's codec, with
+ # podssh's settings (dial.rs).
+-pod-proxy = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0", features = ["ech"] }
++pod-proxy = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0", features = ["ech"] }
+ # The resolver: an IP literal, the pins, the system, the cache of addresses
+ # and DNS over HTTPS, the SRV and HTTPS records (resolve.rs), with its reader
+ # of ECH lists for pod-tls.
+-pod-dns = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0", features = ["ech"] }
++pod-dns = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0", features = ["ech"] }
+ # The WebSocket: the frames, the session, the client of the relay on each
+ # road (TLS, HTTP/2, cleartext), a URL's WebSocket and the server's side,
+ # over podssh's way out (client.rs), with ECH.
+-pod-ws = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0", features = ["ech"] }
++pod-ws = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0", features = ["ech"] }
+ # The services of other parties: the forwarders of `--via` (forwarder/builtin.rs).
+-pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+ tokio = { workspace = true }
+ rustls = { workspace = true }
+ tokio-rustls = { workspace = true }
+@@ -63,7 +63,7 @@ aes = { workspace = true }
+ # connection and probe of UDP on noq, the quick tunnel's. Only with the
+ # feature `quic`, which the binary turns on. BLAKE2b-256 of Hysteria's
+ # Salamander, pure Rust, in the lock already (0.11, through argon2).
+-pod-quic = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0", optional = true }
++pod-quic = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0", optional = true }
+ blake2 = { version = "0.11", default-features = false, optional = true }
+ 
+ # The clocks of a host that slept (wake.rs): CLOCK_BOOTTIME beside
+@@ -81,7 +81,7 @@ plain-ws = ["pod-ws/plain-ws"]
+ quic = ["dep:pod-quic", "dep:blake2"]
+ 
+ [dev-dependencies]
+-pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0", features = ["screen"] }
++pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0", features = ["screen"] }
+ # The doctor is async because it may be asked to perform a handshake, and
+ # the plants that assert `????` rather than `ok` have to drive it as a caller
+ # would. `macros` is what makes `#[tokio::test]` exist.
+diff --git a/crates/podssh-zerotier/Cargo.toml b/crates/podssh-zerotier/Cargo.toml
+index d21eaf4a..c0c3b598 100644
+--- a/crates/podssh-zerotier/Cargo.toml
++++ b/crates/podssh-zerotier/Cargo.toml
+@@ -19,7 +19,7 @@ stand-in = ["tokio/net"]
+ libc = { workspace = true }
+ # TCP over the network's frames: the userspace stack of smoltcp, with its
+ # listener.
+-pod-netstack = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-netstack = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+ sha2 = { workspace = true }
+ tokio = { workspace = true }
+ 
+@@ -29,4 +29,4 @@ cc = "1.2"
+ [dev-dependencies]
+ tokio = { workspace = true, features = ["macros", "net", "rt", "rt-multi-thread"] }
+ # The relay of the live run, as podssh names no host of a third party.
+-pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.46.0" }
++pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.49.0" }
+diff --git a/scripts/plants/t436-transit-same-side.patch b/scripts/plants/t436-transit-same-side.patch
+deleted file mode 100644
+index 38c84f2e..00000000
+--- a/scripts/plants/t436-transit-same-side.patch
++++ /dev/null
+@@ -1,11 +0,0 @@
+---- a/crates/podssh-relay/src/transit/token.rs
+-+++ b/crates/podssh-relay/src/transit/token.rs
+-@@ -129,7 +129,7 @@ impl fmt::Debug for Side {
+- /// src/wormhole_transit_relay/transit_server.py), which a relay matches
+- /// only with another side.
+- pub fn line(keys: &Keys, side: &Side) -> String {
+--    format!("please relay {} for side {}\n", keys.token(), side.as_str())
+-+    format!("please relay {} for side {:0>16}\n", keys.token(), &side.as_str()[..0])
+- }
+- 
+- fn info(label: &[u8], name: &str) -> Vec<u8> {
+diff --git a/scripts/plants/t436-transit-same-side.plant b/scripts/plants/t436-transit-same-side.plant
+deleted file mode 100644
+index d3b8c095..00000000
+--- a/scripts/plants/t436-transit-same-side.plant
++++ /dev/null
+@@ -1,11 +0,0 @@
+-# T-436: each end's line to the transit relay names one side, which the relay
+-# never pairs with itself, so no node and client meet; the test of two ends
+-# that carry 1 MiB each way through magic-wormhole's own relay must fail.
+-# On the runner, not in the build image: the relay's Python packages come as
+-# wheels for glibc, in a virtualenv under .work/ (ignored by git).
+-ENTRY=T-436
+-GROUP=host-transit
+-EXPECT='test two_ends_meet_and_carry_one_mib_each_way \.\.\. FAILED'
+-SETUP='python3 -m venv .work/transit-venv && timeout 300 .work/transit-venv/bin/python -m pip install --quiet magic-wormhole-transit-relay'
+-RUN='PODSSH_TRANSIT_TEST_SERVER=required PODSSH_TRANSIT_TEST_PYTHON="$PWD/.work/transit-venv/bin/python" cargo test --locked -p podssh-relay --test transit -- two_ends_meet_and_carry_one_mib_each_way'
+-LIMIT=1800

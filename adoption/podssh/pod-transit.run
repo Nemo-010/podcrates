@@ -1,0 +1,31 @@
+# The trial of pod-transit in podssh (T-027; calls C598 to C600), at podssh's
+# main b9c04657 (pod-transit.commit), where podssh froze src/transit/ for
+# the move (PodUtils/podssh#248, PodUtils/podssh@T-684). podssh-relay's
+# transit/mod.rs becomes glue over pod-transit: it re-exports the crate and
+# keeps PODSSH_TRANSIT, the type of its lines and `config`, which builds the
+# crate's Config with podssh's way out, its trust and its lines. The CLI's
+# node, its client's dialer and doctor's line take the Config; a link's
+# failure is said in the same words. The tests, the harness of
+# magic-wormhole's relay, the plant and transit-live.yml leave podssh. Each
+# podcrates tag moves to v0.49.0. The record with its citations, the
+# repository checks; no moved file stays; the build; pod-transit in the
+# tree; clippy and the tests of the glue, of croc's road (which takes the
+# link and the part of the transit road), of the CLI's node and doctor;
+# rustfmt of the crates that the patch changes; each Rust toolchain of the
+# workflows against the rust-version of podcrates; each test target that
+# the gate names. The lock that the trial makes moves the record's
+# citations of Cargo.lock first.
+cargo run -q -p podssh-todo -- remap Cargo.lock > /dev/null
+cargo run -q -p podssh-todo -- check
+python3 scripts/check-repo.py
+test "$(ls crates/podssh-relay/src/transit)" = mod.rs && test ! -e crates/podssh-relay/tests/transit.rs && test ! -e crates/podssh-relay/tests/transit_server && test ! -e scripts/plants/t436-transit-same-side.patch && test ! -e .github/workflows/transit-live.yml
+cargo build -q
+cargo tree -q -p podssh-relay -i pod-transit | grep -q '^pod-transit v'
+cargo clippy -q --all-targets -p podssh-relay -p podssh-cli --features podssh-relay/croc -- -D warnings -A clippy::collapsible_if
+cargo test -q -p podssh-relay --features croc --lib -- croc transit
+cargo test -q -p podssh-relay --features croc --test croc
+cargo test -q -p podssh-cli --lib -- node_transit doctor::carriers
+cargo test -q -p podssh-cli --test node
+cargo fmt -p podssh-relay -p podssh-cli --check
+python3 -I "$PODCRATES/scripts/check-consumer-toolchains.py"
+python3 -I "$PODCRATES/scripts/check-consumer-tests.py"
