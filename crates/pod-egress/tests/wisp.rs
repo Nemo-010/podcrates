@@ -24,7 +24,7 @@ use podssh_ws::wisp::{AtEnd, Connect, End, Reason, Wisp, WispError, WispStream};
 use podssh_ws::{ProxyChoice, Trust};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use wisp_support::{closed_port, echo, greeter, reference, Speaks, StandIn};
+use wisp_support::{Speaks, StandIn, closed_port, echo, greeter, reference};
 
 const LIMIT: Duration = Duration::from_secs(30);
 const MIB: usize = 1 << 20;

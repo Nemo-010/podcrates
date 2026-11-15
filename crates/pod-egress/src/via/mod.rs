@@ -132,7 +132,7 @@ impl Via {
             Some((userinfo, _)) if userinfo.contains(':') => {
                 return Err("the URL holds a password, which argv and the list of processes would show: give \
                             USER:PASSWORD in a private file instead"
-                    .into())
+                    .into());
             }
             Some((userinfo, hostport)) => {
                 let user = crate::proxy::percent_decode(userinfo)?;
@@ -269,7 +269,7 @@ impl Client {
         };
         let why = match http2::connect(sender, &self.via, &target, self.dial.timeout).await {
             Ok(stream) => {
-                return Ok(Opened { stream: Box::new(stream), version: Version::Http2, shared, fell_back: None })
+                return Ok(Opened { stream: Box::new(stream), version: Version::Http2, shared, fell_back: None });
             }
             Err(http2::Failed::Answer(e)) => return Err(e),
             Err(http2::Failed::Carried(why)) => why,

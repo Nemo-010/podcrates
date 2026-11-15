@@ -11,7 +11,7 @@ use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, ReadBuf};
 
 use super::exchange::Client;
-use super::{next_poll, INIT_POLL, MAX_PAYLOAD};
+use super::{INIT_POLL, MAX_PAYLOAD, next_poll};
 
 /// How a session ended.
 #[derive(Debug, Clone, PartialEq, Eq)]

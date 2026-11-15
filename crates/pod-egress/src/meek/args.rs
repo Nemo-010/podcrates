@@ -3,7 +3,7 @@
 //! read and left. Each pair of a URL and a front goes in at a place chosen at
 //! random, as lyrebird spreads its fronts; a failure moves to the next.
 
-use crate::pt::{get, host_port, HttpUrl};
+use crate::pt::{HttpUrl, get, host_port};
 
 /// One URL, and the front that carries it, if any.
 #[derive(Debug, Clone, PartialEq, Eq)]

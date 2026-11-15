@@ -15,7 +15,7 @@
 
 use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWriteExt as _};
 
-use crate::pt::{get, host_port, HttpUrl, Reach};
+use crate::pt::{HttpUrl, Reach, get, host_port};
 use crate::url::Stream;
 
 /// The longest answer head read.

@@ -12,14 +12,14 @@
 use std::sync::{Arc, Mutex};
 
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, DuplexStream};
-use tokio::sync::{oneshot, Notify};
+use tokio::sync::{Notify, oneshot};
 use tokio::task::JoinHandle;
 
-use super::end::{end_of_input, AtEnd};
-use super::template::Form;
 use super::Note;
+use super::end::{AtEnd, end_of_input};
+use super::template::Form;
 use crate::frame;
-use crate::session::{close_code_and_reason, RelaySession};
+use crate::session::{RelaySession, close_code_and_reason};
 
 /// The pipe in memory, each way.
 const PIPE: usize = 256 * 1024;

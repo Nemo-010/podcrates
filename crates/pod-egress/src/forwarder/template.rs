@@ -85,7 +85,7 @@ impl Template {
                 return Err(format!(
                     "a forwarder's template has {HOST} and {PORT} once each, or neither: this one has {HOST} \
                      {hosts} times and {PORT} {ports} times"
-                ))
+                ));
             }
         };
         // The URL as it goes out, the placeholders as they are: each byte

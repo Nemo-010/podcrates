@@ -49,8 +49,10 @@ fn the_file_gives_user_and_password_or_the_password_of_the_url_s_user() {
         assert!(!why.contains("nocolon") && !why.contains("c:d"), "never the line: {why}");
     }
     assert!(bare.clone().with_credentials(":pw\n").unwrap_err().contains("empty"));
-    assert!(!format!("{:?}", Via::parse("https://proxy.example").unwrap().with_credentials("u:pw9").unwrap())
-        .contains("pw9"));
+    assert!(
+        !format!("{:?}", Via::parse("https://proxy.example").unwrap().with_credentials("u:pw9").unwrap())
+            .contains("pw9")
+    );
 }
 
 #[test]

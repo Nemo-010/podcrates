@@ -11,17 +11,17 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream, ReadHalf, WriteHalf};
-use tokio::sync::{mpsc, watch, Notify};
+use tokio::sync::{Notify, mpsc, watch};
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
 use super::handshake::Opened;
 use super::packet::{self, Packet, Reason};
 use super::{End, OnEnd, WispError};
-use crate::forwarder::end::{end_of_input, AtEnd};
 use crate::forwarder::Note;
+use crate::forwarder::end::{AtEnd, end_of_input};
 use crate::frame;
-use crate::session::{close_code_and_reason, RelaySession};
+use crate::session::{RelaySession, close_code_and_reason};
 use crate::url::Stream;
 
 /// The WebSocket of a connection.

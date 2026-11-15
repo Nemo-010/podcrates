@@ -3,7 +3,7 @@
 //! form that wstunnel's source gives; the URL, the secret file, the
 //! request, and each answer of the server in its words.
 
-use super::upgrade::{self, REFUSED_10, REFUSED_9};
+use super::upgrade::{self, REFUSED_9, REFUSED_10};
 use super::*;
 
 /// The claims and the token of a tunnel to sshd.test:22 with the id of
@@ -11,13 +11,11 @@ use super::*;
 /// `hmac.new(b"champignonfrais", ..., hashlib.sha256)` make them.
 const CLAIMS_22: &str =
     r#"{"id":"00000000-0000-4000-8000-000000000000","p":{"Tcp":{"proxy_protocol":false}},"r":"sshd.test","rp":22}"#;
-const TOKEN_22: &str =
-    "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMC\
+const TOKEN_22: &str = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDAwMC\
      IsInAiOnsiVGNwIjp7InByb3h5X3Byb3RvY29sIjpmYWxzZX19LCJyIjoic3NoZC50ZXN0IiwicnAiOjIyfQ.\
      wzUcypCJQ483rcwsKtZ5r0wHNL9KNuZsO3b9iC4CBAQ";
 /// The same for [::1]:2222, its id from the bytes 15 down to 0.
-const TOKEN_V6: &str =
-    "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjBmMGUwZDBjLTBiMGEtNDkwOC04NzA2LTA1MDQwMzAyMDEwMC\
+const TOKEN_V6: &str = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjBmMGUwZDBjLTBiMGEtNDkwOC04NzA2LTA1MDQwMzAyMDEwMC\
      IsInAiOnsiVGNwIjp7InByb3h5X3Byb3RvY29sIjpmYWxzZX19LCJyIjoiWzo6MV0iLCJycCI6MjIyMn0.\
      5PgyrOH56uoikZCXgKKExTePxJN5skqBaTDiu1jYpuU";
 

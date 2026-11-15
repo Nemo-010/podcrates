@@ -10,7 +10,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use podssh_ws::forwarder::{self, builtin, AtEnd, Dial, Template};
+use podssh_ws::forwarder::{self, AtEnd, Dial, Template, builtin};
 use podssh_ws::{ProxyChoice, Trust};
 use tokio::io::AsyncReadExt;
 

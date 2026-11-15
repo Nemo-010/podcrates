@@ -187,7 +187,7 @@ impl AsyncWrite for Stream {
                 }
                 Some(Err(e)) => return Poll::Ready(Err(io_error(e))),
                 None => {
-                    return Poll::Ready(Err(io::Error::new(io::ErrorKind::BrokenPipe, "the proxy ended the tunnel")))
+                    return Poll::Ready(Err(io::Error::new(io::ErrorKind::BrokenPipe, "the proxy ended the tunnel")));
                 }
             }
         }

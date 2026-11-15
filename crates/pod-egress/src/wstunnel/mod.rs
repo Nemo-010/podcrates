@@ -37,14 +37,14 @@ use zeroize::Zeroizing;
 
 use crate::client::{self, ConnectError, WRITE_TIMEOUT};
 use crate::dial::{self, ProxyChoice};
-use crate::forwarder::carry;
 use crate::forwarder::Form;
+use crate::forwarder::carry;
 use crate::session::RelaySession;
 use crate::tls::Trust;
 use crate::url::{Stream, WsUrl};
 
 pub use crate::forwarder::{AtEnd, Carried, Ended, Status};
-pub use token::{claims, host_claim, sign, uuid_text, KEY, PREFIX};
+pub use token::{KEY, PREFIX, claims, host_claim, sign, uuid_text};
 
 /// The path prefix of a client that names none, wstunnel's
 /// `DEFAULT_CLIENT_UPGRADE_PATH_PREFIX`.
@@ -190,7 +190,7 @@ impl Secret {
                     prefix = true;
                 }
                 "credentials" | "authorization" if auth => {
-                    return Err(format!("line {n}: a second credentials or authorization: one Authorization goes"))
+                    return Err(format!("line {n}: a second credentials or authorization: one Authorization goes"));
                 }
                 "credentials" => {
                     use base64::Engine as _;
@@ -205,7 +205,7 @@ impl Secret {
                 _ => {
                     return Err(format!(
                         "line {n}: a line is path-prefix PREFIX, credentials USER[:PASSWORD] or authorization VALUE"
-                    ))
+                    ));
                 }
             }
         }

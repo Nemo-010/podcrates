@@ -7,8 +7,8 @@
 use std::time::Duration;
 
 use super::mux::Session;
-use super::packet::{self, ext, Extension, Info, Packet, Reason};
-use super::{WispError, VERSION};
+use super::packet::{self, Extension, Info, Packet, Reason, ext};
+use super::{VERSION, WispError};
 use crate::frame;
 use crate::session::close_code_and_reason;
 

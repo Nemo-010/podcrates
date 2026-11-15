@@ -22,7 +22,7 @@ mod stream;
 use std::sync::Arc;
 use std::time::Duration;
 
-pub use handshake::{answer, Opened};
+pub use handshake::{Opened, answer};
 pub use packet::Reason;
 pub use stream::WispStream;
 // What the end of a stream's input does, as on each forwarder's road.

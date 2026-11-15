@@ -9,7 +9,7 @@
 //! session reads the end of its bytes.
 
 use super::{Connect, End, OnEnd, Reason, Wisp, WispError};
-use crate::forwarder::{Carried, Dial, Ended, ForwarderError, Status, Template, EARLY_WAIT};
+use crate::forwarder::{Carried, Dial, EARLY_WAIT, Ended, ForwarderError, Status, Template};
 
 /// A session to `host:port` through the Wisp server of `template`.
 pub(crate) async fn open(
