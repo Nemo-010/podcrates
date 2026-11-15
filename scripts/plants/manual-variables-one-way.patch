@@ -1,12 +1,13 @@
 diff --git a/crates/pod-manual/src/check.rs b/crates/pod-manual/src/check.rs
+index 2c2b58ee..f57b78c2 100644
 --- a/crates/pod-manual/src/check.rs
 +++ b/crates/pod-manual/src/check.rs
-@@ -105,7 +105,7 @@
+@@ -124,7 +124,7 @@ pub fn variables(manual: &Manual, sources: &[(PathBuf, String)], exempt: &[&str]
              }
          }
      }
 -    for name in facts {
 +    for name in facts.into_iter().take(0) {
          let quoted = format!("\"{name}\"");
-         if !exempt.contains(&name) && !sources.iter().any(|(_, code)| code.contains(&quoted)) {
-             out.push(finding("the facts", format!("{name} is a fact, and no source reads or sets it")));
+         let held = parsed.iter().any(|(_, e)| *e == name) || sources.iter().any(|(_, code)| code.contains(&quoted));
+         if !exempt.contains(&name) && !held {

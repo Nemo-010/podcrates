@@ -1,12 +1,13 @@
 diff --git a/crates/pod-lab/man/podlab.1 b/crates/pod-lab/man/podlab.1
+index b55a508c..2e73439c 100644
 --- a/crates/pod-lab/man/podlab.1
 +++ b/crates/pod-lab/man/podlab.1
-@@ -13,7 +13,7 @@
+@@ -45,7 +45,7 @@ a terminal
  Print version.
  .TP
  \fB\-h\fR, \fB\-\-help\fR
 -Print the help.
 +Print help.
- .PP
- \fBCommands:\fR
- .TP
+ .SH DESCRIPTION
+ podlab holds the classes of hostile hosts as profiles. A profile names the
+ probe rows that each part refuses or allows.
