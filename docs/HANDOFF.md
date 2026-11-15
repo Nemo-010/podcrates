@@ -11,39 +11,40 @@ is done. Git and the record keep finished work.
 
 1. Start the watcher (`sh scripts/agent/watch-org.sh 90` under the Monitor
    tool) and read the open COORD issues `(to podcrates)`.
-2. Record the takes of `v0.50.0` on #164 (COORD-104): podssh applies the
-   five patches of step 1 of the move; the others bump the tag. podvm took
-   it at `0573bcd8`.
-3. Release `v0.51.0` from `main`: it holds T-639 (PodUtils/podnet#572),
-   T-640 (PodUtils/podvm#380) and part 1 of `pod-egress` (T-035). Before
-   the tag, dispatch `guest-windows.yml`: its six cold boots of `run`
-   prove T-640 (a `RESULT:` line counts them). Then answer
-   PodUtils/podnet#572 and PodUtils/podvm#380 on the hand-off. Ask podvm
-   there whether its runs of experiment 450 copy the OVMF variable store
-   fresh for each run (a store that runs share can carry state between
-   boots; a finding of T-640).
-4. The move of podssh (PodUtils/podssh#248, the ruling "The move of
+2. A push of this session's account starts no workflow: each run comes
+   by a `[gh action] requested` issue (`docs/maintenance.md`, "A run of a
+   workflow"). Read the answers of #165 (`guest-windows.yml`, the proof of
+   T-640: a `RESULT:` line counts six cold boots) and #168 (the checks of a
+   push at `a634d3a`). Then close T-645 with the run of `secrets.yml`.
+3. Release `v0.51.0`: the release commit (the notes
+   `docs/releases/v0.51.0.md`, the bump) waits on the local `main` until
+   #168 is green. Push it, then ask for `ci.yml` on it and `release.yml`
+   (a dry run, then `version=0.51.0`) in one request. Then write the
+   hand-off `(to all)`: it answers PodUtils/podnet#572, PodUtils/podvm#380,
+   PodUtils/podssh#253, PodUtils/podvm#389, #390 and #393 (most of #393 is
+   `pod-qga` of `v0.45.0`; `osinfo` is new), and tells podvm that T-644 and
+   T-649 (PodUtils/podvm#384, #386) are open. Ask podvm there whether its
+   runs of experiment 450 copy the OVMF variable store fresh for each run.
+4. Record the takes of `v0.50.0` on #164 (COORD-104): podvm `0573bcd8` and
+   podnet `779c712` are in; podssh and podrunner wait.
+5. The move of podssh (PodUtils/podssh#248, the ruling "The move of
    podssh"): parts 2 and 3 of `pod-egress` (T-035, partial) start again
    from `main`: part 2 is `vless/`, `vmess/`, `trojan/`, `shadowsocks/`;
    part 3 is `eice/`, `iap/` of podssh-ws at podssh `2ffb7cd7`, which
-   podssh froze. Their agents stopped at the end of the last session.
-   The import and the edition commits of each are on the branches
-   `wip/egress-part2` and `wip/egress-part3` (based on part 1, which is
-   on `main`); the adaptation that was not committed is lost. Start each
-   agent from its branch (a local worktree branch on that commit), merge
-   it to `main` as usual, then delete the `wip/` branch. Give each the brief of part 1 (each road behind
-   its own feature, on the shared parts of the crate; an adoption patch
-   with `.needs` = pod-egress). podssh's map of the glue is in the body of
+   podssh froze. The import and the edition commits of each are on the
+   branches `wip/egress-part2` and `wip/egress-part3` (based on part 1);
+   the adaptation that was not committed is lost. Start each agent from
+   its branch, merge it to `main` as usual, then delete the `wip/` branch.
+   Give each the brief of part 1 (each road behind its own feature, on the
+   shared parts of the crate; an adoption patch with `.needs` =
+   pod-egress). podssh's map of the glue is in the body of
    PodUtils/podssh#248. Then step 3 of the move: `pod-tor`, `pod-iroh`,
    `pod-cloudflare`, `pod-ts`; then `pod-relay-serve`.
-5. T-643 (PodUtils/podssh#253): the failed reads of `pod-quic`. T-644
-   (PodUtils/podvm#384, not urgent): tell podvm on the hand-off of
-   `v0.51.0` that it is T-644. Then the work order of `TODO/PROGRESS.md`.
+6. Then the work order of `TODO/PROGRESS.md`.
 
 ## In flight
 
-- The last tags: `v0.49.0` at `212d45d` (#163, each consumer took it,
-  closed). `v0.50.0` at `26fb91f` (ci 43669018284, adoption 43669018236,
+- The last tags: `v0.50.0` at `26fb91f` (ci 43669018284, adoption 43669018236,
   release 43672638621; the hand-off #164, COORD-104): step 1 of the move.
 - The moved crates of step 1 (`pod-transit`, `pod-acme`, `pod-piping`,
   `pod-opentunnel`, `pod-derp`) are in `v0.50.0`; their trial patches in
