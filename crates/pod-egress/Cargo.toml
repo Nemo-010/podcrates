@@ -1,6 +1,6 @@
 [package]
 name = "pod-egress"
-description = "The roads out that are not the relay: a second proxy over TLS, the WebSocket forwarders of other products, Wisp, wstunnel, Tor's meek_lite and WebTunnel, and the Access client of Cloudflare; each road that takes its target from the client is a dialer, through the caller's way out."
+description = "The roads out that are not the relay: a second proxy over TLS, the WebSocket forwarders of other products, Wisp, wstunnel, Tor's meek_lite and WebTunnel, the Access client of Cloudflare, AWS's EC2 Instance Connect Endpoint and Google's IAP for TCP; each road that takes its target from the client is a dialer, through the caller's way out."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -36,12 +36,18 @@ trojan = ["vless", "dep:sha2"]
 # the AEADs of pod-tls's pure provider, EVP_BytesToKey of MD5, HKDF-SHA1,
 # BLAKE3.
 shadowsocks = ["dep:base64", "dep:blake3", "dep:hkdf", "dep:md5", "dep:sha1", "dep:zeroize", "pod-tls/pure"]
+# AWS's EC2 Instance Connect Endpoint: its URL is presigned with SigV4
+# (HMAC-SHA-256).
+eice = ["dep:zeroize", "dep:hmac", "dep:sha2"]
+# Google Cloud's Identity-Aware Proxy for TCP, with its own messages, their
+# acknowledgements and a session that a new link takes up.
+iap = ["dep:zeroize"]
 # A plain WebSocket over TCP to the loopback, for the tests of the Access
 # client (cloudflare::connect_loopback). No binary turns it on.
 plain-ws = ["pod-ws/plain-ws"]
 # The readers of the wire for the fuzz targets of fuzz/ (src/fuzzing.rs):
-# the packets of a Wisp server. No consumer turns it on.
-fuzzing = ["wisp"]
+# the packets of a Wisp server, the messages of IAP. No consumer turns it on.
+fuzzing = ["wisp", "iap"]
 
 [dependencies]
 # The dialer, the failure and its stage and class, the events, the
@@ -159,3 +165,11 @@ required-features = ["shadowsocks"]
 [[test]]
 name = "cloudflare_access"
 required-features = ["cloudflare", "plain-ws"]
+
+[[test]]
+name = "eice"
+required-features = ["eice"]
+
+[[test]]
+name = "iap"
+required-features = ["iap"]

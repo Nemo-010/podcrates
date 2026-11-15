@@ -1,0 +1,29 @@
+# The trial of pod-egress part 3 in podssh (T-035; calls C631 to C634), at
+# podssh's main 2ffb7cd7 (pod-egress-part3.commit), after the trial of part
+# 1 (pod-egress-part3.needs). podssh-ws's eice/ and iap/ become modules of
+# glue over pod-egress (pub use pod_egress::ROAD::*, and podssh's way out
+# for a ProxyChoice: eice::connect, iap::connect, each USER_AGENT;
+# iap::carry::{Say, Line, note, open}, which say the carrier's events as
+# podssh's lines), so that podssh-cli does not change. The unit tests of
+# eice/ and iap/ leave podssh with them. Each podcrates tag moves to
+# v0.52.0. The steps: the record with its citations, the repository checks;
+# no moved file stays; pod-egress in the tree with eice and iap; clippy and
+# the tests of podssh-ws with each feature; clippy of the CLI; the CLI's
+# unit tests of the clouds' roads and its tests of EICE and IAP through the
+# stand-in proxy; rustfmt of the changed crates; each Rust toolchain of the
+# workflows against the rust-version of podcrates; each test target that
+# the gate names.
+cargo run -q -p podssh-todo -- remap Cargo.lock > /dev/null
+cargo run -q -p podssh-todo -- check
+python3 scripts/check-repo.py
+test ! -e crates/podssh-ws/src/eice && test ! -e crates/podssh-ws/src/iap
+cargo tree -q -p podssh-ws -i pod-egress -e features | grep -q 'pod-egress feature "iap"'
+cargo tree -q -p podssh-ws -i pod-egress -e features | grep -q 'pod-egress feature "eice"'
+cargo clippy -q --all-targets -p podssh-ws --all-features -- -D warnings -A clippy::collapsible_if
+cargo test -q -p podssh-ws --all-features
+cargo clippy -q --all-targets -p podssh-cli -- -D warnings -A clippy::collapsible_if
+cargo test -q -p podssh-cli --lib -- ssh::cloud cp::link
+cargo test -q -p podssh-cli --test iap_cli --test eice_cli
+cargo fmt -p podssh-ws -p podssh-cli --check
+python3 -I "$PODCRATES/scripts/check-consumer-toolchains.py"
+python3 -I "$PODCRATES/scripts/check-consumer-tests.py"

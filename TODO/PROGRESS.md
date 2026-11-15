@@ -62,7 +62,7 @@ next entry.
 
 First: the release `v0.51.0` (the fixes of PodUtils/podnet#572,
 PodUtils/podvm#380 and PodUtils/podssh#253, part 1 of T-035, the asks of PodUtils/podvm#389 and #390) and the takes of `v0.50.0` (#164). Then the move of podssh's waves 3 and 4 (the
-ruling "The move of podssh", PodUtils/podssh#248): T-035 (parts 2 and 3);
+ruling "The move of podssh", PodUtils/podssh#248): T-035 (part 2);
 T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
 

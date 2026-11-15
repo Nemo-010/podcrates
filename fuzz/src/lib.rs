@@ -48,6 +48,7 @@ pub const TARGETS: &[(&str, Target)] = &[
     ("piping_hello", targets::piping_hello),
     ("piping_answer", targets::piping_answer),
     ("wisp_packet", targets::wisp_packet),
+    ("iap_message", targets::iap_message),
     ("opentunnel_message", targets::opentunnel_message),
     ("opentunnel_answer", targets::opentunnel_answer),
     ("session_record", targets::session_record),

@@ -20,6 +20,10 @@
 //!   XHTTP or TLS;
 //! * `shadowsocks` ([`shadowsocks`]): a Shadowsocks server, in the AEAD
 //!   form or Shadowsocks 2022, over TCP or a WebSocket.
+//! * `eice` ([`eice`]): AWS's EC2 Instance Connect Endpoint, its URL
+//!   presigned with SigV4;
+//! * `iap` ([`iap`]): Google Cloud's Identity-Aware Proxy for TCP, a session
+//!   that a new link takes up.
 //!
 //! **Shared parts.** [`carry`] makes a WebSocket session a byte stream,
 //! [`end`] says what the end of this side's input does, [`Note`] takes a
@@ -37,9 +41,9 @@
 //! [`pod_core::Dial`]**: [`via::Client`], [`forwarder::Forwarder`],
 //! [`wisp::Road`], [`wstunnel::Tunnel`], and `vless::Road`, `vmess::Road`,
 //! `trojan::Road` and `shadowsocks::Road` (each with its feature). Its failure is a
-//! [`pod_core::Failure`] with its stage and its class. meek_lite, WebTunnel
-//! and the Access client reach one far end that the bridge or the tunnel
-//! names, and are not dialers.
+//! [`pod_core::Failure`] with its stage and its class. meek_lite, WebTunnel,
+//! the Access client, EICE and IAP reach one far end that the bridge, the
+//! tunnel or the cloud names, and are not dialers.
 
 use std::sync::Arc;
 
@@ -51,10 +55,14 @@ mod road;
 
 #[cfg(feature = "cloudflare")]
 pub mod cloudflare;
+#[cfg(feature = "eice")]
+pub mod eice;
 #[cfg(feature = "forwarder")]
 pub mod forwarder;
 #[cfg(feature = "fuzzing")]
 pub mod fuzzing;
+#[cfg(feature = "iap")]
+pub mod iap;
 #[cfg(feature = "meek")]
 pub mod meek;
 #[cfg(any(feature = "meek", feature = "webtunnel"))]

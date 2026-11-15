@@ -1,0 +1,13 @@
+diff --git a/crates/pod-egress/src/iap/mod.rs b/crates/pod-egress/src/iap/mod.rs
+index a6925512..68ef52a1 100644
+--- a/crates/pod-egress/src/iap/mod.rs
++++ b/crates/pod-egress/src/iap/mod.rs
+@@ -242,7 +242,7 @@ where
+     match tokio::time::timeout(timeout, client::upgrade_with(stream, &request, &key)).await {
+         Err(_) => Err(ConnectError::Timeout { step: "the WebSocket upgrade", after: timeout }),
+         Ok(Err(ConnectError::Refused { status, body })) => {
+-            Err(ConnectError::Refused { status, body: hide_token(&body, token) })
++            Err(ConnectError::Refused { status, body })
+         }
+         Ok(answer) => answer,
+     }

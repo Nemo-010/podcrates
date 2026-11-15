@@ -1,6 +1,7 @@
 //! pod-egress: a dialer of each road whose deadline is now, so that each
 //! road links in and nothing connects; the arguments of a meek_lite and a
-//! WebTunnel bridge, and the upgrade of the Access road.
+//! WebTunnel bridge, the upgrade of the Access road, a presigned path of
+//! EICE, and the path of IAP with the carrier's first link refused.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -67,6 +68,42 @@ pub fn egress() -> String {
         pod_egress::cloudflare::request("tunnel.example", &access, "AAAAAAAAAAAAAAAAAAAAAA==", "static-probe")
             .map_or_else(|e| e, |r| format!("{} bytes", r.len()));
     let _ = pod_egress::wisp::PROTOCOL;
+    let eice = eice();
+    let iap = iap(&way);
     let _ = pod_egress::pt::Reach { way, trust: Trust::Default, wait };
-    format!("pod-egress: {dialed}; {meek}, {webtunnel}, an upgrade of {upgrade}")
+    format!("pod-egress: {dialed}; {meek}, {webtunnel}, an upgrade of {upgrade}; {eice}; {iap}")
+}
+
+/// A path that SigV4 presigns, with a made-up key: its length.
+fn eice() -> String {
+    use pod_egress::eice::{Credentials, Endpoint, Target, presigned_path};
+    let dns = "eice-0123456789example.b67b86ba.ec2-instance-connect-endpoint.us-west-2.amazonaws.com";
+    let Ok(endpoint) = Endpoint::parse(dns) else { return "no endpoint".into() };
+    let credentials = Credentials {
+        access_key_id: "PROBE".to_string().into(),
+        secret_access_key: "PROBE".to_string().into(),
+        session_token: None,
+    };
+    let target = Target { address: std::net::Ipv4Addr::LOCALHOST.into(), port: 22, max_duration: None };
+    format!("a presigned path of {} bytes", presigned_path(&endpoint, &target, &credentials, 0).len())
+}
+
+/// The path of a connect, and the carrier's first link, refused for its
+/// empty token before it connects, so that the carrier links in.
+fn iap(way: &pod_ws::Way) -> String {
+    use pod_egress::iap::{self, Target, carry};
+    let Ok(target) = Target::new("a-project", "us-central1-a", "a-vm", 22) else { return "no target".into() };
+    let path = iap::path(&target, None);
+    let (way, linked) = (way.clone(), target.clone());
+    let dial: carry::Dial<pod_ws::url::Stream, pod_ws::client::ConnectError> = Arc::new(move |_| {
+        let (way, target) = (way.clone(), linked.clone());
+        Box::pin(async move { iap::connect(&target, None, "", &way, &Trust::Default, Duration::ZERO).await })
+    });
+    let opened = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
+        Ok(runtime) => runtime
+            .block_on(carry::open(dial, Arc::new(pod_core::NoEvents)))
+            .map_or_else(|e| e.to_string(), |_| "open".into()),
+        Err(e) => e.to_string(),
+    };
+    format!("{path}: {opened}")
 }

@@ -35,3 +35,43 @@ pub fn loopback(names: &[&str]) -> Way {
     let pins: Vec<(&str, IpAddr)> = names.iter().map(|n| (*n, lo)).collect();
     through(ProxyChoice::Direct, &pins)
 }
+
+/// What a way of [`aimed`] was asked to dial, each as `HOST:PORT`.
+pub type Asked = Arc<std::sync::Mutex<Vec<String>>>;
+
+/// A dialer that takes each target to one port of the loopback, as a
+/// road whose far end has a fixed port (443) reaches a stand-in.
+struct Aimed {
+    port: u16,
+    asked: Asked,
+}
+
+impl pod_core::Dial for Aimed {
+    fn label(&self) -> String {
+        format!("aimed at 127.0.0.1:{}", self.port)
+    }
+
+    fn dial<'a>(
+        &'a self,
+        target: &'a pod_core::Target,
+        _deadline: tokio::time::Instant,
+    ) -> pod_core::BoxFuture<'a, Result<pod_core::Connected, pod_core::Failure>> {
+        Box::pin(async move {
+            self.asked.lock().unwrap().push(target.to_string());
+            let tcp = tokio::net::TcpStream::connect(("127.0.0.1", self.port))
+                .await
+                .map_err(|e| pod_core::Failure::io(pod_core::Stage::Connect, e))?;
+            Ok(pod_core::Connected::new(Box::new(tcp)))
+        })
+    }
+}
+
+/// A way whose dialer takes each target to `port` of the loopback, and what
+/// it was asked to dial.
+pub fn aimed(port: u16) -> (Way, Asked) {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let tls = Arc::new(Context::new(provider, pod_tls::Settings::new(Words::new("podssh"))));
+    let asked = Asked::default();
+    let dial = Aimed { port, asked: asked.clone() };
+    (Way::new(tls, Arc::new(dial), USER_AGENT), asked)
+}

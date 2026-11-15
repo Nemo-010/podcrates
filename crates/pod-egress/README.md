@@ -25,15 +25,19 @@ to a tunnel of Cloudflare:
 * `trojan`: a Trojan server over TLS or a WebSocket over TLS;
 * `shadowsocks`: a Shadowsocks server in the AEAD form or Shadowsocks 2022,
   over TCP or a WebSocket (an Outline access key), with the `ss://` URIs,
-  the subscriptions and the access keys that name one.
+  the subscriptions and the access keys that name one;
+* `eice`: AWS's EC2 Instance Connect Endpoint, as `aws ec2-instance-connect
+  open-tunnel` reaches it, its URL presigned with SigV4;
+* `iap`: Google Cloud's Identity-Aware Proxy for TCP, as `gcloud compute
+  start-iap-tunnel` reaches it: IAP's own messages, their
+  acknowledgements, and a session that a new link takes up.
 
-This is parts 1 and 2 of the crate (T-035). Part 3 adds `eice/` and `iap/`
-of podssh-ws.
+This is the whole crate (T-035, parts 1 to 3).
 
 The base is podssh's `crates/podssh-ws/src/` at `2ffb7cd7`: `via/`,
 `forwarder/`, `wstunnel/`, `wisp/`, `meek.rs`, `meek/`, `webtunnel.rs`,
 `pt.rs` and `cloudflare.rs` (part 1), `vless/`, `vmess/`, `trojan/` and
-`shadowsocks/` (part 2), with their tests.
+`shadowsocks/` (part 2), `eice/` and `iap/` (part 3), with their tests.
 
 ## API
 
@@ -54,7 +58,9 @@ The base is podssh's `crates/podssh-ws/src/` at `2ffb7cd7`: `via/`,
 | `vmess` (feature `vmess`) | `Server` (`parse`, `shown`), `Cipher`, `link`, `Dial` (VLESS's), `open`, `open_at(.., unix)`, `Opened`, `Road { server, dial }` (a `pod_core::Dial`), `VmessError` (`line`, `stage_and_class`; a `pod_core::Failure`), `ANSWER_WAIT`, `EARLY_WAIT` |
 | `trojan` (feature `trojan`) | `Server` (`parse`, `shown`), `Password`, `Transport`, `link`, `Dial` (VLESS's), `open`, `Opened`, `Road { server, dial }` (a `pod_core::Dial`), `TrojanError` (`line`, `stage_and_class`; a `pod_core::Failure`), `ANSWER_WAIT`, `EARLY_WAIT` |
 | `shadowsocks` (feature `shadowsocks`) | `Node` (`parse`, `new`, `shown`), `Method`, `Dial { way, trust, timeout, answer, silence_is_ready }`, `open(node, host, port, dial)`, `Opened { carried, answered_in }`, `Carried`, `Status`, `Ended`, `Road { node, dial }` (a `pod_core::Dial`), `OpenError` (`line`, `stage_and_class`; a `pod_core::Failure`), `access_key`, `subscription`, `Listed`, `codec` (`Encoder`, `Decoder`, `ChunkError`, `address`, `parse_address`, `MAX_PAYLOAD`), `sip022`, `master_key`, `ANSWER_WAIT`, `TAG_LEN` |
-| `fuzzing` (feature `fuzzing`) | `wisp_packet`, `wisp_answer` |
+| `eice` (feature `eice`) | `Endpoint` (`parse`), `Target`, `Credentials` (`check`; no value in `Debug`), `connect(endpoint, target, credentials, way, trust, timeout)`, `presigned_path`, `request`, `sigv4` (`Presign` with `canonical_request`, `string_to_sign`, `signature`, `query`; `escape`, `amz_date`, `ALGORITHM`, `EMPTY_SHA256`), `PORT`, `PATH`, `SERVICE`, `EXPIRES`, `MAX_DURATION`, `MAX_FRAME` |
+| `iap` (feature `iap`) | `Target` (`new`), `Resume`, `connect(target, resume, token, way, trust, timeout)`, `path`, `request`, `check_token`, `carry` (`open(dial, note)`, `Dial`, `Dialing`, `Carried` (`get`, `ended`), `NotOpen` and `Ended` (each `stage_and_class`; a `pod_core::Failure`), `LOST`, `RESUMED`, `STEP`, `FIRST_MESSAGE`, `RECONNECTS`, `RECONNECT_WAIT`, `ACK_WAIT`, `DRAIN`), `close` (`fate`, `Fate`, `Why`, `stage_and_class`, the codes), `flow` (`Flow`), `frame` (`Message`, `decode`, `data`, `ack`, `MAX_DATA`, the tags), `HOST`, `PORT`, `CONNECT_PATH`, `RECONNECT_PATH`, `SUBPROTOCOL`, `ORIGIN`, `INTERFACE`, `MAX_TOKEN` |
+| `fuzzing` (feature `fuzzing`) | `wisp_packet`, `wisp_answer`, `iap_message`, `iap_data`, `iap_ack` |
 
 ## Each road as a dialer
 
@@ -65,8 +71,8 @@ a dial of a target opens the road to it before the deadline, and gives the
 stream. Each says `names_inside()` (the far end resolves the name), its
 `label()` and its `proxy_label()`. A failure is a `pod_core::Failure` with
 the stage and the class of the road's error, in the line that names the
-road. meek_lite, WebTunnel and the Access client reach one far end that
-the bridge or the tunnel names: they are not dialers.
+road. meek_lite, WebTunnel, the Access client, EICE and IAP reach one far
+end that the bridge, the tunnel or the cloud names: they are not dialers.
 
 ## How a new road joins the crate
 
@@ -103,8 +109,10 @@ the bridge or the tunnel names: they are not dialers.
 | `vmess` | VMess's AEAD form (AES, HMAC-SHA-256, MD5, the AEADs of `pod-tls`'s feature `pure`); turns on `vless` |
 | `trojan` | Trojan (SHA-224); turns on `vless` |
 | `shadowsocks` | Shadowsocks (MD5, HKDF-SHA1, BLAKE3 in its portable code, the AEADs of `pod-tls`'s feature `pure`) |
+| `eice` | the road of EC2 Instance Connect Endpoint (HMAC-SHA-256 and SHA-256 of SigV4, zeroize) |
+| `iap` | the road of IAP for TCP (zeroize) |
 | `plain-ws` | `cloudflare::connect_loopback`, for the tests; no binary turns it on |
-| `fuzzing` | the readers of the fuzz target `wisp_packet`; no consumer turns it on |
+| `fuzzing` | the readers of the fuzz targets `wisp_packet` and `iap_message` (turns on `wisp` and `iap`); no consumer turns it on |
 
 No feature is on by default. Each one is pure Rust.
 
@@ -112,12 +120,13 @@ No feature is on by default. Each one is pure Rust.
 
 | Setting | Where | What |
 | --- | --- | --- |
-| the way out | `Dial::way` (of each road), `Connect::way`, `Reach::way`, `cloudflare::connect`'s `way` | the dialer (direct, the host's proxy), the TLS context and its words, the user agent |
+| the way out | `Dial::way`, `Connect::way`, `Reach::way`, the `way` of `cloudflare::connect`, `eice::connect` and `iap::connect` | the dialer (direct, the host's proxy), the TLS context and its words, the user agent |
 | the trust | `trust` of each | the roots of each TLS connection |
 | the bounds | `timeout`, `wait` | each step of a dial |
 | the end of input | `at_end` | a Close at once, or after the peer's end |
 | the wait for an answer | `answer`, `silence_is_ready` of VLESS's and Shadowsocks's `Dial` | how long a road waits for the server's first bytes, and whether a silence is a stream (a pipe) |
-| the notes | `note` | the sink of a peer's own words (`egress.note`, `wisp.note`) |
+| the notes | `note` | the sink of a peer's own words (`egress.note`, `wisp.note`), and of the steps of an IAP session (`iap.lost`, a warning; `iap.resumed`; `iap.step`, for a verbose log) |
+| the credentials | `eice::Credentials`, the `token` of `iap::connect` | AWS's key (and its session token) that signs each URL; Google's OAuth token of each link, which the `Dial` of `iap::carry` asks for again, as one may expire |
 | the credentials file | `via::Dial::auth_file` | how the user names it in the words of a `407` |
 
 The crate reads no variable of the environment. The app's name in the
@@ -146,7 +155,17 @@ an end) is `Relay`/`Refused`; an answer of another protocol (`NotVless`,
 VMess's `Wrong`, Shadowsocks's `Chunk`) is `Relay`/`Protocol`; no answer in
 the wait (`Silent`) is `Relay`/`Timeout`; Shadowsocks's `Send` and `Cut` are
 `Relay`/`Unavailable`. meek_lite, WebTunnel and `pt` keep podssh's
-`String`.
+`String`. `eice::connect` and `iap::connect` return pod-ws's
+`ConnectError`, whose stage and class are pod-ws's; a refusal's body shows
+no part of a credential. `iap::carry::NotOpen`: `Dial` is the dial's own
+failure; `Closed` has the class of its code (`close::stage_and_class`:
+4033 and 4004 are `WebSocket`/`Refused`, 4003 and 1000 `Origin`/
+`Unavailable`, 4047 and 4051 `Origin`/`NotFound`, 4001, 4002 and 4074
+`Session`/`Unavailable`, 4005 to 4008 and 4013 `WebSocket`/`Protocol`,
+another `WebSocket`/`Unavailable`); `Silent` is `WebSocket`/`Timeout`;
+`Fault` is `WebSocket`/`Protocol`. `iap::carry::Ended`: `Normal` is no
+failure; `Closed` as above; `Lost` is `Session`/`Unavailable`; `Fault` is
+`WebSocket`/`Protocol`.
 
 ## Parity
 
@@ -182,6 +201,15 @@ Each line of the source, as it is here:
 - [x] Shadowsocks: the AEAD form and SIP022, `ss://` of SIP002, the
   subscriptions (SIP008 and lists), Outline's access keys and their YAML,
   a server in a WebSocket, a silence that names a proxy, the half-close.
+- [x] EICE: the endpoint by its DNS name, SigV4 in a query string as
+  botocore signs it, the URL signed once TLS is up and kept in memory that
+  is wiped, awscrt's upgrade, the largest frame, a refusal with no part of
+  the credential or of the URL;
+- [x] IAP: the target's names as GCP writes them, gcloud's connect and
+  reconnect, the token in its header alone, IAP's messages, the
+  acknowledgements, a session that a new link takes up (three tries, from
+  1.5 s), the fate of each Close, the end of input with the server's last
+  bytes, a refusal with no part of the token.
 
 The differences: the way out is a `pod_ws::Way` (podssh: a `ProxyChoice`,
 the process's TLS context and `podssh/VERSION`); a peer's words go to
@@ -196,7 +224,10 @@ the way's (podssh: `url::USER_AGENT`); the proxy that a silence of
 Shadowsocks names is the way's dialer's `proxy_label` (podssh: the
 environment's proxy); the words that named podssh name "this client";
 VLESS's, VMess's and Trojan's carriers share one dial of TCP and TLS
-(`vless::ws::connect`).
+(`vless::ws::connect`). In part 3: the user agent of EICE and IAP is the way's (podssh: the constants
+`USER_AGENT`); the IAP carrier's lines are events of the caller's `Note`
+(podssh: `Say`, a `Fn(Line)` of `Info` and `Verbose`); `NotOpen` and
+`Ended` of IAP have words, a stage and a class (new).
 
 ## Adoption map
 
@@ -209,9 +240,12 @@ VLESS's, VMess's and Trojan's carriers share one dial of TCP and TLS
 | podssh | `forwarder::builtin::BUILTIN` | `forwarder::builtin::builtin()`; `lookup` gives a `Builtin` by value |
 | podssh | `via::Stream::from_parts(send, recv)` (vless) | `pod_ws::h2_road::duplex(send, recv)` |
 | podssh | `cloudflare::connect_loopback(host, port, access, timeout, idle)` | `.., access, user_agent, timeout, idle` (feature `plain-ws`) |
+| podssh | `podssh_ws::{eice, iap}` | the same modules of podssh-ws, each `pub use pod_egress::ROAD::*` with podssh's glue: `eice::connect(endpoint, target, credentials, trust, &proxy, timeout)` and `iap::connect(target, resume, token, trust, &proxy, timeout)` over `podssh_ws::client::way(&proxy)`, each `USER_AGENT` |
+| podssh | `iap::carry::{Say, Line}` and `carry::open(dial, say)` | podssh's glue keeps `Say` and `Line`: `iap::carry::open(dial, say)` gives the crate a `Note` that turns `iap.lost` and `iap.resumed` into `Line::Info`, and `iap.step` into `Line::Verbose` |
 | podssh | `wstunnel::upgrade::request(host, secret, token, key)`, `upgrade(stream, request, key)` | `.., key, user_agent)`, `.., key, app)` |
 | podssh | `tests/via.rs`, `forwarder.rs`, `live_forwarder.rs`, `meek.rs`, `webtunnel.rs`, `wisp.rs`, `wisp_support/`, `wstunnel.rs`, `cloudflare_access.rs` | the tests of this crate; `tests/common/talker.rs` stays in podssh for its other roads |
 | podssh | the plants `t438-wisp-credit`, `t439-via-no-credential`, `t441-wstunnel-wrong-secret` | `egress-wisp-credit`, `egress-via-no-credential`, `egress-wstunnel-wrong-secret` |
+| podssh | the unit tests of `eice/` and `iap/` (`tests.rs`, `sigv4/tests.rs`, `carry/tests.rs`, and those of `close.rs`, `flow.rs`, `frame.rs`) | the same tests of this crate; podssh-cli's `eice_cli.rs`, `iap_cli.rs` and `cloud_support/` drive its binary and stay |
 | podssh | `PODSSH_TEST_WISP_PYTHON`, `PODSSH_TEST_WISP_REQUIRED`, `PODSSH_TEST_FORWARDER_PLANT` | `POD_EGRESS_TEST_WISP_PYTHON`, `POD_EGRESS_TEST_WISP_REQUIRED`, `POD_EGRESS_TEST_FORWARDER_PLANT` |
 | podssh | PodUtils/podssh:.github/workflows/forwarder-live.yml | `.github/workflows/forwarder-live.yml` of podcrates; podssh's `via-interop.yml`, `wstunnel-interop.yml` and `wisp-rate.yml` drive its binary and stay |
 | podssh | `podssh_ws::{vless, vmess, trojan, shadowsocks}` (part 2) | the same modules of podssh-ws, each `pub use pod_egress::ROAD::*` with podssh's glue: `vless::dial(&trust, &proxy, timeout, answer, silence_is_ready, at_end)` (for VLESS, VMess and Trojan), `shadowsocks::dial(&trust, &proxy, timeout, answer, silence_is_ready)` |
@@ -224,7 +258,8 @@ VLESS's, VMess's and Trojan's carriers share one dial of TCP and TLS
 | podssh | the dependencies `hkdf`, `blake3`, `aes-gcm` and `chacha20poly1305` (dev) of podssh-ws | gone from podssh-ws: they serve this crate's roads |
 
 The adoption trials are `adoption/podssh/pod-egress.patch` (part 1) and
-`adoption/podssh/pod-egress-part2.patch` (part 2, after part 1), each with
+`adoption/podssh/pod-egress-part2.patch` (part 2, after part 1) and
+`adoption/podssh/pod-egress-part3.patch` (part 3, after part 1), each with
 its `.run` and `.commit`.
 
 ## Tests
@@ -241,7 +276,14 @@ answer; the Access client's request; VLESS's link, ID, `extra`, header,
 answer, upgrade, XHTTP's requests and HTTP/1.1; VMess's line, KDF, header
 (against Xray-core's vectors) and body; Trojan's link, request and the
 fallback's answer; Shadowsocks's methods, keys, codec, SIP022, `ss://`,
-subscriptions, access keys and their YAML.
+subscriptions, access keys and their YAML; EICE's endpoint, its presigned path
+against aws-cli's, SigV4 against the vectors of aws-c-auth and aws-cli,
+its upgrade, and no credential in a refusal or in `Debug`; IAP's upgrade
+and reconnect against gcloud's, the target's names, the token's checks,
+a refusal with no part of the token, the fate and the class of each
+Close, the flow, the messages, and the carrier against a stand-in in
+memory (both ways, a lost link taken up, no session, a bad
+acknowledgement, the end of input).
 
 The tests of each road against stand-ins on the loopback:
 
@@ -288,6 +330,14 @@ The tests of each road against stand-ins on the loopback:
   `POD_EGRESS_XRAY_TEST_BIN` names it, and each test says "did not run"
   with none): each cipher, a pipe, a clock 5 minutes off, another ID and
   another path;
+- `tests/eice.rs`: `an_eice_tunnel_goes_through_the_way_with_a_url_signed_for_it`,
+  `an_eice_refusal_is_a_typed_failure_and_shows_no_credential`,
+  `an_eice_credential_that_cannot_go_in_a_url_is_refused_before_a_dial`,
+  against a stand-in of an endpoint with TLS for its name; the way's
+  dialer takes port 443 to the stand-in (`tests/common/way.rs`, `aimed`);
+- `tests/iap.rs`: `an_iap_session_goes_through_the_way_with_its_token_in_a_header`,
+  `an_iap_refusal_of_the_account_is_a_typed_failure`, against a stand-in
+  of IAP's relay, the same way;
 - live (`#[ignore]`, `forwarder-live.yml`, each day):
   `tests/live_forwarder.rs`, GitHub's version line through each built-in
   forwarder; `POD_EGRESS_TEST_FORWARDER_PLANT` makes each fail.
@@ -298,8 +348,11 @@ The plants (`scripts/plants/`, group `egress`): `egress-wisp-credit`,
 `egress-wstunnel-refusal-untyped`, `egress-wisp-blocked-untyped`,
 `egress-vless-refusal-unsaid`, `egress-vless-dial-untyped`,
 `egress-trojan-dial-untyped`, `egress-shadowsocks-dial-untyped`.
+`egress-eice-refusal-shows-credential`, `egress-eice-credential-unchecked`,
+`egress-iap-refusal-untyped`, `egress-iap-refusal-shows-token`.
 
-The fuzz target `wisp_packet` (`fuzz/`, feature `fuzzing`).
+The fuzz targets `wisp_packet` and `iap_message` (`fuzz/`, feature
+`fuzzing`).
 
 ## Sources
 

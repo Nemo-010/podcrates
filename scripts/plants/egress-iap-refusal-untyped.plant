@@ -1,0 +1,6 @@
+# IAP's Close 4033 (the account is refused) is a service that is not
+# available, not a refusal: the test of the typed failures must fail.
+ENTRY=T-035
+GROUP=egress
+EXPECT='test an_iap_refusal_of_the_account_is_a_typed_failure \.\.\. FAILED'
+RUN='cargo test -p pod-egress --all-features --test iap -- an_iap_refusal_of_the_account_is_a_typed_failure'

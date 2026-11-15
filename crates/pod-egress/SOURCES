@@ -7,8 +7,9 @@ repo PodUtils/podssh 2ffb7cd77731e24a98e93c106ca7db7c5c4bd472
 # podssh froze these roads of podssh-ws at this commit for the move
 # (PodUtils/podssh@T-684, PodUtils/podssh#248): a fix there until podssh
 # takes the crate is ported here. forwarder/carry.rs and forwarder/end.rs
-# are the shared parts of each road here (src/carry.rs, src/end.rs). eice/
-# and iap/ of podssh-ws join the crate in part 3 of T-035.
+# are the shared parts of each road here (src/carry.rs, src/end.rs). Part 2
+# of T-035 adds vless/, vmess/, trojan/ and shadowsocks/; part 3 adds eice/
+# and iap/.
 dir crates/podssh-ws/src/via
 dir crates/podssh-ws/src/forwarder
 dir crates/podssh-ws/src/wstunnel
@@ -105,3 +106,20 @@ file 59e468285f3c26acdf992c092e783a8a0ced2681 crates/podssh-ws/tests/vless_suppo
 file 6c5e909ea592754af2a4fcc4ea1e8f2aff9f163c crates/podssh-ws/tests/vless_support/xhttp.rs -> crates/pod-egress/tests/vless_support/xhttp.rs
 file 8b61d463acd74d804bbf4d5e98f3c14f2500fb41 crates/podssh-ws/tests/vless_support/xhttp1.rs -> crates/pod-egress/tests/vless_support/xhttp1.rs
 file 22f9e1e30243827dfe2c3925e136688dcfe87033 crates/podssh-ws/tests/vmess.rs -> crates/pod-egress/tests/vmess.rs
+
+# The cloud roads (part 3 of T-035): AWS's EC2 Instance Connect Endpoint
+# and Google's Identity-Aware Proxy for TCP.
+dir crates/podssh-ws/src/eice
+dir crates/podssh-ws/src/iap
+file 4d21a404112c1974bd42f3d71b4c61ce8b49f9e3 crates/podssh-ws/src/eice/mod.rs -> crates/pod-egress/src/eice/mod.rs
+file ae8bfc65e27a94dea465be28be5ae21a9e2ff565 crates/podssh-ws/src/eice/sigv4.rs -> crates/pod-egress/src/eice/sigv4.rs
+file 3b58ad69e2f9462176818bd2a1187900a7c2eed8 crates/podssh-ws/src/eice/sigv4/tests.rs -> crates/pod-egress/src/eice/sigv4/tests.rs
+file 46340abfc7885a1af1aabca063ef8e94a7429a3d crates/podssh-ws/src/eice/tests.rs -> crates/pod-egress/src/eice/tests.rs
+file b52459861e1895184a00c85f0171c7145b7b645e crates/podssh-ws/src/iap/carry.rs -> crates/pod-egress/src/iap/carry.rs crates/pod-egress/src/iap/carry/ended.rs
+file bd99a8b38e1a1993ced75554a95ea40509afec73 crates/podssh-ws/src/iap/carry/link.rs -> crates/pod-egress/src/iap/carry/link.rs
+file 288ef33eb7d5bbff71af09163b14b0243e76f0a4 crates/podssh-ws/src/iap/carry/tests.rs -> crates/pod-egress/src/iap/carry/tests.rs
+file f06d6a8232db338355834b69ddc2558a9ef0c4b8 crates/podssh-ws/src/iap/close.rs -> crates/pod-egress/src/iap/close.rs
+file c3adfa25cb6900a220e01a5fc2eb4341cb8ef94b crates/podssh-ws/src/iap/flow.rs -> crates/pod-egress/src/iap/flow.rs
+file 765f012ed02d8435bba52bafe22cbee5117282eb crates/podssh-ws/src/iap/frame.rs -> crates/pod-egress/src/iap/frame.rs
+file 03b93ba785660802cdb1234e8c77afc6768e287f crates/podssh-ws/src/iap/mod.rs -> crates/pod-egress/src/iap/mod.rs
+file 5cb74af1bed11ddeed113dad07be548c6f9a543b crates/podssh-ws/src/iap/tests.rs -> crates/pod-egress/src/iap/tests.rs
