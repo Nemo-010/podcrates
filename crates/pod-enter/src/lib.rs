@@ -67,6 +67,7 @@ mod ns_optional;
 mod ns_overlay;
 mod ns_proc_bind;
 mod ns_user;
+mod pass_clear;
 
 use std::io::Write;
 
