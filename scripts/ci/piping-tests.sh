@@ -24,7 +24,7 @@ name=piping-server-x86_64-unknown-linux-musl
 rust=$tmp/piping-server-rust-$version
 sh scripts/ci/fetch-tool.sh \
     "https://github.com/nwtgck/piping-server-rust/releases/download/v$version/$name.tar.gz" \
-    "$sha256" "$name/piping-server" "$rust"
+    "$sha256" "./$name/piping-server" "$rust"
 js=$(mktemp -d "$tmp/piping-server-js.XXXXXX")
 trap 'rm -rf "$js"' EXIT
 cp scripts/ci/piping-server/package.json scripts/ci/piping-server/package-lock.json "$js/"
