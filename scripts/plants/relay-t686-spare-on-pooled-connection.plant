@@ -1,0 +1,7 @@
+# The pool gives a link that replaces another link of its session the
+# connection that the session rode: the spare beside a silent connection
+# of HTTP/2 rides it, and the session does not resume in time.
+ENTRY=T-686
+GROUP=relay
+EXPECT='test a_spare_beside_a_silent_connection_of_http2_takes_a_new_one \.\.\. FAILED'
+RUN='cargo test -p pod-relay --all-features --test layer_h2_spare -- a_spare_beside_a_silent_connection_of_http2_takes_a_new_one --exact'

@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 553 entries: 110 open, 9 partial, 6 blocked, 428 done.
+`TODO/INDEX.md` holds 554 entries: 110 open, 9 partial, 6 blocked, 429 done.
 
 ## State
 
@@ -61,7 +61,7 @@ online"): the work for podrunner and podnet comes first, then podssh and
 podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
-First: the takes of `v0.51.0` (#172); then `v0.52.0`; T-686 (PodUtils/podssh#262) for the tag after it (parts 2 and 3 of T-035,
+First: the takes of `v0.51.0` (#172); then `v0.52.0` (parts 2 and 3 of T-035,
 and the asks of podvm that wait on the local branch `integ`). Then the move of podssh's waves 3 and 4 (the
 ruling "The move of podssh", PodUtils/podssh#248): T-035 (parts 2 and 3);
 T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2
@@ -121,7 +121,8 @@ for podnet (item 3c): T-526. Then the items below, in order.
    `services.yml`: a dispatch, then the fix when the failure stays); T-200 (a Bare node whose WebSocket passes, for PodUtils/podssh@T-740); T-151 (the watch scripts that leave podssh and podnet); T-041 when a crate or a consumer needs
    it; then T-189, T-192, T-193 (the proposals of PodUtils/podnet#437 for
    `pod-proxy` and `pod-core`).
-6. **M2, the relay:** T-212; T-290 (the layer of
+6. **M2, the relay:** T-687 (a silent connection of the HTTP/2 pool
+   takes new sessions); T-212; T-290 (the layer of
    `pod-relay` as a feature); then T-204 (a random failure of
    `pod-session`); then
    T-124 (the failover of the reverse road across the relays of several
