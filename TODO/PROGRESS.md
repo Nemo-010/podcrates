@@ -73,7 +73,7 @@ podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
 First: the release `v0.51.0` (the fixes of PodUtils/podnet#572 and
-PodUtils/podvm#380, part 1 of T-035) and the takes of `v0.50.0`. Then T-643
+PodUtils/podvm#380, part 1 of T-035) and the takes of `v0.50.0` (#164). Then T-643
 (PodUtils/podssh#253). Then the move of podssh's waves 3 and 4 (the
 ruling "The move of podssh", PodUtils/podssh#248): T-035 (parts 2 and 3);
 T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2

@@ -12,7 +12,8 @@ is done. Git and the record keep finished work.
 1. Start the watcher (`sh scripts/agent/watch-org.sh 90` under the Monitor
    tool) and read the open COORD issues `(to podcrates)`.
 2. Record the takes of `v0.50.0` on #164 (COORD-104): podssh applies the
-   five patches of step 1 of the move; the others bump the tag.
+   five patches of step 1 of the move; the others bump the tag. podvm took
+   it at `0573bcd8`.
 3. Release `v0.51.0` from `main`: it holds T-639 (PodUtils/podnet#572),
    T-640 (PodUtils/podvm#380) and part 1 of `pod-egress` (T-035). Before
    the tag, dispatch `guest-windows.yml`: its six cold boots of `run`
