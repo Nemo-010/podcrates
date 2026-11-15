@@ -2,7 +2,7 @@
 //! (T-424; PodUtils/podnet#468, row E2-1): the handshake of the carrier
 //! over the `Lossy` shim of a memory pair, with KCP and TLS, carries the
 //! bytes whole and in order; a peer that goes silent ends the stream at
-//! the idle limit of KCP.
+//! the idle limit of KCP. One vectored write of KCP takes each buffer.
 //!
 //! The 8 MiB of podnet's gate run with `nodelay`; the default (the
 //! congestion window of KCP) moves 1 MiB at 3 % loss.
@@ -229,4 +229,20 @@ async fn a_fragment_of_a_stranger_is_dropped_and_a_large_segment_is_read_whole()
         .expect("the segment in time")
         .expect("the segment, with no stall");
     assert!(got == data, "the bytes of the segment of sequence 0, not of the fragment");
+}
+
+/// One vectored write takes each buffer in the one call: the alert of a
+/// failed handshake of rustls is the last buffer of such a write (T-557,
+/// as `one_vectored_write_takes_each_buffer` of `tests/arq.rs`).
+#[tokio::test]
+async fn one_vectored_write_takes_each_buffer() {
+    let (a, b) = pair(DEFAULT_MTU, DEFAULT_DEPTH);
+    let mut near = KcpStream::new(a, Some(7), KcpSettings::default()).unwrap();
+    let mut far = KcpStream::new(b, None, KcpSettings::default()).unwrap();
+    let bufs = [std::io::IoSlice::new(b"ccs"), std::io::IoSlice::new(b""), std::io::IoSlice::new(b"the alert")];
+    let n = near.write_vectored(&bufs).await.unwrap();
+    assert_eq!(n, 12, "each buffer of a vectored write goes in one call");
+    let mut got = [0u8; 12];
+    timeout(limit(), far.read_exact(&mut got)).await.expect("the bytes in time").unwrap();
+    assert_eq!(&got, b"ccsthe alert");
 }
