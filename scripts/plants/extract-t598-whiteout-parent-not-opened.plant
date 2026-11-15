@@ -1,6 +1,8 @@
 # A whiteout in a closed directory does not open it, so the removal
-# fails with EACCES (T-598). The proof runs as uid 1000 when the test
-# runs as root.
+# fails with EACCES (T-598). The walk of the tree before the first layer
+# (modes::open_tree) also opens each directory, so the patch removes both
+# (call C646, T-678). The proof runs as uid 1000 when the test runs as
+# root.
 ENTRY=T-598
 GROUP=extract
 EXPECT='a whiteout in a closed directory failed'

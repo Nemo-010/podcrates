@@ -1,7 +1,8 @@
 diff --git a/crates/pod-extract/src/apply.rs b/crates/pod-extract/src/apply.rs
+index 8d63eb03..5482ac06 100644
 --- a/crates/pod-extract/src/apply.rs
 +++ b/crates/pod-extract/src/apply.rs
-@@ -251,7 +251,6 @@
+@@ -251,7 +251,6 @@ fn make_dir(parent: &Dir, name: &str, mode: u32) -> Result<()> {
      match sys::openat(parent.fd(), &n, flags, 0) {
          Ok(fd) => {
              // A refusal shows at the first write below this directory.
@@ -9,3 +10,16 @@ diff --git a/crates/pod-extract/src/apply.rs b/crates/pod-extract/src/apply.rs
              let _ = sys::close(fd);
              return Ok(());
          }
+diff --git a/crates/pod-extract/src/lib.rs b/crates/pod-extract/src/lib.rs
+index a1a0fff7..86ec27a0 100644
+--- a/crates/pod-extract/src/lib.rs
++++ b/crates/pod-extract/src/lib.rs
+@@ -189,7 +189,7 @@ pub fn extract(settings: &Settings, image: &str, layers: &[Layer], place: &Place
+     let root = safety::Dir::open(&rootfs)?;
+     // A tree of an earlier extraction can hold the closed directories of
+     // its image (0555, 0311).
+-    let opened = modes::open_tree(&root)?;
++    let opened = 0;
+     let mut side = sidecar::Sidecar::create(&place.sidecar).map_err(error::io)?;
+     let ids = apply::Ids::current();
+ 

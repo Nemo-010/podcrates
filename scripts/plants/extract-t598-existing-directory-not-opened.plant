@@ -1,5 +1,7 @@
 # A directory that exists does not get the owner bits, so a second
-# extraction over a closed tree fails with EACCES (T-598). The proof runs
+# extraction over a closed tree fails with EACCES (T-598). The walk of
+# the tree before the first layer (modes::open_tree) also opens each
+# directory, so the patch removes both (call C646, T-678). The proof runs
 # as uid 1000 when the test runs as root.
 ENTRY=T-598
 GROUP=extract
