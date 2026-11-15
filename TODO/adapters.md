@@ -69,7 +69,7 @@ plants), `229925f` (the README, the workspace, the static probe) and
 - `cargo clippy -p pod-transit --all-targets --all-features -- -D warnings`,
   `cargo doc` of the crate with `-D warnings`, `cargo clippy -p static-probe`:
   clean.
-- The adoption trial: `adoption/podssh/pod-transit.patch`, `.run` and
+- The adoption trial: adoption/podssh/pod-transit.patch, `.run` and
   `.commit` (`b9c04657`). On a scratch copy of podssh at `b9c04657` with
   the patch and each podcrates dependency on this tree:
   `cargo check -p podssh-relay --features croc --tests` and

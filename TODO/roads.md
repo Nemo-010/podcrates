@@ -78,7 +78,7 @@ PodUtils/podssh#248), from podssh `b9c04657`:
 ignored), `derp_live` (1 live, ignored); clippy with `-D warnings`,
 rustdoc with `-D warnings`, rustfmt: clean.
 
-The trial (`adoption/podssh/pod-derp.patch`, `.commit`, `.run`) was
+The trial (adoption/podssh/pod-derp.patch, `.commit`, `.run`) was
 checked on a scratch copy of podssh at `b9c04657`: cargo check of the
 changed crates, clippy, rustfmt, `podssh-todo check` and `check-repo.py`
 pass; `adoption.yml` runs its tests. What podssh must do: apply the patch
@@ -151,10 +151,10 @@ this tree: cargo check of `podssh-relay` (features `piping`, `smee`,
 `filehost`, with its tests) and of `podssh-cli` (with its tests) passes;
 the lib tests of smee and filehost (53) and `tests/http_road.rs` (10) pass;
 podssh-todo check agrees after the remap of `Cargo.lock`; check-repo.py
-passes. `adoption.yml` runs `adoption/podssh/pod-piping.run` in CI.
+passes. `adoption.yml` runs adoption/podssh/pod-piping.run in CI.
 
 What podssh must do (PodUtils/podssh@T-684): apply
-`adoption/podssh/pod-piping.patch` at the release that holds the crate
+adoption/podssh/pod-piping.patch at the release that holds the crate
 (the patch names the tag `v0.49.0`): `podssh_relay::piping` becomes
 `pub use pod_piping as piping`; `piping_road::http` gives
 `dial::tls(Arc::new(podssh_ws::client::way(&ProxyChoice::FromEnvironment)), trust)`
@@ -226,10 +226,10 @@ tests) passes; the lib tests of pinggy, localtunnel, hostc, bore and
 opentunnel (59) pass; podssh-cli `tests/opentunnel_road.rs` (4) and
 `tests/funnel_opentunnel.rs` (4) pass; podssh-todo check agrees after the
 remap of `Cargo.lock`. `adoption.yml` runs
-`adoption/podssh/pod-opentunnel.run` in CI.
+adoption/podssh/pod-opentunnel.run in CI.
 
 What podssh must do (PodUtils/podssh@T-684): apply
-`adoption/podssh/pod-opentunnel.patch` after the patch of `pod-piping`, at
+adoption/podssh/pod-opentunnel.patch after the patch of `pod-piping`, at
 the release that holds the crate (the tag `v0.49.0`):
 `podssh_relay::opentunnel` becomes `pub use pod_opentunnel::*` with
 podssh's `ENV`; the calls of the CLI take podssh's way, user agent,
@@ -306,7 +306,7 @@ adoption trial); call C601.
   `sh scripts/plant-each.sh --apply`: 0 stale.
 - Fixed in place: the static probe's `src/main.rs` had 502 lines after the
   line of `pod-transit`; its `wormhole()` went to its own file.
-- The adoption trial: `adoption/podssh/pod-acme.patch`, `.run`, `.commit`
+- The adoption trial: adoption/podssh/pod-acme.patch, `.run`, `.commit`
   (`b9c04657`) and `.needs` (`pod-transit`). On a scratch copy of podssh
   with both patches and each podcrates dependency on this tree,
   `cargo check -p podssh-cli --lib --tests` passed with no warning;
@@ -1302,7 +1302,7 @@ The tests of `pod-acme` check the parts of an order (the JWS, the nonce, the CSR
 
 ## Premise
 
-- Read: the Done section of T-034 and call C601; `crates/pod-acme`; the `.run` file of `adoption/podssh/pod-acme.run` (podssh's Pebble interop); the other scripts of `scripts/ci/` that fetch a pinned release (`fetch-tool.sh`).
+- Read: the Done section of T-034 and call C601; `crates/pod-acme`; the `.run` file of adoption/podssh/pod-acme.run (podssh's Pebble interop); the other scripts of `scripts/ci/` that fetch a pinned release (`fetch-tool.sh`).
 
 ## Approach
 
@@ -1329,7 +1329,7 @@ The tests of podssh's command line (`funnel_opentunnel`, `opentunnel_road`, `pin
 
 ## Premise
 
-- Read: the Done section of T-033 and calls C602, C603; `crates/pod-opentunnel/tests`; `adoption/podssh/pod-opentunnel.patch`; the feature `standin` of `crates/pod-wormhole/Cargo.toml` and `crates/pod-derp/Cargo.toml`.
+- Read: the Done section of T-033 and calls C602, C603; `crates/pod-opentunnel/tests`; adoption/podssh/pod-opentunnel.patch; the feature `standin` of `crates/pod-wormhole/Cargo.toml` and `crates/pod-derp/Cargo.toml`.
 
 ## Approach
 
