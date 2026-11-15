@@ -19,12 +19,13 @@ is done. Git and the record keep finished work.
 
 ## In flight
 
-- The last release: `v0.48.0` at `96b236c` (ci 43655045324, adoption
-  43655045460, release 43656690266; the hand-off #162, COORD-102):
-  `Sign::After` and a screen sign that ignores a cursor in `pod-guest`
-  (T-633, PodUtils/podvm#372, #161). `v0.47.0` at `61d6f8a` (#160):
-  podrunner and podnet took it; it waits for podvm and podssh. `v0.46.0`
-  at `d60f811` (#159): it waits for podvm.
+- The last release: `v0.49.0` at `212d45d` (ci 43661139464, adoption
+  43658168842 at `94b5ce3`, release 43662863611; the hand-off #163,
+  COORD-103): the Nostr fix of the run of a code (T-634,
+  PodUtils/podssh#247), the warm restore on a new mailbox medium and the
+  mailbox by id (T-628, T-632), the SHA-256 answers of `pod-turn`
+  (T-631). Each consumer took `v0.46.0` to `v0.48.0` (#159, #160, #162
+  closed).
 - The move of podssh's waves 3 and 4 (PodUtils/podssh#248, the ruling
   "The move of podssh"): podssh froze `transit/`, `acme/`, `piping/`,
   `opentunnel/` and `derp/` at podssh `b9c04657`; agents import them.

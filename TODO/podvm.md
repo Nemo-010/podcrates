@@ -8078,6 +8078,12 @@ Measured on the QEMU 8.2.2 of this host (call C585): the root disk bus decides. 
 
 The live proof (call C586): `tests/windows_keep_live.rs` saves the idle guest after the two swaps and, after the USB control, restores it with a fourth command that must give `Start::Warm` and its outcome on the new medium. The runners of `guest-windows.yml` have QEMU 8.2.2, so the step prints the refusal there and runs where the QEMU of the runner saves the plan. The parent dispatches `guest-windows.yml` after the merge; the same run proves the `usb-bot` mailbox of T-632.
 
+The live step (GitHub run 43658174746, 2026-11-15, at 94b5ce3): "warm
+start: not run, the emulator cannot save the plan: ... non-migratable
+device: 0000:00:02.0/nvme". The QEMU 8.2.2 of the runner refuses the
+NVMe root disk of the plan, as call C585 measured; T-635 gives the bus
+of the root disk.
+
 # T-629: `pod-guest`: a plan with a boot medium gives the root disk no `bootindex`, so OVMF deletes the boot entry of the installed system
 
 **Source:** the first run of `guest-windows.yml` (GitHub run 43634720450, job 132568898323), a finding of T-602.
@@ -8197,6 +8203,12 @@ cargo test -p pod-guest --all-features
 2026-11-14, commit ed53a06. `swap::change_request` names the device of the mailbox by `id` (`plan::MAILBOX_ID`, `wqmbox`), and `swap::mailbox_locked` reads the entry of `query-block` whose `qdev` is that id (call C583). An id on `usb-storage` is not enough: `usb-storage` gives its medium to a SCSI disk that it makes with no id, and QEMU 8.2.2 answers `id` `wqmbox` with "Device does not have a block device backend". The USB mailbox is now `usb-bot` (`plan::MAILBOX_USB`, `wqmboxusb`) with `scsi-hd,...,id=wqmbox`: the disk that `usb-storage` makes, in the same USB class. The NVMe mailbox keeps its line: no command names it.
 
 `cargo test -p pod-guest --all-features --lib`: 163 passed, 1 ignored. The stand-in of a locked drive refuses `device` as QEMU with `-compat deprecated-input=reject` does; `a_real_emulator_changes_the_medium_of_a_usb_mailbox` and `a_real_emulator_changes_a_medium_that_the_guest_locked` run the QEMU 8.2.2 of the host with that option. Plant `guest-swap-names-the-drive-by-device`, caught by hand (five tests of `swap` fail on it); the patches of `guest-swap-no-force` and `guest-swap-lock-of-another-drive` follow the new code and are caught again. The device of the mailbox changed, so the live proof on Windows is the next run of `guest-windows.yml`: the parent dispatches it after the merge.
+
+The live proof: `guest-windows.yml` (GitHub run 43658174746, 2026-11-15, at
+94b5ce3) passed on Windows Server 2019 under KVM with the `usb-bot` and
+`scsi-hd` mailbox: "the swap gave two next commands to the agent, and
+both outcomes are right"; a write into a mounted USB or NVMe mailbox did
+not reach the agent.
 
 # T-633: `pod-guest`: the screen sign of the readiness fails on Validation OS, so the provision never types into a Windows guest
 
