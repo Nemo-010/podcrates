@@ -29,6 +29,7 @@ ALLOWED = {
     ("pod-hold", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
     ("pod-e2e", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
     ("pod-piping", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
+    ("pod-opentunnel", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
     ("pod-relay", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
     ("pod-relay", "plain-ws"): "for the tests of an embedder over plain TCP to the loopback; no binary turns it on",
     ("pod-oci", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
