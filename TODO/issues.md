@@ -180,5 +180,6 @@ numbers. `TODO/RULES.md` gives the rules.
 | #175 | [gh action] requested: the gates of main at 7998b72 and the release v0.52.0; the reruns of services.yml | closed (ci 43711409358, adoption 43711411992, release 43715190817; services 43715593746 failed, 43715625889 passed) | T-035, T-668, T-669, T-670, T-676, T-679, T-684, T-685 |
 | #176 | COORD-106: v0.52.0: pod-egress parts 2 and 3; the asks of podvm#395, #403, #406, #407 (to all) | closed (each consumer took it: podvm `d27cf271`, podnet `c0ab946`, podrunner `45bd964`, podssh `94ee6ac`) | T-035, T-668, T-669, T-670, T-671, T-672, T-676 |
 | #177 | [gh action] requested: ci, adoption, plants, secrets and deny on main at 3ee1988 | closed (ci, adoption, secrets, deny passed; plants missed two plants: T-689, T-557) | T-686, T-687, T-684 |
+| #178 | [gh action] requested: the gates of main at 44e9538 and the release v0.53.0 | open | T-686, T-687, T-688, T-684 |
 
 #79 to #81 are pull requests.
