@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**538 entries: 107 open, 9 partial, 6 blocked, 416 done.**
+**539 entries: 108 open, 9 partial, 6 blocked, 416 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 109 | 123 |
-| P2 | 45 | 3 | 4 | 220 | 272 |
+| P2 | 46 | 3 | 4 | 220 | 273 |
 | P3 | 51 | 3 | 2 | 85 | 141 |
-| **All** | 107 | 9 | 6 | 416 | 538 |
+| **All** | 108 | 9 | 6 | 416 | 539 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -585,3 +585,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-652](roads.md) | P3 | S | M4 | feature | open | `pod-egress`: the stage of a failed TLS or upgrade on the roads of VLESS, VMess and Trojan |
 | [T-668](upkeep.md) | P2 | S | M6 | feature | done | `pod-oci`: the token of the manifest for the parallel blob fetches of a pull (PodUtils/podvm#395) |
 | [T-669](podvm.md) | P2 | S | M6 | feature | done | `pod-enter`: a UTS namespace and a host name on the namespace rung (PodUtils/podvm#403) |
+| [T-670](podvm.md) | P2 | M | M6 | feature | open | `pod-enter`: the namespace rung through a user namespace, and its leg in `pod-hostprobe` (PodUtils/podvm#406) |

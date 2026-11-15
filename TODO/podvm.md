@@ -8565,3 +8565,32 @@ cargo test -p pod-enter --all-features
 ## Done
 
 2026-11-15, the commits of the change. `Plan::hostname` and the module `uts` (`NS_UTS_STEP` 21, `NS_HOSTNAME_STEP` 22, `MOST`); the child enters the UTS namespace and sets the name after the mounts of the namespace rung; `spawn_namespace` refuses in place of the fallback to chroot when the plan has a name, and `spawn_with` refuses a name on each entry with no namespace of its own. Unit tests (`uts::tests`: the checks, the refusal, the names of the steps); `tests/hostname.rs` with a static busybox, as root here: the payload sees `unit1` in `uname -n` and in `/proc/sys/kernel/hostname`, the host keeps its name, and a plan with no name sees the host's. With a wrong name in the plan the test failed. `scripts/ci/root-enter-confine-tests.sh` runs it as root in `ci.yml`. The plant `enter-hostname-not-set` (the child skips the two calls) is caught. `cargo test -p pod-enter --all-features` passed (189 unit tests); workspace clippy is clean.
+
+# T-670: `pod-enter`: the namespace rung through a user namespace, and its leg in `pod-hostprobe` (PodUtils/podvm#406)
+
+**Source:** PodUtils/podvm#406 (COORD-132 of podvm; PodUtils/podvm#397, PodUtils/podvm@T-1903).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P2
+**Effort:** M
+**Status:** open
+
+## Problem
+
+On a host where an unprivileged user can open user namespaces, podvm enters the userland rung and not the namespace rung. The namespace rung calls `unshare(CLONE_NEWNS)` in the user namespace of the caller, and the kernel needs `CAP_SYS_ADMIN` there, so an unprivileged caller gets `EPERM`; the probe reads the same (`clone(NEWNS)=EPERM`). podvm measured on its cloud host (kernel 6.18, uid 1000, no capabilities): `unshare -Urm sh -c 'mount -t tmpfs x /mnt'` works, and `podvm probe` selects `userland`. The ask: (1) `unshare(CLONE_NEWUSER | CLONE_NEWNS)` (and `CLONE_NEWUTS` of T-669) where `CLONE_NEWNS` alone gives `EPERM`; (2) `deny` into `/proc/self/setgroups`, then a one-line `uid_map` and `gid_map` (the caller's id to 0, as `unshare -Ur`); (3) the mounts and the chroot of the rung; (4) a named failure step for each new call; (5) a leg of `pod-hostprobe` that tries the same sequence, so that the selection takes the rung where it works. Files of the caller then show as uid 0 inside; podvm keeps its interposer view for each other id.
+
+## Premise
+
+- Read: PodUtils/podvm#406; `crates/pod-enter/src/launch.rs` (the child of the namespace rung), `crates/pod-enter/src/entry.rs` (`spawn_namespace`, `ns_setup_step`), `crates/pod-enter/src/uts.rs`; the probes of `pod-hostprobe` (`probes.rs`, `select.rs`).
+- Not measured: this sequence as a user with no capabilities here (this session runs as root; a test needs a user of its own or the runner of GitHub).
+
+## Approach
+
+The maps and the paths built before the fork; in the child, the user namespace first, then the maps, then the steps of the rung as now; a step byte for each call (`unshare(CLONE_NEWUSER)`, `setgroups`, `uid_map`, `gid_map`). The entry tries the namespace rung as now and, at `EPERM` of `unshare(CLONE_NEWNS)`, tries the form with a user namespace before the fallback to chroot. A leg of `pod-hostprobe` (in a child: the same unshare, the maps, a tmpfs mount) and the rung in the selection where it passes. Tests as a user with no capabilities in `ci.yml` (the runner's user); a plant for each guard.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+cargo test -p pod-hostprobe --all-features
+```
