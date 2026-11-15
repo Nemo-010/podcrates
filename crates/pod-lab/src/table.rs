@@ -1,5 +1,6 @@
-//! The profiles: the hosts of PodUtils/podrunner#180 and of
-//! PodUtils/podvm#424, each as data. A printed text names no issue and no
+//! The profiles: the hosts of PodUtils/podrunner#180, of
+//! PodUtils/podvm#424, of PodUtils/podssh#268 and of PodUtils/podnet#585,
+//! each as data. A printed text names no issue and no
 //! entry: `source` names the consumer, and `entry` is a number for the
 //! tests and the README.
 //!
@@ -10,7 +11,7 @@ use linux_raw_sys::errno as e;
 use pod_hostprobe::probes::USERNS_LEG;
 use pod_hostprobe::sys as k;
 
-use crate::profile::{Call, Expect, Hold, IdFact, LabFact, Observe, Part, Profile};
+use crate::profile::{Call, Expect, Hold, IdFact, LabFact, Observe, Part, Profile, When};
 
 const EPERM: i32 = e::EPERM as i32;
 const EACCES: i32 = e::EACCES as i32;
@@ -32,37 +33,42 @@ const NEWUSER: u32 = k::CLONE_NEWUSER as u32;
 /// filter cannot read its flags behind a pointer, and the C library then
 /// uses `clone`.
 const USERNS_OFF: &[Call] = &[
-    Call { name: "unshare(CLONE_NEWUSER)", nr: k::SYS_UNSHARE, errno: EPERM, flags: Some((0, NEWUSER)) },
+    Call {
+        name: "unshare(CLONE_NEWUSER)",
+        nr: k::SYS_UNSHARE,
+        errno: EPERM,
+        when: &[When::Bits { arg: 0, mask: NEWUSER }],
+    },
     Call {
         name: "clone(CLONE_NEWUSER)",
         nr: k::SYS_CLONE,
         errno: EPERM,
-        flags: Some((k::CLONE_FLAGS_ARG as u8, NEWUSER)),
+        when: &[When::Bits { arg: k::CLONE_FLAGS_ARG as u8, mask: NEWUSER }],
     },
-    Call { name: "clone3", nr: k::SYS_CLONE3, errno: ENOSYS, flags: None },
+    Call { name: "clone3", nr: k::SYS_CLONE3, errno: ENOSYS, when: &[] },
 ];
 
-const GETSOCKNAME: &[Call] = &[Call { name: "getsockname", nr: k::SYS_GETSOCKNAME, errno: EOPNOTSUPP, flags: None }];
+const GETSOCKNAME: &[Call] = &[Call { name: "getsockname", nr: k::SYS_GETSOCKNAME, errno: EOPNOTSUPP, when: &[] }];
 
-const CHROOT: &[Call] = &[Call { name: "chroot", nr: k::SYS_CHROOT, errno: EPERM, flags: None }];
+const CHROOT: &[Call] = &[Call { name: "chroot", nr: k::SYS_CHROOT, errno: EPERM, when: &[] }];
 
 /// The mount calls: a user namespace of AppArmor's
 /// `apparmor_restrict_unprivileged_userns` holds no capability, so each
 /// mount in it fails.
 const MOUNTS: &[Call] = &[
-    Call { name: "mount", nr: k::SYS_MOUNT, errno: EPERM, flags: None },
-    Call { name: "fsopen", nr: k::SYS_FSOPEN, errno: EPERM, flags: None },
-    Call { name: "fsmount", nr: k::SYS_FSMOUNT, errno: EPERM, flags: None },
-    Call { name: "move_mount", nr: k::SYS_MOVE_MOUNT, errno: EPERM, flags: None },
-    Call { name: "open_tree", nr: k::SYS_OPEN_TREE, errno: EPERM, flags: None },
+    Call { name: "mount", nr: k::SYS_MOUNT, errno: EPERM, when: &[] },
+    Call { name: "fsopen", nr: k::SYS_FSOPEN, errno: EPERM, when: &[] },
+    Call { name: "fsmount", nr: k::SYS_FSMOUNT, errno: EPERM, when: &[] },
+    Call { name: "move_mount", nr: k::SYS_MOVE_MOUNT, errno: EPERM, when: &[] },
+    Call { name: "open_tree", nr: k::SYS_OPEN_TREE, errno: EPERM, when: &[] },
 ];
 
 /// A kernel with no Landlock: the version query and the two other calls
 /// give `ENOSYS`.
 const NO_LANDLOCK: &[Call] = &[
-    Call { name: "landlock_create_ruleset", nr: k::SYS_LANDLOCK_CREATE_RULESET, errno: ENOSYS, flags: None },
-    Call { name: "landlock_add_rule", nr: k::SYS_LANDLOCK_ADD_RULE, errno: ENOSYS, flags: None },
-    Call { name: "landlock_restrict_self", nr: k::SYS_LANDLOCK_RESTRICT_SELF, errno: ENOSYS, flags: None },
+    Call { name: "landlock_create_ruleset", nr: k::SYS_LANDLOCK_CREATE_RULESET, errno: ENOSYS, when: &[] },
+    Call { name: "landlock_add_rule", nr: k::SYS_LANDLOCK_ADD_RULE, errno: ENOSYS, when: &[] },
+    Call { name: "landlock_restrict_self", nr: k::SYS_LANDLOCK_RESTRICT_SELF, errno: ENOSYS, when: &[] },
 ];
 
 const READ_DIR: u64 = k::LANDLOCK_ACCESS_FS_READ_DIR as u64;
@@ -76,6 +82,14 @@ const NETWORK: &str = "the network labs of podnet";
 
 const fn row(row: &'static str, expect: Expect) -> Observe {
     Observe::Row { row, expect }
+}
+
+mod parts;
+use parts::*;
+
+/// A profile of the classes of podssh and podnet.
+const fn class(name: &'static str, about: &'static str, source: &'static str, parts: &'static [Part]) -> Profile {
+    Profile { name, about, source, parts }
 }
 
 const NO_KVM: Part = Part {
@@ -144,7 +158,7 @@ pub static PROFILES: &[Profile] = &[
     Profile {
         name: "proxy-only",
         about: "no direct connection out; only an HTTP proxy reaches out",
-        source: "podrunner",
+        source: "podrunner, podssh, podnet",
         parts: &[
             Part {
                 name: "direct-refused",
@@ -330,6 +344,39 @@ pub static PROFILES: &[Profile] = &[
             hold: Hold::Tmpfs { size: None, noexec: true },
         }],
     },
+    class("listen-denied", "bind passes, and listen gives EACCES", "podssh", &[BIND_ALLOWED, LISTEN_REFUSED]),
+    class("udp-denied", "no UDP: a UDP socket gives EPERM", "podnet, podssh", &[UDP_REFUSED]),
+    class("raw-denied", "raw and packet sockets give EPERM", "podnet", &[RAW_REFUSED]),
+    class(
+        "no-ptmx",
+        "no /dev/ptmx, no /dev/pts, and no controlling terminal",
+        "podssh",
+        &[PTMX_ABSENT, NO_CTTY, TTY_OPENS],
+    ),
+    class(
+        "no-passwd-entry",
+        "the uid has no line in /etc/passwd, the gid none in /etc/group",
+        "podssh",
+        &[NO_ID_LINES],
+    ),
+    class("noexec-home", "HOME is writable and noexec; /tmp runs programs", "podssh", &[HOME_NOEXEC, TMP_EXEC]),
+    class("no-proc", "no /proc", "podssh", &[PROC_ABSENT]),
+    class(
+        "seccomp-nonewprivs",
+        "NoNewPrivs, no capability, and unshare, mount, chroot and ptrace refused",
+        "podssh",
+        &[NNP_SET, NO_CAPS, CALLS_REFUSED],
+    ),
+    class("no-tun", "no /dev/net/tun", "podssh, podnet", &[TUN_ABSENT]),
+    class("no-net-admin", "no CAP_NET_ADMIN and no /dev/net/tun", "podnet", &[NO_NET_ADMIN, TUN_ABSENT]),
+    class("ro-etc-ssl", "/etc/ssl is read-only", "podssh", &[ETC_SSL_READ_ONLY]),
+    class("no-loopback", "no address on the loopback; AF_UNIX holds", "podnet", &[LOOPBACK_ABSENT, UNIX_ALLOWED]),
+    class("proxy-tls-reterminate", "the proxy shows its own CA for some names", "podssh", TLS_RETERMINATED),
+    class("proxy-per-name", "the proxy answers each name in its own way", "podssh", PER_NAME),
+    class("sni-allowlist", "no proxy; TLS is reset for a name not on the list", "podssh", SNI),
+    class("no-proxy-no-dns", "no proxy and no resolver; only IP literals connect", "podssh", NO_DNS),
+    class("ws-upgrade-refused", "the proxy refuses the WebSocket upgrade", "podssh", WS_REFUSED),
+    class("ipv6-only", "no IPv4 route", "podnet", IPV6_ONLY),
 ];
 
 /// The profile of this name in `profiles`.

@@ -20,7 +20,7 @@ use pod_hostprobe::sys as k;
 
 use crate::check::{PartVerdict, Seen, State, Verdict, check_with};
 use crate::profile::{Hold, Profile};
-use crate::{Settings, hold, inside, table};
+use crate::{Settings, hold, inside, mounts, table};
 
 /// The choices of a run.
 #[derive(Debug, Default)]
@@ -227,12 +227,27 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
     std::process::exit(if errno == k::ENOENT.0 { crate::codes::EXIT_NOT_FOUND } else { crate::codes::EXIT_CANNOT_EXEC })
 }
 
-/// Set each part, in the order: the mount namespace, the descriptors,
-/// Landlock, `no_new_privs`, then the one seccomp filter last, so that the
-/// filter does not refuse a call of the setup. One entry for each part:
-/// `Some(why)` where the part could not be set.
+/// Set each part, in the order: the mount namespace, the descriptors and
+/// the session, Landlock and `no_new_privs`, the drop of the
+/// capabilities, then the one seccomp filter last, so that the filter does
+/// not refuse a call of the setup. One entry for each part: `Some(why)`
+/// where the part could not be set.
 fn setup(profile: &Profile) -> Vec<Option<String>> {
     let mut why: Vec<Option<String>> = profile.parts.iter().map(|p| hold::cannot(p.hold)).collect();
+    // Each mount in one namespace.
+    let at: Vec<usize> =
+        (0..profile.parts.len()).filter(|&i| why[i].is_none() && mounts::is_mount(profile.parts[i].hold)).collect();
+    if !at.is_empty() {
+        let holds: Vec<Hold> = at.iter().map(|&i| profile.parts[i].hold).collect();
+        match mounts::holds(&holds) {
+            Ok(each) => {
+                for (&i, r) in at.iter().zip(each) {
+                    why[i] = r.err();
+                }
+            }
+            Err(e) => at.iter().for_each(|&i| why[i] = Some(e.clone())),
+        }
+    }
     let mut each = |rank: u8, f: &dyn Fn(Hold) -> Option<Result<(), String>>| {
         for (i, p) in profile.parts.iter().enumerate() {
             if why[i].is_some() || order(p.hold) != rank {
@@ -243,18 +258,21 @@ fn setup(profile: &Profile) -> Vec<Option<String>> {
             }
         }
     };
-    each(0, &|h| match h {
-        Hold::Tmpfs { size, noexec } => Some(hold::tmpfs(size, noexec)),
-        _ => None,
-    });
     each(1, &|h| match h {
         Hold::Fds { last } => Some(hold::fds(last)),
+        Hold::NoCtty => Some(hold::no_ctty()),
         _ => None,
     });
     each(2, &|h| match h {
         Hold::LandlockTcp => Some(hold::landlock_tcp()),
         Hold::Hide { path, rights } => Some(hold::hide(path, rights)),
         Hold::NoNewPrivs => Some(k::set_no_new_privs().map(|_| ()).map_err(|e| format!("prctl: {}", e.name()))),
+        _ => None,
+    });
+    // After Landlock: a ruleset of a hidden path reads each directory on the
+    // way, which root does with its capabilities.
+    each(3, &|h| match h {
+        Hold::DropCaps => Some(hold::drop_caps()),
         _ => None,
     });
     // One filter for each rule of each part that is still set.
@@ -269,7 +287,7 @@ fn setup(profile: &Profile) -> Vec<Option<String>> {
         && let Err(e) = hold::seccomp(&rules)
     {
         for (i, p) in profile.parts.iter().enumerate() {
-            if order(p.hold) == 3 && why[i].is_none() {
+            if order(p.hold) == 4 && why[i].is_none() {
                 why[i] = Some(e.clone());
             }
         }
@@ -280,11 +298,12 @@ fn setup(profile: &Profile) -> Vec<Option<String>> {
 /// The rank of a hold in [`setup`].
 fn order(h: Hold) -> u8 {
     match h {
-        Hold::Tmpfs { .. } => 0,
-        Hold::Fds { .. } => 1,
+        _ if mounts::is_mount(h) => 0,
+        Hold::Fds { .. } | Hold::NoCtty => 1,
         Hold::LandlockTcp | Hold::Hide { .. } | Hold::NoNewPrivs => 2,
-        Hold::Seccomp(_) | Hold::ConfineDefaults => 3,
-        Hold::NonRoot | Hold::Host | Hold::Elsewhere(_) => 4,
+        Hold::DropCaps => 3,
+        Hold::Seccomp(_) | Hold::ConfineDefaults => 4,
+        _ => 5,
     }
 }
 

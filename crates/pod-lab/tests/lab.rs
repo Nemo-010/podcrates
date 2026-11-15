@@ -2,9 +2,10 @@
 //! payload (this binary, or `/bin/sh` of the host), a profile that the lab
 //! cannot hold, and a profile whose check inside the lab fails.
 //!
-//! As root, the test starts itself again as uid 65534 (the kernel clears
-//! each capability), as CI runs it as a user. Where uid 65534 cannot reach
-//! this binary, the test runs as root and says so. A case that the host
+//! As root, each case runs as root, then the test starts itself again as
+//! uid 65534 (the kernel clears each capability), as CI runs it as a user.
+//! Where uid 65534 cannot reach this binary, the test says so. The classes
+//! of podssh and podnet are in `lab/hosts.rs`. A case that the host
 //! cannot give says `skipping` with the reason; `scripts/ci/userns-tests.sh`
 //! fails on that line. No libtest (`harness = false`): the binary reads the
 //! flag of a lab process, of a probe child and of a payload first, and has
@@ -15,33 +16,65 @@
 mod payload;
 
 #[cfg(target_os = "linux")]
+#[path = "lab/hosts_payload.rs"]
+mod hosts_payload;
+
+#[cfg(target_os = "linux")]
+#[path = "lab/hosts.rs"]
+mod hosts;
+
+#[cfg(target_os = "linux")]
 mod cases {
     use std::ffi::OsString;
     use std::io::Read;
 
-    use pod_lab::{Expect, Hold, Observe, Options, Part, Profile, RunError, Settings, State};
+    use pod_lab::{Expect, Hold, IdFact, LabFact, Observe, Options, Part, Profile, RunError, Settings, State};
     use pod_testkit::host::skip_line;
 
-    /// A profile that never holds: `chroot(/tmp)` gives `EPERM` to a user
-    /// and succeeds for root, never `EINVAL`.
-    static NEVER: &[Profile] = &[Profile {
-        name: "never-holds",
-        about: "a part that no host holds",
-        source: "tests/lab.rs",
-        parts: &[Part {
-            name: "chroot-einval",
-            about: "chroot(/tmp) gives EINVAL",
-            observe: &[Observe::Row { row: "chroot(/tmp)", expect: Expect::Refused(&[22]) }],
-            hold: Hold::Host,
-        }],
-    }];
+    /// The profiles of the tests. `never-holds`: `chroot(/tmp)` gives
+    /// `EPERM` to a user and succeeds for root, never `EINVAL`.
+    /// `caps-dropped`: a mount, which gives a caller that is not root each
+    /// capability in its user namespace until the exec, and the drop of
+    /// the capabilities, which the identity of the lab shows.
+    static TESTS: &[Profile] = &[
+        Profile {
+            name: "never-holds",
+            about: "a part that no host holds",
+            source: "tests/lab.rs",
+            parts: &[Part {
+                name: "chroot-einval",
+                about: "chroot(/tmp) gives EINVAL",
+                observe: &[Observe::Row { row: "chroot(/tmp)", expect: Expect::Refused(&[22]) }],
+                hold: Hold::Host,
+            }],
+        },
+        Profile {
+            name: "caps-dropped",
+            about: "a tmpfs, and no capability in the lab",
+            source: "tests/lab.rs",
+            parts: &[
+                Part {
+                    name: "tmp",
+                    about: "a tmpfs on /tmp",
+                    observe: &[Observe::Lab(LabFact::TmpdirAtMost(u64::MAX))],
+                    hold: Hold::Tmpfs { size: None, noexec: false },
+                },
+                Part {
+                    name: "no-caps",
+                    about: "CapEff is 0 in the lab",
+                    observe: &[Observe::Identity(IdFact::NoCaps)],
+                    hold: Hold::DropCaps,
+                },
+            ],
+        },
+    ];
 
     pub fn settings() -> Settings {
         Settings::default()
     }
 
     pub fn test_settings() -> Settings {
-        Settings { lab_flag: "--podlab-test-lab".to_string(), profiles: NEVER, ..Settings::default() }
+        Settings { lab_flag: "--podlab-test-lab".to_string(), profiles: TESTS, ..Settings::default() }
     }
 
     /// This binary, as the lab process sees it: a tmpfs on `/tmp` hides a
@@ -51,7 +84,7 @@ mod cases {
         "/proc/self/exe".into()
     }
 
-    fn payload(kind: &str) -> Vec<OsString> {
+    pub fn payload(kind: &str) -> Vec<OsString> {
         vec![exe(), "--payload".into(), kind.into()]
     }
 
@@ -60,7 +93,7 @@ mod cases {
     }
 
     /// Run `cmd` in the lab `name`, with its standard output on a pipe.
-    fn run(
+    pub fn run(
         settings: &Settings,
         name: &str,
         cmd: &[OsString],
@@ -74,7 +107,7 @@ mod cases {
         (out, text)
     }
 
-    fn ran(name: &str, out: Result<pod_lab::Ran, RunError>, text: &str) -> i32 {
+    pub fn ran(name: &str, out: Result<pod_lab::Ran, RunError>, text: &str) -> i32 {
         match out {
             Ok(ran) => {
                 assert!(ran.verdict.holds(), "{name}: the lab ran with a part that does not hold: {:?}", ran.verdict);
@@ -161,6 +194,21 @@ mod cases {
         assert!(!m.exists(), "the command ran in a lab that does not hold");
         println!("a_part_that_does_not_hold_inside_stops_the_command: ok");
     }
+
+    /// The lab drops each capability: of root, and of a caller in the user
+    /// namespace of a mount.
+    pub fn caps_dropped() {
+        if !pod_testkit::nobody::is_root()
+            && let Err(why) = pod_testkit::host::userns()
+        {
+            skip_line(&format!("caps_dropped: the tmpfs of the lab needs a user namespace with a mount: {why}"));
+            return;
+        }
+        let (out, text) = run(&test_settings(), "caps-dropped", &payload("caps"), false);
+        assert_eq!(ran("caps-dropped", out, &text), 0, "{text}");
+        assert_eq!(text.trim(), "CapEff 0");
+        println!("caps_dropped: ok");
+    }
 }
 
 #[cfg(target_os = "linux")]
@@ -172,17 +220,28 @@ fn main() {
     if args.get(1).map(String::as_str) == Some("--payload") {
         std::process::exit(payload::main(args.get(2).map_or("", String::as_str)));
     }
-    if pod_testkit::nobody::is_root() {
-        match pod_testkit::nobody::again(&[], &[]) {
-            Ok(code) => std::process::exit(code),
-            Err(why) => println!("lab: as root: {why}"),
-        }
+    if args.get(1).map(String::as_str) == Some(hosts::CTTY_CHILD) {
+        hosts::ctty_child();
+    }
+    let as_root = pod_testkit::nobody::is_root();
+    if as_root {
+        println!("lab: as root");
     }
     cases::inherited_fds();
     cases::bind_denied();
     cases::small_tmp();
     cases::a_part_held_elsewhere_refuses_the_run();
     cases::a_part_that_does_not_hold_inside_stops_the_command();
+    cases::caps_dropped();
+    hosts::all();
+    // As root, each case runs again as uid 65534, as CI runs it as a user.
+    if as_root {
+        println!("lab: again as uid 65534");
+        match pod_testkit::nobody::again(&[], &[]) {
+            Ok(code) => std::process::exit(code),
+            Err(why) => println!("lab: not as uid 65534: {why}"),
+        }
+    }
 }
 
 #[cfg(not(target_os = "linux"))]

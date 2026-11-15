@@ -4,7 +4,7 @@
 
 podlab holds the classes of hostile hosts as profiles. A profile names the probe rows that each part refuses or allows.
 podlab check compares a profile with this host, or with a JSON report of pod-hostprobe. A part holds, fails, or cannot be observed here.
-podlab run runs a command in a lab of a profile. The lab holds each part with no root: a seccomp filter, Landlock, a tmpfs and inherited descriptors.
+podlab run runs a command in a lab of a profile. The lab holds each part with no root: a seccomp filter, Landlock, mounts in a user namespace, a network namespace and inherited descriptors.
 The lab measures the profile from inside before the command. A part that does not hold stops the run, unless --partial is given.
 
 Run `podlab man` for the manual, `podlab man --json` for the manual as JSON,
@@ -21,6 +21,7 @@ llms-full.txt has the manual and the documents in one file.
 ## Documents
 
 - [README.md](https://github.com/PodUtils/podcrates/blob/main/crates/pod-lab/README.md): The profiles, the check, the lab and the API of pod-lab.
+- [LANES.md](https://github.com/PodUtils/podcrates/blob/main/crates/pod-lab/LANES.md): The commands that each project runs in each profile.
 
 ## Manual
 

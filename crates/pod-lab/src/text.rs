@@ -57,7 +57,7 @@ fn each_text_of_each_profile_keeps_the_rules() {
             }
         }
     }
-    for f in [IdFact::NotRoot, IdFact::NoCaps, IdFact::NoNewPrivs, IdFact::SeccompFilter] {
+    for f in [IdFact::NotRoot, IdFact::NoCaps, IdFact::NoNewPrivs, IdFact::SeccompFilter, IdFact::NoNetAdmin] {
         check("identity", f.name());
     }
     for f in [
@@ -67,6 +67,17 @@ fn each_text_of_each_profile_keeps_the_rules() {
         LabFact::InetConnectRefused,
         LabFact::UnixAllowed,
         LabFact::GetsocknameRefused,
+        LabFact::BindAllowed,
+        LabFact::ListenRefused,
+        LabFact::UdpRefused,
+        LabFact::RawRefused,
+        LabFact::NoLoopback,
+        LabFact::Absent("/dev/pts"),
+        LabFact::NoControllingTerminal,
+        LabFact::TtyOpens,
+        LabFact::NoPasswdEntry,
+        LabFact::HomeNoexec,
+        LabFact::ReadOnlyMount("/etc/ssl"),
     ] {
         check("lab fact", &f.name());
         check("lab fact", &crate::check::unseen_fact(f).detail);
@@ -136,6 +147,9 @@ fn each_fixed_message_of_the_crate_keeps_the_rules() {
         ("table.rs", include_str!("table.rs")),
         ("check.rs", include_str!("check.rs")),
         ("hold.rs", include_str!("hold.rs")),
+        ("mounts.rs", include_str!("mounts.rs")),
+        ("facts.rs", include_str!("facts.rs")),
+        ("table/parts.rs", include_str!("table/parts.rs")),
         ("inside.rs", include_str!("inside.rs")),
         ("lab.rs", include_str!("lab.rs")),
         ("manual.rs", include_str!("manual.rs")),

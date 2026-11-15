@@ -35,10 +35,17 @@ pub fn facts() -> pod_manual::Facts {
     ];
     let lab = VarGroup {
         name: "The lab".into(),
-        vars: vec![Var {
-            used_by: "run".into(),
-            ..Var::sets(&["TMPDIR"], "/tmp for the command, where a part puts a tmpfs on /tmp")
-        }],
+        vars: vec![
+            Var {
+                used_by: "run".into(),
+                usage: pod_manual::Use::ReadsAndSets,
+                ..Var::sets(
+                    &["TMPDIR"],
+                    "The lab writes the files of the ids there. It is /tmp for the command, where a part puts a tmpfs on /tmp.",
+                )
+            },
+            Var { used_by: "run".into(), ..Var::reads(&["HOME"], "The directory that noexec-home binds with noexec.") },
+        ],
     };
     pod_manual::Facts { variables: vec![lab, pod_manual::pager::variables()], exits, ..pod_manual::Facts::default() }
 }

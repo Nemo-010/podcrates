@@ -11,7 +11,7 @@ use crate::PROFILES;
 const DESCRIPTION: &[&str] = &[
     "podlab holds the classes of hostile hosts as profiles. A profile names the probe rows that each part refuses or allows.",
     "podlab check compares a profile with this host, or with a JSON report of pod-hostprobe. A part holds, fails, or cannot be observed here.",
-    "podlab run runs a command in a lab of a profile. The lab holds each part with no root: a seccomp filter, Landlock, a tmpfs and inherited descriptors.",
+    "podlab run runs a command in a lab of a profile. The lab holds each part with no root: a seccomp filter, Landlock, mounts in a user namespace, a network namespace and inherited descriptors.",
     "The lab measures the profile from inside before the command. A part that does not hold stops the run, unless --partial is given.",
 ];
 
@@ -51,6 +51,7 @@ pub fn manual(cmd: clap::Command) -> Manual {
         example("podlab check userns-off", "Check the profile userns-off on this host."),
         example("podlab check bind-denied --report report.json", "Check a profile against a report of pod-hostprobe."),
         example("podlab run small-tmp -- sh -c 'df /tmp'", "Run a command in a lab with a small /tmp."),
+        example("podlab run no-ptmx -- sh -c 'ls /dev'", "Run a command in a lab with no pseudo terminal."),
         example(
             "podlab run --partial nonroot-nocaps -- id",
             "Run a command in the parts that hold, and name the others.",
@@ -64,11 +65,18 @@ pub fn manual(cmd: clap::Command) -> Manual {
 
 /// The documents of `llms.txt`. Their text is not in the binary.
 pub fn docs() -> Vec<pod_manual::llms::Doc> {
-    vec![pod_manual::llms::Doc {
-        path: s("README.md"),
-        meaning: s("The profiles, the check, the lab and the API of pod-lab."),
-        body: String::new(),
-    }]
+    vec![
+        pod_manual::llms::Doc {
+            path: s("README.md"),
+            meaning: s("The profiles, the check, the lab and the API of pod-lab."),
+            body: String::new(),
+        },
+        pod_manual::llms::Doc {
+            path: s("LANES.md"),
+            meaning: s("The commands that each project runs in each profile."),
+            body: String::new(),
+        },
+    ]
 }
 
 /// The base of the links of `llms.txt`.

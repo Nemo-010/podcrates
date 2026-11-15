@@ -8,6 +8,7 @@ use pod_hostprobe::sys::{self as k, Errno};
 use pod_hostprobe::{Findings, Settings, identity};
 
 use crate::check::{Seen, State};
+use crate::facts;
 use crate::profile::{LabFact, Observe, Profile};
 
 /// The rows that `profile` names, each once, in the order of the profile.
@@ -43,11 +44,11 @@ pub fn measure(settings: &Settings, rows: &[&'static str]) -> Findings {
     f
 }
 
-fn seen(fact: LabFact, state: State, errno: Option<Errno>, detail: impl Into<String>) -> Seen {
+pub(crate) fn seen(fact: LabFact, state: State, errno: Option<Errno>, detail: impl Into<String>) -> Seen {
     Seen { what: fact.name(), state, errno: errno.map(|e| e.0), detail: detail.into() }
 }
 
-fn errno_words(e: Errno) -> String {
+pub(crate) fn errno_words(e: Errno) -> String {
     format!("{} ({})", e.name(), e.0)
 }
 
@@ -66,7 +67,7 @@ fn refused(fact: LabFact, call: &str, r: Result<i64, Errno>, want: Errno) -> See
 }
 
 /// A TCP socket of `family`, or the seen of its refusal.
-fn tcp_socket(fact: LabFact, family: u64) -> Result<i64, Seen> {
+pub(crate) fn tcp_socket(fact: LabFact, family: u64) -> Result<i64, Seen> {
     k::socket(family, k::SOCK_STREAM | k::SOCK_CLOEXEC, 0)
         .map_err(|e| seen(fact, State::Unseen, Some(e), format!("socket(2) failed: {}", errno_words(e))))
 }
@@ -123,6 +124,16 @@ pub fn lab_fact(fact: LabFact) -> Seen {
             refused(fact, "connect(127.0.0.1:1)", r, EACCES)
         }
         LabFact::UnixAllowed => unix(fact),
+        LabFact::BindAllowed | LabFact::ListenRefused => facts::listen(fact),
+        LabFact::UdpRefused => facts::udp(fact),
+        LabFact::RawRefused => facts::raw(fact),
+        LabFact::NoLoopback => facts::no_loopback(fact),
+        LabFact::Absent(path) => facts::absent(fact, path),
+        LabFact::NoControllingTerminal => facts::no_ctty(fact),
+        LabFact::TtyOpens => facts::tty_opens(fact),
+        LabFact::NoPasswdEntry => facts::no_passwd_entry(fact),
+        LabFact::HomeNoexec => facts::home_noexec(fact),
+        LabFact::ReadOnlyMount(path) => facts::read_only(fact, path),
         LabFact::GetsocknameRefused => {
             let fd = match tcp_socket(fact, k::AF_INET) {
                 Ok(fd) => fd,

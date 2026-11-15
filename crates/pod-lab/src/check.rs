@@ -200,6 +200,9 @@ pub fn judge(row: &str, expect: Expect, outcome: &Outcome) -> Seen {
     }
 }
 
+/// The bit of `CAP_NET_ADMIN` in a capability set.
+const CAP_NET_ADMIN: u32 = 12;
+
 /// One fact of the identity.
 pub fn identity(fact: IdFact, id: &Identity) -> Seen {
     let field = |value: &Option<String>, want: &str| match value {
@@ -215,6 +218,12 @@ pub fn identity(fact: IdFact, id: &Identity) -> Seen {
             Some(Err(_)) => (State::Unseen, "the field is not a hexadecimal number".to_string()),
             Some(Ok(0)) => (State::Holds, "0".to_string()),
             Some(Ok(n)) => (State::Fails, format!("{n:016x}; the profile wants 0")),
+        },
+        IdFact::NoNetAdmin => match id.cap_eff.as_deref().map(|v| u64::from_str_radix(v.trim(), 16)) {
+            None => (State::Unseen, "the field is absent".to_string()),
+            Some(Err(_)) => (State::Unseen, "the field is not a hexadecimal number".to_string()),
+            Some(Ok(n)) if n & (1 << CAP_NET_ADMIN) == 0 => (State::Holds, format!("{n:016x}")),
+            Some(Ok(n)) => (State::Fails, format!("{n:016x}; the profile wants no CAP_NET_ADMIN")),
         },
         IdFact::NoNewPrivs => field(&id.no_new_privs, "1"),
         IdFact::SeccompFilter => field(&id.seccomp, "2"),

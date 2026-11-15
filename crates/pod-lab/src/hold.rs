@@ -1,6 +1,7 @@
 //! The mechanisms that hold the parts of a lab, in the lab process before
-//! the command: the mount namespace with its tmpfs, the descriptors, the
-//! Landlock rulesets, `no_new_privs` and the seccomp filter.
+//! the command: the descriptors, the session, the Landlock rulesets,
+//! `no_new_privs`, the drop of the capabilities and the seccomp filter.
+//! [`crate::mounts`] holds the mount namespace.
 //!
 //! The lab process has one thread (a fresh exec of the binary), so it can
 //! enter a user namespace. Each function gives the reason of a refusal in
@@ -9,31 +10,31 @@
 use pod_confine::deny::{Deny, program};
 use pod_confine::spec::FILE_RIGHTS;
 use pod_hostprobe::sys::{self as k, CBuf, Errno};
-use pod_hostprobe::userns;
 
-use crate::profile::{Call, Hold};
+use crate::profile::{Call, Hold, When};
 
-fn c(s: &str) -> Result<CBuf, String> {
+pub(crate) fn c(s: &str) -> Result<CBuf, String> {
     CBuf::new(s).ok_or_else(|| format!("the path {s:?} holds a NUL"))
 }
 
-fn words(call: &str, e: Errno) -> String {
+pub(crate) fn words(call: &str, e: Errno) -> String {
     format!("{call}: {} ({})", e.name(), e.0)
 }
 
-fn euid() -> u32 {
+pub(crate) fn euid() -> u32 {
     // SAFETY: no pointer; geteuid always succeeds.
     unsafe { k::sys(k::SYS_GETEUID, [0; 6]) }.map_or(0, |n| n as u32)
 }
 
-fn egid() -> u32 {
+pub(crate) fn egid() -> u32 {
     // SAFETY: as above.
     unsafe { k::sys(k::SYS_GETEGID, [0; 6]) }.map_or(0, |n| n as u32)
 }
 
-/// Write `bytes` into `path` in one `write(2)`, as the kernel takes a map.
-fn write_once(path: &str, bytes: &[u8]) -> Result<(), String> {
-    let fd = k::open(&c(path)?, k::O_WRONLY | k::O_CLOEXEC, 0).map_err(|e| words(path, e))?;
+/// Write `bytes` into `path` under the directory `dir` in one `write(2)`,
+/// as the kernel takes a map.
+pub(crate) fn write_once(dir: i64, path: &str, bytes: &[u8]) -> Result<(), String> {
+    let fd = k::openat(dir, &c(path)?, k::O_WRONLY | k::O_CLOEXEC, 0).map_err(|e| words(path, e))?;
     let n = k::write(fd, bytes);
     let _ = k::close(fd);
     match n {
@@ -41,43 +42,6 @@ fn write_once(path: &str, bytes: &[u8]) -> Result<(), String> {
         Ok(_) => Err(format!("{path}: a short write")),
         Err(e) => Err(words(path, e)),
     }
-}
-
-/// A tmpfs on `/tmp` in a new mount namespace. As root, a mount namespace
-/// alone. As another user, a user namespace that maps the caller to 0, the
-/// mount namespace and the mount, then a second user namespace that maps
-/// the caller back to its own ids: the command runs as its own user with
-/// no capability, as on the host.
-pub fn tmpfs(size: Option<u64>, noexec: bool) -> Result<(), String> {
-    let (uid, gid) = (euid(), egid());
-    if uid != 0 {
-        userns::enter(&userns::Maps::new(uid, gid))
-            .map_err(|(step, e)| format!("the user namespace of the mount: {}", words(step.name(), e)))?;
-    }
-    k::unshare(k::CLONE_NEWNS).map_err(|e| words("unshare(CLONE_NEWNS)", e))?;
-    let none = k::cempty();
-    k::mount(&none, &c("/")?, &none, k::MS_REC | k::MS_PRIVATE).map_err(|e| words("mount(/, MS_PRIVATE)", e))?;
-    let mut data = "mode=1777".to_string();
-    if let Some(n) = size {
-        data.push_str(&format!(",size={n}"));
-    }
-    let mut flags = k::MS_NOSUID | k::MS_NODEV;
-    if noexec {
-        flags |= k::MS_NOEXEC;
-    }
-    k::mount_data(&c("tmpfs")?, &c("/tmp")?, &c("tmpfs")?, flags, &c(&data)?)
-        .map_err(|e| words("mount(tmpfs, /tmp)", e))?;
-    if uid != 0 {
-        k::unshare(k::CLONE_NEWUSER).map_err(|e| words("unshare(CLONE_NEWUSER) back to the caller", e))?;
-        match write_once("/proc/self/setgroups", b"deny") {
-            Ok(()) => {}
-            Err(why) if why.contains("ENOENT") => {}
-            Err(why) => return Err(why),
-        }
-        write_once("/proc/self/uid_map", format!("{uid} 0 1\n").as_bytes())?;
-        write_once("/proc/self/gid_map", format!("{gid} 0 1\n").as_bytes())?;
-    }
-    Ok(())
 }
 
 /// Close each descriptor from 3 up except `keep`: the lab starts from a
@@ -153,7 +117,12 @@ pub fn hide(path: &str, rights: u64) -> Result<(), String> {
                 break;
             }
             let next = steps.get(i).copied();
-            let list = std::fs::read_dir(&dir).map_err(|e| format!("a listing of {dir}: {e}"))?;
+            let list = match std::fs::read_dir(&dir) {
+                // The path is absent from here down: the rules so far hide
+                // nothing more, and the path stays absent.
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => break,
+                r => r.map_err(|e| format!("a listing of {dir}: {e}"))?,
+            };
             for entry in list.flatten() {
                 let name = entry.file_name();
                 let Some(name) = name.to_str() else { continue };
@@ -202,16 +171,45 @@ pub fn deny_rules(hold: Hold) -> Vec<Deny> {
 }
 
 fn deny(call: &Call) -> Deny {
-    let d = Deny::call(call.name, call.nr, call.errno as u16);
-    match call.flags {
-        Some((index, mask)) => d.when_flags(index, mask),
-        None => d,
-    }
+    call.when.iter().fold(Deny::call(call.name, call.nr, call.errno as u16), |d, w| match *w {
+        When::Bits { arg, mask } => d.when_flags(arg, mask),
+        When::Equal { arg, mask, value } => d.when_equal(arg, mask, value),
+    })
 }
 
 /// A target where `socket(2)` and its siblings can go through
-/// `socketcall(2)`: a filter of `getsockname` does not see that path.
+/// `socketcall(2)`: a filter of `socket`, `listen` or `getsockname` does
+/// not see that path.
 pub const SOCKETCALL: bool = cfg!(any(target_arch = "x86", target_arch = "s390x", target_arch = "powerpc64"));
+
+/// The socket calls that `socketcall(2)` also reaches.
+const SOCKET_CALLS: [i64; 3] = [k::SYS_SOCKET, k::SYS_LISTEN, k::SYS_GETSOCKNAME];
+
+/// No capability: the ambient set, the bounding set (where the lab holds
+/// `CAP_SETPCAP`), the three sets of the lab, then `no_new_privs`. An exec
+/// of root then gets no capability back, as the bounding set is empty and
+/// `no_new_privs` keeps the permitted set of the lab.
+pub fn drop_caps() -> Result<(), String> {
+    let _ = k::ambient_clear();
+    for cap in 0..64 {
+        match k::capbset_drop(cap) {
+            Ok(_) => {}
+            // Past the last capability of the kernel.
+            Err(e) if e == k::EINVAL => break,
+            // No CAP_SETPCAP: a caller that is not root. Its exec gets no
+            // capability from the bounding set with no_new_privs.
+            Err(e) if e == k::EPERM => break,
+            Err(e) => return Err(words("prctl(PR_CAPBSET_DROP)", e)),
+        }
+    }
+    k::capset(k::CapSets::default()).map_err(|e| words("capset", e))?;
+    k::set_no_new_privs().map_err(|e| words("prctl(PR_SET_NO_NEW_PRIVS)", e)).map(|_| ())
+}
+
+/// A new session, so that the lab has no controlling terminal.
+pub fn no_ctty() -> Result<(), String> {
+    k::setsid().map(|_| ()).map_err(|e| words("setsid", e))
+}
 
 /// The reason that a hold cannot run on this target or for this caller,
 /// before any change; `None` where it can try.
@@ -221,8 +219,8 @@ pub fn cannot(hold: Hold) -> Option<String> {
         Hold::NonRoot if euid() == 0 => {
             Some("the caller is root; a lab cannot drop root, so run the lab as a user that is not root".to_string())
         }
-        Hold::Seccomp(calls) if SOCKETCALL && calls.iter().any(|c| c.nr == k::SYS_GETSOCKNAME) => {
-            Some("on this target getsockname can go through socketcall(2), which the filter does not see".to_string())
+        Hold::Seccomp(calls) if SOCKETCALL && calls.iter().any(|c| SOCKET_CALLS.contains(&c.nr)) => {
+            Some("on this target a socket call can go through socketcall(2), which the filter does not see".to_string())
         }
         _ => None,
     }

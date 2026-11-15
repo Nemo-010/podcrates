@@ -13,7 +13,7 @@ pub fn main(kind: &str) -> i32 {
         "fds" => fds(),
         "net" => net(),
         "tmp" => tmp(),
-        _ => Err(format!("no payload {kind:?}")),
+        _ => crate::hosts_payload::main(kind),
     };
     match out {
         Ok(line) => {

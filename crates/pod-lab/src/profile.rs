@@ -65,6 +65,8 @@ pub enum IdFact {
     NoNewPrivs,
     /// `Seccomp` is 2 (a filter).
     SeccompFilter,
+    /// `CapEff` has no `CAP_NET_ADMIN` (bit 12).
+    NoNetAdmin,
 }
 
 impl IdFact {
@@ -74,6 +76,7 @@ impl IdFact {
             IdFact::NoCaps => "CapEff is 0",
             IdFact::NoNewPrivs => "NoNewPrivs is 1",
             IdFact::SeccompFilter => "Seccomp is 2",
+            IdFact::NoNetAdmin => "CapEff has no CAP_NET_ADMIN",
         }
     }
 }
@@ -95,6 +98,32 @@ pub enum LabFact {
     UnixAllowed,
     /// `getsockname(2)` of a TCP socket fails with `EOPNOTSUPP`.
     GetsocknameRefused,
+    /// A TCP bind of `127.0.0.1:0` succeeds.
+    BindAllowed,
+    /// After a TCP bind of `127.0.0.1:0`, `listen(2)` fails with `EACCES`
+    /// or `EPERM`.
+    ListenRefused,
+    /// A UDP socket of `AF_INET` and of `AF_INET6` fails with `EPERM` or
+    /// `EACCES`, or its connect does.
+    UdpRefused,
+    /// A raw socket of `AF_INET` and a packet socket fail with `EPERM`.
+    RawRefused,
+    /// A TCP connect of `127.0.0.1` fails with `ENETUNREACH`: no loopback.
+    NoLoopback,
+    /// The path does not exist (`ENOENT`).
+    Absent(&'static str),
+    /// The process has no controlling terminal (`tty_nr` of
+    /// `/proc/self/stat` is 0).
+    NoControllingTerminal,
+    /// `/dev/tty` opens, and a read finds no data (a blocking read waits).
+    TtyOpens,
+    /// `/etc/passwd` has no line for the uid, and `/etc/group` none for the
+    /// gid.
+    NoPasswdEntry,
+    /// `HOME` is writable, on a mount with `noexec`.
+    HomeNoexec,
+    /// The path is on a read-only mount.
+    ReadOnlyMount(&'static str),
 }
 
 impl LabFact {
@@ -107,6 +136,17 @@ impl LabFact {
             LabFact::InetConnectRefused => "connect(127.0.0.1:1) gives EACCES".to_string(),
             LabFact::UnixAllowed => "socket, bind and connect of AF_UNIX succeed".to_string(),
             LabFact::GetsocknameRefused => "getsockname(TCP socket) gives EOPNOTSUPP".to_string(),
+            LabFact::BindAllowed => "bind(127.0.0.1:0) succeeds".to_string(),
+            LabFact::ListenRefused => "listen after bind(127.0.0.1:0) gives EACCES or EPERM".to_string(),
+            LabFact::UdpRefused => "a UDP socket of AF_INET and AF_INET6 gives EPERM or EACCES".to_string(),
+            LabFact::RawRefused => "a raw socket and a packet socket give EPERM".to_string(),
+            LabFact::NoLoopback => "connect(127.0.0.1:1) gives ENETUNREACH".to_string(),
+            LabFact::Absent(path) => format!("{path} does not exist"),
+            LabFact::NoControllingTerminal => "no controlling terminal".to_string(),
+            LabFact::TtyOpens => "/dev/tty opens and has no data".to_string(),
+            LabFact::NoPasswdEntry => "no line of the uid in /etc/passwd and of the gid in /etc/group".to_string(),
+            LabFact::HomeNoexec => "HOME is writable and noexec".to_string(),
+            LabFact::ReadOnlyMount(path) => format!("{path} is on a read-only mount"),
         }
     }
 
@@ -120,6 +160,17 @@ impl LabFact {
             | LabFact::InetConnectRefused
             | LabFact::UnixAllowed
             | LabFact::GetsocknameRefused => 693,
+            LabFact::BindAllowed
+            | LabFact::ListenRefused
+            | LabFact::UdpRefused
+            | LabFact::RawRefused
+            | LabFact::NoLoopback => 714,
+            LabFact::Absent(_)
+            | LabFact::NoControllingTerminal
+            | LabFact::TtyOpens
+            | LabFact::NoPasswdEntry
+            | LabFact::HomeNoexec
+            | LabFact::ReadOnlyMount(_) => 715,
         }
     }
 }
@@ -132,8 +183,17 @@ pub struct Call {
     pub nr: i64,
     /// The errno of the refusal.
     pub errno: i32,
-    /// Refuse only where argument `.0` has a bit of the mask `.1`.
-    pub flags: Option<(u8, u32)>,
+    /// Refuse only where each condition holds; empty: each call.
+    pub when: &'static [When],
+}
+
+/// A condition of a [`Call`] on the low 32 bits of one argument.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum When {
+    /// Argument `arg` has a bit of `mask`.
+    Bits { arg: u8, mask: u32 },
+    /// Argument `arg`, masked with `mask`, is `value`.
+    Equal { arg: u8, mask: u32, value: u32 },
 }
 
 /// What makes a part hold in a lab.
@@ -158,6 +218,26 @@ pub enum Hold {
     NonRoot,
     /// `PR_SET_NO_NEW_PRIVS`.
     NoNewPrivs,
+    /// No capability: the bounding set, the ambient set and the three sets
+    /// of the lab are empty, and `no_new_privs` is set.
+    DropCaps,
+    /// A new session: the lab has no controlling terminal.
+    NoCtty,
+    /// A tmpfs on `/dev` with `null`, `zero`, `full`, `random` and
+    /// `urandom` of the host, and a FIFO at `/dev/tty`: no `/dev/ptmx`, no
+    /// `/dev/pts`.
+    DevNoPty,
+    /// `/etc/passwd` and `/etc/group` with no line of the ids of the caller,
+    /// bound over the files of the host.
+    NoPasswdEntry,
+    /// A bind of `HOME` over itself with `noexec`.
+    NoexecHome,
+    /// A read-only empty tmpfs on `/proc`.
+    NoProc,
+    /// A bind of `path` over itself, read-only.
+    ReadOnly { path: &'static str },
+    /// A new network namespace: its loopback is down and has no address.
+    NetNs,
     /// The host gives it; the lab changes nothing.
     Host,
     /// No lab of this crate holds it: the text names who holds it.
@@ -180,6 +260,14 @@ impl Hold {
             Hold::Fds { last } => format!("descriptors 3 to {last}"),
             Hold::NonRoot => "the caller is not root".to_string(),
             Hold::NoNewPrivs => "no_new_privs".to_string(),
+            Hold::DropCaps => "no capability, no_new_privs".to_string(),
+            Hold::NoCtty => "a new session with no controlling terminal".to_string(),
+            Hold::DevNoPty => "a tmpfs on /dev with no ptmx and no pts, a FIFO at /dev/tty".to_string(),
+            Hold::NoPasswdEntry => "/etc/passwd and /etc/group with no line of the caller".to_string(),
+            Hold::NoexecHome => "HOME bound noexec".to_string(),
+            Hold::NoProc => "an empty tmpfs on /proc".to_string(),
+            Hold::ReadOnly { path } => format!("{path} bound read-only"),
+            Hold::NetNs => "a network namespace with no loopback".to_string(),
             Hold::Host => "the host".to_string(),
             Hold::Elsewhere(who) => format!("not here: {who}"),
         }

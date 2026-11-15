@@ -21,10 +21,28 @@ fn each_profile_of_the_asks_is_in_the_table() {
         "landlock-old",
         "proc-masked",
         "noexec-tmp",
+        "listen-denied",
+        "udp-denied",
+        "raw-denied",
+        "no-ptmx",
+        "no-passwd-entry",
+        "noexec-home",
+        "no-proc",
+        "seccomp-nonewprivs",
+        "no-tun",
+        "no-net-admin",
+        "ro-etc-ssl",
+        "no-loopback",
+        "proxy-tls-reterminate",
+        "proxy-per-name",
+        "sni-allowlist",
+        "no-proxy-no-dns",
+        "ws-upgrade-refused",
+        "ipv6-only",
     ] {
         assert!(names.contains(&want), "the table has no profile {want}");
     }
-    assert_eq!(names.len(), 16, "{names:?}");
+    assert_eq!(names.len(), 34, "{names:?}");
 }
 
 #[test]
@@ -74,7 +92,12 @@ fn each_fact_with_no_row_names_its_entry() {
                     Observe::Nothing { entry, .. } => *entry,
                     _ => continue,
                 };
-                assert!((692..=699).contains(&entry), "{}/{}: {entry}", p.name, part.name);
+                assert!(
+                    (692..=699).contains(&entry) || (714..=716).contains(&entry),
+                    "{}/{}: {entry}",
+                    p.name,
+                    part.name
+                );
             }
         }
     }
@@ -108,4 +131,34 @@ fn the_filter_of_each_profile_compiles() {
             pod_confine::deny::program(&rules).unwrap_or_else(|f| panic!("{}: {f}", p.name));
         }
     }
+}
+
+/// The classes of podssh and podnet that a lab here holds: each part has a
+/// hold here, and each network class that needs a proxy or a route out has
+/// none.
+#[test]
+fn the_classes_of_podssh_and_podnet_are_held_or_named_elsewhere() {
+    let held = [
+        "listen-denied",
+        "udp-denied",
+        "raw-denied",
+        "no-ptmx",
+        "no-passwd-entry",
+        "noexec-home",
+        "no-proc",
+        "seccomp-nonewprivs",
+        "no-tun",
+        "no-net-admin",
+        "ro-etc-ssl",
+        "no-loopback",
+    ];
+    for name in held {
+        let p = find(PROFILES, name).expect("a profile");
+        assert!(p.parts.iter().all(|x| x.hold.here()), "{name}");
+    }
+    for name in ["proxy-tls-reterminate", "proxy-per-name", "sni-allowlist", "no-proxy-no-dns", "ws-upgrade-refused"] {
+        let p = find(PROFILES, name).expect("a profile");
+        assert!(p.parts.iter().all(|x| !x.hold.here()), "{name}");
+    }
+    assert!(find(PROFILES, "ipv6-only").expect("a profile").parts.iter().all(|x| !x.hold.here()));
 }

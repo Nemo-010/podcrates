@@ -1,0 +1,291 @@
+//! The parts and the filters of the classes of podssh
+//! (PodUtils/podssh#268) and podnet (PodUtils/podnet#585). The network
+//! classes that need a proxy or a route out are parts that no lab here
+//! holds; their entry is 716.
+
+use super::*;
+
+const ALL: u32 = u32::MAX;
+const TYPE: u32 = k::SOCK_TYPE_MASK as u32;
+const INET: u32 = k::AF_INET as u32;
+const INET6: u32 = k::AF_INET6 as u32;
+const DGRAM: u32 = k::SOCK_DGRAM as u32;
+const RAW: u32 = k::SOCK_RAW as u32;
+
+/// A ring makes a socket with no `socket(2)`: a rule on `socket` holds
+/// only with no ring.
+const IO_URING: Call = Call { name: "io_uring_setup", nr: k::SYS_IO_URING_SETUP, errno: EPERM, when: &[] };
+
+/// `socket(2)` of a family (argument 0) and a type (argument 1, with no
+/// flag bit) with `EPERM`.
+const fn socket(name: &'static str, when: &'static [When]) -> Call {
+    Call { name, nr: k::SYS_SOCKET, errno: EPERM, when }
+}
+
+const fn family(value: u32) -> When {
+    When::Equal { arg: 0, mask: ALL, value }
+}
+
+const fn kind(value: u32) -> When {
+    When::Equal { arg: 1, mask: TYPE, value }
+}
+
+const INET_DGRAM: &[When] = &[family(INET), kind(DGRAM)];
+const INET6_DGRAM: &[When] = &[family(INET6), kind(DGRAM)];
+const INET_RAW: &[When] = &[family(INET), kind(RAW)];
+const INET6_RAW: &[When] = &[family(INET6), kind(RAW)];
+const PACKET: &[When] = &[family(k::AF_PACKET as u32)];
+
+/// `listen(2)` with `EACCES`, as a policy of the kernel gives it.
+const LISTEN: &[Call] = &[Call { name: "listen", nr: k::SYS_LISTEN, errno: EACCES, when: &[] }];
+
+const UDP: &[Call] =
+    &[socket("socket(AF_INET, SOCK_DGRAM)", INET_DGRAM), socket("socket(AF_INET6, SOCK_DGRAM)", INET6_DGRAM), IO_URING];
+
+const RAW_CALLS: &[Call] = &[
+    socket("socket(AF_INET, SOCK_RAW)", INET_RAW),
+    socket("socket(AF_INET6, SOCK_RAW)", INET6_RAW),
+    socket("socket(AF_PACKET)", PACKET),
+    IO_URING,
+];
+
+const NAMESPACES: u32 = pod_confine::deny::NAMESPACE_FLAGS;
+
+/// The calls of a seccomp pod: the namespaces, the mounts, `chroot` and
+/// `ptrace`.
+const NNP: &[Call] = &[
+    Call {
+        name: "unshare",
+        nr: k::SYS_UNSHARE,
+        errno: EPERM,
+        when: &[When::Bits { arg: 0, mask: NAMESPACES | pod_confine::deny::CLONE_NEWTIME }],
+    },
+    Call {
+        name: "clone",
+        nr: k::SYS_CLONE,
+        errno: EPERM,
+        when: &[When::Bits { arg: k::CLONE_FLAGS_ARG as u8, mask: NAMESPACES }],
+    },
+    Call { name: "clone3", nr: k::SYS_CLONE3, errno: ENOSYS, when: &[] },
+    Call { name: "setns", nr: k::SYS_SETNS, errno: EPERM, when: &[] },
+    Call { name: "mount", nr: k::SYS_MOUNT, errno: EPERM, when: &[] },
+    Call { name: "umount2", nr: k::SYS_UMOUNT2, errno: EPERM, when: &[] },
+    Call { name: "pivot_root", nr: k::SYS_PIVOT_ROOT, errno: EPERM, when: &[] },
+    Call { name: "fsopen", nr: k::SYS_FSOPEN, errno: EPERM, when: &[] },
+    Call { name: "fsmount", nr: k::SYS_FSMOUNT, errno: EPERM, when: &[] },
+    Call { name: "move_mount", nr: k::SYS_MOVE_MOUNT, errno: EPERM, when: &[] },
+    Call { name: "open_tree", nr: k::SYS_OPEN_TREE, errno: EPERM, when: &[] },
+    Call { name: "chroot", nr: k::SYS_CHROOT, errno: EPERM, when: &[] },
+    Call { name: "ptrace", nr: k::SYS_PTRACE, errno: EPERM, when: &[] },
+];
+
+pub(super) const BIND_ALLOWED: Part = Part {
+    name: "bind-allowed",
+    about: "a TCP bind of 127.0.0.1:0 succeeds",
+    observe: &[Observe::Lab(LabFact::BindAllowed)],
+    hold: Hold::Host,
+};
+
+pub(super) const LISTEN_REFUSED: Part = Part {
+    name: "listen-refused",
+    about: "listen after a bind gives EACCES or EPERM",
+    observe: &[
+        row("bind(127.0.0.1:0)+listen", Expect::Refused(&[EACCES, EPERM])),
+        Observe::Lab(LabFact::ListenRefused),
+    ],
+    hold: Hold::Seccomp(LISTEN),
+};
+
+pub(super) const UDP_REFUSED: Part = Part {
+    name: "udp-refused",
+    about: "a UDP socket of AF_INET and AF_INET6 gives EPERM",
+    observe: &[Observe::Lab(LabFact::UdpRefused)],
+    hold: Hold::Seccomp(UDP),
+};
+
+pub(super) const RAW_REFUSED: Part = Part {
+    name: "raw-refused",
+    about: "a raw socket and a packet socket give EPERM",
+    observe: &[Observe::Lab(LabFact::RawRefused)],
+    hold: Hold::Seccomp(RAW_CALLS),
+};
+
+pub(super) const PTMX_ABSENT: Part = Part {
+    name: "ptmx-absent",
+    about: "no /dev/ptmx and no /dev/pts",
+    observe: &[
+        row("stat(/dev/ptmx)", Expect::Refused(&[ENOENT])),
+        row("open(/dev/ptmx, O_RDWR)", Expect::Refused(&[ENOENT])),
+        Observe::Lab(LabFact::Absent("/dev/pts")),
+    ],
+    hold: Hold::DevNoPty,
+};
+
+pub(super) const NO_CTTY: Part = Part {
+    name: "no-ctty",
+    about: "the process has no controlling terminal",
+    observe: &[Observe::Lab(LabFact::NoControllingTerminal)],
+    hold: Hold::NoCtty,
+};
+
+pub(super) const TTY_OPENS: Part = Part {
+    name: "tty-opens",
+    about: "/dev/tty opens, and a read of it waits",
+    observe: &[Observe::Lab(LabFact::TtyOpens)],
+    hold: Hold::DevNoPty,
+};
+
+pub(super) const NO_ID_LINES: Part = Part {
+    name: "no-id-lines",
+    about: "/etc/passwd has no line of the uid, and /etc/group none of the gid",
+    observe: &[Observe::Lab(LabFact::NoPasswdEntry)],
+    hold: Hold::NoPasswdEntry,
+};
+
+pub(super) const HOME_NOEXEC: Part = Part {
+    name: "home-noexec",
+    about: "HOME is writable and on a noexec mount",
+    observe: &[Observe::Lab(LabFact::HomeNoexec)],
+    hold: Hold::NoexecHome,
+};
+
+pub(super) const TMP_EXEC: Part = Part {
+    name: "tmp-exec",
+    about: "a file in /tmp runs",
+    observe: &[row("exec(/tmp/execprobe)", Expect::Allowed)],
+    hold: Hold::Host,
+};
+
+pub(super) const PROC_ABSENT: Part = Part {
+    name: "proc-absent",
+    about: "no /proc: the path of the running binary is not known",
+    observe: &[Observe::Lab(LabFact::Absent("/proc/self/exe"))],
+    hold: Hold::NoProc,
+};
+
+pub(super) const NNP_SET: Part = Part {
+    name: "no-new-privs",
+    about: "NoNewPrivs is 1",
+    observe: &[Observe::Identity(IdFact::NoNewPrivs)],
+    hold: Hold::NoNewPrivs,
+};
+
+pub(super) const NO_CAPS: Part = Part {
+    name: "no-caps",
+    about: "no effective capability, and mknod of a device fails",
+    observe: &[Observe::Identity(IdFact::NoCaps), row("mknod(chr 1:3 /tmp/nodprobe)", Expect::Refused(&[EPERM]))],
+    hold: Hold::DropCaps,
+};
+
+pub(super) const CALLS_REFUSED: Part = Part {
+    name: "calls-refused",
+    about: "a seccomp filter refuses unshare, mount, chroot and ptrace",
+    observe: &[
+        Observe::Identity(IdFact::SeccompFilter),
+        row("unshare(CLONE_NEWUSER)", Expect::Refused(&[EPERM])),
+        row("unshare(CLONE_NEWNS)", Expect::Refused(&[EPERM])),
+        row("mount(2) bogus target", Expect::Refused(&[EPERM])),
+        row("chroot(/tmp)", Expect::Refused(&[EPERM])),
+        row("ptrace(PTRACE_TRACEME)", Expect::Refused(&[EPERM])),
+    ],
+    hold: Hold::Seccomp(NNP),
+};
+
+pub(super) const TUN_ABSENT: Part = Part {
+    name: "tun-absent",
+    about: "/dev/net/tun does not open",
+    observe: &[row("open(/dev/net/tun, O_RDWR)", Expect::Refused(&[ENOENT, EACCES]))],
+    hold: Hold::Hide { path: "/dev/net/tun", rights: READ_FILE | WRITE_FILE },
+};
+
+pub(super) const NO_NET_ADMIN: Part = Part {
+    name: "no-net-admin",
+    about: "no CAP_NET_ADMIN",
+    observe: &[Observe::Identity(IdFact::NoNetAdmin)],
+    hold: Hold::DropCaps,
+};
+
+pub(super) const ETC_SSL_READ_ONLY: Part = Part {
+    name: "etc-ssl-read-only",
+    about: "/etc/ssl is on a read-only mount",
+    observe: &[Observe::Lab(LabFact::ReadOnlyMount("/etc/ssl"))],
+    hold: Hold::ReadOnly { path: "/etc/ssl" },
+};
+
+pub(super) const LOOPBACK_ABSENT: Part = Part {
+    name: "loopback-absent",
+    about: "the loopback is down: a connect to 127.0.0.1 fails",
+    // A fresh network namespace still takes a bind of 127.0.0.1: no row of
+    // a bind shows the class.
+    observe: &[Observe::Lab(LabFact::NoLoopback)],
+    hold: Hold::NetNs,
+};
+
+pub(super) const UNIX_ALLOWED: Part = Part {
+    name: "unix-allowed",
+    about: "socket, bind and connect of AF_UNIX succeed",
+    observe: &[Observe::Lab(LabFact::UnixAllowed)],
+    hold: Hold::Host,
+};
+
+/// A part of a network class that no lab here holds.
+const fn net(name: &'static str, about: &'static str, needs: &'static [Observe]) -> Part {
+    Part { name, about, observe: needs, hold: Hold::Elsewhere(NETWORK) }
+}
+
+const fn needs(text: &'static str) -> Observe {
+    Observe::Nothing { needs: text, entry: 716 }
+}
+
+pub(super) const TLS_RETERMINATED: &[Part] = &[
+    net(
+        "tls-reterminated",
+        "the proxy shows its own CA for some names",
+        &[needs("a TLS handshake through the proxy that shows the CA of the proxy")],
+    ),
+    net(
+        "ssh-port-silent",
+        "CONNECT to port 22 gets 200, then no byte",
+        &[needs("a CONNECT to port 22 that gets 200 and then no byte")],
+    ),
+];
+
+pub(super) const PER_NAME: &[Part] = &[net(
+    "answer-per-name",
+    "the proxy answers 200 for one name and 504 for another",
+    &[needs("two CONNECT requests that get 200 for one name and 504 for another")],
+)];
+
+pub(super) const SNI: &[Part] = &[net(
+    "sni-reset",
+    "a ClientHello with a name not on the list, or with no name, is reset",
+    &[needs("a ClientHello with a name not on the list, and one with no name, that the network resets")],
+)];
+
+pub(super) const NO_DNS: &[Part] = &[
+    net("no-resolver", "a lookup of a name fails", &[needs("a lookup of a name with no proxy")]),
+    net(
+        "literal-reaches",
+        "a TCP connect to an IP literal reaches out",
+        &[needs("a TCP connect to an IP literal outside")],
+    ),
+];
+
+pub(super) const WS_REFUSED: &[Part] = &[net(
+    "upgrade-refused",
+    "the proxy refuses the WebSocket upgrade",
+    &[needs("a WebSocket upgrade through the proxy")],
+)];
+
+pub(super) const IPV6_ONLY: &[Part] = &[
+    net(
+        "no-ipv4-route",
+        "a TCP connect to an IPv4 address outside fails",
+        &[needs("a TCP connect to an IPv4 address outside")],
+    ),
+    net(
+        "ipv6-reaches",
+        "a TCP connect to an IPv6 address outside succeeds",
+        &[needs("a TCP connect to an IPv6 address outside")],
+    ),
+];

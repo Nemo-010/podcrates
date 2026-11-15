@@ -39,7 +39,8 @@ podlab check compares a profile with this host, or with a JSON report of
 pod\-hostprobe. A part holds, fails, or cannot be observed here.
 .PP
 podlab run runs a command in a lab of a profile. The lab holds each part with
-no root: a seccomp filter, Landlock, a tmpfs and inherited descriptors.
+no root: a seccomp filter, Landlock, mounts in a user namespace, a network
+namespace and inherited descriptors.
 .PP
 The lab measures the profile from inside before the command. A part that does
 not hold stops the run, unless \-\-partial is given.
@@ -127,6 +128,13 @@ $ podlab run small\-tmp \-\- sh \-c 'df /tmp'
 .fi
 .RE
 .PP
+Run a command in a lab with no pseudo terminal.
+.RS 4
+.nf
+$ podlab run no\-ptmx \-\- sh \-c 'ls /dev'
+.fi
+.RE
+.PP
 Run a command in the parts that hold, and name the others.
 .RS 4
 .nf
@@ -174,8 +182,11 @@ $ podlab man \-\-no\-pager check
 \fBThe lab:\fR
 .TP
 \fBTMPDIR\fR
-/tmp for the command, where a part puts a tmpfs on /tmp. Used by: run. podlab
-sets it and does not read it.
+The lab writes the files of the ids there. It is /tmp for the command, where a
+part puts a tmpfs on /tmp. Used by: run. podlab reads it and sets it.
+.TP
+\fBHOME\fR
+The directory that noexec\-home binds with noexec. Used by: run.
 .PP
 \fBThe pager:\fR
 .TP
@@ -220,7 +231,7 @@ getsockname\-refused: seccomp: getsockname. Source: podrunner.
 About: no direct connection out; only an HTTP proxy reaches out. Parts:
 direct\-refused, proxy\-reaches. Held by: direct\-refused: not here: the
 network labs of podnet; proxy\-reaches: not here: the network labs of podnet.
-Source: podrunner.
+Source: podrunner, podssh, podnet.
 .TP
 \fBsmall\-tmp\fR
 About: TMPDIR on a tmpfs of 1 GiB. Parts: tmpdir\-small. Held by:
@@ -279,6 +290,98 @@ Held by: proc\-hidden: Landlock: /proc hidden. Source: podvm.
 \fBnoexec\-tmp\fR
 About: /tmp is mounted noexec. Parts: tmp\-noexec. Held by: tmp\-noexec: tmpfs
 on /tmp, noexec. Source: podvm.
+.TP
+\fBlisten\-denied\fR
+About: bind passes, and listen gives EACCES. Parts: bind\-allowed,
+listen\-refused. Held by: bind\-allowed: the host; listen\-refused: seccomp:
+listen. Source: podssh.
+.TP
+\fBudp\-denied\fR
+About: no UDP: a UDP socket gives EPERM. Parts: udp\-refused. Held by:
+udp\-refused: seccomp: socket(AF_INET, SOCK_DGRAM), socket(AF_INET6,
+SOCK_DGRAM), io_uring_setup. Source: podnet, podssh.
+.TP
+\fBraw\-denied\fR
+About: raw and packet sockets give EPERM. Parts: raw\-refused. Held by:
+raw\-refused: seccomp: socket(AF_INET, SOCK_RAW), socket(AF_INET6, SOCK_RAW),
+socket(AF_PACKET), io_uring_setup. Source: podnet.
+.TP
+\fBno\-ptmx\fR
+About: no /dev/ptmx, no /dev/pts, and no controlling terminal. Parts:
+ptmx\-absent, no\-ctty, tty\-opens. Held by: ptmx\-absent: a tmpfs on /dev
+with no ptmx and no pts, a FIFO at /dev/tty; no\-ctty: a new session with no
+controlling terminal; tty\-opens: a tmpfs on /dev with no ptmx and no pts, a
+FIFO at /dev/tty. Source: podssh.
+.TP
+\fBno\-passwd\-entry\fR
+About: the uid has no line in /etc/passwd, the gid none in /etc/group. Parts:
+no\-id\-lines. Held by: no\-id\-lines: /etc/passwd and /etc/group with no line
+of the caller. Source: podssh.
+.TP
+\fBnoexec\-home\fR
+About: HOME is writable and noexec; /tmp runs programs. Parts: home\-noexec,
+tmp\-exec. Held by: home\-noexec: HOME bound noexec; tmp\-exec: the host.
+Source: podssh.
+.TP
+\fBno\-proc\fR
+About: no /proc. Parts: proc\-absent. Held by: proc\-absent: an empty tmpfs on
+/proc. Source: podssh.
+.TP
+\fBseccomp\-nonewprivs\fR
+About: NoNewPrivs, no capability, and unshare, mount, chroot and ptrace
+refused. Parts: no\-new\-privs, no\-caps, calls\-refused. Held by:
+no\-new\-privs: no_new_privs; no\-caps: no capability, no_new_privs;
+calls\-refused: seccomp: unshare, clone, clone3, setns, mount, umount2,
+pivot_root, fsopen, fsmount, move_mount, open_tree, chroot, ptrace. Source:
+podssh.
+.TP
+\fBno\-tun\fR
+About: no /dev/net/tun. Parts: tun\-absent. Held by: tun\-absent: Landlock:
+/dev/net/tun hidden. Source: podssh, podnet.
+.TP
+\fBno\-net\-admin\fR
+About: no CAP_NET_ADMIN and no /dev/net/tun. Parts: no\-net\-admin,
+tun\-absent. Held by: no\-net\-admin: no capability, no_new_privs;
+tun\-absent: Landlock: /dev/net/tun hidden. Source: podnet.
+.TP
+\fBro\-etc\-ssl\fR
+About: /etc/ssl is read\-only. Parts: etc\-ssl\-read\-only. Held by:
+etc\-ssl\-read\-only: /etc/ssl bound read\-only. Source: podssh.
+.TP
+\fBno\-loopback\fR
+About: no address on the loopback; AF_UNIX holds. Parts: loopback\-absent,
+unix\-allowed. Held by: loopback\-absent: a network namespace with no
+loopback; unix\-allowed: the host. Source: podnet.
+.TP
+\fBproxy\-tls\-reterminate\fR
+About: the proxy shows its own CA for some names. Parts: tls\-reterminated,
+ssh\-port\-silent. Held by: tls\-reterminated: not here: the network labs of
+podnet; ssh\-port\-silent: not here: the network labs of podnet. Source:
+podssh.
+.TP
+\fBproxy\-per\-name\fR
+About: the proxy answers each name in its own way. Parts: answer\-per\-name.
+Held by: answer\-per\-name: not here: the network labs of podnet. Source:
+podssh.
+.TP
+\fBsni\-allowlist\fR
+About: no proxy; TLS is reset for a name not on the list. Parts: sni\-reset.
+Held by: sni\-reset: not here: the network labs of podnet. Source: podssh.
+.TP
+\fBno\-proxy\-no\-dns\fR
+About: no proxy and no resolver; only IP literals connect. Parts:
+no\-resolver, literal\-reaches. Held by: no\-resolver: not here: the network
+labs of podnet; literal\-reaches: not here: the network labs of podnet.
+Source: podssh.
+.TP
+\fBws\-upgrade\-refused\fR
+About: the proxy refuses the WebSocket upgrade. Parts: upgrade\-refused. Held
+by: upgrade\-refused: not here: the network labs of podnet. Source: podssh.
+.TP
+\fBipv6\-only\fR
+About: no IPv4 route. Parts: no\-ipv4\-route, ipv6\-reaches. Held by:
+no\-ipv4\-route: not here: the network labs of podnet; ipv6\-reaches: not
+here: the network labs of podnet. Source: podnet.
 .SH "EXIT STATUS"
 .TP
 \fB0\fR (holds)
@@ -333,6 +436,13 @@ Run a command in a lab with a small /tmp.
 .RS 4
 .nf
 $ podlab run small\-tmp \-\- sh \-c 'df /tmp'
+.fi
+.RE
+.PP
+Run a command in a lab with no pseudo terminal.
+.RS 4
+.nf
+$ podlab run no\-ptmx \-\- sh \-c 'ls /dev'
 .fi
 .RE
 .PP

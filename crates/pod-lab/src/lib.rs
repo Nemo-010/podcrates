@@ -11,14 +11,16 @@
 //!   its errno: a lab that allows what it must refuse fails its own check.
 //! * [`run`] runs a command in a lab of a profile: the parts that a host
 //!   with no root can hold (a seccomp filter through `pod-confine`, Landlock,
-//!   a tmpfs in a user namespace, inherited descriptors). The lab measures
+//!   mounts in a user namespace, a network namespace, a drop of the
+//!   capabilities, inherited descriptors). The lab measures
 //!   the profile inside itself before the command, and a part that does not
 //!   hold stops the run, unless the caller asks for a partial lab.
 //!
 //! A binary that calls [`run`] calls [`dispatch`] first in `main`: the lab
 //! process and the probe children are new starts of that binary.
 //!
-//! The crate reads no environment variable and prints nothing. Linux only:
+//! The crate prints nothing. Only the lab process reads the environment:
+//! `HOME` and `TMPDIR` for the mounts of a profile. Linux only:
 //! on another target the crate is empty, except [`codes`]. The module
 //! `manual` (feature `cli`) is the manual of `podlab`.
 #![forbid(unsafe_op_in_unsafe_fn)]
@@ -28,6 +30,8 @@ pub mod codes;
 #[cfg(target_os = "linux")]
 mod check;
 #[cfg(target_os = "linux")]
+mod facts;
+#[cfg(target_os = "linux")]
 mod hold;
 #[cfg(target_os = "linux")]
 mod inside;
@@ -35,6 +39,8 @@ mod inside;
 mod lab;
 #[cfg(all(target_os = "linux", feature = "cli"))]
 pub mod manual;
+#[cfg(target_os = "linux")]
+mod mounts;
 #[cfg(target_os = "linux")]
 mod profile;
 #[cfg(target_os = "linux")]
@@ -49,7 +55,7 @@ pub use inside::{measure, rows};
 #[cfg(target_os = "linux")]
 pub use lab::{Options, Ran, RunError, exit_code, lab_main, run};
 #[cfg(target_os = "linux")]
-pub use profile::{Call, Expect, Hold, IdFact, LabFact, Observe, Part, Profile};
+pub use profile::{Call, Expect, Hold, IdFact, LabFact, Observe, Part, Profile, When};
 #[cfg(target_os = "linux")]
 pub use table::{INHERITED_LAST, PROFILES, SMALL_TMP, find};
 

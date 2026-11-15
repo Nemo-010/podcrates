@@ -3369,3 +3369,141 @@ plant. The static job runs the check on the static probe of each target.
 python3 -I scripts/check-strings.py --plant /bin/ls
 ```
 
+
+# T-714: `pod-hostprobe`: the rows of the socket classes of podssh and podnet (bind alone, listen, UDP, raw and packet sockets, the loopback)
+
+**Source:** T-701 (the profiles `listen-denied`, `udp-denied`, `raw-denied` and `no-loopback` of `pod-lab`).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`pod-lab` observes five facts of the socket classes of podssh and podnet
+only from inside a lab (`LabFact`): a TCP bind of `127.0.0.1:0` alone,
+`listen(2)` after that bind (`EACCES` or `EPERM`), a UDP socket and its
+connect of `AF_INET` and `AF_INET6`, a raw socket of `AF_INET` and a
+packet socket (`EPERM`), and a TCP connect of `127.0.0.1` with no
+loopback (`ENETUNREACH`). The one socket row of `pod-hostprobe`,
+`bind(127.0.0.1:0)+listen`, cannot tell a refused bind from a refused
+listen, and a fresh network namespace still takes the bind. A check of a
+report gives `unseen` for each part, so a host that a user reports cannot
+show the classes.
+
+## Premise
+
+- Read: `crates/pod-lab/src/facts.rs` (the measurements),
+  `crates/pod-hostprobe/src/probes/access.rs` (`p_tcp_listen`).
+- Measured: in a fresh network namespace of Linux 6.18, `bind(127.0.0.1:0)`
+  and `listen` pass, and `connect(127.0.0.1:1)` gives `ENETUNREACH`.
+- Not measured: the rows on a host whose policy refuses `listen` alone.
+
+## Approach
+
+Add census rows, each in its own child, with the errno: `bind(127.0.0.1:0)`,
+`listen after bind(127.0.0.1:0)` (a skip where the bind fails),
+`socket(AF_INET, SOCK_DGRAM)+connect`, `socket(AF_INET6, SOCK_DGRAM)+connect`
+(`EAFNOSUPPORT` is a denial), `socket(AF_INET, SOCK_RAW)`,
+`socket(AF_PACKET, SOCK_RAW)` and `connect(127.0.0.1:1)` (its errno in the
+reason). Then move the `LabFact`s of these parts to `Observe::Row` in
+`crates/pod-lab/src/table/parts.rs`. The JSON Schema of the report takes
+the new names. Do it with T-693, which adds the rows of `bind-denied`.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features
+cargo test -p pod-lab --all-features
+```
+
+# T-715: `pod-hostprobe`: the rows of the file classes of podssh (absent paths, the terminal, the lines of the ids, `HOME`, read-only mounts)
+
+**Source:** T-701 (the profiles `no-ptmx`, `no-passwd-entry`, `noexec-home`, `no-proc` and `ro-etc-ssl` of `pod-lab`).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`pod-lab` observes these facts only from inside a lab (`LabFact`): a path
+that does not exist (`/dev/pts`, `/proc/self/exe`), no controlling
+terminal (`tty_nr` of `/proc/self/stat`), `/dev/tty` that opens and has
+no data, no line of the uid in `/etc/passwd` and of the gid in
+`/etc/group`, `HOME` writable on a `noexec` mount, and `/etc/ssl` on a
+read-only mount. A check of a report gives `unseen` for each part.
+
+## Premise
+
+- Read: `crates/pod-lab/src/facts.rs`, `crates/pod-hostprobe/src/identity.rs`,
+  `crates/pod-hostprobe/src/writable.rs`.
+- Not measured: a host with no `/proc` (the probe children of
+  `pod-hostprobe` start through `/proc/self/exe`, so a row there needs a
+  measurement in the probe process itself).
+
+## Approach
+
+Add rows that read the facts of the probe process: `stat(/dev/pts)`,
+`readlink(/proc/self/exe)` (in the probe process, not a child),
+`tty_nr` and `open(/dev/tty, O_NONBLOCK)+read`, the lines of the ids
+(ok with the uid and the gid in the reason), `statfs(HOME)` (`ST_NOEXEC`,
+and a new file) and `statfs(/etc/ssl)` (`ST_RDONLY`). Then move the
+`LabFact`s to `Observe::Row` in `crates/pod-lab/src/table/parts.rs`.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features
+cargo test -p pod-lab --all-features
+```
+
+# T-716: `pod-lab`: the labs and the probe rows of the network classes of podssh and podnet (podnet's hand-off)
+
+**Source:** T-701; PodUtils/podssh#268, PodUtils/podnet#585.
+**Category:** feature
+**Milestone:** M8
+**Priority:** P2
+**Effort:** M
+**Status:** open
+
+## Problem
+
+The table of `pod-lab` names six network classes whose parts no lab of
+the crate holds: `proxy-tls-reterminate` (the proxy shows its own CA for
+some names; `CONNECT host:22` gets 200 and then no byte),
+`proxy-per-name` (200 for one name and 504 for another),
+`sni-allowlist` (a reset after a ClientHello with a name not on the list,
+or with no name), `no-proxy-no-dns` (no resolver; only IP literals
+connect), `ws-upgrade-refused` (the proxy refuses the WebSocket upgrade)
+and `ipv6-only` (no IPv4 route). With `proxy-only` of T-692, each part is
+`Observe::Nothing`: no row of `pod-hostprobe` observes it, and
+`podlab run` refuses each one (exit 125). podnet offered to send the
+network profiles as data in the form of the table (PodUtils/podnet#585).
+
+## Premise
+
+- Read: `crates/pod-lab/src/table/parts.rs`, PodUtils/podnet#585 (the
+  CI jobs `restricted-host` and `no-loopback` of podnet), `pod-netlab`.
+- Not measured: a proxy or a route out in a network namespace of a user
+  namespace on a runner.
+
+## Approach
+
+Take podnet's hand-off (the parts of each class as data). For each part,
+a probe row where a probe can observe it from the host (a CONNECT through
+`HTTPS_PROXY` with its status, the CA of a TLS handshake through the
+proxy, a lookup of a name, a TCP connect to an IPv4 and an IPv6 literal,
+a ClientHello with and with no SNI), each skipped where the host has no
+proxy or no network. The lab: a network namespace with a proxy of the lab
+on its loopback (`pod-netlab`), for the parts that need no outside
+network; the others stay in the live jobs of podnet. Ask podnet by a COORD
+issue for the hand-off.
+
+## Prove
+
+```sh
+cargo test -p pod-lab --all-features
+```
