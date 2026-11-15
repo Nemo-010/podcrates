@@ -175,4 +175,4 @@
 168 issue closed
 169 issue closed
 170 issue closed
-171 issue open
+171 issue closed

@@ -5,13 +5,11 @@
 ## State
 
 - `docs/HANDOFF.md` has what is in flight and what waits.
-- Last release: `v0.50.0` at `26fb91f` (`docs/releases/v0.50.0.md`; ci
-  43669018284, adoption 43669018236, release 43672638621; the hand-off
-  #164, COORD-104): step 1 of the move of podssh.
-- In release: `v0.51.0` (`docs/releases/v0.51.0.md`): part 1 of
-  `pod-egress` (T-035), T-639 (PodUtils/podnet#572), T-640
-  (PodUtils/podvm#380), T-643 (PodUtils/podssh#253), T-647, T-648, T-650, T-651
-  (PodUtils/podvm#389, #390, #393, #394).
+- Last release: `v0.51.0` at `7119770` (`docs/releases/v0.51.0.md`; ci
+  43704477293, adoption 43704480669, release 43706934823, publish
+  43706977883): part 1 of `pod-egress` (T-035), T-639, T-640, T-643,
+  T-647, T-648, T-650, T-651. Its `plants` run 43704485014 missed the
+  three plants of T-678, whose fix is on `main` after the tag.
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.50.0` (`13c52be`, PodUtils/podssh#254): step 1 of the move;
@@ -60,8 +58,8 @@ online"): the work for podrunner and podnet comes first, then podssh and
 podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
-First: the release `v0.51.0` (the fixes of PodUtils/podnet#572,
-PodUtils/podvm#380 and PodUtils/podssh#253, part 1 of T-035, the asks of PodUtils/podvm#389 and #390). Then the move of podssh's waves 3 and 4 (the
+First: the hand-off of `v0.51.0`; then `v0.52.0` (parts 2 and 3 of T-035,
+and the asks of podvm that wait on the local branch `integ`). Then the move of podssh's waves 3 and 4 (the
 ruling "The move of podssh", PodUtils/podssh#248): T-035 (parts 2 and 3);
 T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
