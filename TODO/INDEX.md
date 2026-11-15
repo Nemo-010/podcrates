@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**538 entries: 108 open, 9 partial, 6 blocked, 415 done.**
+**538 entries: 107 open, 9 partial, 6 blocked, 416 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 109 | 123 |
-| P2 | 46 | 3 | 4 | 219 | 272 |
+| P2 | 45 | 3 | 4 | 220 | 272 |
 | P3 | 51 | 3 | 2 | 85 | 141 |
-| **All** | 108 | 9 | 6 | 415 | 538 |
+| **All** | 107 | 9 | 6 | 416 | 538 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -584,4 +584,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-651](podvm.md) | P2 | S | M6 | feature | done | `pod-services`: the aarch64 netboot of Alpine 3.22.6 and the static `qemu-system-aarch64` (PodUtils/podvm#394) |
 | [T-652](roads.md) | P3 | S | M4 | feature | open | `pod-egress`: the stage of a failed TLS or upgrade on the roads of VLESS, VMess and Trojan |
 | [T-668](upkeep.md) | P2 | S | M6 | feature | done | `pod-oci`: the token of the manifest for the parallel blob fetches of a pull (PodUtils/podvm#395) |
-| [T-669](podvm.md) | P2 | S | M6 | feature | open | `pod-enter`: a UTS namespace and a host name on the namespace rung (PodUtils/podvm#403) |
+| [T-669](podvm.md) | P2 | S | M6 | feature | done | `pod-enter`: a UTS namespace and a host name on the namespace rung (PodUtils/podvm#403) |

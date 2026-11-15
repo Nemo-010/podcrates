@@ -36,7 +36,7 @@ fn the_name_is_checked_before_the_fork() {
 #[test]
 fn an_entry_with_no_uts_namespace_refuses_a_name() {
     assert!(refuse_without_namespace(&plan(None), "the chroot rung").is_ok());
-    let e = refuse_without_namespace(&plan(Some("unit1")), "the chroot rung").err().expect("refused");
+    let e = refuse_without_namespace(&plan(Some("unit1")), "the chroot rung").expect_err("refused");
     assert!(e.to_string().contains("needs the namespace rung; the chroot rung"), "{e}");
 }
 

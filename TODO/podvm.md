@@ -8541,7 +8541,7 @@ cargo test -p pod-services --all-features
 **Milestone:** M6
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8561,3 +8561,7 @@ podvm adds `run --hostname NAME`: the official runner writes the host name into 
 ```sh
 cargo test -p pod-enter --all-features
 ```
+
+## Done
+
+2026-11-15, the commits of the change. `Plan::hostname` and the module `uts` (`NS_UTS_STEP` 21, `NS_HOSTNAME_STEP` 22, `MOST`); the child enters the UTS namespace and sets the name after the mounts of the namespace rung; `spawn_namespace` refuses in place of the fallback to chroot when the plan has a name, and `spawn_with` refuses a name on each entry with no namespace of its own. Unit tests (`uts::tests`: the checks, the refusal, the names of the steps); `tests/hostname.rs` with a static busybox, as root here: the payload sees `unit1` in `uname -n` and in `/proc/sys/kernel/hostname`, the host keeps its name, and a plan with no name sees the host's. With a wrong name in the plan the test failed. `scripts/ci/root-enter-confine-tests.sh` runs it as root in `ci.yml`. The plant `enter-hostname-not-set` (the child skips the two calls) is caught. `cargo test -p pod-enter --all-features` passed (189 unit tests); workspace clippy is clean.
