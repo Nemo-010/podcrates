@@ -165,6 +165,6 @@ numbers. `TODO/RULES.md` gives the rules.
 | #160 | COORD-100: v0.47.0: Nostr, trackers and ntfy as meeting points; pod-devtunnel with no user token; the swap of a Windows mailbox (to all) | closed (each consumer took it: podrunner `eea3401`, podnet `1d4d7f1`, podvm `47357595`, podssh `568f9b2`) | T-550, T-551, T-554, T-489, T-478, T-381, T-403, T-627, T-623, T-602, T-629, T-630 |
 | #161 | COORD-101: the answer to PodUtils/podvm#372: Sign::After and a screen sign that ignores a cursor (to podvm) | closed (`v0.48.0` carries T-633; podvm took it at `47357595`) | T-633 |
 | #162 | COORD-102: v0.48.0: Sign::After and a screen sign that ignores a cursor in pod-guest (to all) | closed (each consumer took it: podvm `47357595`, podrunner `c3b5744`, podnet `862a6a9`, podssh `3e7c5a2`) | T-633 |
-| #163 | COORD-103: v0.49.0: the Nostr fix of the run of a code; the warm restore on a new mailbox medium; the SHA-256 answers of pod-turn (to all) | open (waits for podvm, podnet, podssh, podrunner) | T-634, T-631, T-632, T-628 |
+| #163 | COORD-103: v0.49.0: the Nostr fix of the run of a code; the warm restore on a new mailbox medium; the SHA-256 answers of pod-turn (to all) | closed (each consumer took it: podrunner `c695295`, podnet `1a70c46`, podvm `7d30dd75`, podssh `a99de1d`) | T-634, T-631, T-632, T-628 |
 
 #79 to #81 are pull requests.

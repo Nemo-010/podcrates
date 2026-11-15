@@ -11,27 +11,40 @@ is done. Git and the record keep finished work.
 
 1. Start the watcher (`sh scripts/agent/watch-org.sh 90` under the Monitor
    tool) and read the open COORD issues `(to podcrates)`.
-2. Read the answer of podnet on #139 (the profile of `kcp`, T-526).
-3. Read the answers that wait: the measure of `AutoRun` (T-617, podvm),
-   podnet's fix of the capnp reader (T-029, PodUtils/podnet#555), and the
-   values of sand-net (T-586). Then the work order of
-   `TODO/PROGRESS.md`.
+2. RELEASE_STEP
+3. Release `v0.51.0` from `main`: it holds T-639 (PodUtils/podnet#572),
+   T-640 (PodUtils/podvm#380) and part 1 of `pod-egress` (T-035). Before
+   the tag, dispatch `guest-windows.yml`: its six cold boots of `run`
+   prove T-640 (a `RESULT:` line counts them). Then answer
+   PodUtils/podnet#572 and PodUtils/podvm#380 on the hand-off. Ask podvm
+   there whether its runs of experiment 450 copy the OVMF variable store
+   fresh for each run (a store that runs share can carry state between
+   boots; a finding of T-640).
+4. The move of podssh (PodUtils/podssh#248, the ruling "The move of
+   podssh"): parts 2 and 3 of `pod-egress` (T-035, partial) start again
+   from `main`: part 2 is `vless/`, `vmess/`, `trojan/`, `shadowsocks/`;
+   part 3 is `eice/`, `iap/` of podssh-ws at podssh `2ffb7cd7`, which
+   podssh froze. Their agents stopped at the end of the last session
+   with no commit kept. Give each the brief of part 1 (each road behind
+   its own feature, on the shared parts of the crate; an adoption patch
+   with `.needs` = pod-egress). podssh's map of the glue is in the body of
+   PodUtils/podssh#248. Then step 3 of the move: `pod-tor`, `pod-iroh`,
+   `pod-cloudflare`, `pod-ts`; then `pod-relay-serve`.
+5. T-643 (PodUtils/podssh#253): the failed reads of `pod-quic`. Then the
+   work order of `TODO/PROGRESS.md`.
 
 ## In flight
 
-- The last release: `v0.49.0` at `212d45d` (ci 43661139464, adoption
-  43658168842 at `94b5ce3`, release 43662863611; the hand-off #163,
-  COORD-103): the Nostr fix of the run of a code (T-634,
-  PodUtils/podssh#247), the warm restore on a new mailbox medium and the
-  mailbox by id (T-628, T-632), the SHA-256 answers of `pod-turn`
-  (T-631). Each consumer took `v0.46.0` to `v0.48.0` (#159, #160, #162
-  closed).
-- The move of podssh's waves 3 and 4 (PodUtils/podssh#248, the ruling
-  "The move of podssh"): podssh froze `transit/`, `acme/`, `piping/`,
-  `opentunnel/` and `derp/` at podssh `b9c04657`; agents import them.
-- The agents of the move run in worktrees `mv-*`. The owner reserves
-  the names `pod-actions-store`, `pod-actions-results`, `pod-udf` and
-  `pod-qga` on crates.io ("Owner actions" of `TODO/PROGRESS.md`).
+- The last tags: `v0.49.0` at `212d45d` (#163, each consumer took it,
+  closed). TAG_LINE
+- The moved crates of step 1 (`pod-transit`, `pod-acme`, `pod-piping`,
+  `pod-opentunnel`, `pod-derp`) are in `v0.50.0`; their trial patches in
+  `adoption/podssh/` name `v0.50.0`. Part 1 of `pod-egress` is on `main`;
+  its patch names `v0.51.0`.
+- The owner reserves the names of `pod-actions-store`,
+  `pod-actions-results`, `pod-udf`, `pod-qga` and of the crates of the
+  move on crates.io ("Owner actions" of `TODO/PROGRESS.md`);
+  `scripts/check-crates-io-names.py` reports the missing names.
 - The open threads of this session:
   - T-539 is in `v0.41.0`; T-540 (open) tests it against a kernel pty.
   - T-557 (open): a finding of T-542.

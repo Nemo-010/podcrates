@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**526 entries: 104 open, 9 partial, 6 blocked, 407 done.**
+**527 entries: 105 open, 9 partial, 6 blocked, 407 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 107 | 121 |
-| P2 | 45 | 3 | 4 | 213 | 265 |
+| P2 | 46 | 3 | 4 | 213 | 266 |
 | P3 | 48 | 3 | 2 | 85 | 138 |
-| **All** | 104 | 9 | 6 | 407 | 526 |
+| **All** | 105 | 9 | 6 | 407 | 527 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -573,3 +573,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-640](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: a cold boot of a Windows guest under KVM reaches no shutdown on one run of two, and a run that times out keeps no trace |
 | [T-641](podvm.md) | P3 | S | M7 | defect | open | `pod-guest`: the installer tries its shutdown again, and `dos::run` keeps the evidence of a run that times out |
 | [T-642](roads.md) | P3 | S | M4 | chore | open | `pod-egress`: the Python packages of `forwarder-live.yml` by a hashed lock |
+| [T-643](relay.md) | P2 | S | M1 | defect | open | `pod-quic`: a way whose reads keep failing spins a core, and the drop of the endpoint hangs (PodUtils/podssh#253) |

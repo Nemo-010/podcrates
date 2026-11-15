@@ -7899,3 +7899,30 @@ cargo test -p pod-link --all-features --test split
 - podnet proves it with the tag of the fix: its test
   `link_split::a_closed_down_half_ends_the_session_with_down_carrier_lost`
   50 times in a loop, and its full `cargo test --workspace` under load.
+
+# T-643: `pod-quic`: a way whose reads keep failing spins a core, and the drop of the endpoint hangs (PodUtils/podssh#253)
+
+**Source:** PodUtils/podssh#253 (COORD-075 of podssh; PodUtils/podssh@T-787).
+**Category:** defect
+**Milestone:** M1
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The receive loop of noq 1.4.0 (`RecvState::poll_socket` of its endpoint) answers `ECONNRESET` and `EMSGSIZE` with `continue`, before its work limiter. `pod_quic::socket::DatagramSocket::poll_recv` passes each error of the `Datagrams` through. A way that fails each read with one of those keeps one worker of the runtime busy with no yield, and the driver holds the lock of the endpoint, so the drop of the `Endpoint` hangs too. podssh measured it: `pod_quic::over` with a `Datagrams` that fails each read with `ConnectionReset` gave 19,971,985 failed reads and 2.998 s of CPU in 3 s (its test crates/podssh-relay/tests/quic_socket_fails.rs, ignored until the take).
+
+## Premise
+
+- Read: PodUtils/podssh#253; `crates/pod-quic/src/socket.rs`, the endpoint on the system socket (`endpoint::on_socket`); noq 1.4.0 `src/endpoint.rs`. osewa ends such an endpoint of quinn after 256 empty reads in a row.
+
+## Approach
+
+Count the failed reads in a row in `DatagramSocket`, and in a wrapper of the system socket of `endpoint::on_socket`; reset the count on a read that succeeds or is `Pending`. Past a bound (256), return an error kind that noq does not skip (`BrokenPipe`), so that the driver ends and the caller dials again. A test like podssh's (a `Datagrams` that fails each read: the driver ends, the CPU stays bounded, the drop returns), and a plant that leaves the bound out.
+
+## Prove
+
+```sh
+cargo test -p pod-quic --all-features
+```

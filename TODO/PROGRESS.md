@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 526 entries: 104 open, 9 partial, 6 blocked, 407 done.
+`TODO/INDEX.md` holds 527 entries: 105 open, 9 partial, 6 blocked, 407 done.
 
 ## State
 
@@ -72,9 +72,11 @@ online"): the work for podrunner and podnet comes first, then podssh and
 podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
-First: the takes of `v0.49.0` (#163). Then the move of podssh's waves 3 and 4 (the ruling "The move
-of podssh", PodUtils/podssh#248): T-035; T-038, T-037, T-029, T-030, T-039; T-036.
-Then the link carriers of M2
+First: the release `v0.51.0` (the fixes of PodUtils/podnet#572 and
+PodUtils/podvm#380, part 1 of T-035) and the takes of `v0.50.0`. Then T-643
+(PodUtils/podssh#253). Then the move of podssh's waves 3 and 4 (the
+ruling "The move of podssh", PodUtils/podssh#248): T-035 (parts 2 and 3);
+T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
 
 1. **The defects and asks of the consumers:** T-378 (`pod-devtunnel`, GitHub #94 and
