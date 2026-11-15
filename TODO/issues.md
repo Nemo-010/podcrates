@@ -193,6 +193,7 @@ kinds and the rules.
 | #186 | coord | COORD-112: the owner's rulings "Watcher" and "Strangers": one watcher of the organization for each session, scripts/agent/watch.py at f76099d; replace your own (to all) | open | T-710, T-711, T-712 |
 | #187 | request | [gh action] requested: the gates of main at 32f7a72 and the release v0.54.0 | open | T-692, T-700, T-710, T-711, T-712 |
 | #188 | coord | COORD-113: v0.54.0: pod-lab and pod-manual part 1; run your release in the labs, and take your help and manual from pod-manual (to all) | open | T-692, T-700 |
-| #189 | request | [gh action] requested: the checks of main at aec056d and a dry run of issue-sync.yml | open | T-703 |
+| #189 | request | [gh action] requested: the checks of main at aec056d and a dry run of issue-sync.yml | closed (its SHA moved before it ran; replaced by #190) | T-703 |
+| #190 | request | [gh action] requested: the checks of main at bf13591 and a dry run of issue-sync.yml | open | T-703 |
 
 #79 to #81 are pull requests.
