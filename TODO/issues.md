@@ -200,5 +200,6 @@ kinds and the rules.
 | #193 | request | [gh action] requested: the gates of main at e3c3e1d and the release v0.55.0 | closed (ci 43765816118, adoption 43765819330, release 43767734826, publish 43767752196) | T-703, T-701 |
 | #194 | coord | COORD-115: v0.55.0: the sync of the issues (call issue-sync.yml at this tag) and 18 new lab profiles from podssh and podnet (to all) | open | T-703, T-701 |
 | #195 | request | [gh action] requested: the gates of main at 93bf133 and the release v0.56.0 | open | T-723 |
+| #196 | request | [gh action] requested: the gates of main at 0d6421c, a dry run of issue-sync.yml, and the release v0.57.0 | open | T-724 |
 
 #79 to #81 are pull requests.
