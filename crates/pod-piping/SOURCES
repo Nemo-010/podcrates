@@ -4,6 +4,8 @@
 # compares each with the default branch of its repository.
 
 repo PodUtils/podssh b9c04657bf4e283263ef34ba2462be297231cd38
+# podssh took the crate at 13c52be with v0.50.0 (PodUtils/podssh#254).
+taken 13c52be69b88c30ed4f0d7e435b9c5236d1039ad
 # podssh froze src/piping/ at this commit for the move (podssh T-684,
 # PodUtils/podssh#248). mod.rs is the root of the crate (lib.rs). The tests
 # of tests/piping.rs, tests/piping_live.rs and their harness come whole.

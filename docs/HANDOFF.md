@@ -25,9 +25,7 @@ is done. Git and the record keep finished work.
    `pod-qga` of `v0.45.0`; `osinfo` is new), and tells podvm that T-644 and
    T-649 (PodUtils/podvm#384, #386) are open. Ask podvm there whether its
    runs of experiment 450 copy the OVMF variable store fresh for each run.
-4. Record the takes of `v0.50.0` on #164 (COORD-104): podvm `0573bcd8` and
-   podnet `779c712` and podrunner `cbb5372` are in; podssh waits.
-5. The move of podssh (PodUtils/podssh#248, the ruling "The move of
+4. The move of podssh (PodUtils/podssh#248, the ruling "The move of
    podssh"): parts 2 and 3 of `pod-egress` (T-035, partial) start again
    from `main`: part 2 is `vless/`, `vmess/`, `trojan/`, `shadowsocks/`;
    part 3 is `eice/`, `iap/` of podssh-ws at podssh `2ffb7cd7`, which
@@ -40,7 +38,7 @@ is done. Git and the record keep finished work.
    pod-egress). podssh's map of the glue is in the body of
    PodUtils/podssh#248. Then step 3 of the move: `pod-tor`, `pod-iroh`,
    `pod-cloudflare`, `pod-ts`; then `pod-relay-serve`.
-6. Then the work order of `TODO/PROGRESS.md`.
+5. Then the work order of `TODO/PROGRESS.md`.
 
 ## In flight
 

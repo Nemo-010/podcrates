@@ -14,8 +14,8 @@
   (PodUtils/podvm#389, #390, #393, #394).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
-  - podssh: `v0.49.0` (`a99de1d`, PodUtils/podssh#252); step 1 of the move
-    waits for its take of `v0.50.0`.
+  - podssh: `v0.50.0` (`13c52be`, PodUtils/podssh#254): step 1 of the move;
+    `pod-egress` waits for `v0.51.0`.
   - podnet: `v0.50.0` (`779c712`, PodUtils/podnet#574). It sets the
     profile of `kcp` with its take of the udp carrier (#139, T-526).
   - podvm: `v0.50.0` (`0573bcd8`).
