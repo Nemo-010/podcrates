@@ -1825,3 +1825,34 @@ sh scripts/adoption.sh podssh pod-egress
 ## Done
 
 2026-11-15, the commit of the fix. `adoption/podssh/pod-egress.patch` changes the five citations to the bare name of the file and its new place in PodUtils/podcrates (`forwarder-live.yml`, `egress-via-no-credential.plant`), and moves the citation of `forwarder.rs` to 28-45 with `podssh-todo remap`. The patch is made again with `git diff --cached HEAD --abbrev=8`; the old patch made the same way gave the same bytes. `sh scripts/adoption.sh podssh pod-egress` passed each step of the `.run` here: the record (743 entries), `check-repo.py`, clippy and the tests of `podssh-ws`, `podssh-cli` and `podssh-tor`, rustfmt, the toolchains and the 15 test targets. The run of `adoption.yml` on the push proves it in CI.
+
+# T-677: `plants.yml` passes its limit of 60 minutes: the plants run in shards
+
+**Source:** the run of `plants.yml` 43685586038 at `482ba53` (#169), cancelled at its limit (a red run that the record did not know).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The one job of `plants.yml` runs each plant in turn. With 702 plants it passes its `timeout-minutes: 60`: the run 43685586038 was cancelled at 60 minutes in the step "Each plant is caught", and so was 43673650746 at `141849e`. Each other run of the list was cancelled by a newer one. No run of `plants.yml` passed for the tags `v0.49.0` and `v0.50.0`. The release block of #169 stops at it.
+
+## Premise
+
+- Read: the runs and the jobs of `plants.yml` (GitHub's list of runs); `.github/workflows/plants.yml`; `scripts/plant-each.sh` (it takes a list of ids).
+- Not measured: the time of one shard; the run on the push proves it.
+
+## Approach
+
+A matrix of six shards. `scripts/plant-shard.py SHARDS SHARD` gives the ids of a shard: each group whole in one shard (its plants build the same crates), from the largest group down to the shard with the fewest plants. Each shard has its own limit of 60 minutes.
+
+## Prove
+
+```sh
+for k in 0 1 2 3 4 5; do python3 -I scripts/plant-shard.py 6 $k; done | wc -w
+python3 scripts/check-workflows.py
+```
+
+The run of `plants.yml` on the commit passes each shard.

@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 535 entries: 106 open, 9 partial, 6 blocked, 414 done.
+`TODO/INDEX.md` holds 536 entries: 107 open, 9 partial, 6 blocked, 414 done.
 
 ## State
 
@@ -60,7 +60,7 @@ online"): the work for podrunner and podnet comes first, then podssh and
 podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
-First: the release `v0.51.0` (the fixes of PodUtils/podnet#572,
+First: T-677 (`plants.yml` in shards; no run of it passed since `v0.49.0`). Then the release `v0.51.0` (the fixes of PodUtils/podnet#572,
 PodUtils/podvm#380 and PodUtils/podssh#253, part 1 of T-035, the asks of PodUtils/podvm#389 and #390) and the takes of `v0.50.0` (#164). Then the move of podssh's waves 3 and 4 (the
 ruling "The move of podssh", PodUtils/podssh#248): T-035 (parts 2 and 3);
 T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2

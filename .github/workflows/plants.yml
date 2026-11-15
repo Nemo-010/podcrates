@@ -28,10 +28,18 @@ concurrency:
 permissions:
   contents: read
 
+# The plants run in shards: one job ran each plant in turn and passed its
+# limit of 60 minutes. scripts/plant-shard.py keeps each group in one shard
+# and gives each shard about the same count.
 jobs:
   plants:
+    name: plants (shard ${{ matrix.shard }} of 6)
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -54,5 +62,6 @@ jobs:
           otp-version: "29.0.5"
           elixir-version: "1.20.3-otp-29"
           version-type: strict
-      - name: Each plant is caught
-        run: sh scripts/plant-each.sh
+      - name: Each plant of the shard is caught
+        # The ids are words with no space: the split of the shell is the list.
+        run: sh scripts/plant-each.sh $(python3 -I scripts/plant-shard.py 6 ${{ matrix.shard }})
