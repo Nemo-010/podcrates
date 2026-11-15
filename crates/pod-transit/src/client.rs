@@ -8,21 +8,20 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use podssh_ws::url::WsUrl;
-use podssh_ws::{ProxyChoice, Trust};
+use pod_core::entropy::{NoRandom, OsEntropy};
+use pod_session::client::{self, Outcome};
+use pod_session::resume::{self, Next, Note};
+use pod_session::{Ask, Ended, Hearing, Settings};
 use rand::RngExt;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::Instant;
 
-use super::Say;
-use super::far::dial;
-use super::link::Link;
-use super::meet::{Missed, Part, meet};
-use super::token::{Keys, Side};
-use crate::session::client::{self, Outcome};
-use crate::session::resume::{self, Next, Note};
-use crate::session::secret::NoRandom;
-use crate::session::{Ask, Ended, Hearing, OsEntropy, Settings};
+use crate::config::Config;
+use crate::failed::Failed;
+use crate::far::dial;
+use crate::link::Link;
+use crate::meet::{Missed, Part, meet};
+use crate::token::{Keys, Side};
 
 /// How long a link waits for the node: one that waits at the relay answers
 /// at once, and one that just met another client opens its next wait in a
@@ -31,21 +30,18 @@ pub const MEET_LIMIT: Duration = Duration::from_secs(15);
 
 /// The links of one client to the node of one pair.
 pub struct Dialer {
-    url: WsUrl,
+    config: Config,
     keys: Keys,
     side: Side,
-    trust: Trust,
-    proxy: ProxyChoice,
-    say: Say,
     wait: Duration,
 }
 
 impl Dialer {
-    /// The dialer of the pair whose words are `keys`, at the relay of `url`,
-    /// with a side of this run's.
-    pub fn new(url: WsUrl, keys: Keys, trust: Trust, proxy: ProxyChoice, say: Say) -> Result<Dialer, NoRandom> {
+    /// The dialer of the pair whose words are `keys`, at the relay of
+    /// `config`, with a side of this run's.
+    pub fn new(config: Config, keys: Keys) -> Result<Dialer, NoRandom> {
         let side = Side::random(&mut OsEntropy)?;
-        Ok(Dialer { url, keys, side, trust, proxy, say, wait: MEET_LIMIT })
+        Ok(Dialer { config, keys, side, wait: MEET_LIMIT })
     }
 
     /// The same, with `side` in place of a random one: a test's two ends of
@@ -60,21 +56,26 @@ impl Dialer {
     }
 
     /// The relay.
-    pub fn url(&self) -> &WsUrl {
-        &self.url
+    pub fn url(&self) -> &pod_ws::url::WsUrl {
+        &self.config.url
+    }
+
+    /// The settings of the dialer's connections.
+    pub fn config(&self) -> &Config {
+        &self.config
     }
 
     /// A new link to the node, which met this client and proved the pair;
     /// else why there is none.
-    pub async fn link(&self) -> Result<Link, String> {
-        let (shown, until) = (self.url.shown(), Instant::now() + self.wait);
+    pub async fn link(&self) -> Result<Link, Failed> {
+        let (shown, until) = (self.config.url.shown(), Instant::now() + self.wait);
         let mut others: u32 = 0;
         loop {
             let left = until.saturating_duration_since(Instant::now());
             if left.is_zero() {
                 return Err(self.alone(others));
             }
-            let session = dial(&self.url, &self.trust, &self.proxy).await?;
+            let session = dial(&self.config).await?;
             match meet(&session, &self.keys, &self.side, Part::Client, Some(left), &mut OsEntropy).await {
                 Ok(first) => return Ok(Link::start(session, first)),
                 Err(Missed::Alone(_)) => return Err(self.alone(others)),
@@ -82,11 +83,14 @@ impl Dialer {
                 // taken: each tries again, and the node's next wait comes.
                 Err(Missed::SamePart) => {
                     others = others.saturating_add(1);
-                    (self.say)(format!("another client of the pair met this one at the transit relay {shown}"));
+                    let line = format!("another client of the pair met this one at the transit relay {shown}");
+                    self.config.info("transit.client", line);
                 }
                 // A spare side that the relay dropped, once another one met.
-                Err(Missed::Dropped(why)) => (self.say)(format!("the transit relay {shown}: {why}; trying again")),
-                Err(missed) => return Err(format!("the transit relay {shown}: {missed}")),
+                Err(Missed::Dropped(why)) => {
+                    self.config.info("transit.client", format!("the transit relay {shown}: {why}; trying again"))
+                }
+                Err(missed) => return Err(Failed::Missed { shown, missed }),
             }
             let _ = session.send_close(1000, "").await;
             drop(session);
@@ -96,23 +100,23 @@ impl Dialer {
         }
     }
 
-    fn alone(&self, others: u32) -> String {
+    fn alone(&self, others: u32) -> Failed {
         let mut why = format!(
             "no node met this client at the transit relay {} within {} s",
-            self.url.shown(),
+            self.config.url.shown(),
             self.wait.as_secs()
         );
         if others > 0 {
             why.push_str(&format!(" (another client of the pair met it {others} times)"));
         }
-        why
+        Failed::Alone(why)
     }
 }
 
 /// Carry `app` to the node of `dialer`: the first link and the layer's
 /// handshake on it, then a new link after each lost one, until the session
 /// ends. `note` hears each step of the session across links.
-pub async fn carry<A, N>(dialer: &Dialer, app: A, settings: Settings, note: N) -> Result<Outcome, String>
+pub async fn carry<A, N>(dialer: &Dialer, app: A, settings: Settings, note: N) -> Result<Outcome, Failed>
 where
     A: AsyncRead + AsyncWrite + Unpin + Send,
     N: FnMut(Note),
@@ -128,18 +132,19 @@ pub async fn carry_heard<A, N>(
     settings: Settings,
     note: N,
     hearing: Arc<Hearing>,
-) -> Result<Outcome, String>
+) -> Result<Outcome, Failed>
 where
     A: AsyncRead + AsyncWrite + Unpin + Send,
     N: FnMut(Note),
 {
     let first = dialer.link().await?;
-    let client = client::start(first, Ask::New, settings, &mut OsEntropy).await.map_err(|e| e.to_string())?;
+    let client = client::start(first, Ask::New, settings, &mut OsEntropy).await;
+    let client = client.map_err(|e| Failed::Session(e.to_string()))?;
     let client = client.with_hearing(hearing);
     let connect = |_: &Ended| async move {
         match dialer.link().await {
             Ok(link) => Next::Link(link),
-            Err(why) => Next::Retry(why),
+            Err(why) => Next::Retry(why.to_string()),
         }
     };
     // On the heap: the layer's future is larger than a small thread's stack

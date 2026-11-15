@@ -1,13 +1,14 @@
 //! magic-wormhole's own transit relay (magic-wormhole-transit-relay, in
 //! Python, on Twisted and Autobahn) on the loopback, for the tests of the
-//! transit road (T-436): software that podssh did not write. A host with no
+//! transit road: software that this project did not write. A host with no
 //! Python, or without the package, skips each test with its reason, unless
-//! `PODSSH_TRANSIT_TEST_SERVER=required`, which a planted run and the
+//! `POD_WORMHOLE_TEST_SERVER=required`, which a planted run and the
 //! workflow set, so that a skip there is a failure.
 //!
-//!   python3 -m pip install magic-wormhole-transit-relay
+//!   python3 -m pip install --require-hashes -r scripts/ci/wormhole-servers.txt
 //!
-//! `PODSSH_TRANSIT_TEST_PYTHON` names the interpreter (a virtualenv's).
+//! `POD_WORMHOLE_TEST_PYTHON` names the interpreter (a virtualenv's), as
+//! for the tests of `pod-wormhole` (scripts/ci/mailbox-tests.sh).
 
 // Each test binary uses a part of it.
 #![allow(dead_code)]
@@ -17,7 +18,7 @@ use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::time::{Duration, Instant};
 
-use podssh_ws::url::WsUrl;
+use pod_ws::url::WsUrl;
 
 /// How long the server may take to listen.
 const START_LIMIT: Duration = Duration::from_secs(30);
@@ -33,7 +34,7 @@ pub struct Relay {
 
 /// Each name that the interpreter may have.
 fn pythons() -> Vec<String> {
-    match std::env::var("PODSSH_TRANSIT_TEST_PYTHON") {
+    match std::env::var("POD_WORMHOLE_TEST_PYTHON") {
         Ok(named) if !named.trim().is_empty() => vec![named],
         _ => vec!["python3".into(), "python".into()],
     }
@@ -60,14 +61,14 @@ impl Relay {
     /// The relay, listening; `None`, with the reason on stderr, when this
     /// host cannot run it and the run does not require it.
     pub fn start(tag: &str) -> Option<Relay> {
-        let required = std::env::var("PODSSH_TRANSIT_TEST_SERVER").is_ok_and(|v| v == "required");
+        let required = std::env::var("POD_WORMHOLE_TEST_SERVER").is_ok_and(|v| v == "required");
         let Some(python) = pythons().into_iter().find(|p| has_relay(p)) else {
             let why = "no Python with magic-wormhole-transit-relay here (pip install magic-wormhole-transit-relay)";
-            assert!(!required, "PODSSH_TRANSIT_TEST_SERVER=required: {why}");
+            assert!(!required, "POD_WORMHOLE_TEST_SERVER=required: {why}");
             eprintln!("did not run: {why}");
             return None;
         };
-        let dir = std::env::temp_dir().join(format!("podssh-transit-{}-{tag}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("pod-transit-{}-{tag}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("a scratch directory");
         crate::cleanup::at_test_end(&dir);
         let log = dir.join("relay.log");

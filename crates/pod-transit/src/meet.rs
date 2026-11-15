@@ -1,5 +1,5 @@
-//! A meeting at the transit relay (T-436): this end's line, the relay's
-//! answer, then podssh's own words each way through the relay's copy: a
+//! A meeting at the transit relay: this end's line, the relay's answer,
+//! then the road's own words each way through the relay's copy: a
 //! hello with this end's part and a nonce, then a proof of the pair's
 //! secret over both nonces. The relay pairs any two sides of one token, so
 //! two clients of one pair can meet each other: their parts tell them
@@ -16,14 +16,14 @@
 use std::fmt;
 use std::time::Duration;
 
-use podssh_ws::session::close_code_and_reason;
-use podssh_ws::{RelaySession, SessionError, frame};
+use pod_core::entropy::Entropy;
+use pod_ws::session::close_code_and_reason;
+use pod_ws::{RelaySession, SessionError, frame};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::token::{Keys, PROOF_BYTES, Side, line};
-use crate::session::secret::Entropy;
+use crate::token::{Keys, PROOF_BYTES, Side, line};
 
-/// The version of podssh's words after `ok`.
+/// The version of the road's words after `ok`.
 pub const VERSION: u8 = 1;
 /// The bytes of a nonce.
 pub const NONCE: usize = 32;
@@ -109,43 +109,72 @@ where
     // the line, and refuses one with more.
     session.send_binary(line(keys, side).as_bytes()).await.map_err(broken)?;
     let mut got = Got { bytes: Vec::new() };
-    let answer = match wait {
+    let said = match wait {
         Some(wait) => tokio::time::timeout(wait, got.line(session)).await.map_err(|_| Missed::Alone(wait))??,
         None => got.line(session).await?,
     };
-    match answer.as_str() {
-        "ok" => {}
-        "bad handshake" => return Err(Missed::Refused("the relay did not take the line (bad handshake)".into())),
-        "impatient" => {
-            return Err(Missed::Refused("the relay took bytes before its ok for a fault (impatient)".into()));
-        }
-        other => {
-            let shown: String = podssh_ws::text::one_line(other).chars().take(60).collect();
-            return Err(Missed::Refused(format!("the relay answered {shown:?}, not ok")));
-        }
-    }
+    answer(&said)?;
     let mut hello = Vec::with_capacity(HELLO);
     hello.extend_from_slice(&[VERSION, part.byte()]);
     hello.extend_from_slice(&nonce);
     session.send_binary(&hello).await.map_err(broken)?;
     let theirs = got.within(session, HELLO).await?;
-    if theirs[0] != VERSION {
-        let why = format!("its words are of version {}, and this podssh's of {VERSION}", theirs[0]);
-        return Err(Missed::NotProven(why));
-    }
-    if theirs[1] == part.byte() {
-        return Err(Missed::SamePart);
-    }
-    if theirs[1] != part.other().byte() {
-        return Err(Missed::NotProven("its hello is not podssh's".into()));
-    }
-    let peer = &theirs[2..];
+    let peer = peer_nonce(&theirs, part)?;
     session.send_binary(&keys.prove(part.byte(), &nonce, peer)).await.map_err(broken)?;
     let proof = got.within(session, PROOF_BYTES).await?;
     if !keys.verify(part.other().byte(), peer, &nonce, &proof) {
         return Err(Missed::NotProven("its proof is not of this pair's secret".into()));
     }
     Ok(got.bytes)
+}
+
+/// What the relay's answer `line`, without its newline, means: `ok`, or
+/// why the meeting ends. Sans-IO, for the fuzz target.
+pub fn answer(line: &str) -> Result<(), Missed> {
+    match line {
+        "ok" => Ok(()),
+        "bad handshake" => Err(Missed::Refused("the relay did not take the line (bad handshake)".into())),
+        "impatient" => Err(Missed::Refused("the relay took bytes before its ok for a fault (impatient)".into())),
+        other => {
+            let shown: String = pod_core::text::one_line(other).chars().take(60).collect();
+            Err(Missed::Refused(format!("the relay answered {shown:?}, not ok")))
+        }
+    }
+}
+
+/// The nonce of the peer's hello `theirs` ([`HELLO`] bytes) to this end of
+/// `part`: a hello of this version and of the other part; else why the
+/// meeting ends. Sans-IO, for the fuzz target.
+pub fn peer_nonce(theirs: &[u8], part: Part) -> Result<&[u8], Missed> {
+    if theirs.len() != HELLO {
+        return Err(Missed::NotProven(format!("its hello has {} bytes, not {HELLO}", theirs.len())));
+    }
+    if theirs[0] != VERSION {
+        let why = format!("its words are of version {}, and this end's of {VERSION}", theirs[0]);
+        return Err(Missed::NotProven(why));
+    }
+    if theirs[1] == part.byte() {
+        return Err(Missed::SamePart);
+    }
+    if theirs[1] != part.other().byte() {
+        return Err(Missed::NotProven("its hello is not of the words of the transit road".into()));
+    }
+    Ok(&theirs[2..])
+}
+
+/// The first line of `bytes`, without its newline and a `\r` before it,
+/// taken out of `bytes`; `None` until a newline comes; a refusal when more
+/// than the longest answer came with no newline. Sans-IO, for the fuzz
+/// target.
+pub fn take_line(bytes: &mut Vec<u8>) -> Result<Option<String>, Missed> {
+    if let Some(at) = bytes.iter().position(|b| *b == b'\n') {
+        let line: Vec<u8> = bytes.drain(..=at).collect();
+        return Ok(Some(String::from_utf8_lossy(&line[..at]).trim_end_matches('\r').to_string()));
+    }
+    if bytes.len() > ANSWER_MOST {
+        return Err(Missed::Refused(format!("the relay answered {} bytes with no newline", bytes.len())));
+    }
+    Ok(None)
 }
 
 fn broken(e: SessionError) -> Missed {
@@ -164,12 +193,8 @@ impl Got {
         S: AsyncRead + AsyncWrite + Send,
     {
         loop {
-            if let Some(at) = self.bytes.iter().position(|b| *b == b'\n') {
-                let line: Vec<u8> = self.bytes.drain(..=at).collect();
-                return Ok(String::from_utf8_lossy(&line[..at]).trim_end_matches('\r').to_string());
-            }
-            if self.bytes.len() > ANSWER_MOST {
-                return Err(Missed::Refused(format!("the relay answered {} bytes with no newline", self.bytes.len())));
+            if let Some(line) = take_line(&mut self.bytes)? {
+                return Ok(line);
             }
             self.more(session).await?;
         }
@@ -196,7 +221,7 @@ impl Got {
     where
         S: AsyncRead + AsyncWrite + Send,
     {
-        let liveness = session.watch_liveness(podssh_ws::LIVENESS_EVERY, podssh_ws::LIVENESS_ALLOWED);
+        let liveness = session.watch_liveness(pod_ws::LIVENESS_EVERY, pod_ws::LIVENESS_ALLOWED);
         let read = tokio::select! {
             read = session.read_frame() => read,
             dead = liveness => return Err(Missed::Broken(dead.to_string())),
@@ -216,11 +241,54 @@ impl Got {
                 let code = code.map_or_else(|| "no code".to_string(), |c| c.to_string());
                 let reason = match reason.is_empty() {
                     true => String::new(),
-                    false => format!(" {}", podssh_ws::text::one_line(&reason)),
+                    false => format!(" {}", pod_core::text::one_line(&reason)),
                 };
                 Err(Missed::Dropped(format!("a Close ({code}{reason})")))
             }
             other => Err(Missed::Broken(format!("an unexpected frame (opcode {other:#x})"))),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_relay_s_ok_alone_opens_the_meeting_and_its_other_words_end_it() {
+        assert_eq!(answer("ok"), Ok(()));
+        for (said, words) in [("bad handshake", "bad handshake"), ("impatient", "impatient"), ("OK", "\"OK\"")] {
+            match answer(said) {
+                Err(Missed::Refused(why)) => assert!(why.contains(words), "{why}"),
+                other => panic!("{said:?}: {other:?}"),
+            }
+        }
+        // A relay's text is one safe line of at most 60 characters.
+        let Err(Missed::Refused(why)) = answer(&format!("no\u{1b}[2J{}", "x".repeat(200))) else { panic!() };
+        assert!(!why.contains('\u{1b}') && why.len() < 100, "{why}");
+    }
+
+    #[test]
+    fn a_line_waits_for_its_newline_and_a_long_answer_with_none_is_refused() {
+        let mut bytes = b"o".to_vec();
+        assert_eq!(take_line(&mut bytes), Ok(None));
+        bytes.extend_from_slice(b"k\r\nTHE PEER");
+        assert_eq!(take_line(&mut bytes), Ok(Some("ok".into())));
+        assert_eq!(bytes, b"THE PEER", "the bytes after the line stay, as the first of the peer's");
+        let mut long = vec![b'x'; ANSWER_MOST + 1];
+        assert!(matches!(take_line(&mut long), Err(Missed::Refused(_))));
+        let mut at_most = vec![b'x'; ANSWER_MOST];
+        assert_eq!(take_line(&mut at_most), Ok(None));
+    }
+
+    #[test]
+    fn a_hello_gives_its_nonce_only_from_the_other_part_and_this_version() {
+        let hello = |version: u8, part: u8| [&[version, part][..], &[7u8; NONCE]].concat();
+        assert_eq!(peer_nonce(&hello(VERSION, b'C'), Part::Node), Ok(&[7u8; NONCE][..]));
+        assert_eq!(peer_nonce(&hello(VERSION, b'N'), Part::Client), Ok(&[7u8; NONCE][..]));
+        assert_eq!(peer_nonce(&hello(VERSION, b'C'), Part::Client), Err(Missed::SamePart));
+        assert!(matches!(peer_nonce(&hello(VERSION + 1, b'C'), Part::Node), Err(Missed::NotProven(_))));
+        assert!(matches!(peer_nonce(&hello(VERSION, b'X'), Part::Node), Err(Missed::NotProven(_))));
+        assert!(matches!(peer_nonce(&[VERSION, b'C'], Part::Node), Err(Missed::NotProven(_))));
     }
 }

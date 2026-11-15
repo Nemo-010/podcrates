@@ -1,34 +1,44 @@
-//! The transit road (T-436): a carrier of a pair's road through a
-//! magic-wormhole transit relay, by default Least Authority's at
+//! The transit road: a carrier of a pair's road through a magic-wormhole
+//! transit relay, by default Least Authority's at
 //! `wss://relay.mw.leastauthority.com`, a WebSocket on port 443 that needs
-//! no account (the operator's ruling Q65 lets podssh try it unasked; its
-//! terms and limits are in docs/carriers.md). The relay pairs two
-//! connections that name one token and two sides, says `ok` to both, and
-//! copies the bytes ([`meet`]); it passes `HTTPS_PROXY` as the relay does
-//! ([`far::dial`]), and it is pure Rust, as this crate must be.
+//! no account (its terms and limits are a fact of `pod-services`). The
+//! relay pairs two connections that name one token and two sides, says
+//! `ok` to both, and copies the bytes ([`meet`]). The connection goes
+//! through the caller's way out ([`Config`]), and the crate is pure Rust.
 //!
-//! The token and the key of podssh's proof of the pair come from the pair's
+//! The token and the key of the proof of the pair come from the pair's
 //! connect token, which both ends hold ([`token`]); a node waits at the
 //! relay ([`far`]), and a client meets it there for each link ([`client`]).
 //! A link ([`link`]) is a byte stream: each session over it runs the
-//! resumable layer and, above the layer, the end-to-end channel
-//! (`crate::e2e`), so the relay is trusted for availability only: it sees
-//! the token, the sizes and the times, and a change that it makes ends the
-//! session.
+//! resumable layer of `pod-session` and, above the layer, the caller's
+//! end-to-end channel, so the relay is trusted for availability only: it
+//! sees the token, the sizes and the times, and a change that it makes ends
+//! the session.
+//!
+//! **The settings are the caller's.** The relay's URL, the way out, the
+//! trust, the bounds and the sink of the events are a [`Config`]; the crate
+//! reads no variable of the environment, keeps no process state and prints
+//! nothing. The lines for the user are `pod_core::Event`s of the kinds
+//! `transit.client`, `transit.dial`, `transit.wait`, `transit.meeting` and
+//! `transit.pause`; none holds the token or a key.
+//!
+//! **Typed failures.** [`Failed`] keeps the words of each failure, and is
+//! also a `pod_core::Failure` with its stage and its class.
 
 pub mod client;
+pub mod config;
+mod failed;
 pub mod far;
-// The link of the transit road, a byte stream over a WebSocket: pod-session
-// of PodUtils/podcrates.
+// The link of the transit road, a byte stream over a WebSocket.
 pub use pod_session::ws_link as link;
 pub mod meet;
 pub mod token;
 
-use std::sync::Arc;
-
-use podssh_ws::url::WsUrl;
+use pod_ws::url::WsUrl;
 
 pub use client::Dialer;
+pub use config::Config;
+pub use failed::Failed;
 pub use far::Node;
 pub use link::Link;
 pub use meet::{Missed, Part};
@@ -41,13 +51,8 @@ pub fn default_url() -> String {
     let service = pod_services::get("leastauthority-transit").expect("pod-services holds leastauthority-transit");
     service.endpoint("relay").map(|e| e.url()).expect("leastauthority-transit of pod-services has the endpoint relay")
 }
-/// `no` turns the road off; a `ws://` or `wss://` URL names another relay.
-pub const ENV: &str = "PODSSH_TRANSIT";
 
-/// Where the lines of the road go, for the user.
-pub type Say = Arc<dyn Fn(String) + Send + Sync>;
-
-/// What [`ENV`] asks for.
+/// What the caller's setting of the road asks for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Setting {
     /// No transit road.
@@ -56,15 +61,19 @@ pub enum Setting {
     On(WsUrl),
 }
 
-/// [`ENV`]'s value: unset, empty or yes, Least Authority's relay; no, none;
-/// a `ws://` or `wss://` URL, that relay. Another word is refused, and the
-/// refusal does not echo it, as a URL's query may hold a secret.
-pub fn setting(value: Option<&str>) -> Result<Setting, String> {
+/// The value of the caller's setting `variable` (podssh's
+/// `PODSSH_TRANSIT`): unset, empty or yes, Least Authority's relay; no,
+/// none; a `ws://` or `wss://` URL, that relay. Another word is refused,
+/// and the refusal names `variable` but does not echo the value, as a URL's
+/// query may hold a secret.
+pub fn setting(variable: &str, value: Option<&str>) -> Result<Setting, String> {
     let value = value.map(str::trim).unwrap_or_default();
     match value.to_ascii_lowercase().as_str() {
         "" | "yes" | "on" | "true" | "1" => WsUrl::parse(&default_url()).map(Setting::On),
         "no" | "off" | "false" | "0" => Ok(Setting::Off),
-        _ => WsUrl::parse(value).map(Setting::On).map_err(|why| format!("{ENV}: yes, no, or a relay's URL: {why}")),
+        _ => {
+            WsUrl::parse(value).map(Setting::On).map_err(|why| format!("{variable}: yes, no, or a relay's URL: {why}"))
+        }
     }
 }
 
@@ -74,17 +83,18 @@ mod tests {
 
     #[test]
     fn the_variable_turns_the_road_off_names_a_relay_or_is_refused_without_its_text() {
+        const ENV: &str = "PODSSH_TRANSIT";
         let least = WsUrl::parse(&default_url()).unwrap();
         assert_eq!((least.tls, least.host.as_str(), least.port), (true, "relay.mw.leastauthority.com", 443));
         for on in [None, Some(""), Some(" yes "), Some("On"), Some("1")] {
-            assert_eq!(setting(on), Ok(Setting::On(least.clone())), "{on:?}");
+            assert_eq!(setting(ENV, on), Ok(Setting::On(least.clone())), "{on:?}");
         }
         for off in ["no", "OFF", "0", "false"] {
-            assert_eq!(setting(Some(off)), Ok(Setting::Off), "{off}");
+            assert_eq!(setting(ENV, Some(off)), Ok(Setting::Off), "{off}");
         }
-        let own = setting(Some("ws://127.0.0.1:4002/")).unwrap();
+        let own = setting(ENV, Some("ws://127.0.0.1:4002/")).unwrap();
         assert_eq!(own, Setting::On(WsUrl::parse("ws://127.0.0.1:4002/").unwrap()));
-        let refused = setting(Some("maybe?key=SECRET")).unwrap_err();
+        let refused = setting(ENV, Some("maybe?key=SECRET")).unwrap_err();
         assert!(refused.starts_with("PODSSH_TRANSIT: ") && !refused.contains("SECRET"), "{refused}");
     }
 }

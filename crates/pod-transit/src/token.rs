@@ -1,9 +1,9 @@
-//! The words of a meeting at the transit relay (T-436), from the pair's
-//! secret: the token by which the relay pairs two sides, and the key of
-//! podssh's own proof of the pair, each by HKDF-SHA256 from the pair's
-//! connect token and name, which both ends hold; and this end's side, at
-//! random. The token is the transit relay's to see: it lets a side meet
-//! the node and no more, as the proof key cannot be had from it.
+//! The words of a meeting at the transit relay, from the pair's secret: the
+//! token by which the relay pairs two sides, and the key of the road's own
+//! proof of the pair, each by HKDF-SHA256 from the pair's connect token and
+//! name, which both ends hold; and this end's side, at random. The token is
+//! the transit relay's to see: it lets a side meet the node and no more, as
+//! the proof key cannot be had from it.
 
 use std::fmt;
 
@@ -12,9 +12,11 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use zeroize::Zeroizing;
 
-use crate::session::secret::{Entropy, NoRandom};
+use pod_core::entropy::{Entropy, NoRandom};
 
 /// The salt of both derivations: a new version of the words is a new salt.
+/// The salt and the labels hold the name podssh: both ends of a pair derive
+/// the same words, so a change of a label is a new version of the words.
 pub const SALT: &[u8] = b"podssh transit, version 1";
 const TOKEN_LABEL: &[u8] = b"podssh transit token";
 const PROOF_KEY_LABEL: &[u8] = b"podssh transit proof key";
@@ -152,7 +154,7 @@ mod tests {
     const CONNECT: &str = "connect-token-of-a-test-0123456789abcdef";
 
     // Computed with Python's hmac and hashlib (HKDF by RFC 5869 written out),
-    // software that podssh did not write.
+    // software that this project did not write.
     const TOKEN: &str = "6afbdee96c50e22b2b8909831bb054cc0cd822f84563d2a4cae67552ab1f1ae0";
     const PROOF_KEY: &str = "679a267eeb49939a7e39adbef08576e7e4ba798e4afd136d406f2c6f66b12eba";
     const PROOF_OF_C: &str = "843a0eb5c6c8386c1ce814c01dc952dfd1b3222b1a4d7558ce96fbdbc1689f67";
@@ -190,7 +192,7 @@ mod tests {
         assert_eq!(line(&keys, &side), format!("please relay {TOKEN} for side 0123456789abcdef\n"));
         assert_eq!(keys.token().len(), 64);
         assert!(Side::parse("0123").is_none() && Side::parse("0123456789abcdeg").is_none());
-        let random = Side::random(&mut crate::session::OsEntropy).unwrap();
+        let random = Side::random(&mut pod_core::entropy::OsEntropy).unwrap();
         assert_eq!(random.as_str().len(), 16);
         assert!(!format!("{keys:?}").contains(TOKEN));
     }
