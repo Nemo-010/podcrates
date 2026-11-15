@@ -8345,3 +8345,30 @@ The loop of T-640 around the `shutdown` of `SETUP_CMD`, with a test that walks t
 ```sh
 cargo test -p pod-guest --all-features
 ```
+
+# T-644: `pod-enter`: a form of `run_ladder` that gives the caller the child before its wait (PodUtils/podvm#384)
+
+**Source:** PodUtils/podvm#384 (COORD-122 of podvm; PodUtils/podvm@T-1786).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+podvm holds the record of a foreground run with `pod_supervise::foreground` (T-573): it spawns the payload, gives the pid to the hold, then waits. A run that `PODVM_MODE` forces through the ladder calls `pod_enter::run_ladder(root, plan, mode, fd, err)`, which spawns and waits inside and closes the memfd of the parent. podvm gets no pid before the end, so its record reads `Created` while the payload runs, and `ps`, `kill`, `wait` and `stop` do not see it. Not urgent: `PODVM_MODE` is a switch for measurements.
+
+## Premise
+
+- Read: PodUtils/podvm#384; `crates/pod-enter` (`run_ladder`, `spawn_selected`, `spawn_userland`, `Child::wait_forwarding`).
+
+## Approach
+
+A `spawn_ladder` that returns a `Child` (its pid and `wait_forwarding`), as `spawn_selected` does; the memfd of the parent closes after the spawn, as now. `run_ladder` becomes `spawn_ladder` and the wait. A test that reads the pid before the end of the payload, and a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+```

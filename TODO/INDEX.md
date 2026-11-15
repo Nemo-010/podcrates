@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**527 entries: 105 open, 9 partial, 6 blocked, 407 done.**
+**528 entries: 106 open, 9 partial, 6 blocked, 407 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 107 | 121 |
 | P2 | 46 | 3 | 4 | 213 | 266 |
-| P3 | 48 | 3 | 2 | 85 | 138 |
-| **All** | 105 | 9 | 6 | 407 | 527 |
+| P3 | 49 | 3 | 2 | 85 | 139 |
+| **All** | 106 | 9 | 6 | 407 | 528 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -574,3 +574,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-641](podvm.md) | P3 | S | M7 | defect | open | `pod-guest`: the installer tries its shutdown again, and `dos::run` keeps the evidence of a run that times out |
 | [T-642](roads.md) | P3 | S | M4 | chore | open | `pod-egress`: the Python packages of `forwarder-live.yml` by a hashed lock |
 | [T-643](relay.md) | P2 | S | M1 | defect | open | `pod-quic`: a way whose reads keep failing spins a core, and the drop of the endpoint hangs (PodUtils/podssh#253) |
+| [T-644](podvm.md) | P3 | S | M6 | feature | open | `pod-enter`: a form of `run_ladder` that gives the caller the child before its wait (PodUtils/podvm#384) |

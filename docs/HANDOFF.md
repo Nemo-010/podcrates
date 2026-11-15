@@ -30,8 +30,9 @@ is done. Git and the record keep finished work.
    with `.needs` = pod-egress). podssh's map of the glue is in the body of
    PodUtils/podssh#248. Then step 3 of the move: `pod-tor`, `pod-iroh`,
    `pod-cloudflare`, `pod-ts`; then `pod-relay-serve`.
-5. T-643 (PodUtils/podssh#253): the failed reads of `pod-quic`. Then the
-   work order of `TODO/PROGRESS.md`.
+5. T-643 (PodUtils/podssh#253): the failed reads of `pod-quic`. T-644
+   (PodUtils/podvm#384, not urgent): tell podvm on the hand-off of
+   `v0.51.0` that it is T-644. Then the work order of `TODO/PROGRESS.md`.
 
 ## In flight
 
