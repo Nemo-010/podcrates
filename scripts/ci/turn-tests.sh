@@ -197,6 +197,9 @@ stun=$(POD_PROXY_TEST_STUN=required POD_PROXY_TEST_STUN_SERVER=127.0.0.1:$udp \
     cargo test --locked -p pod-proxy --all-features --test stun_coturn -- --nocapture 2>&1) ||
     { printf '%s\n' "$stun"; exit 1; }
 printf '%s\n' "$stun"
+# The tests run in parallel with --nocapture, so a line of a test can
+# follow the text of the harness on its line: each line is found as a
+# part of a line.
 for line in 'coturn: an allocation over UDP relayed a Send and ChannelData' \
     'coturn: an allocation over TLS relayed a Send and padded ChannelData' \
     'coturn: a lifetime past the maximum got the maximum' \
@@ -217,7 +220,7 @@ for line in 'coturn: an allocation over UDP relayed a Send and ChannelData' \
     'xturn: each answer to a signed request had MESSAGE-INTEGRITY-SHA256 alone' \
     'xturn: a success of the Allocate with a changed MESSAGE-INTEGRITY-SHA256 was refused' \
     'xturn: a success of a Refresh with a changed MESSAGE-INTEGRITY-SHA256 was refused'; do
-    if ! printf '%s\n' "$out" | grep -qxF "$line"; then
+    if ! printf '%s\n' "$out" | grep -qF "$line"; then
         echo "turn-tests: the run did not say: $line" >&2
         exit 1
     fi
@@ -225,13 +228,13 @@ done
 # The pinned image names the family that it could not give; coturn 4.6
 # names none.
 line='coturn: the ADDRESS-ERROR-CODE of IPv6 named 440'
-if [ -z "${POD_TURN_TEST_COTURN_BIN:-}" ] && ! printf '%s\n' "$out" | grep -qxF "$line"; then
+if [ -z "${POD_TURN_TEST_COTURN_BIN:-}" ] && ! printf '%s\n' "$out" | grep -qF "$line"; then
     echo "turn-tests: the run did not say: $line" >&2
     exit 1
 fi
 for line in 'coturn: a Binding request mapped the address of its socket' \
     'coturn: a Binding request with an unknown attribute got 420'; do
-    if ! printf '%s\n' "$stun" | grep -qxF "$line"; then
+    if ! printf '%s\n' "$stun" | grep -qF "$line"; then
         echo "turn-tests: the run did not say: $line" >&2
         exit 1
     fi
