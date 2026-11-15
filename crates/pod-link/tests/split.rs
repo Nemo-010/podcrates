@@ -4,14 +4,15 @@
 //! cross whole in a link; a half that goes silent or fails ends the session
 //! on each side with the loss of that half named; the listener joins the
 //! halves of each session alone, refuses halves of two keys, and gives the
-//! end of the bytes of each side; the address and the facts.
+//! end of the bytes of each side; a link over each end names the lost half
+//! in each of many rounds under load; the address and the facts.
 
 mod common;
 
 use std::collections::HashMap;
 use std::io;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 use std::time::{Duration, Instant};
@@ -111,11 +112,13 @@ type Doors = Arc<Mutex<HashMap<String, mpsc::UnboundedSender<Accepted>>>>;
 
 /// A carrier of the test: `NAME@N` dials the door `NAME`, and its accept
 /// gives the key of the identity N. `lossy` puts the ARQ over datagrams
-/// that lose 3 % under the path; each path is under one switch.
+/// that lose 3 % under the path; the dialed end of each path is under
+/// `switch`, the accepted end under `far`.
 #[derive(Default)]
 struct Paths {
     doors: Doors,
     switch: Arc<Switch>,
+    far: Arc<Switch>,
     lossy: bool,
     seed: AtomicU64,
 }
@@ -167,7 +170,7 @@ impl Carrier for Paths {
                 let (a, b) = tokio::io::duplex(256 << 10);
                 (
                     Box::new(Cut { inner: a, switch: self.switch.clone() }),
-                    Box::new(Cut { inner: b, switch: self.switch.clone() }),
+                    Box::new(Cut { inner: b, switch: self.far.clone() }),
                 )
             };
             let peer = Some(key(n.parse().unwrap()));
@@ -183,6 +186,14 @@ impl Carrier for Paths {
             self.doors.lock().unwrap().insert(address.to_string(), tx);
             Ok(Box::new(Door(rx, address.to_string())) as Box<dyn Listener>)
         })
+    }
+}
+
+impl Paths {
+    /// Set the dialed ends to `near` and the accepted ends to `far`.
+    fn set(&self, near: Mode, far: Mode) {
+        self.switch.set(near);
+        self.far.set(far);
     }
 }
 
@@ -255,8 +266,8 @@ async fn kill(half: Half, mode: Mode) {
     timeout(limit(), near.read_exact(&mut got)).await.expect("the bytes after the silence in time").unwrap();
     let started = Instant::now();
     match half {
-        Half::Up => up.switch.set(mode),
-        Half::Down => down.switch.set(mode),
+        Half::Up => up.set(mode, mode),
+        Half::Down => down.set(mode, mode),
     }
     for (side, io) in [("the dialer", &mut near), ("the listener", &mut far)] {
         let e = timeout(limit(), io.read(&mut got)).await.expect("the end in time").unwrap_err();
@@ -280,6 +291,79 @@ async fn a_silent_up_half_ends_the_session_with_up_carrier_lost_on_each_side() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_failed_down_half_ends_the_session_with_down_carrier_lost_on_each_side() {
     kill(Half::Down, Mode::Closed).await;
+}
+
+/// The rounds of the race of a loss and the end of the bytes.
+const ROUNDS: usize = 240;
+
+/// Close `half` of a session of two links after 3 bytes: at each end, or
+/// at the end that sends on the other half while the far end sees
+/// silence. The texts of the links that do not name the loss of `half`.
+async fn close_under_links(half: Half, at_each_end: bool) -> Vec<String> {
+    let (up, down) = (Arc::new(Paths::default()), Arc::new(Paths::default()));
+    let s = split(up.clone(), down.clone());
+    let mut door = s.bind("u", "d").await.unwrap();
+    let (near, far) = pair(&s, &mut door, 2).await;
+    let dialer = Link::new(near, Role::Dialer, Settings::default()).unwrap();
+    let listener = Link::new(far.io, Role::Listener, Settings::default()).unwrap();
+    let mut stream = dialer.open().unwrap();
+    stream.write_all(b"one").await.unwrap();
+    let mut accepted = timeout(limit(), listener.accept()).await.expect("the stream in time").unwrap();
+    let mut three = [0u8; 3];
+    timeout(limit(), accepted.read_exact(&mut three)).await.expect("the bytes in time").unwrap();
+    assert_eq!(&three, b"one");
+    match (half, at_each_end) {
+        (Half::Up, true) => up.set(Mode::Closed, Mode::Closed),
+        (Half::Down, true) => down.set(Mode::Closed, Mode::Closed),
+        // The listener sends down and the dialer sends up.
+        (Half::Up, false) => up.set(Mode::Silent, Mode::Closed),
+        (Half::Down, false) => down.set(Mode::Closed, Mode::Silent),
+    }
+    let mut wrong = Vec::new();
+    for (side, link) in [("the dialer", &dialer), ("the listener", &listener)] {
+        let why = timeout(limit(), link.closed()).await.expect("the end in time").to_string();
+        if split::lost_in(&why) != Some(half) {
+            wrong.push(format!("{side}: {why}"));
+        }
+    }
+    wrong
+}
+
+/// A link closes its byte stream when the loss of a half ends it; the
+/// split must not send that close as the end of its bytes (T-639,
+/// PodUtils/podnet#572). Tasks that spin load the runtime so that the
+/// two ends see the loss at different times.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_closed_half_ends_each_link_with_the_loss_of_that_half_in_each_round_under_load() {
+    let busy = Arc::new(AtomicBool::new(true));
+    let load: Vec<_> = (0..8)
+        .map(|_| {
+            let busy = busy.clone();
+            tokio::spawn(async move {
+                while busy.load(Ordering::Relaxed) {
+                    let at = Instant::now();
+                    while at.elapsed() < Duration::from_micros(200) {
+                        std::hint::spin_loop();
+                    }
+                    tokio::task::yield_now().await;
+                }
+            })
+        })
+        .collect();
+    let mut failed = Vec::new();
+    for round in 0..ROUNDS {
+        let half = if round % 2 == 0 { Half::Up } else { Half::Down };
+        let at_each_end = round % 4 < 2;
+        let form = if at_each_end { "at each end" } else { "at one end" };
+        for text in close_under_links(half, at_each_end).await {
+            failed.push(format!("round {round}, the {} half closed {form}, {text}", half.name()));
+        }
+    }
+    busy.store(false, Ordering::Relaxed);
+    for task in load {
+        task.await.unwrap();
+    }
+    assert!(failed.is_empty(), "{} ends of {ROUNDS} rounds named no lost half: {:#?}", failed.len(), failed);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
