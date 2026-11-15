@@ -1,13 +1,14 @@
 //! pod-egress: a dialer of each road whose deadline is now, so that each
 //! road links in and nothing connects; the arguments of a meek_lite and a
 //! WebTunnel bridge, the upgrade of the Access road, a presigned path of
-//! EICE, and the path of IAP with the carrier's first link refused.
+//! EICE, and the path of IAP with the carrier's first link refused. VLESS,
+//! VMess, Trojan and Shadowsocks are dialers as the roads of part 1.
 
 use std::sync::Arc;
 use std::time::Duration;
 
 use pod_core::{Dial, Target};
-use pod_egress::{AtEnd, Note, forwarder, via, wstunnel};
+use pod_egress::{AtEnd, Note, forwarder, shadowsocks, trojan, via, vless, vmess, wstunnel};
 use pod_tls::Trust;
 
 pub fn egress() -> String {
@@ -44,6 +45,7 @@ pub fn egress() -> String {
         let dial = wstunnel::Dial { way: way.clone(), trust: Trust::Default, timeout: wait, at_end: AtEnd::Now };
         dialers.push(Box::new(wstunnel::Tunnel { server, secret: wstunnel::Secret::default(), dial }));
     }
+    part2(&way, wait, &mut dialers);
     let target = Target::new("probe.example", 22);
     let dialed = match tokio::runtime::Builder::new_current_thread().enable_all().build() {
         Ok(runtime) => dialers
@@ -106,4 +108,38 @@ fn iap(way: &pod_ws::Way) -> String {
         Err(e) => e.to_string(),
     };
     format!("{path}: {opened}")
+}
+
+/// The roads of part 2, each a dialer with a made-up server.
+fn part2(way: &pod_ws::Way, wait: Duration, dialers: &mut Vec<Box<dyn Dial>>) {
+    let dial = || vless::Dial {
+        way: way.clone(),
+        trust: Trust::Default,
+        timeout: wait,
+        answer: wait,
+        silence_is_ready: false,
+        at_end: AtEnd::Now,
+    };
+    let id = "00000000-0000-4000-8000-000000000000";
+    if let Ok(server) = vless::Server::parse(&format!("vless://{id}@vless.example:443?type=ws&security=tls&path=%2F")) {
+        dialers.push(Box::new(vless::Road { server, dial: dial() }));
+    }
+    if let Ok(server) = vmess::Server::parse(
+        "vmess://eyJ2IjoiMiIsInBzIjoicHJvYmUiLCJhZGQiOiJ2bWVzcy5leGFtcGxlIiwicG9ydCI6IjQ0MyIsImlkIjoiMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAwMDAwIiwiYWlkIjoiMCIsInNjeSI6ImF1dG8iLCJuZXQiOiJ3cyIsInBhdGgiOiIvIiwidGxzIjoidGxzIn0=",
+    ) {
+        dialers.push(Box::new(vmess::Road { server, dial: dial() }));
+    }
+    if let Ok(server) = trojan::Server::parse("trojan://made-up@trojan.example:443?type=ws&path=%2F") {
+        dialers.push(Box::new(trojan::Road { server, dial: dial() }));
+    }
+    if let Ok(node) = shadowsocks::Node::parse("ss://YWVzLTEyOC1nY206dGVzdA@192.0.2.1:8888") {
+        let dial = shadowsocks::Dial {
+            way: way.clone(),
+            trust: Trust::Default,
+            timeout: wait,
+            answer: Some(wait),
+            silence_is_ready: false,
+        };
+        dialers.push(Box::new(shadowsocks::Road { node, dial }));
+    }
 }

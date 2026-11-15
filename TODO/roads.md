@@ -1473,7 +1473,7 @@ cargo test -p pod-egress --all-features --test vless --test trojan
 **Milestone:** M1
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1493,3 +1493,7 @@ Turn the four features of `pod-egress` on in `examples/static-probe` (the probe 
 ```sh
 python3 -I scripts/check-probe.py
 ```
+
+## Done
+
+2026-11-15, the commit of the change. `examples/static-probe` turns on `vless`, `vmess`, `trojan` and `shadowsocks` of `pod-egress`, and `egress::part2` makes a dialer of each with a made-up server, as for the roads of part 1. `python3 scripts/check-probe.py`: 48 crates, 0 faults. The probe built with `cargo zigbuild --release --target x86_64-unknown-linux-musl -p static-probe`; `sh scripts/check-static.sh` says static (24,065,704 bytes); its line names `VLESS vless://vless.example:443/ timeout, VMess vmess://vmess.example:443/ timeout, Trojan trojan://trojan.example:443/ timeout, Shadowsocks ss://192.0.2.1:8888 timeout`.
