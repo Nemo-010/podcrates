@@ -178,7 +178,7 @@ numbers. `TODO/RULES.md` gives the rules.
 | #173 | [gh action] requested: ci, adoption, plants, secrets and deny on main at 2f23632 (v0.52.0) | closed (secrets, deny passed; ci failed on a test of T-669; adoption, plants cancelled by #174) | T-035, T-668, T-669, T-670, T-671, T-672, T-676, T-678 |
 | #174 | [gh action] requested: the gates of main at a866f99 and the release v0.52.0; the reruns of services.yml | closed (ci 43708818874 at 2f23632 failed on a test of T-669; replaced by #175) | T-035, T-668, T-669, T-670, T-676, T-679, T-684, T-685 |
 | #175 | [gh action] requested: the gates of main at 7998b72 and the release v0.52.0; the reruns of services.yml | closed (ci 43711409358, adoption 43711411992, release 43715190817; services 43715593746 failed, 43715625889 passed) | T-035, T-668, T-669, T-670, T-676, T-679, T-684, T-685 |
-| #176 | COORD-106: v0.52.0: pod-egress parts 2 and 3; the asks of podvm#395, #403, #406, #407 (to all) | open (podvm `d27cf271`, PodUtils/podvm#413; podnet `c0ab946`, PodUtils/podnet#580) | T-035, T-668, T-669, T-670, T-671, T-672, T-676 |
+| #176 | COORD-106: v0.52.0: pod-egress parts 2 and 3; the asks of podvm#395, #403, #406, #407 (to all) | open (podvm `d27cf271`, PodUtils/podvm#413; podnet `c0ab946`, PodUtils/podnet#580; podrunner `45bd964`, PodUtils/podrunner#169) | T-035, T-668, T-669, T-670, T-671, T-672, T-676 |
 | #177 | [gh action] requested: ci, adoption, plants, secrets and deny on main at 3ee1988 | open | T-686, T-687, T-684 |
 
 #79 to #81 are pull requests.
