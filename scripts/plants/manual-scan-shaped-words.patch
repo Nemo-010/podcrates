@@ -1,0 +1,14 @@
+diff --git a/crates/pod-manual/src/scan.rs b/crates/pod-manual/src/scan.rs
+index 6bb034d4..7f203cdb 100644
+--- a/crates/pod-manual/src/scan.rs
++++ b/crates/pod-manual/src/scan.rs
+@@ -178,7 +178,8 @@ pub fn variables_read(code: &str) -> Vec<String> {
+         let before = code[..i].strip_suffix('c').unwrap_or(&code[..i]);
+         let called = callee(before).is_some_and(|c| CALLS.contains(&c)) || clap_env(before) || in_list(code, i);
+         let named = !word.is_empty() && word.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+-        if called && named && !word.starts_with("CARGO_") && !out.iter().any(|w| w == word) {
++        let shaped = word.contains('_') && word.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_');
++        if (called || shaped) && named && !word.starts_with("CARGO_") && !out.iter().any(|w| w == word) {
+             out.push(word.to_string());
+         }
+     }

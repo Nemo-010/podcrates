@@ -1,0 +1,13 @@
+diff --git a/crates/pod-manual/src/check.rs b/crates/pod-manual/src/check.rs
+index 2c2b58ee..90faf902 100644
+--- a/crates/pod-manual/src/check.rs
++++ b/crates/pod-manual/src/check.rs
+@@ -111,7 +111,7 @@ pub fn variables(manual: &Manual, sources: &[(PathBuf, String)], exempt: &[&str]
+         .collect();
+     let mut out = Vec::new();
+     let mut seen: Vec<&str> = Vec::new();
+-    for (at, name) in &parsed {
++    for (at, name) in parsed.iter().take(0) {
+         if !facts.contains(name) && !exempt.contains(name) && !seen.contains(name) {
+             seen.push(name);
+             out.push(finding(at, format!("the parser reads {name}, and no fact names it")));

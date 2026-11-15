@@ -1,0 +1,6 @@
+# check-strings.py takes #N after any word as the number of a standard; its self-test must fail.
+ENTRY=T-725
+GROUP=manual
+EXPECT='self-test: FAIL an issue after a word'
+RUN='python3 -I scripts/check-strings.py --self-test'
+LIMIT=120

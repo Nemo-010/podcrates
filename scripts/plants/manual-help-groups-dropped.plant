@@ -1,0 +1,5 @@
+# pod-manual: the help shows no table for a group of commands; its test must fail.
+ENTRY=T-725
+GROUP=manual
+EXPECT='test check::tests::the_help_shows_the_lead_and_each_group \.\.\. FAILED'
+RUN='cargo test -p pod-manual --lib -- check::tests::the_help_shows_the_lead_and_each_group --exact'

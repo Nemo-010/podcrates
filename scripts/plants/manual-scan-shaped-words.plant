@@ -1,0 +1,5 @@
+# pod-manual: the reader of the source takes each quoted word of the form of a variable as a read; its test must fail.
+ENTRY=T-725
+GROUP=manual
+EXPECT='test scan::tests::a_word_of_the_form_of_a_variable_is_no_read \.\.\. FAILED'
+RUN='cargo test -p pod-manual --lib -- scan::tests::a_word_of_the_form_of_a_variable_is_no_read --exact'

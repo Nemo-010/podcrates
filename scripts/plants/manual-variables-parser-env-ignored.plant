@@ -1,0 +1,5 @@
+# pod-manual: the check of the variables lets the variable of a flag with no fact pass; its test must fail.
+ENTRY=T-725
+GROUP=manual
+EXPECT='test check::tests::the_variable_of_a_flag_is_a_read \.\.\. FAILED'
+RUN='cargo test -p pod-manual --lib -- check::tests::the_variable_of_a_flag_is_a_read --exact'

@@ -1,0 +1,13 @@
+diff --git a/scripts/check-strings.py b/scripts/check-strings.py
+index c63e6859..ccb10951 100644
+--- a/scripts/check-strings.py
++++ b/scripts/check-strings.py
+@@ -150,7 +150,7 @@ def in_prose(text: str, m: re.Match) -> bool:
+     after = right[len(re.match(r"\S*", right).group()):].split()
+     beside = (before and WORD.fullmatch(before[-1])) or (after and WORD.fullmatch(after[0]))
+     near = text[max(0, m.start() - 40):m.end() + 40]
+-    return bool(beside) and PROSE.search(near) is not None
++    return True
+ 
+ 
+ def text_faults(text: str) -> list[str]:

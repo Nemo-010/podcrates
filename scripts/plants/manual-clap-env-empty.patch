@@ -1,0 +1,13 @@
+diff --git a/crates/pod-manual/src/clap.rs b/crates/pod-manual/src/clap.rs
+index 70abd9e9..d8a4aed2 100644
+--- a/crates/pod-manual/src/clap.rs
++++ b/crates/pod-manual/src/clap.rs
+@@ -104,7 +104,7 @@ fn walk(cmd: &::clap::Command, path: Vec<String>, out: &mut Vec<Command>) {
+         help: help(a),
+         default: defaults(a),
+         values: values(a),
+-        env: env(a),
++        env: None,
+         required: a.is_required_set(),
+         repeatable: many(a),
+         ..Flag::default()

@@ -1,0 +1,13 @@
+diff --git a/crates/pod-manual/src/sections.rs b/crates/pod-manual/src/sections.rs
+index c0087df9..eb4430dc 100644
+--- a/crates/pod-manual/src/sections.rs
++++ b/crates/pod-manual/src/sections.rs
+@@ -136,7 +136,7 @@ fn commands(manual: &Manual, c: &Command) -> Vec<Block> {
+     let word = |k: &Command| k.path.last().cloned().unwrap_or_default();
+     let row = |k: &Command| (vec![lit(word(k))], k.about.clone());
+     let mut blocks = Vec::new();
+-    for g in &c.groups {
++    for g in c.groups.iter().take(0) {
+         let rows: Vec<_> =
+             g.commands.iter().filter_map(|w| children.iter().find(|k| word(k) == *w)).map(|k| row(k)).collect();
+         blocks.push(Block::Sub { text: g.title.clone() });

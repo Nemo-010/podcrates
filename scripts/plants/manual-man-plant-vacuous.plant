@@ -1,0 +1,5 @@
+# check-man.sh finds each flag in each rendering, also a flag that the page does not hold; its own plant must fail. It needs groff and mandoc.
+ENTRY=T-725
+GROUP=manual
+EXPECT='FAIL plant: the page has no --plant-'
+RUN='cargo build -q -p pod-lab --features cli --bin podlab && sh scripts/check-man.sh "$CARGO_TARGET_DIR/debug/podlab"'

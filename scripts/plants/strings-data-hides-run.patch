@@ -1,0 +1,16 @@
+diff --git a/scripts/check-strings.py b/scripts/check-strings.py
+index c63e6859..e0be6abd 100644
+--- a/scripts/check-strings.py
++++ b/scripts/check-strings.py
+@@ -175,9 +175,8 @@ def run_faults(text: str, data: list[str]) -> list[str]:
+     found = text_faults(text)
+     if not found:
+         return found
+-    for value in data:
+-        if value in text:
+-            text = text.replace(value, "\0")
++    if any(value in text for value in data):
++        return []
+     return text_faults(text)
+ 
+ 

@@ -1,0 +1,5 @@
+# pod-manual: the check of the model refuses a rule that names a positional argument; the test of the reader of clap must fail.
+ENTRY=T-725
+GROUP=manual
+EXPECT='test a_rule_with_a_positional_argument_passes_the_check_of_the_model \.\.\. FAILED'
+RUN='cargo test -p pod-manual --all-features --test clap -- a_rule_with_a_positional_argument_passes_the_check_of_the_model --exact'

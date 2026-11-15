@@ -1,0 +1,13 @@
+diff --git a/scripts/check-strings.py b/scripts/check-strings.py
+index c63e6859..93e2fd82 100644
+--- a/scripts/check-strings.py
++++ b/scripts/check-strings.py
+@@ -139,7 +139,7 @@ def reads_as_text(near: str) -> bool:
+     """TEXT: a word of three letters, and half of the characters are ASCII
+     letters or spaces."""
+     letters = sum(1 for c in near if c == " " or (c.isascii() and c.isalpha()))
+-    return re.search(r"[A-Za-z]{3,}", near) is not None and 2 * letters >= len(near)
++    return re.search(r"[A-Za-z]{3,}", near) is not None and 2 * letters >= len(near) and False
+ 
+ 
+ def in_prose(text: str, m: re.Match) -> bool:

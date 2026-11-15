@@ -1,0 +1,5 @@
+# pod-manual: the check of the model lets a command be in two groups; its test must fail.
+ENTRY=T-725
+GROUP=manual
+EXPECT='test check::tests::the_groups_name_each_command_once \.\.\. FAILED'
+RUN='cargo test -p pod-manual --lib -- check::tests::the_groups_name_each_command_once --exact'

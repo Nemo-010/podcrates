@@ -1,0 +1,13 @@
+diff --git a/crates/pod-manual/src/check.rs b/crates/pod-manual/src/check.rs
+index 2c2b58ee..687651ff 100644
+--- a/crates/pod-manual/src/check.rs
++++ b/crates/pod-manual/src/check.rs
+@@ -243,7 +243,7 @@ pub fn model(manual: &Manual) -> Vec<Finding> {
+         let listed: Vec<&String> = c.groups.iter().flat_map(|g| &g.commands).collect();
+         for w in &children {
+             match listed.iter().filter(|l| **l == w).count() {
+-                1 => {}
++                _ => {}
+                 0 => out.push(finding(at, format!("the command {w} is in no group"))),
+                 n => out.push(finding(at, format!("the command {w} is in {n} groups"))),
+             }

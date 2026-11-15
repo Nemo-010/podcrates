@@ -1,0 +1,5 @@
+# pod-manual: the reader of clap leaves the variable of each flag empty; its test must fail.
+ENTRY=T-725
+GROUP=manual
+EXPECT='test the_reader_gives_the_variable_of_each_flag \.\.\. FAILED'
+RUN='cargo test -p pod-manual --all-features --test clap -- the_reader_gives_the_variable_of_each_flag --exact'

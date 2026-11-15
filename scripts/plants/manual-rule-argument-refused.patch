@@ -1,0 +1,13 @@
+diff --git a/crates/pod-manual/src/check.rs b/crates/pod-manual/src/check.rs
+index 2c2b58ee..4651deec 100644
+--- a/crates/pod-manual/src/check.rs
++++ b/crates/pod-manual/src/check.rs
+@@ -231,7 +231,7 @@ pub fn model(manual: &Manual) -> Vec<Finding> {
+         let at = at.trim();
+         for r in &c.rules {
+             for name in r.names() {
+-                if c.flag(name).is_none() && c.arg(name).is_none() {
++                if c.flag(name).is_none() {
+                     out.push(finding(at, format!("the rule names {name}, which is no flag and no argument")));
+                 }
+             }
