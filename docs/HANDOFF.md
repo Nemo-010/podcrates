@@ -11,7 +11,8 @@ is done. Git and the record keep finished work.
 
 1. Start the watcher (`sh scripts/agent/watch-org.sh 90` under the Monitor
    tool) and read the open COORD issues `(to podcrates)`.
-2. RELEASE_STEP
+2. Record the takes of `v0.50.0` on #164 (COORD-104): podssh applies the
+   five patches of step 1 of the move; the others bump the tag.
 3. Release `v0.51.0` from `main`: it holds T-639 (PodUtils/podnet#572),
    T-640 (PodUtils/podvm#380) and part 1 of `pod-egress` (T-035). Before
    the tag, dispatch `guest-windows.yml`: its six cold boots of `run`
@@ -37,7 +38,8 @@ is done. Git and the record keep finished work.
 ## In flight
 
 - The last tags: `v0.49.0` at `212d45d` (#163, each consumer took it,
-  closed). TAG_LINE
+  closed). `v0.50.0` at `26fb91f` (ci 43669018284, adoption 43669018236,
+  release 43672638621; the hand-off #164, COORD-104): step 1 of the move.
 - The moved crates of step 1 (`pod-transit`, `pod-acme`, `pod-piping`,
   `pod-opentunnel`, `pod-derp`) are in `v0.50.0`; their trial patches in
   `adoption/podssh/` name `v0.50.0`. Part 1 of `pod-egress` is on `main`;
