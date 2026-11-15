@@ -2818,7 +2818,7 @@ each, through the mirror and with a clone.
 
 ## Problem
 
-The first user runs of podrunner `v0.1.0-beta.6` found about 30 defects that CI did not find (podrunner #153, #155 to #178): most come from a host class that the runners of GitHub do not have, as they allow each operation. podrunner asks for a crate `pod-lab` and a static CLI `podlab`: the profiles as data, `podlab check PROFILE` (the profile holds, proved with the rows of `pod-hostprobe`, so a lab that allows what it should refuse fails its own check), `podlab run PROFILE -- CMD` (the exit code and the output of CMD in the lab), and a step of GitHub Actions that brings up a profile on a runner. The profiles of the ask: `userns-off`, `bind-denied` (`bind` and `connect` of AF_INET and AF_INET6 give EACCES, AF_UNIX holds), `getsockname-denied` (EOPNOTSUPP), `proxy-only`, `small-tmp` (`TMPDIR` on a tmpfs of 1 GiB), `root-unreadable` (`readdir("/")` gives EACCES), `nonroot-nocaps` (no capability, `NoNewPrivs`, a seccomp filter), `no-kvm`, `arm64-tcg`, `inherited-fds` (descriptors 3 to N open). podvm adds `chroot-denied`, `userns-mount-denied` (AppArmor's `apparmor_restrict_unprivileged_userns`), `cgroup-v1`, `landlock-old` (ABI below 4), `proc-masked` (no `/proc`, or `hidepid`), `noexec-tmp`; podvm holds the machine-tier form of each (a guest with the knobs of a profile) and the parts that a rung with no root can hold (a seccomp filter, a tmpfs, inherited descriptors). podnet holds the network profiles (`proxy-only`, `bind-denied`).
+The first user runs of podrunner `v0.1.0-beta.6` found about 30 defects that CI did not find (podrunner #153, #155 to #178): most come from a host class that the runners of GitHub do not have, as they allow each operation. podrunner asks for a crate `pod-lab` and a static CLI `podlab`: the profiles as data, `podlab check PROFILE` (the profile holds, proved with the rows of `pod-hostprobe`, so a lab that allows what it should refuse fails its own check), `podlab run PROFILE -- CMD` (the exit code and the output of CMD in the lab), and a step of GitHub Actions that brings up a profile on a runner. The profiles of the ask: `userns-off`, `bind-denied` (`bind` and `connect` of AF_INET and AF_INET6 give EACCES, AF_UNIX holds), `getsockname-denied` (EOPNOTSUPP), `proxy-only`, `small-tmp` (`TMPDIR` on a tmpfs of 1 GiB), `root-unreadable` (`readdir("/")` gives EACCES), `nonroot-nocaps` (no capability, `NoNewPrivs`, a seccomp filter), `no-kvm`, `arm64-tcg`, `inherited-fds` (descriptors 3 to N open). podvm adds `chroot-denied`, `userns-mount-denied` (AppArmor's `apparmor_restrict_unprivileged_userns`), `cgroup-v1`, `landlock-old` (ABI below 4), `proc-masked` (no `/proc`, or `hidepid`), `noexec-tmp`, and `wsl2` (the kernels of WSL2, PodUtils/podvm#396 to #402; a profile of the machine tier only); podvm holds the machine-tier form of each (a guest with the knobs of a profile) and the parts that a rung with no root can hold (a seccomp filter, a tmpfs, inherited descriptors). podnet holds the network profiles (`proxy-only`, `bind-denied`).
 
 ## Premise
 
@@ -2850,12 +2850,26 @@ Each command line of PodUtils writes its help and its manual by hand. The agents
 
 ## Premise
 
-- Read: PodUtils/podnet#584.
+- Read: PodUtils/podnet#584, PodUtils/podssh#267, PodUtils/podvm#425, PodUtils/podrunner#181.
 - Not read: podnet's `src/manual/` at `78a3911` (the read of its contents through the mirror gave 403 from this session); the help of podssh, podvm, podrunner and `podlab`.
 
 ## Approach
 
-Take podnet's `src/manual/` and `PodUtils/podnet:scripts/gen-llms.py` at `78a3911` as the crate `pod-manual` (call C681), by the procedure of `docs/design.md`, section 3, with `SOURCES`. The crate holds the model, the roff, text and JSON writers, the pager, and the typed table of variables and exit codes that each program fills; the program keeps only its facts. The crate gives a test helper that each program calls in its own tests: the help, the man page, the JSON manual and the `llms` files are generated, and a test fails when a checked-in file differs from the generated one or when a variable or an exit code that the code reads has no fact. `podlab` (T-692) is the first command line of podcrates that takes it. The asks of podssh, podvm and podrunner in PodUtils/podnet#584 (aliases, a page for each subcommand, translations) become parts of this entry. The handoff of the tag names the step of each consumer: its help and its manual come from `pod-manual`, `CLI man --no-pager` works, and the drift test runs in its CI.
+Take podnet's `src/manual/` and `PodUtils/podnet:scripts/gen-llms.py` at `78a3911` as the crate `pod-manual` (call C681), by the procedure of `docs/design.md`, section 3, with `SOURCES`. The crate holds the model, the roff, text and JSON writers, the pager, and the typed table of variables and exit codes that each program fills; the program keeps only its facts. The crate gives a test helper that each program calls in its own tests: the help, the man page, the JSON manual and the `llms` files are generated, and a test fails when a checked-in file differs from the generated one or when a variable or an exit code that the code reads has no fact. `podlab` (T-692) is the first command line of podcrates that takes it. The needs of the consumers (PodUtils/podssh#267, PodUtils/podvm#425, PodUtils/podrunner#181) are parts of this entry:
+
+1. The model is a type that the program fills (podssh parses OpenSSH's grammar, podvm docker's and podman's, podrunner its own options, each by hand); a reader of `clap` is one way to fill it. The same table can drive the parser (podrunner), and a test checks each row against the parser (podssh).
+2. Other names: of a command (podssh `irc` for `chat`, `scp` and `sftp` for `cp`) and of the program by argv0 (podvm as `docker` and `podman`); the help shows the name of argv0.
+3. `CLI man SECTION` (or `VERB`): one command or one topic; topics of notes and examples (podssh, about 60).
+4. The help of each subcommand (`CLI COMMAND --help`, `CLI help COMMAND`) from the model (podrunner).
+5. The rules between options: excludes, needs, one of (podrunner); its contract tests can come from them.
+6. The kind of a flag: wired, accepted and ignored, refused with what to use instead (podssh); a status against another tool (implemented, degraded, stub, refused, with its text; podvm's parity with docker and podman).
+7. Typed tables that a program adds (podssh: the `-o` keywords, files, retired names), each rendered by each writer; the variables in groups (podvm, about 60 `PODVM_*`); the keys of a configuration file whose keys are options (podrunner's `run.toml`).
+8. The exit codes: the classes of `pod_core::failure` (64 to 80, podrunner), docker's 125 to 127, and a row "the code of the payload" (podvm).
+9. The writers: plain text that needs nothing of the host; man(7) that groff and mandoc render with no warning; one JSON object; `llms.txt` and `llms-full.txt` from the JSON.
+10. The pager: only on a terminal; `PAGER` when the user names it; else `less` only where a probe finds it; never a helper otherwise; `--no-pager` (podssh's rule). No dynamic library.
+11. A helper for the text of an error: "OPTION: what is wrong; fix: what to do" (podrunner).
+
+Not needed by a consumer: a page for each subcommand, translations. The handoff of the tag names the step of each consumer: its help and its manual come from `pod-manual`, `CLI man --no-pager` works, and the drift test runs in its CI.
 
 ## Prove
 
