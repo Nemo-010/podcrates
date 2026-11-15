@@ -1,0 +1,30 @@
+# The files of this crate that came from another repository
+# (docs/design.md, section 9). A file line holds the git blob id at the
+# commit (`git ls-tree COMMIT -- PATH` gives it). scripts/check-sources.py
+# compares each with the default branch of its repository.
+
+repo PodUtils/podssh b9c04657bf4e283263ef34ba2462be297231cd38
+# podssh froze src/opentunnel/ at this commit for the move (podssh T-684,
+# PodUtils/podssh#248). mod.rs is the root of the crate (lib.rs). The tests
+# of tests/opentunnel_link.rs, opentunnel_interop.rs, opentunnel_live.rs and
+# the stand-in of tests/opentunnel_stand_in/ come whole. The private files of
+# the record are pod-core's files (podssh's cache.rs).
+dir crates/podssh-relay/src/opentunnel
+dir crates/podssh-relay/tests/opentunnel_stand_in
+file cd325a43f33555089fdf60cd27e661fbfa95611a crates/podssh-relay/src/opentunnel/api.rs -> crates/pod-opentunnel/src/api.rs
+file 0e8e60e313863dc16e8bc3af0c41277e7e8d7498 crates/podssh-relay/src/opentunnel/bridge.rs -> crates/pod-opentunnel/src/bridge.rs
+file 21dd96875a7b4b660f5246fe462c9ce2af2a53d7 crates/podssh-relay/src/opentunnel/client.rs -> crates/pod-opentunnel/src/client.rs
+file 1cef1039e1596e42625d3cdeba7b04504468c6e1 crates/podssh-relay/src/opentunnel/conn.rs -> crates/pod-opentunnel/src/conn.rs
+file ec15672e33177c2fbc447ba4d2d36e9ae097f7db crates/podssh-relay/src/opentunnel/dial.rs -> crates/pod-opentunnel/src/dial.rs
+file 1778ced9be3cc23ad179d7916a7d57c030b9a9df crates/podssh-relay/src/opentunnel/far.rs -> crates/pod-opentunnel/src/far.rs
+file 6e6d0e18376897a2468c22b34963488b769c0f82 crates/podssh-relay/src/opentunnel/mod.rs -> crates/pod-opentunnel/src/lib.rs
+file 2d978af983742c86f7878f318f707e1e4cb20904 crates/podssh-relay/src/opentunnel/provision.rs -> crates/pod-opentunnel/src/provision.rs
+file 5b3cdc7e8ef1211ab99940c2420aa83fb036f9c2 crates/podssh-relay/src/opentunnel/record.rs -> crates/pod-opentunnel/src/record.rs
+file 113cf076859c23820be474495ebe03a447da7b9b crates/podssh-relay/src/opentunnel/retry.rs -> crates/pod-opentunnel/src/retry.rs
+file d50ff1c435632e451ccef6896da2339fe839fc58 crates/podssh-relay/src/opentunnel/wire.rs -> crates/pod-opentunnel/src/wire.rs
+file 3f713ffba8bd926de94b2735292a1f45c23653e2 crates/podssh-relay/tests/opentunnel_interop.rs -> crates/pod-opentunnel/tests/opentunnel_interop.rs
+file 1b53d34d95011ba585708215699939fbd45218df crates/podssh-relay/tests/opentunnel_link.rs -> crates/pod-opentunnel/tests/opentunnel_link.rs
+file b1fa69e7c42424897e119cc0ac6285e5e7c18408 crates/podssh-relay/tests/opentunnel_live.rs -> crates/pod-opentunnel/tests/opentunnel_live.rs
+file eb0513af8bf8586036b6dfe16c92c48753ea01ab crates/podssh-relay/tests/opentunnel_stand_in/keys.rs -> crates/pod-opentunnel/tests/opentunnel_stand_in/keys.rs
+file 4cb85c202fe73ffe7b8492da3cd1c89f90b94c03 crates/podssh-relay/tests/opentunnel_stand_in/mod.rs -> crates/pod-opentunnel/tests/opentunnel_stand_in/mod.rs
+file adcbf990e8d01c7892fa7dcd5b5ea715a1763938 crates/podssh-relay/tests/opentunnel_stand_in/parse.rs -> crates/pod-opentunnel/tests/opentunnel_stand_in/parse.rs
