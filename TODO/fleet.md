@@ -2867,7 +2867,8 @@ Take podnet's `src/manual/` and `PodUtils/podnet:scripts/gen-llms.py` at `78a391
 8. The exit codes: the classes of `pod_core::failure` (64 to 80, podrunner), docker's 125 to 127, and a row "the code of the payload" (podvm).
 9. The writers: plain text that needs nothing of the host; man(7) that groff and mandoc render with no warning; one JSON object; `llms.txt` and `llms-full.txt` from the JSON.
 10. The pager: only on a terminal; `PAGER` when the user names it; else `less` only where a probe finds it; never a helper otherwise; `--no-pager` (podssh's rule). No dynamic library.
-11. A helper for the text of an error: "OPTION: what is wrong; fix: what to do" (podrunner).
+11. A test of the exit codes against the facts: a code that a program gives with no fact fails (podnet, PodUtils/podnet#585; podnet has the test of the variables both ways).
+12. A helper for the text of an error: "OPTION: what is wrong; fix: what to do" (podrunner).
 
 Not needed by a consumer: a page for each subcommand, translations. The handoff of the tag names the step of each consumer: its help and its manual come from `pod-manual`, `CLI man --no-pager` works, and the drift test runs in its CI.
 
@@ -2875,4 +2876,32 @@ Not needed by a consumer: a page for each subcommand, translations. The handoff 
 
 ```sh
 cargo test -p pod-manual --all-features
+```
+
+# T-701: `pod-lab`: the host classes of podssh and podnet as profiles, with the lane of each project (PodUtils/podssh#268, PodUtils/podnet#585)
+
+**Source:** PodUtils/podssh#268 (COORD-081 of podssh), PodUtils/podnet#585 (COORD-091 of podnet), the answers to PodUtils/podcrates#180; the owner's ruling "Discipline" (2026-11-15).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P1
+**Effort:** M
+**Status:** open
+
+## Problem
+
+The first table of `pod-lab` (T-692) holds the classes of podrunner and podvm. podssh and podnet name more host classes that their users met. podssh: `proxy-only` (CONNECT only to ports 443, 80 and 8443; a direct `connect` gives EACCES or is dropped; UDP gives EPERM; no resolver), `proxy-tls-reterminate` (the proxy's own CA for some names, `CONNECT host:22` answers 200 and then gives no byte), `proxy-per-name` (200 for one name and 504 for another), `sni-allowlist` (TLS reset after a ClientHello with a name not on the list, or with no SNI), `no-proxy-no-dns` (IP literals only), `ws-upgrade-refused`, `listen-denied` (`bind` passes, `listen` is refused), `no-ptmx` (no `/dev/ptmx`, no `/dev/pts`, no controlling terminal), `no-passwd-entry`, `noexec-home`, `no-proc`, `seccomp-nonewprivs` (`unshare`, `mount`, `chroot`, `ptrace` refused), `ro-etc-ssl` and `no-tun`. podnet: `udp-denied`, `no-net-admin`, `no-loopback` (a fresh network namespace with no `lo` address), `ipv6-only`, `raw-denied` (raw and packet sockets give EPERM); its `bind-denied` lets AF_UNIX through. Each project names its lane: podssh (`doctor`, `ssh` and `proxy` through a relay and a node, `cp` of 200 MiB each way, `serve` with `vi`, `less` and Ctrl-C, `pipe`, a session that outlives a killed relay link) and podnet (its commands for each class, in #585).
+
+## Premise
+
+- Read: PodUtils/podssh#268, PodUtils/podnet#585.
+- Not measured: each class on a runner. Some classes need a proxy or a network namespace (part 2, podnet's network profiles).
+
+## Approach
+
+After part 1 of T-692: a profile for each class, in the form of part 1. The classes that a seccomp filter, a mount or an environment can hold with no root (`listen-denied`, `udp-denied`, `raw-denied`, `no-ptmx`, `no-passwd-entry`, `noexec-home`, `no-proc`, `seccomp-nonewprivs`, `no-tun`, `ro-etc-ssl`) go into `run`. The network classes (`proxy-*`, `sni-allowlist`, `no-proxy-no-dns`, `ws-upgrade-refused`, `no-loopback`, `ipv6-only`) come from podnet as data in the form of part 1 (podnet's hand-off), with a probe row for each where `pod-hostprobe` has none (a finding entry for each missing row). The documents of `pod-lab` name the lane of each project.
+
+## Prove
+
+```sh
+cargo test -p pod-lab --all-features
 ```
