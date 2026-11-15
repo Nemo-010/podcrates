@@ -1,0 +1,13 @@
+diff --git a/crates/pod-enter/src/ns_join.rs b/crates/pod-enter/src/ns_join.rs
+index 4e55d633..c5cc5029 100644
+--- a/crates/pod-enter/src/ns_join.rs
++++ b/crates/pod-enter/src/ns_join.rs
+@@ -36,7 +36,7 @@ impl Join {
+     /// The join of the payload of `pidfd`. It reads the user namespaces
+     /// here, before the fork.
+     pub(crate) fn of(pidfd: i64, overlay: bool) -> Join {
+-        Join { pidfd, overlay, user: other_user_namespace(pidfd) }
++        Join { pidfd, overlay, user: true }
+     }
+ 
+     /// The namespaces of the call.

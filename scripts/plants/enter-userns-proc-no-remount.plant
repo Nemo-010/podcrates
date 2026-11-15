@@ -1,0 +1,6 @@
+# pod-enter: the bind of the host's /proc is not remounted nosuid, nodev and noexec; the live test as a caller with no capabilities must fail at its check of /proc/self/mountinfo (T-672).
+ENTRY=T-672
+GROUP=enter
+EXPECT='left: Ok\(9\)'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

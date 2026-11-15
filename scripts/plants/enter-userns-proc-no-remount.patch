@@ -1,0 +1,13 @@
+diff --git a/crates/pod-enter/src/ns_proc_bind.rs b/crates/pod-enter/src/ns_proc_bind.rs
+index db986878..b7209fc6 100644
+--- a/crates/pod-enter/src/ns_proc_bind.rs
++++ b/crates/pod-enter/src/ns_proc_bind.rs
+@@ -121,7 +121,7 @@ pub(crate) fn bind(f: &Fallback, target: &CBuf) {
+             if let Err(e) = sys::mount(source, target, empty, sys::MS_BIND | sys::MS_REC) {
+                 return refused_line(bind_refused, e);
+             }
+-            if let Err(e) = sys::mount(empty, target, empty, *remount) {
++            if let Err(e) = Ok::<(), sys::Errno>(()).map(|()| (empty, remount)).map(drop) {
+                 let _ = sys::umount_detach(target);
+                 refused_line(remount_refused, e);
+             }

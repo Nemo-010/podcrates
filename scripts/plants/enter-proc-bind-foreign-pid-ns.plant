@@ -1,0 +1,6 @@
+# pod-enter: the check of the host's /proc takes a proc of another PID namespace, whose /proc/self is not the pid of the entry; the unit test of that check must fail (T-672).
+ENTRY=T-672
+GROUP=enter
+EXPECT='only_the_proc_of_the_own_pid_namespace_is_bound'
+RUN='cargo test -p pod-enter --all-features --lib ns_proc_bind'
+LIMIT=1800

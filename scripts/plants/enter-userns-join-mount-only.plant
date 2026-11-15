@@ -1,0 +1,6 @@
+# pod-enter: the join of a run in another user namespace calls setns(pidfd, CLONE_NEWNS) alone, gets EPERM and enters a mount namespace of its own; the live test of a joined exec as a caller with no capabilities must fail, as the exec does not see the /tmp of the run (T-671).
+ENTRY=T-671
+GROUP=enter
+EXPECT='the joined exec as uid 65534'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

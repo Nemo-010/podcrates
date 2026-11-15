@@ -1,0 +1,6 @@
+# pod-enter: at EPERM of the fresh proc in a user namespace the child does not bind the host's /proc, so the payload runs with no /proc; the live test as a caller with no capabilities must fail at its read of /proc/self/status (T-672).
+ENTRY=T-672
+GROUP=enter
+EXPECT='left: Ok\(8\)'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

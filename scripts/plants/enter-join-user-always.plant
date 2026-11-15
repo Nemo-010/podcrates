@@ -1,0 +1,6 @@
+# pod-enter: the join takes CLONE_NEWUSER also where the payload is in the user namespace of the caller, which the kernel refuses with EINVAL; the unit test of a child in the own user namespace must fail (T-671).
+ENTRY=T-671
+GROUP=enter
+EXPECT='a_child_in_the_own_user_namespace_is_not_in_another'
+RUN='cargo test -p pod-enter --all-features --lib ns_join'
+LIMIT=1800

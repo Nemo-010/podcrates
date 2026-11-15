@@ -1,0 +1,13 @@
+diff --git a/crates/pod-enter/src/ns_proc_bind.rs b/crates/pod-enter/src/ns_proc_bind.rs
+index db986878..35043447 100644
+--- a/crates/pod-enter/src/ns_proc_bind.rs
++++ b/crates/pod-enter/src/ns_proc_bind.rs
+@@ -47,7 +47,7 @@ pub(crate) enum Fallback {
+ /// namespace of the process `pid`? A proc of a parent PID namespace gives
+ /// another number, and one of a child PID namespace gives none.
+ pub fn proc_of_this_pid_namespace(self_link: &str, pid: i64) -> bool {
+-    self_link.parse::<i64>().is_ok_and(|p| p == pid)
++    self_link.parse::<i64>().is_ok_and(|p| p > 0 || p == pid)
+ }
+ 
+ /// The flags of the remount of the bind: no set-user-ID, no device and no
