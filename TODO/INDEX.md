@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**545 entries: 107 open, 9 partial, 6 blocked, 423 done.**
+**552 entries: 109 open, 9 partial, 6 blocked, 428 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 3 | 0 | 112 | 126 |
-| P2 | 45 | 3 | 4 | 223 | 275 |
+| P1 | 11 | 3 | 0 | 117 | 131 |
+| P2 | 47 | 3 | 4 | 223 | 277 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 107 | 9 | 6 | 423 | 545 |
+| **All** | 109 | 9 | 6 | 428 | 552 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -592,3 +592,10 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-676](podvm.md) | P2 | S | M6 | defect | done | `pod-hostprobe`: the KVM leg is a yes only for a device that runs a guest of the build's architecture (PodUtils/podvm#407) |
 | [T-677](upkeep.md) | P1 | S | M5 | defect | done | `plants.yml` passes its limit of 60 minutes: the plants run in shards |
 | [T-678](upkeep.md) | P1 | S | M5 | defect | done | three plants of `pod-extract` no longer catch: a second guard holds their check |
+| [T-679](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `98017c3` is red on Windows: a test of `pod-actions-store` reads a removed variable by the wrong case |
+| [T-680](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `98017c3` is red on macOS: a port that a socket holds with no listen does not refuse there |
+| [T-681](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `98017c3` is red on windows-2025: a test of `pod-link` reads the answer of a POST before the rest of its body in the link |
+| [T-682](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `98017c3` is red on riscv64 and ppc64le: the upper bound of the split form of `pod-relay` over HTTP/2 is not scaled under an emulator |
+| [T-683](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `98017c3` is red on ppc64le: the kernel test of `pod-term` gives the numbers of `asm-generic` to a powerpc kernel |
+| [T-684](upkeep.md) | P2 | S | M1 | defect | open | `services.yml` at `98017c3`: the Trojan node `node-trojan-149-28-130-108` ends the TLS handshake |
+| [T-685](upkeep.md) | P2 | S | M1 | defect | open | `services.yml` at `98017c3`: both RDAP servers answer 403 for the `.xyz` names to the runner |

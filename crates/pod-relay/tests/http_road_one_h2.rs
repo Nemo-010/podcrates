@@ -348,7 +348,11 @@ async fn with_no_mark_on_the_stream_the_client_takes_the_split_form_within_the_b
     let session = opened(&road, None).await.expect("the open");
     let took = started.elapsed();
     assert_eq!(session.form, Form::Split);
-    assert!(took >= Duration::from_secs(2) && took < Duration::from_secs(4), "took the split form after {took:?}");
+    // The lower bound is the wait for the mark, a timer of the client: it
+    // is not scaled. The rest is the TLS and HTTP/2 work of a debug build,
+    // which an emulator makes slow (4 to 5 s on riscv64 and ppc64le).
+    let bound = Duration::from_secs(2) + pod_testkit::host::scaled(Duration::from_secs(2));
+    assert!(took >= Duration::from_secs(2) && took < bound, "took the split form after {took:?}");
     assert!(road.learned.held(&format!("{NAME}:{}", tls.port)).is_some_and(|why| why.contains("no mark")));
     let (got, _, end) = carry(session, up.clone()).await;
     assert_eq!((got, end), (digest(&down), End::Closed { code: 1000, reason: "target closed".into() }));

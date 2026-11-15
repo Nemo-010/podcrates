@@ -301,10 +301,15 @@ fn the_git_command_takes_the_proxy_of_the_grant_and_https_only() {
     let mut git = crate::Git::new("https://github.com/", "scratch");
     git.proxy = Some("http://127.0.0.1:9".into());
     let c = git.command(&["ls-remote", "https://github.com/a/b"], None);
-    let env: BTreeMap<String, Option<String>> = c
-        .get_envs()
-        .map(|(k, v)| (k.to_string_lossy().into_owned(), v.map(|v| v.to_string_lossy().into_owned())))
-        .collect();
+    // Windows holds one key for each name in any case, with the case of
+    // its first change (`http_proxy` for `HTTP_PROXY`): read each in upper
+    // case there.
+    let name = |k: &std::ffi::OsStr| {
+        let k = k.to_string_lossy().into_owned();
+        if cfg!(windows) { k.to_ascii_uppercase() } else { k }
+    };
+    let env: BTreeMap<String, Option<String>> =
+        c.get_envs().map(|(k, v)| (name(k), v.map(|v| v.to_string_lossy().into_owned()))).collect();
     let config: Vec<(String, String)> = (0..env["GIT_CONFIG_COUNT"].as_deref().unwrap().parse::<usize>().unwrap())
         .map(|i| {
             (
