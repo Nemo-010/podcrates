@@ -174,7 +174,8 @@ for podnet (item 3c): T-526. Then the items below, in order.
 ## Owner actions
 
 - Reserve `pod-actions-store` (T-564), `pod-actions-results` (T-565),
-  `pod-udf` (T-591) and `pod-qga` (T-594) on crates.io at `0.0.0` with the repository of
+  `pod-udf` (T-591), `pod-qga` (T-594), `pod-transit`, `pod-acme`,
+  `pod-piping`, `pod-opentunnel` and `pod-derp` (the move of podssh) on crates.io at `0.0.0` with the repository of
   podcrates (the ruling "crates.io names"). A release by a git tag does
   not wait for them.
 - The owner reserved `pod-devtunnel` and `podswarm` on crates.io (T-387).
