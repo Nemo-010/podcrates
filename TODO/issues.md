@@ -181,10 +181,11 @@ numbers. `TODO/RULES.md` gives the rules.
 | #176 | COORD-106: v0.52.0: pod-egress parts 2 and 3; the asks of podvm#395, #403, #406, #407 (to all) | closed (each consumer took it: podvm `d27cf271`, podnet `c0ab946`, podrunner `45bd964`, podssh `94ee6ac`) | T-035, T-668, T-669, T-670, T-671, T-672, T-676 |
 | #177 | [gh action] requested: ci, adoption, plants, secrets and deny on main at 3ee1988 | closed (ci, adoption, secrets, deny passed; plants missed two plants: T-689, T-557) | T-686, T-687, T-684 |
 | #178 | [gh action] requested: the gates of main at 44e9538 and the release v0.53.0 | closed (ci 43727040716 and adoption 43727043848 passed; release.yml 43729336616 refused a later head; replaced by #179) | T-686, T-687, T-688, T-684 |
-| #179 | [gh action] requested: the gates of main at 7ef7aab and the release v0.53.0 | open | T-686, T-687, T-688, T-691, T-684 |
+| #179 | [gh action] requested: the gates of main at 7ef7aab and the release v0.53.0 | closed (ci 43730534119 failed: T-713; adoption 43730537576 and plants 43730541043 passed) | T-686, T-687, T-688, T-691, T-684, T-713 |
 | #180 | COORD-107: the answer to PodUtils/podrunner#180: podcrates takes pod-lab (T-692); each project runs its releases in the labs (to all) | open | T-692 |
 | #181 | COORD-108: the answer to PodUtils/podnet#584: podcrates takes pod-manual (T-700); each command line takes its help and its manual from it (to all) | open | T-700 |
 | #182 | COORD-109: the owner's ruling "Installer": one POSIX installer for each project, hermetic, idempotent, fast, run in the labs (T-702); podrunner, please give your lessons (to all) | open | T-702 |
 | #183 | COORD-110: the owner's ruling "Issues": the state of each issue comes from the record by a tool, not by hand (T-703) (to all) | open | T-703 |
+| #184 | [gh action] requested: the gates of main at d0f38a6 and the release v0.53.0 | open | T-686, T-687, T-688, T-691, T-684, T-713 |
 
 #79 to #81 are pull requests.

@@ -206,6 +206,12 @@ local agent runs the block once and writes the output or the error back.
 Never amend the block or add a second block to an open request: close it
 and open a new issue.
 
+From the open of a request, watch its runs, not its issue: `watch.py`
+reports each run that starts and ends, and `sh scripts/agent/watch-runs.sh
+FULL_SHA 3` follows the runs of the commit. The agent may run the block
+hours before it writes back. When a gate ends red, read its log, fix the
+cause, and open the next request at once; do not wait for the comment.
+
 ### A red run of `services.yml`
 
 `services.yml` runs the watches of `pod-services` each day
