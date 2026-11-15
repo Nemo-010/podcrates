@@ -2123,7 +2123,7 @@ The next nightly proves ppc64le.
 **Milestone:** M1
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2131,7 +2131,7 @@ The scheduled run failed: "FAILED node-trojan-149-28-130-108 proxy-banner: TLS f
 
 ## Premise
 
-- Read: the log of the job; `crates/pod-services/services/node-trojan-149-28-130-108.toml`; T-174 (the node `node-trojan-70-34-207-14` left after one failed day); `docs/maintenance.md`, "A red run of `services.yml`".
+- Read: the log of the job; crates/pod-services/services/node-trojan-149-28-130-108.toml; T-174 (the node `node-trojan-70-34-207-14` left after one failed day); `docs/maintenance.md`, "A red run of `services.yml`".
 - The TCP connection opened; the node closed it in the TLS handshake. This is not a failure with no answer (call C153).
 - Not measured: the node from here. The egress of this session is a proxy that resolves the name itself, so a TLS handshake to the address cannot be made. A dispatch of `services.yml` with the input `service` failed: "Actions has been disabled for this user".
 
@@ -2146,6 +2146,11 @@ cargo run -q -p pod-services-watch -- --service node-trojan-149-28-130-108
 cargo test -p pod-services --all-features
 ```
 
+## Done
+
+2026-11-15, the commit of the removal. The rerun of `services.yml` with `service=node-trojan-149-28-130-108` (run 43715593746, #175) failed again: "TLS for searchcreativejobsandshowcaseyourartistictalents.com at 149.28.130.108:443: tls handshake eof", as on the scheduled run 43699230156. The node left as T-174 removed `node-trojan-70-34-207-14`: its file crates/pod-services/services/node-trojan-149-28-130-108.toml; the count of the rows `node-*` in `crates/pod-services/README.md` (8 to 7). `cargo test -p pod-services --all-features` and `cargo test -p pod-services-watch --all-features` pass. The hand-off of the next tag tells podssh that the id leaves its list (PodUtils/podssh@T-574).
+
+
 # T-685: `services.yml` at `98017c3`: both RDAP servers answer 403 for the `.xyz` names to the runner
 
 **Source:** `services.yml` run 43699230156 at `98017c3` (job `watch` 132766442485).
@@ -2153,7 +2158,7 @@ cargo test -p pod-services --all-features
 **Milestone:** M1
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2175,3 +2180,7 @@ Dispatch `services.yml` with `kind = rdap` (or ask for it by the issue `[gh acti
 cargo run -q -p pod-services-watch -- --kind rdap
 cargo test -p pod-services-watch --all-features
 ```
+
+## Done
+
+2026-11-15, no change of code. The rerun of `services.yml` with `kind=rdap` (run 43715625889, #175) passed: the RDAP servers answered the records of `gosunuts.xyz`, `openbare.xyz` and `opentunnel.xyz`. The 403 of the scheduled run 43699230156 was a refusal of the address of that runner, which a later run does not meet; the watch stays as it is. A second 403 on a scheduled run reopens this entry with a second source of RDAP.

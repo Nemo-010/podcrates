@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**554 entries: 109 open, 9 partial, 6 blocked, 430 done.**
+**554 entries: 107 open, 9 partial, 6 blocked, 432 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 118 | 132 |
-| P2 | 47 | 3 | 4 | 224 | 278 |
+| P2 | 45 | 3 | 4 | 226 | 278 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 109 | 9 | 6 | 430 | 554 |
+| **All** | 107 | 9 | 6 | 432 | 554 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -597,7 +597,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-681](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `98017c3` is red on windows-2025: a test of `pod-link` reads the answer of a POST before the rest of its body in the link |
 | [T-682](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `98017c3` is red on riscv64 and ppc64le: the upper bound of the split form of `pod-relay` over HTTP/2 is not scaled under an emulator |
 | [T-683](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `98017c3` is red on ppc64le: the kernel test of `pod-term` gives the numbers of `asm-generic` to a powerpc kernel |
-| [T-684](upkeep.md) | P2 | S | M1 | defect | open | `services.yml` at `98017c3`: the Trojan node `node-trojan-149-28-130-108` ends the TLS handshake |
-| [T-685](upkeep.md) | P2 | S | M1 | defect | open | `services.yml` at `98017c3`: both RDAP servers answer 403 for the `.xyz` names to the runner |
+| [T-684](upkeep.md) | P2 | S | M1 | defect | done | `services.yml` at `98017c3`: the Trojan node `node-trojan-149-28-130-108` ends the TLS handshake |
+| [T-685](upkeep.md) | P2 | S | M1 | defect | done | `services.yml` at `98017c3`: both RDAP servers answer 403 for the `.xyz` names to the runner |
 | [T-686](relay.md) | P1 | S | M2 | defect | done | `pod-relay`: a new link of the resumable layer rides the pooled HTTP/2 connection of the silent link it replaces (PodUtils/podssh#262) |
 | [T-687](relay.md) | P2 | S | M2 | defect | done | `pod-ws`: a silent connection of the HTTP/2 pool takes the first link of each new session until its TCP fails |
