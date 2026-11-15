@@ -171,6 +171,7 @@ numbers. `TODO/RULES.md` gives the rules.
 | #166 | [gh action] requested: ci, adoption, plants, secrets and deny on main at 0c6c4c0 | closed (main moved; replaced by #168) | T-643, T-645, T-646, T-647, T-648, T-650 |
 | #167 | [gh action] requested: the checks of a push at a634d3a | closed (a wrong commit id; replaced by #168) | T-645 |
 | #168 | [gh action] requested: ci, adoption, plants, secrets and deny on main at a634d3a | closed (ci, secrets, deny passed; adoption and plants cancelled by #169) | T-643, T-645, T-646, T-647, T-648, T-650 |
-| #169 | [gh action] requested: the gates of main at 482ba53 and the release v0.51.0 | open | T-035, T-639, T-640, T-643, T-647, T-648, T-650, T-651 |
+| #169 | [gh action] requested: the gates of main at 482ba53 and the release v0.51.0 | closed (plants passed its limit of 60 minutes, T-677; replaced by #170) | T-035, T-639, T-640, T-643, T-647, T-648, T-650, T-651 |
+| #170 | [gh action] requested: the gates of main at 98017c3 and the release v0.51.0 | open | T-677, T-035, T-639, T-640, T-643, T-647, T-648, T-650, T-651 |
 
 #79 to #81 are pull requests.
