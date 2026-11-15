@@ -1,0 +1,6 @@
+# pod-enter: the bind of a device of the host is not remounted nosuid and noexec; the live test as a caller with no capabilities must fail at its check of /proc/self/mountinfo (T-688).
+ENTRY=T-688
+GROUP=enter
+EXPECT='left: Ok\(8\)'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800
