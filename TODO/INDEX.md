@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**578 entries: 118 open, 11 partial, 6 blocked, 443 done.**
+**579 entries: 119 open, 11 partial, 6 blocked, 443 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 13 | 6 | 0 | 125 | 144 |
+| P1 | 14 | 6 | 0 | 125 | 145 |
 | P2 | 54 | 2 | 4 | 230 | 290 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 118 | 11 | 6 | 443 | 578 |
+| **All** | 119 | 11 | 6 | 443 | 579 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -625,3 +625,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-723](fleet.md) | P1 | S | M8 | feature | done | `pod-todo`: a kind `reference` for an issue that holds no work (PodUtils/podvm#435) |
 | [T-724](fleet.md) | P1 | S | M8 | defect | done | `issue-sync.yml` builds `pod-todo` under the caller's `.cargo/config.toml` (PodUtils/podvm#437) |
 | [T-725](fleet.md) | P1 | M | M8 | defect | open | `pod-manual`: four gaps that podnet's take found, and false positives of `check-man.sh` and `check-strings.py` (PodUtils/podnet#589) |
+| [T-731](relay.md) | P1 | S | M2 | defect | open | `pod-transit`: `two_ends_meet_and_carry_one_mib_each_way` failed once in CI: the client paired with a node connection that the relay stub closed |
