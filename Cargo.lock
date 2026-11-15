@@ -3858,6 +3858,7 @@ dependencies = [
  "pod-devtunnel",
  "pod-dns",
  "pod-e2e",
+ "pod-egress",
  "pod-enter",
  "pod-extract",
  "pod-gsr",

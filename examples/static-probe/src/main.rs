@@ -6,6 +6,7 @@
 mod acme;
 mod actions;
 mod devtunnel;
+mod egress;
 mod hold;
 mod link;
 mod netlab;
@@ -131,6 +132,7 @@ fn main() {
     lines.push(netlab::netlab());
     lines.push(turn::turn());
     lines.push(transit::transit());
+    lines.push(egress::egress());
     lines.push(acme::acme());
     lines.push(udf::udf());
     let direct = pod_proxy::Dialer::new(
