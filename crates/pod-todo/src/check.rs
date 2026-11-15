@@ -121,7 +121,9 @@ pub fn check_with(root: &Path, changed: Option<Vec<String>>, head: &crate::remap
         record.rows.iter().map(|r| (r.id.as_str(), r.status.as_str())).collect();
     crate::claims::check(root, &status, &mut problems);
     // The state of each issue against its entries.
-    crate::issues::check(root, &status, &mut problems);
+    if crate::config::current().issue_rules {
+        crate::issues::check(root, &status, &mut problems);
+    }
     check_proves(root, &record.entries, &mut problems);
     if let Some(files) = changed.filter(|f| !f.is_empty()) {
         unmoved(root, &files, head, rev, &mut problems);

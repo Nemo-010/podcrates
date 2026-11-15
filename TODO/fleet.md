@@ -3292,6 +3292,8 @@ become the state alone.
 
 The same day, the dry run of `issue-sync.yml` on GitHub (run 43762153730, PodUtils/podcrates#190): 171 issues would get the block, #1 would close with a comment, 14 closed issues of a tester outside the team stay as they are, and the run failed on #190 alone, which the record did not map yet. A session opens each request and message before its record can map it, and a request freezes `main`, so an unmapped issue younger than `GRACE_DAYS` (3) is now a note, not a fault. The run would also have opened #189 again: a session closed it by hand before the record did. A session closes an issue through the record; the sync closes it on GitHub.
 
+The same day, `adoption.yml` run 43762137913 at `bf13591` failed for podssh and podnet: each takes `pod-todo` of `main` in its trial, and the new rules of the issues found drift in both records (podssh: 17 problems, such as closed reports with open entries; podnet: 8). A new rule of a shared checker must not fail each consumer at once. The rules are now on only where `TODO/todo.toml` says `issue_rules = "on"` (podcrates says so); a consumer turns them on when it takes the sync, after it repairs its map. The drift that the rules found is in the hand-off of the next tag.
+
 # T-704: `podlab`: the usage errors of clap in the form of `pod_manual::error::fault`
 
 **Source:** T-700 (a finding of part 1).

@@ -44,6 +44,10 @@ pub struct Config {
     pub readings: Vec<String>,
     /// The heading of `TODO/PROGRESS.md` that holds the questions `Qn`.
     pub questions: String,
+    /// The rules of the state of an issue against its entries (the owner's
+    /// ruling "Issues"): `issue_rules = "on"`. A repository turns them on
+    /// when it takes the sync, so a new rule fails no consumer at once.
+    pub issue_rules: bool,
 }
 
 fn strings(items: &[&str]) -> Vec<String> {
@@ -64,6 +68,7 @@ impl Default for Config {
             document_dirs: strings(&["TODO", "docs"]),
             readings: strings(&["docs/releases/"]),
             questions: "Questions for the operator".into(),
+            issue_rules: false,
         }
     }
 }
@@ -128,6 +133,13 @@ pub fn parse(text: &str) -> Result<Config, (usize, String)> {
             "tool" => c.tool = text_value(&value).ok_or((no, format!("`{key}` takes a text in quotes")))?,
             "roadmap" => c.roadmap = text_value(&value).ok_or((no, format!("`{key}` takes a text in quotes")))?,
             "questions" => c.questions = text_value(&value).ok_or((no, format!("`{key}` takes a text in quotes")))?,
+            "issue_rules" => {
+                c.issue_rules = match text_value(&value).as_deref() {
+                    Some("on") => true,
+                    Some("off") => false,
+                    _ => return Err((no, format!("`{key}` takes \"on\" or \"off\""))),
+                }
+            }
             _ => {
                 let list = list_value(&value).ok_or((no, format!("`{key}` takes a list of texts in quotes")))?;
                 match key.as_str() {
@@ -218,6 +230,14 @@ pub fn enter(root: &Path) -> (Scope, Option<Problem>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_rules_of_the_issues_are_off_until_a_repository_turns_them_on() {
+        assert!(!Config::default().issue_rules);
+        assert!(parse("issue_rules = \"on\"\n").unwrap().issue_rules);
+        assert!(!parse("issue_rules = \"off\"\n").unwrap().issue_rules);
+        assert!(parse("issue_rules = \"yes\"\n").is_err());
+    }
 
     #[test]
     fn a_file_sets_each_key() {

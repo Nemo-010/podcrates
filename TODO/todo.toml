@@ -11,6 +11,9 @@ categories = ["defect", "feature", "measurement", "release", "chore", "research"
 roadmap = "TODO/ROADMAP.md"
 questions = "Questions for the owner"
 
+# The rules of the state of an issue against its entries (T-703).
+issue_rules = "on"
+
 # A code span that starts with one of these is a path of this repository.
 top_dirs = ["crates", "scripts", "docs", ".github", "TODO", "vendor", "fuzz", "examples", "images", "adoption"]
 root_files = [
