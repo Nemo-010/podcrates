@@ -1,0 +1,6 @@
+# The lab of no-loopback enters no network namespace; the check from
+# inside must refuse the run.
+ENTRY=T-701
+GROUP=lab
+EXPECT='no-loopback: the lab no-loopback does not hold'
+RUN='sh scripts/ci/userns-tests.sh'

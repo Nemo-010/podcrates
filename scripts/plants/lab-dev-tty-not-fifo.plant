@@ -1,0 +1,6 @@
+# /dev/tty of no-ptmx is an empty file, not a FIFO: a read of it ends at
+# once; its check from inside must refuse the run.
+ENTRY=T-701
+GROUP=lab
+EXPECT='no-ptmx: the lab no-ptmx does not hold'
+RUN='sh scripts/ci/userns-tests.sh'

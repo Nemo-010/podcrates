@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/table/parts.rs b/crates/pod-lab/src/table/parts.rs
+index 1094215f..1d313752 100644
+--- a/crates/pod-lab/src/table/parts.rs
++++ b/crates/pod-lab/src/table/parts.rs
+@@ -37,7 +37,7 @@ const INET6_RAW: &[When] = &[family(INET6), kind(RAW)];
+ const PACKET: &[When] = &[family(k::AF_PACKET as u32)];
+ 
+ /// `listen(2)` with `EACCES`, as a policy of the kernel gives it.
+-const LISTEN: &[Call] = &[Call { name: "listen", nr: k::SYS_LISTEN, errno: EACCES, when: &[] }];
++const LISTEN: &[Call] = &[];
+ 
+ const UDP: &[Call] =
+     &[socket("socket(AF_INET, SOCK_DGRAM)", INET_DGRAM), socket("socket(AF_INET6, SOCK_DGRAM)", INET6_DGRAM), IO_URING];

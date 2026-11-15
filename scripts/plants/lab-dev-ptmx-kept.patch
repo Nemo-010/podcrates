@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/mounts.rs b/crates/pod-lab/src/mounts.rs
+index d94cd38e..d3304f27 100644
+--- a/crates/pod-lab/src/mounts.rs
++++ b/crates/pod-lab/src/mounts.rs
+@@ -169,7 +169,7 @@ fn bind_with(path: &str, add: u64) -> Result<(), String> {
+ }
+ 
+ /// The nodes of the host that `/dev` of the lab keeps.
+-const NODES: [&str; 5] = ["null", "zero", "full", "random", "urandom"];
++const NODES: [&str; 6] = ["null", "zero", "full", "random", "urandom", "ptmx"];
+ 
+ /// A tmpfs on `/dev` with the nodes of [`NODES`] bound from the host, the
+ /// links of the standard streams, `shm`, and a FIFO at `tty`: a read of

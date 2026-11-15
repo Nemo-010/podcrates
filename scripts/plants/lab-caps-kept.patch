@@ -1,0 +1,14 @@
+diff --git a/crates/pod-lab/src/hold.rs b/crates/pod-lab/src/hold.rs
+index c6282655..8a6d2a51 100644
+--- a/crates/pod-lab/src/hold.rs
++++ b/crates/pod-lab/src/hold.rs
+@@ -190,6 +190,9 @@ const SOCKET_CALLS: [i64; 3] = [k::SYS_SOCKET, k::SYS_LISTEN, k::SYS_GETSOCKNAME
+ /// of root then gets no capability back, as the bounding set is empty and
+ /// `no_new_privs` keeps the permitted set of the lab.
+ pub fn drop_caps() -> Result<(), String> {
++    if true {
++        return k::set_no_new_privs().map_err(|e| words("prctl(PR_SET_NO_NEW_PRIVS)", e)).map(|_| ());
++    }
+     let _ = k::ambient_clear();
+     for cap in 0..64 {
+         match k::capbset_drop(cap) {

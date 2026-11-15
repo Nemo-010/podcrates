@@ -1,12 +1,12 @@
 diff --git a/crates/pod-lab/src/codes.rs b/crates/pod-lab/src/codes.rs
 --- a/crates/pod-lab/src/codes.rs
 +++ b/crates/pod-lab/src/codes.rs
-@@ -37,7 +37,7 @@
-         name: "The lab".into(),
-         vars: vec![Var {
-             used_by: "run".into(),
--            ..Var::sets(&["TMPDIR"], "/tmp for the command, where a part puts a tmpfs on /tmp")
-+            ..Var::sets(&["TMP_DIR"], "/tmp for the command, where a part puts a tmpfs on /tmp")
-         }],
-     };
-     pod_manual::Facts { variables: vec![lab, pod_manual::pager::variables()], exits, ..pod_manual::Facts::default() }
+@@ -40,7 +40,7 @@ pub fn facts() -> pod_manual::Facts {
+                 used_by: "run".into(),
+                 usage: pod_manual::Use::ReadsAndSets,
+                 ..Var::sets(
+-                    &["TMPDIR"],
++                    &["TMP_DIR"],
+                     "The lab writes the files of the ids there. It is /tmp for the command, where a part puts a tmpfs on /tmp.",
+                 )
+             },

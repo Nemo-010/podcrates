@@ -1,0 +1,6 @@
+# The filter of listen-denied refuses no call; its check from inside
+# must refuse the run.
+ENTRY=T-701
+GROUP=lab
+EXPECT='listen-denied: the lab listen-denied does not hold'
+RUN='cargo test -p pod-lab --all-features --test lab'

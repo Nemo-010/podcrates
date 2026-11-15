@@ -1,0 +1,6 @@
+# The filter of udp-denied lets a UDP socket of AF_INET pass; its check
+# from inside must refuse the run.
+ENTRY=T-701
+GROUP=lab
+EXPECT='udp-denied: the lab udp-denied does not hold'
+RUN='cargo test -p pod-lab --all-features --test lab'

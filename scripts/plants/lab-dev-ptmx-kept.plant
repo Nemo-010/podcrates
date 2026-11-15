@@ -1,0 +1,6 @@
+# The /dev of no-ptmx keeps /dev/ptmx of the host; its check from inside
+# must refuse the run. The mounts need a user namespace with a mount.
+ENTRY=T-701
+GROUP=lab
+EXPECT='no-ptmx: the lab no-ptmx does not hold'
+RUN='sh scripts/ci/userns-tests.sh'

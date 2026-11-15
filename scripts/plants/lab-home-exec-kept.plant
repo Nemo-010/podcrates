@@ -1,0 +1,6 @@
+# The bind of HOME of noexec-home has no noexec; the check from inside
+# must refuse the run.
+ENTRY=T-701
+GROUP=lab
+EXPECT='noexec-home: the lab noexec-home does not hold'
+RUN='sh scripts/ci/userns-tests.sh'

@@ -1,0 +1,14 @@
+diff --git a/crates/pod-lab/src/mounts.rs b/crates/pod-lab/src/mounts.rs
+index d94cd38e..1a168e17 100644
+--- a/crates/pod-lab/src/mounts.rs
++++ b/crates/pod-lab/src/mounts.rs
+@@ -111,7 +111,8 @@ fn one(h: Hold, uid: u32, gid: u32) -> Result<(), String> {
+         Hold::ReadOnly { path } => bind_with(path, k::MS_RDONLY),
+         Hold::NoProc => {
+             let flags = k::MS_RDONLY | k::MS_NOSUID | k::MS_NODEV | k::MS_NOEXEC;
+-            mount_tmpfs("/proc", flags, "size=4k,mode=555")
++            let _ = flags;
++            Ok(())
+         }
+         // The flag of `unshare` made it.
+         Hold::NetNs => Ok(()),

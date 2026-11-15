@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/mounts.rs b/crates/pod-lab/src/mounts.rs
+index d94cd38e..14a18e86 100644
+--- a/crates/pod-lab/src/mounts.rs
++++ b/crates/pod-lab/src/mounts.rs
+@@ -193,7 +193,7 @@ fn dev_no_pty() -> Result<(), String> {
+                 .map_err(|e| words(&format!("mount(bind, {at})"), e))?;
+         }
+         let tty = c("/dev/tty")?;
+-        k::mknodat(k::AT_FDCWD as i64, &tty, k::S_IFIFO | 0o666, 0).map_err(|e| words("mknod(/dev/tty)", e))?;
++        k::mknodat(k::AT_FDCWD as i64, &tty, 0o100000 | 0o666, 0).map_err(|e| words("mknod(/dev/tty)", e))?;
+         for (link, to) in [
+             ("fd", "/proc/self/fd"),
+             ("stdin", "/proc/self/fd/0"),
