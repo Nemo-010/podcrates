@@ -30,7 +30,7 @@ mod cert {
 #[path = "common/way.rs"]
 mod way;
 
-const TOKEN: &str = "ya29.TEST-TOKEN-NOT-A-CREDENTIAL";
+const TOKEN: &str = "TEST-TOKEN-NOT-A-CREDENTIAL-OF-GOOGLE";
 const LIMIT: Duration = Duration::from_secs(20);
 
 /// What the stand-in does after the head of an upgrade.
