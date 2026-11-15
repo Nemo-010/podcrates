@@ -52,6 +52,10 @@ impl Errno {
             e::ENOTEMPTY => "ENOTEMPTY",
             e::ELOOP => "ELOOP",
             e::EOPNOTSUPP => "EOPNOTSUPP",
+            // The answers of a socket call: a family that the host does not
+            // have, and a file that a Landlock rule cannot name.
+            e::EAFNOSUPPORT => "EAFNOSUPPORT",
+            e::EBADFD => "EBADFD",
             _ => return format!("E{}", self.0),
         };
         n.to_string()

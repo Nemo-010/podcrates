@@ -2814,7 +2814,7 @@ each, through the mirror and with a clone.
 **Milestone:** M8
 **Priority:** P1
 **Effort:** L
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -2828,6 +2828,210 @@ The first user runs of podrunner `v0.1.0-beta.6` found about 30 defects that CI 
 ## Approach
 
 Part 1 (the next tag after `v0.53.0`): the crate `pod-lab` with the profiles as data (a name, the parts, the rows of `pod-hostprobe` that each part makes refuse or allow), `check` of a profile against a `pod_hostprobe` report, and `run` of the parts that a host with no root holds (a seccomp filter of chosen calls with their errno through `pod-confine`, a tmpfs or a `TMPDIR`, inherited descriptors, a user namespace with a mount where the host has it); `podlab` as a static binary. Part 2: the Actions step (`lab/action.yml`) and the profiles of podvm's machine tier (a guest form that podvm drives) and of podnet. The name `pod-lab` on crates.io is an owner action. A call names the form and the order.
+
+## Prove
+
+```sh
+cargo test -p pod-lab --all-features
+```
+
+## Done
+
+Part 1, 2026-11-15, commits ccbd75a and the next one; calls C673 to
+C680.
+
+- `crates/pod-lab`: the table of 16 profiles (the 10 of
+  PodUtils/podrunner#180 and the 6 of PodUtils/podvm#424). Each part
+  names its rows of `pod-hostprobe` with the errno, the identity facts, or
+  a fact that a lab measures from inside, and its mechanism (`Hold`).
+- `check`, `check_with`, `check_report` (feature `report`): each part
+  holds, fails or is unseen, with each row and its errno. A skipped row
+  never holds.
+- `run`: a lab process (a new start of the binary, one thread) sets the
+  parts, measures the profile from inside, each row in a probe child,
+  then replaces itself with the command. A part that does not hold
+  stops the command (exit 125), unless `partial`. Held with no root: a
+  seccomp filter of `pod-confine` (`userns-off`, `getsockname-denied`,
+  `chroot-denied`, `userns-mount-denied`, `landlock-old`, the default
+  list of `nonroot-nocaps`), Landlock (`bind-denied`, `root-unreadable`,
+  `no-kvm`, `proc-masked`), a tmpfs in a user namespace (`small-tmp`,
+  `noexec-tmp`), descriptors 3 to 9 (`inherited-fds`). Not held here:
+  `proxy-only`, `cgroup-v1`, the arch part of `arm64-tcg` (part 2).
+  `nonroot-nocaps` holds only for a caller that is not root.
+- `podlab` (feature `cli`, clap derive): `list`, `check PROFILE
+  [--report FILE]`, `run [--partial] PROFILE -- CMD...`. The exit codes
+  and the environment are one typed table (`codes.rs`).
+- `pod-hostprobe`: `SYS_GETSOCKNAME`, `getsockname`, `Statfs::f_blocks`,
+  the names of `EAFNOSUPPORT` and `EBADFD`.
+- Each profile that a lab here holds ran with `podlab run` as uid 65534
+  on this host, with a payload that shows the part (the refused call,
+  the hidden path, the noexec mount, the status fields).
+- Tests: 24 unit tests and 1 test of the help; `tests/lab.rs`, 5 cases
+  (`inherited-fds`, `bind-denied` with AF_UNIX socket, bind and connect
+  (PodUtils/podnet#585), `small-tmp`, a refused run, a failed check from
+  inside), as root and as uid 65534. `scripts/ci/userns-tests.sh` runs
+  it where a skip fails. Plants (group `lab`): 8 caught by
+  `plant-each.sh --group lab`.
+- Static: `static-probe` links `pod-lab` with `cli`; the static job
+  builds `podlab` on each Linux target and runs `check-static.sh`.
+  `podlab` for `x86_64-unknown-linux-musl` (cargo zigbuild) is static.
+- The facts that no row measures: T-693, T-694, T-695. UDP in
+  `bind-denied`: T-696.
+
+Part 2 stays: the Actions step (`lab/action.yml`), the machine-tier form
+of each profile for podvm, and the network profiles of podnet.
+
+# T-693: `pod-hostprobe`: the rows of the socket class (AF_INET6, connect, AF_UNIX, getsockname)
+
+**Source:** T-692 (the profiles `bind-denied` and `getsockname-denied` of `pod-lab`).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`pod-lab` checks `bind-denied` and `getsockname-denied` against a report of
+`pod-hostprobe`. The report has one socket row,
+`bind(127.0.0.1:0)+listen`. A check of a report cannot observe the bind of
+`[::1]:0`, a TCP connect, the socket, bind and connect of AF_UNIX, or
+`getsockname`: these parts are `unseen`. A lab measures them from inside
+(`LabFact`), so `run` holds them, but a host that a user reports cannot
+show them.
+
+## Premise
+
+- Read: `crates/pod-hostprobe/src/probes.rs` (the census rows),
+  `crates/pod-lab/src/inside.rs` (the measurements of a lab).
+- Not measured: the rows on a host with no IPv6 and on a host whose policy
+  refuses `connect`.
+
+## Approach
+
+Add census rows to `pod-hostprobe`, each in its own child, with the
+errno: `bind([::1]:0)+listen`, `connect(127.0.0.1:1)`,
+`socket+bind+connect(AF_UNIX abstract)`, `getsockname(TCP socket)`. A
+host with no IPv6 gives `EAFNOSUPPORT` on the socket: a denial, not a
+skip. Then move the `LabFact`s of these parts to `Observe::Row` in
+`crates/pod-lab/src/table.rs`, and keep the measurement of a lab through
+the rows. The JSON Schema of the report takes the new names.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features
+cargo test -p pod-lab --all-features
+```
+
+# T-694: `pod-hostprobe`: the rows of `TMPDIR` and of the inherited descriptors
+
+**Source:** T-692 (the profiles `small-tmp`, `noexec-tmp` and `inherited-fds` of `pod-lab`).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`small-tmp` and `inherited-fds` of `pod-lab` have no row in
+`pod-hostprobe`: the size of the file system of `TMPDIR`, and the
+descriptors from 3 up that a process has at its start. A check of a
+report gives `unseen` for both. `exec(/tmp/execprobe)` names `/tmp`, not
+`TMPDIR`.
+
+## Premise
+
+- Read: `crates/pod-hostprobe/src/probes/census.rs`, `src/writable.rs`
+  (the space of a directory), `crates/pod-lab/src/inside.rs`.
+- Not measured: a host whose `TMPDIR` is not `/tmp`.
+
+## Approach
+
+Add rows that read the facts of the probe process: `statfs(TMPDIR)` (the
+size and `ST_NOEXEC`; the path is a setting of the caller, as the
+candidates of `writable`), and `fcntl(F_GETFD) of 3..N` (each descriptor
+open at the start, and its close-on-exec flag). A row of a fact gives
+`ok` with the value in its reason. Then `pod-lab` observes
+`tmpdir-small` and `fds-open` with these rows.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features
+cargo test -p pod-lab --all-features
+```
+
+# T-695: `pod-hostprobe`: the rows of the machine, the cgroup version and the `/proc` mount
+
+**Source:** T-692 (the profiles `arm64-tcg`, `cgroup-v1` and `proc-masked` of `pod-lab`).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+Three parts of `pod-lab` have no measurement at all: the machine of the
+host (`arm64-tcg`), the cgroup version of `/sys/fs/cgroup` (`cgroup-v1`),
+and the form of `proc-masked` with `hidepid`, where `/proc/self/mem`
+opens and the processes of other users are hidden. A check gives
+`unseen` for each.
+
+## Premise
+
+- Read: `crates/pod-hostprobe/src/cgroup.rs`, `src/binfmt.rs`
+  (`SELF_MACHINE`), `src/mounts.rs`.
+- Not measured: a host with cgroup v1, a host with `hidepid`.
+
+## Approach
+
+Add rows: `uname(2) machine` (ok with the machine in the reason),
+`statfs(/sys/fs/cgroup)` (the magic of cgroup2 or of a tmpfs of v1), and
+the options of the `/proc` mount from `/proc/self/mountinfo`
+(`hidepid=`). Then replace each `Observe::Nothing` of these parts in
+`crates/pod-lab/src/table.rs` with an expectation of a row, and add an
+`Expect` that reads a value of a reason where a row gives one.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features
+cargo test -p pod-lab --all-features
+```
+
+# T-696: `pod-lab`: `bind-denied` refuses UDP bind and connect of AF_INET and AF_INET6
+
+**Source:** T-692; PodUtils/podnet#585 (the filter refuses AF_INET and AF_INET6 for `bind` and `connect`).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The lab of `bind-denied` holds its parts with a Landlock ruleset of ABI 4
+that handles the TCP bind and the TCP connect. A UDP bind and a UDP
+connect of AF_INET and AF_INET6 still succeed in the lab. podnet names
+both families for `bind` and `connect`, with no word on the protocol.
+
+## Premise
+
+- Read: `crates/pod-lab/src/hold.rs` (`landlock_tcp`),
+  `crates/pod-confine/src/spec.rs` (`UDP_RIGHTS`, ABI 10).
+- Not measured: a kernel with Landlock ABI 10 in this session.
+
+## Approach
+
+Where the ABI is 10 or more, handle `LANDLOCK_ACCESS_NET_BIND_UDP` and
+`LANDLOCK_ACCESS_NET_CONNECT_SEND_UDP` too, with no port rule. Add a part
+`udp-refused` with a `LabFact` (a UDP bind of `127.0.0.1:0` gives
+`EACCES`) that does not hold under ABI 10, so that `run` refuses it with
+the reason and `--partial` runs without it. Ask podnet whether its class
+refuses UDP (a COORD issue) before the part is in the default profile.
 
 ## Prove
 

@@ -36,7 +36,7 @@ pub enum Observe {
     /// inside itself before the command; a check of a report cannot
     /// observe it. [`LabFact::entry`] names the entry that adds the row.
     Lab(LabFact),
-    /// A fact that nothing in this crate measures yet: `needs` names the
+    /// A fact that nothing in this crate measures: `needs` names the
     /// probe, `entry` the number of the entry of the record that adds it
     /// (692: T-692). The number is not printed.
     Nothing { needs: &'static str, entry: u32 },

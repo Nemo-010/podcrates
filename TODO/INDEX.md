@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**562 entries: 112 open, 8 partial, 6 blocked, 436 done.**
+**566 entries: 115 open, 9 partial, 6 blocked, 436 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 16 | 3 | 0 | 118 | 137 |
-| P2 | 45 | 2 | 4 | 230 | 281 |
+| P1 | 15 | 4 | 0 | 118 | 137 |
+| P2 | 49 | 2 | 4 | 230 | 285 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 112 | 8 | 6 | 436 | 562 |
+| **All** | 115 | 9 | 6 | 436 | 566 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -604,7 +604,11 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-688](podvm.md) | P2 | S | M6 | feature | done | `pod-enter`: the device nodes of the host on the namespace rung through a user namespace (PodUtils/podvm#414) |
 | [T-689](upkeep.md) | P2 | S | M5 | defect | done | the plant `enter-userns-proc-no-remount` misses where the host's `/proc` has `nosuid`, `nodev` and `noexec` already |
 | [T-691](podvm.md) | P2 | S | M6 | defect | done | `pod-enter`: the root directory and the memfd move clear of the numbers of the passed descriptors (PodUtils/podvm#422) |
-| [T-692](fleet.md) | P1 | L | M8 | feature | open | `pod-lab`: the hostile host classes as shared profiles, `podlab check` and `podlab run` (PodUtils/podrunner#180) |
+| [T-692](fleet.md) | P1 | L | M8 | feature | partial | `pod-lab`: the hostile host classes as shared profiles, `podlab check` and `podlab run` (PodUtils/podrunner#180) |
+| [T-693](fleet.md) | P2 | S | M8 | feature | open | `pod-hostprobe`: the rows of the socket class (AF_INET6, connect, AF_UNIX, getsockname) |
+| [T-694](fleet.md) | P2 | S | M8 | feature | open | `pod-hostprobe`: the rows of `TMPDIR` and of the inherited descriptors |
+| [T-695](fleet.md) | P2 | S | M8 | feature | open | `pod-hostprobe`: the rows of the machine, the cgroup version and the `/proc` mount |
+| [T-696](fleet.md) | P2 | S | M8 | feature | open | `pod-lab`: `bind-denied` refuses UDP bind and connect of AF_INET and AF_INET6 |
 | [T-700](fleet.md) | P1 | L | M8 | feature | open | `pod-manual`: one crate for the help and the manual of each command line of PodUtils (PodUtils/podnet#584) |
 | [T-701](fleet.md) | P1 | M | M8 | feature | open | `pod-lab`: the host classes of podssh and podnet as profiles, with the lane of each project (PodUtils/podssh#268, PodUtils/podnet#585) |
 | [T-702](fleet.md) | P1 | M | M8 | feature | open | one POSIX installer for each project, hermetic, idempotent and fast, run in the labs (the ruling "Installer") |
