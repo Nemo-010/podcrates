@@ -141,6 +141,11 @@ def run(sync):
     code, api, lines = run_sync(sync, [record(33)], [item(33, "", pull=True)])
     check(code == 1 and not api.writes, "a number of the record that is a pull request on GitHub fails")
 
+    # A reference: the block only; the sync never closes or opens it.
+    code, api, _ = run_sync(sync, [record(37, kind="reference", state="closed")], [item(37, "A capture.")])
+    check(code == 0 and api.items[37]["state"] == "open" and api.items[37]["body"].endswith(block("closed")),
+          "a reference gets its block and keeps its state")
+
     # A pull request and a deleted issue of the record are not touched.
     rec = [record(34, kind="pull", state="open", entries=[]), record(35, state="deleted")]
     code, api, _ = run_sync(sync, rec, [item(34, "PR", pull=True)])

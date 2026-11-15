@@ -178,10 +178,11 @@ no XL: make two entries.
 | `request` | A request of a run of a workflow. | `[gh action] requested ...` |
 | `deferred` | An issue that its author deferred. | `[DEFERRED] ...` |
 | `tracker` | An issue whose body lists the asks of a project. | Only the column names it. |
+| `reference` | A capture or a document that a session uses; it holds no work. Its session opens and closes it by hand; the sync writes its block only. Its entries are notes. | `[Reference] ...` |
 | `pull` | A pull request: the line of pull requests names it. | |
 
 - The column Kind cannot change the kind that the title gives to `coord`,
-  `request` and `deferred`.
+  `request`, `deferred` and `reference`.
 - A report, a deferred issue and a tracker hold work. Each names one
   entry or more. Each is open in the record exactly when one of its
   entries is not `done`. `cargo todo check` fails on an open one whose

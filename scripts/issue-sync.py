@@ -54,6 +54,9 @@ TEAM = {"OWNER", "MEMBER", "COLLABORATOR"}
 CONFIRMED = "confirmed"
 # The kinds whose state follows their entries: a close tells their reader why.
 COMMENTED = {"report", "deferred", "tracker"}
+# The kinds that their session opens and closes by hand: the sync writes the
+# block only.
+BY_HAND = {"reference"}
 
 
 class Unreadable(Exception):
@@ -155,7 +158,9 @@ def plan(record, items, now=None):
         if without_date(new) != without_date(body):
             fields["body"] = new
             what.append("write the block")
-        if state == "closed" and item.get("state") == "open":
+        if kind in BY_HAND:
+            pass
+        elif state == "closed" and item.get("state") == "open":
             fields["state"], fields["state_reason"] = "closed", "completed"
             what.append("close")
             if kind in COMMENTED:

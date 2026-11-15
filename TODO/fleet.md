@@ -3543,3 +3543,37 @@ issue for the hand-off.
 ```sh
 cargo test -p pod-lab --all-features
 ```
+
+# T-723: `pod-todo`: a kind `reference` for an issue that holds no work (PodUtils/podvm#435)
+
+**Source:** PodUtils/podvm#435 (COORD-145 of podvm).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+podvm took `v0.55.0` and turned the rules of the issues on: 47 of its issues fail as "(report) names no entry". Each is a reference: an issue with the label `reference` that records a captured tree of another repository. It holds no work, stays open while podvm uses the capture, and closes by hand. None of the kinds fits: `report` and `tracker` need an entry, and `coord` or `request` would be a false record.
+
+## Premise
+
+- Read: PodUtils/podvm#435 (its author is a collaborator of the team).
+- The label is not in the record, so `pod-todo` cannot read it offline: the title or the column gives the kind.
+
+## Approach
+
+A kind `reference`: the column `Kind` names it, or a title that starts with `[Reference]`. It does not follow its entries, which are notes. The sync writes its block and never closes or opens it.
+
+## Prove
+
+```sh
+cargo test -p pod-todo --all-features
+python3 -I scripts/issue-sync.py --self-test
+sh scripts/plant-each.sh issue-sync-closes-a-reference
+```
+
+## Done
+
+2026-11-16. `Kind::Reference` in `crates/pod-todo/src/issues.rs` (`[Reference]` titles and the column), the block says "a reference that holds no work", and `scripts/issue-sync.py` writes only the block of a reference (`BY_HAND`). Tests: `a_reference_needs_no_entry_and_its_entries_are_notes`, and a check of the sync self-test; the plant `issue-sync-closes-a-reference` is caught.

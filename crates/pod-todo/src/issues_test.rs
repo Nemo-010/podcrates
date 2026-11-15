@@ -35,6 +35,7 @@ fn the_title_gives_the_kind_and_the_column_names_a_tracker() {
     assert_eq!(Kind::of_title("[gh action] requested: the gates"), Kind::Request);
     assert_eq!(Kind::of_title("[DEFERRED] Serve ECH"), Kind::Deferred);
     assert_eq!(Kind::of_title("`pod-proxy`: a defect"), Kind::Report);
+    assert_eq!(Kind::of_title("[Reference] the tree of a project"), Kind::Reference);
     let mut p = Vec::new();
     let list = github::read_list(LIST, &mut p);
     let all = issues(&list, &github::read_map(&map(ROWS)), &mut p);
@@ -87,6 +88,16 @@ fn a_report_or_a_tracker_with_no_entry_fails_and_a_request_needs_none() {
     assert!(!named(&found, "issue #3"), "a request needs no entry: {found:#?}");
     let rows = ROWS.replacen("| A defect | open | T-001, T-002 |", "| A defect | open | |", 1);
     assert!(named(&found_of(&rows), "issue #1 (report) names no entry"));
+}
+
+#[test]
+fn a_reference_needs_no_entry_and_its_entries_are_notes() {
+    let rows =
+        ROWS.replacen("| #1 |  | A defect | open | T-001, T-002 |", "| #1 |  | [Reference] a capture | open | |", 1);
+    assert!(!named(&found_of(&rows), "issue #1"), "a reference by its title needs no entry");
+    let rows =
+        ROWS.replacen("| #1 |  | A defect | open | T-001, T-002 |", "| #1 | reference | A capture | open | T-001 |", 1);
+    assert!(!named(&found_of(&rows), "issue #1"), "a reference by its column: a done entry is a note");
 }
 
 fn found_of(rows: &str) -> Vec<String> {

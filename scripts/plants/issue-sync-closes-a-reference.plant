@@ -1,0 +1,6 @@
+# The sync closes a reference that its session opens and closes by hand;
+# its self-test must fail.
+ENTRY=T-723
+GROUP=agent
+EXPECT='FAIL  a reference gets its block and keeps its state'
+RUN='python3 -I scripts/issue-sync.py --self-test'

@@ -35,11 +35,15 @@ pub enum Kind {
     Tracker,
     /// A pull request: the sync never touches it.
     Pull,
+    /// A capture or a document that a session uses: it holds no work, and
+    /// its session opens and closes it by hand (PodUtils/podvm#435). The
+    /// entries of its row are notes.
+    Reference,
 }
 
 impl Kind {
     /// The kinds that a column `Kind` can name.
-    pub const NAMES: [&'static str; 5] = ["report", "coord", "request", "deferred", "tracker"];
+    pub const NAMES: [&'static str; 6] = ["report", "coord", "request", "deferred", "tracker", "reference"];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -49,6 +53,7 @@ impl Kind {
             Kind::Deferred => "deferred",
             Kind::Tracker => "tracker",
             Kind::Pull => "pull",
+            Kind::Reference => "reference",
         }
     }
 
@@ -59,6 +64,7 @@ impl Kind {
             "request" => Kind::Request,
             "deferred" => Kind::Deferred,
             "tracker" => Kind::Tracker,
+            "reference" => Kind::Reference,
             _ => return None,
         })
     }
@@ -75,6 +81,8 @@ impl Kind {
             Kind::Request
         } else if subject.starts_with("[DEFERRED]") {
             Kind::Deferred
+        } else if subject.starts_with("[Reference]") {
+            Kind::Reference
         } else {
             Kind::Report
         }

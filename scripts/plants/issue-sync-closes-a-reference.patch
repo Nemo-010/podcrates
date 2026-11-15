@@ -1,0 +1,11 @@
+--- a/scripts/issue-sync.py
++++ b/scripts/issue-sync.py
+@@ -158,7 +158,7 @@
+         if without_date(new) != without_date(body):
+             fields["body"] = new
+             what.append("write the block")
+-        if kind in BY_HAND:
++        if False:
+             pass
+         elif state == "closed" and item.get("state") == "open":
+             fields["state"], fields["state_reason"] = "closed", "completed"

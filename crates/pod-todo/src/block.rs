@@ -196,6 +196,8 @@ fn state_words(issue: &Issue) -> &'static str {
         (Kind::Coord, _) => "closed: the message has its answer",
         (Kind::Request, "open") => "open: the runs are not recorded",
         (Kind::Request, _) => "closed: the record has the runs",
+        (Kind::Reference, "open") => "open: a session uses it",
+        (Kind::Reference, _) => "closed: no session uses it",
         (_, "open") => "open",
         _ => "closed",
     }
@@ -209,6 +211,7 @@ fn kind_words(kind: Kind) -> &'static str {
         Kind::Deferred => "a deferred issue",
         Kind::Tracker => "a tracker of the asks of a project",
         Kind::Pull => "a pull request",
+        Kind::Reference => "a reference that holds no work",
     }
 }
 
