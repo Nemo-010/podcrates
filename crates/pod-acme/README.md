@@ -96,7 +96,7 @@ places, and the caller refuses `--acme` with no cache; the failures are
 | podssh | `acme::keep(ca, served, held, say)` | `acme::keep(ca, served, held, say)` of the glue: the lines of the `Acme` go to `say`, and the end is `Failed::to_string()` |
 | podssh | `certs::Key`, `certs::{pem, pem_block, own, tunnel_csr}` (`pinggy_cert.rs`, `node_opentunnel.rs`) | the same names, from `pod_acme::certs` |
 | podssh | the dependencies `rcgen`, `x509-parser` and `aws-lc-rs` of the client | `pod-acme` (git tag); podssh keeps `aws-lc-rs` for russh |
-| podssh | `scripts/interop-acme.sh`, `acme-interop.yml` | stay in podssh: they run `podssh relay serve --acme` against Pebble |
+| podssh | PodUtils/podssh:scripts/interop-acme.sh, `acme-interop.yml` | stay in podssh: they run `podssh relay serve --acme` against Pebble |
 
 The adoption trial is `adoption/podssh/pod-acme.patch` with its `.run`,
 `.commit` and `.needs` (it applies after `pod-transit`'s patch, which

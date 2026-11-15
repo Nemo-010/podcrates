@@ -108,7 +108,7 @@ T-020 is done.
 **Milestone:** M4
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -134,6 +134,57 @@ sh scripts/agent/check.sh
 ## Start condition
 
 T-014 is done.
+
+## Done
+
+2026-11-14. Commits `ac2b861` (the import of
+PodUtils/podssh:crates/podssh-cli/src/acme at `b9c04657`, frozen there for
+the move: PodUtils/podssh#248, PodUtils/podssh@T-684), `f966b57` (the
+edition), `be3c395` (the adaptation), `e6679fd` (the plants), `399833c`
+(the README, the crate table, the static probe) and `8e92954` (the
+adoption trial); call C601.
+
+- The study: the source signs with aws-lc-rs (C); the pure provider of
+  `pod-tls`, which podssh's binary takes, loads no private key, so "keys
+  through the given provider" cannot sign there. The keys are P-256 keys of
+  `p256` (pure Rust), as the server of `pod-tls` signs (C601). rcgen with
+  no crypto feature and x509-parser are pure Rust; `cargo deny check
+  licenses bans sources` passed.
+- `crates/pod-acme`: `Acme` (`new`, `held`, `obtain`), `keep`,
+  `renew_at`, `next_retry`, `about`, `lets_encrypt()` of `pod-services`;
+  `key::Key`, `jws::Account`, `certs`, `client::{Http, Client,
+  Directory}` over the caller's `pod_proxy::Client`, `order`, `store`
+  under the caller's cache directories, `url::Url`; `Failed` with a stage
+  and a class. No variable of the environment, no output, no process
+  state; the lines are events `acme.*`.
+- Tests: `cargo test -p pod-acme`: 26 passed (the 21 of the source with
+  their names, and the key in both forms of its signature, a key that ring
+  wrote, a key of another curve, the stage and the class of each
+  failure). `cargo clippy -p pod-acme --all-targets --all-features -- -D
+  warnings`, `cargo doc` with `-D warnings` and `cargo clippy -p
+  static-probe`: clean.
+- Plants (group `acme`): `acme-csr-subject`, `acme-challenge-not-critical`,
+  `acme-jws-kid-and-jwk`, `acme-nonce-any-shape`, `acme-renew-too-early`,
+  `acme-jws-signature-swapped`, `acme-store-not-private`; each applied by
+  hand, failed its test with its EXPECT text, and was removed;
+  `sh scripts/plant-each.sh --apply`: 0 stale.
+- Fixed in place: the static probe's `src/main.rs` had 502 lines after the
+  line of `pod-transit`; its `wormhole()` went to its own file.
+- The adoption trial: `adoption/podssh/pod-acme.patch`, `.run`, `.commit`
+  (`b9c04657`) and `.needs` (`pod-transit`). On a scratch copy of podssh
+  with both patches and each podcrates dependency on this tree,
+  `cargo check -p podssh-cli --lib --tests` passed with no warning;
+  rustfmt and podssh's record check passed; `adoption.yml` runs the whole
+  `.run` in CI, with podssh's Pebble interop of the binary. podssh must:
+  take the tag of the release (`v0.49.0` in the patches); make
+  `acme/mod.rs` the glue (re-exports, `new`, `keep`, `Say`); call
+  `acme::new` in `relay_serve/certs.rs` and `node_publish_end.rs`; remove
+  the files and tests of the module; move `rcgen` to the
+  dev-dependencies of podssh-cli; keep PodUtils/podssh:scripts/interop-acme.sh and
+  `acme-interop.yml`; fix the citations of its record.
+- Not here: a test of a whole order against Pebble in podcrates. podssh's
+  interop runs it through the binary (the `.run` of the trial); a loopback
+  test of the crate alone is a finding for the parent.
 
 # T-035: `pod-egress`: the other roads out (via, VLESS, wstunnel, Wisp, Shadowsocks and more)
 
