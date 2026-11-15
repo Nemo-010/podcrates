@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 542 entries: 111 open, 9 partial, 6 blocked, 416 done.
+`TODO/INDEX.md` holds 542 entries: 110 open, 9 partial, 6 blocked, 417 done.
 
 ## State
 
@@ -109,9 +109,8 @@ for podnet (item 3c): T-526. Then the items below, in order.
    (PodUtils/podvm@T-1662 waits for it and for the module set of the
    modloop, which `pod-guest` has); T-347 after both, then T-348;
    `exec_attached` of `pod-incus` when PodUtils/podvm@T-1722 asks for it.
-   T-671 (the join of a run in a user namespace) and T-672 (a `/proc`
-   there), after T-670 (the namespace rung through a user namespace,
-   PodUtils/podvm#406); T-649 (a FAT image writer, PodUtils/podvm#386) is not urgent.
+   T-671 (the join of a run that entered the namespace rung through a
+   user namespace) and T-672 (a `/proc` there); T-649 (a FAT image writer, PodUtils/podvm#386) is not urgent.
    T-448 (a wrong fact of
    FUSE in `pod-enter`); T-444 (the probe rows of
    the namespace and FUSE rungs; the rows of podswarm alone wait). T-040

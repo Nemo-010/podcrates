@@ -8573,7 +8573,7 @@ cargo test -p pod-enter --all-features
 **Milestone:** M6
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8594,6 +8594,10 @@ The maps and the paths built before the fork; in the child, the user namespace f
 cargo test -p pod-enter --all-features
 cargo test -p pod-hostprobe --all-features
 ```
+
+## Done
+
+2026-11-15, commit 147239f9 and the next commit. `pod_hostprobe::userns` (`Maps`, `enter`, `Step`): `unshare(CLONE_NEWUSER)`, `deny` into `setgroups`, `0 EUID 1` and `0 EGID 1`, built before the fork and async-signal-safe after it (C641). `pod-enter`: the module `ns_user` (steps `NS_USER_STEP` 23, `NS_SETGROUPS_STEP` 24, `NS_UID_MAP_STEP` 25, `NS_GID_MAP_STEP` 26 in `ns_setup_step`); `spawn_namespace` and the overlay root try the rung as now and, at `EPERM` of `unshare(CLONE_NEWNS)` only, again with the user namespace first, then fall back to chroot with both refusals in the line (`both_refused`). The banner goes out one time for each entry (C644). `pod-hostprobe`: the census row `mount(tmpfs,/tmp) in unshare(NEWUSER+maps,NEWNS)` (`USERNS_LEG`), the namespace rung in the selection where it passes, `Provides::namespaces` `user+mount` (C642); the schema has the row. Tests: 3 unit tests of `ns_user`, 3 of `userns`, 2 of the selection, 1 of the row, the numbers of `geteuid` and `getegid`; `tests/userns.rs` and `tests/userns_leg.rs` as uid 65534 with no capabilities (kernel 6.18): the payload sees uid 0, the name `unit2`, a private `/tmp`, the word `namespace` and one banner, and the leg is `OK`. With no retry the test failed (`the namespace rung refused at unshare(CLONE_NEWNS) (EPERM (1))`). `scripts/ci/userns-tests.sh` in `ci.yml` (C643). The plants `enter-userns-not-tried`, `enter-userns-no-maps`, `enter-userns-banner-twice`, `hostprobe-userns-leg-not-selected` and `hostprobe-userns-leg-no-user` are caught. `cargo test -p pod-enter --all-features` (192 unit tests) and `cargo test -p pod-hostprobe --all-features` (148 unit tests) passed; workspace clippy is clean. Left: T-671 (the join of such a run), T-672 (a `/proc` there).
 
 # T-671: `pod-enter`: the join of a run that entered the namespace rung through a user namespace
 
