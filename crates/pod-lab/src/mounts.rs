@@ -203,7 +203,13 @@ fn dev_no_pty() -> Result<(), String> {
             std::os::unix::fs::symlink(to, format!("/dev/{link}")).map_err(|e| format!("/dev/{link}: {e}"))?;
         }
         k::mkdir(&c("/dev/shm")?, 0o1777).map_err(|e| words("mkdir(/dev/shm)", e))?;
-        Ok(())
+        // The umask of the caller takes bits from each new mode.
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |path: &str, m: u32| {
+            std::fs::set_permissions(path, std::fs::Permissions::from_mode(m)).map_err(|e| format!("{path}: {e}"))
+        };
+        mode("/dev/shm", 0o1777)?;
+        mode("/dev/tty", 0o666)
     })();
     for (_, fd) in held {
         let _ = k::close(fd);

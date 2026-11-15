@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**575 entries: 118 open, 11 partial, 6 blocked, 440 done.**
+**575 entries: 117 open, 11 partial, 6 blocked, 441 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 13 | 6 | 0 | 122 | 141 |
+| P1 | 12 | 6 | 0 | 123 | 141 |
 | P2 | 54 | 2 | 4 | 230 | 290 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 118 | 11 | 6 | 440 | 575 |
+| **All** | 117 | 11 | 6 | 441 | 575 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -610,7 +610,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-695](fleet.md) | P2 | S | M8 | feature | open | `pod-hostprobe`: the rows of the machine, the cgroup version and the `/proc` mount |
 | [T-696](fleet.md) | P2 | S | M8 | feature | open | `pod-lab`: `bind-denied` refuses UDP bind and connect of AF_INET and AF_INET6 |
 | [T-700](fleet.md) | P1 | L | M8 | feature | partial | `pod-manual`: one crate for the help and the manual of each command line of PodUtils (PodUtils/podnet#584) |
-| [T-701](fleet.md) | P1 | M | M8 | feature | open | `pod-lab`: the host classes of podssh and podnet as profiles, with the lane of each project (PodUtils/podssh#268, PodUtils/podnet#585) |
+| [T-701](fleet.md) | P1 | M | M8 | feature | done | `pod-lab`: the host classes of podssh and podnet as profiles, with the lane of each project (PodUtils/podssh#268, PodUtils/podnet#585) |
 | [T-702](fleet.md) | P1 | M | M8 | feature | open | one POSIX installer for each project, hermetic, idempotent and fast, run in the labs (the ruling "Installer") |
 | [T-703](fleet.md) | P1 | M | M8 | feature | partial | a mechanical check of the open issues and their comments against the record, for each project (the ruling "Issues") |
 | [T-704](fleet.md) | P2 | S | M8 | feature | open | `podlab`: the usage errors of clap in the form of `pod_manual::error::fault` |

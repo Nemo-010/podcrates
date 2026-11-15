@@ -3155,7 +3155,7 @@ PodUtils/podcrates#181.
 **Milestone:** M8
 **Priority:** P1
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -3175,6 +3175,42 @@ After part 1 of T-692: a profile for each class, in the form of part 1. The clas
 ```sh
 cargo test -p pod-lab --all-features
 ```
+
+## Done
+
+2026-11-15, commits e038b30 and the next ones; calls C699 to C705.
+
+- 18 profiles in the table (34 in all). A lab with no root holds 12:
+  `listen-denied` (seccomp of `listen`, EACCES), `udp-denied` and
+  `raw-denied` (seccomp of `socket(2)` by family and type, EPERM, and
+  `io_uring_setup`), `no-ptmx` (a tmpfs on `/dev` with no `ptmx` and no
+  `pts`, a FIFO at `/dev/tty`, a new session), `no-passwd-entry`
+  (binds of `/etc/passwd` and `/etc/group` with no line of the ids),
+  `noexec-home` (a `noexec` bind of `HOME`), `no-proc` (an empty tmpfs on
+  `/proc`), `ro-etc-ssl` (a read-only bind), `seccomp-nonewprivs` and
+  `no-net-admin` (a drop of each capability, also for root), `no-tun`
+  (Landlock) and `no-loopback` (a network namespace). The mounts are in
+  one user and mount namespace (`src/mounts.rs`).
+- The six network classes that need a proxy, a resolver or a route out
+  (`proxy-tls-reterminate`, `proxy-per-name`, `sni-allowlist`,
+  `no-proxy-no-dns`, `ws-upgrade-refused`, `ipv6-only`) are in the table
+  with their parts held elsewhere: `podlab list` names them, `podlab run`
+  refuses them (exit 125). Their rows and labs: T-716.
+- Each part names its rows of `pod-hostprobe`, or a lab fact with its
+  entry: the socket facts T-714, the file facts T-715.
+- `Call` takes conditions (`When::Bits`, `When::Equal`); `IdFact::NoNetAdmin`;
+  `Hold::hide` stops at a directory that does not exist.
+- `crates/pod-lab/LANES.md`: the commands of podssh, podnet, podrunner and
+  podvm for each profile; `llms.txt` lists it. The manual names `HOME` and
+  `TMPDIR`; `man/podlab.1` and `man/llms.txt` regenerated.
+- Tests: `tests/lab/hosts.rs`, one run of each held class with a payload
+  that shows each part, and a refused network class; the test profile
+  `caps-dropped`. `no-ptmx` runs in a child with a pseudo terminal as its
+  controlling terminal. As root each case runs as root, then as uid 65534;
+  both pass, also under `scripts/ci/userns-tests.sh`.
+- Plants (group `lab`): 11 new, each caught by `plant-each.sh`. The rules
+  of `raw-denied` have no plant: only a run as root proves them (C704).
+
 
 # T-702: one POSIX installer for each project, hermetic, idempotent and fast, run in the labs (the ruling "Installer")
 
