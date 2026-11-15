@@ -9,8 +9,8 @@ use std::time::Duration;
 use super::mux::Session;
 use super::packet::{self, Extension, Info, Packet, Reason, ext};
 use super::{VERSION, WispError};
-use crate::frame;
-use crate::session::close_code_and_reason;
+use pod_ws::frame;
+use pod_ws::session::close_code_and_reason;
 
 /// What the opening settled.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,16 +27,16 @@ pub struct Opened {
 }
 
 /// This side's INFO, in answer to the server's: the version that both
-/// speak, and those of the server's extensions that podssh takes, its
+/// speak, and those of the server's extensions that this client takes, its
 /// message of the day and stream open confirmation, neither with a payload
 /// of the client's. An extension that the server did not list is not sent.
-/// Refused: a server that requires a password or a key, as podssh sends
+/// Refused: a server that requires a password or a key, as this client sends
 /// neither and no credential goes in a URL.
 pub fn answer(server: &Info) -> Result<(Info, Opened), String> {
     for (id, what) in [(ext::PASSWORD, "a user name and a password"), (ext::KEY, "a key's signature")] {
         // The first byte of the server's metadata says whether it requires it.
         if server.extension(id).is_some_and(|m| m.first().is_some_and(|b| *b != 0)) {
-            return Err(format!("the Wisp server requires {what}, which podssh does not send"));
+            return Err(format!("the Wisp server requires {what}, which this client does not send"));
         }
     }
     let version = (server.major, server.minor).min(VERSION);

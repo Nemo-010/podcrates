@@ -1,5 +1,5 @@
-//! The pieces of wstunnel's protocol (T-441): the token against vectors
-//! made by Python's hmac and json, which podssh did not write, from the
+//! The pieces of wstunnel's protocol: the token against vectors
+//! made by Python's hmac and json, which this crate did not write, from the
 //! form that wstunnel's source gives; the URL, the secret file, the
 //! request, and each answer of the server in its words.
 
@@ -22,6 +22,9 @@ const TOKEN_V6: &str = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6IjBmMGUwZDB
 fn joined(text: &str) -> String {
     text.split_whitespace().collect()
 }
+
+/// The user agent of the requests of these tests.
+const UA: &str = "podssh/test";
 
 #[test]
 fn the_token_is_the_one_that_wstunnel_s_old_key_signs() {
@@ -100,13 +103,13 @@ fn a_secret_goes_over_tls_or_to_this_host() {
 #[test]
 fn the_request_is_wstunnel_s_upgrade_with_the_token_and_the_secret() {
     let secret = Secret::parse("path-prefix pfx\ncredentials u:p").unwrap();
-    let r = upgrade::request("wst.example:8443", &secret, "TOKEN", "dGhlIHNhbXBsZSBub25jZQ==");
+    let r = upgrade::request("wst.example:8443", &secret, "TOKEN", "dGhlIHNhbXBsZSBub25jZQ==", UA);
     assert!(r.starts_with("GET /pfx/events HTTP/1.1\r\nHost: wst.example:8443\r\n"), "{}", r.as_str());
     assert!(r.contains("\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"));
     assert!(r.contains("\r\nSec-WebSocket-Version: 13\r\n"));
     assert!(r.contains("\r\nSec-WebSocket-Protocol: v1, authorization.bearer.TOKEN\r\n"));
     assert!(r.contains("\r\nAuthorization: Basic dTpw\r\n") && r.ends_with("\r\n\r\n"));
-    let plain = upgrade::request("h", &Secret::default(), "T", "k");
+    let plain = upgrade::request("h", &Secret::default(), "T", "k", UA);
     assert!(plain.starts_with("GET /v1/events ") && !plain.to_ascii_lowercase().contains("authorization:"));
 }
 
@@ -133,8 +136,8 @@ async fn answered(head: String) -> Result<Vec<u8>, WstunnelError> {
         let _ = theirs.write_all(head.as_bytes()).await;
         theirs
     });
-    let request = upgrade::request("h", &Secret::default(), "T", "dGhlIHNhbXBsZSBub25jZQ==");
-    let result = upgrade::upgrade(ours, request.as_bytes(), "dGhlIHNhbXBsZSBub25jZQ==").await;
+    let request = upgrade::request("h", &Secret::default(), "T", "dGhlIHNhbXBsZSBub25jZQ==", UA);
+    let result = upgrade::upgrade(ours, request.as_bytes(), "dGhlIHNhbXBsZSBub25jZQ==", "podssh").await;
     drop(server.await);
     result.map(|(_, pending)| pending)
 }

@@ -1,4 +1,4 @@
-//! A forwarder's session through a Wisp server (T-438): the template
+//! A forwarder's session through a Wisp server: the template
 //! `wisp+wss://HOST/PATH/`, a connection of its own for each session, and
 //! one stream on it to the target, so that the WebSocket closes with the
 //! session. The first word is waited for as a Worker's is: a server that
@@ -12,14 +12,10 @@ use super::{Connect, End, OnEnd, Reason, Wisp, WispError};
 use crate::forwarder::{Carried, Dial, EARLY_WAIT, Ended, ForwarderError, Status, Template};
 
 /// A session to `host:port` through the Wisp server of `template`.
-pub(crate) async fn open(
-    template: &Template,
-    host: &str,
-    port: u16,
-    dial: &Dial<'_>,
-) -> Result<Carried, ForwarderError> {
+pub(crate) async fn open(template: &Template, host: &str, port: u16, dial: &Dial) -> Result<Carried, ForwarderError> {
     let url = template.fill(host, port).map_err(ForwarderError::Target)?;
-    let how = Connect { trust: dial.trust, proxy: dial.proxy, timeout: dial.timeout, note: dial.note.clone() };
+    let how =
+        Connect { way: dial.way.clone(), trust: dial.trust.clone(), timeout: dial.timeout, note: dial.note.clone() };
     let wisp = Wisp::connect(&url, &how).await.map_err(refused)?;
     let status = Status::default();
     let kept = status.clone();
@@ -60,7 +56,7 @@ pub(crate) fn ended(end: &End) -> Ended {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::ConnectError;
+    use pod_ws::ConnectError;
 
     #[test]
     fn an_ordinary_end_is_a_close_1000_and_another_says_its_reason() {

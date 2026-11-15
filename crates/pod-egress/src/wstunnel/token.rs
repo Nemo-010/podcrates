@@ -1,4 +1,4 @@
-//! The token of a tunnel (T-441): a JWT whose claims name the tunnel's id,
+//! The token of a tunnel: a JWT whose claims name the tunnel's id,
 //! its protocol, its host and its port, as wstunnel's client writes them
 //! (`erebe/wstunnel:wstunnel/src/tunnel/transport/jwt.rs`, its
 //! `JwtTunnelConfig`, read at v11.1.0): serde's form of that struct, its
@@ -8,8 +8,8 @@
 //!
 //! The signature is HS256 with [`KEY`]: wstunnel 9.1 to 10.0 sign and check
 //! with it, and 10.1 and later sign with a key of each process and check no
-//! signature (its commit 1522882, "Randomize jwt secret signature",
-//! 2024-08-26), so this one token serves each version from 9.1.
+//! signature (its commit 1522882, "Randomize jwt secret signature"), so
+//! this one token serves each version from 9.1.
 
 use base64::Engine as _;
 use hmac::{Hmac, KeyInit, Mac};
@@ -64,8 +64,8 @@ pub fn sign(claims: &str) -> String {
 /// makes one, from the system's source; the server only logs it.
 pub fn tunnel_id() -> Result<String, String> {
     let mut b = [0u8; 16];
-    use rustls::crypto::SecureRandom as _;
-    crate::crypto::random::OsRandom.fill(&mut b).map_err(|_| "no bytes from the system's random source".to_string())?;
+    use pod_core::entropy::Entropy as _;
+    pod_core::entropy::OsEntropy.fill(&mut b).map_err(|_| "no bytes from the system's random source".to_string())?;
     Ok(uuid_text(b))
 }
 

@@ -1,22 +1,23 @@
-//! WebTunnel (T-385), as lyrebird's client speaks it to the WebTunnel
+//! WebTunnel, as lyrebird's client speaks it to the WebTunnel
 //! server 0.0.7: a connection to the bridge's `url=` (or to `addr=`), TLS
 //! for `servername=` or the URL's host when the URL is `https://`, then one
 //! `GET` of the URL's secret path with `Connection: upgrade` and
 //! `Upgrade: websocket` and no key, and, on `101 Switching Protocols` with
 //! those two headers, raw bytes both ways: no WebSocket frames.
 //!
-//! TLS is checked as each road's (`tls.rs`), with no bypass. `cert=`, a hash
-//! chained over the certificates that the server sent, is a second check
-//! after that one, never in its place: lyrebird's makes it a reason to skip
-//! the chain's check, which podssh does not, so a bridge whose certificate
+//! TLS is checked as each road's, with no bypass. `cert=`, a hash chained
+//! over the certificates that the server sent, is a second check after that
+//! one, never in its place: lyrebird's makes it a reason to skip the chain's
+//! check, which this client does not, so a bridge whose certificate
 //! no root signs is refused. `sni-imitation=` and `cert-domain=` check a
 //! name other than the one sent, which the verifier here does not do, and
 //! are refused. `utls=` and `ver=` are read and left.
 
 use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWriteExt as _};
 
+use pod_ws::url::Stream;
+
 use crate::pt::{HttpUrl, Reach, get, host_port};
-use crate::url::Stream;
 
 /// The longest answer head read.
 const MAX_HEAD: usize = 16 * 1024;
@@ -40,7 +41,7 @@ impl Args {
         for refused in ["sni-imitation", "cert-domain"] {
             if get(settings, refused).is_some() {
                 return Err(format!(
-                    "{refused}= checks a name other than the one that TLS sends, and podssh checks the certificate \
+                    "{refused}= checks a name other than the one that TLS sends, and this client checks the certificate \
                      for the name that it sends"
                 ));
             }
@@ -55,7 +56,7 @@ impl Args {
         let mut server_names = Vec::new();
         for name in get(settings, "servername").unwrap_or_default().split(',').map(str::trim) {
             if !name.is_empty() {
-                crate::names::check_host(name).map_err(|why| format!("servername={name}: {why}"))?;
+                pod_core::names::check_host(name).map_err(|why| format!("servername={name}: {why}"))?;
                 server_names.push(name.to_string());
             }
         }
@@ -99,8 +100,8 @@ fn pin_of(text: &str) -> Result<[u8; 32], String> {
 /// each pass the check.
 fn random_below(n: usize) -> usize {
     let mut bytes = [0u8; 8];
-    use rustls::crypto::SecureRandom as _;
-    match crate::crypto::random::OsRandom.fill(&mut bytes) {
+    use pod_core::entropy::Entropy as _;
+    match pod_core::entropy::OsEntropy.fill(&mut bytes) {
         Ok(()) if n > 0 => (u64::from_le_bytes(bytes) % n as u64) as usize,
         _ => 0,
     }
@@ -139,7 +140,7 @@ pub fn request(args: &Args) -> String {
 /// `101 Switching Protocols`, `Upgrade: websocket` and
 /// `Connection: upgrade`, in any case.
 pub fn check_answer(head: &str) -> Result<(), String> {
-    let (status, reason, headers) = crate::http::parse_head(head)?;
+    let (status, reason, headers) = pod_proxy::http::parse_head(head)?;
     if status != 101 || reason != "Switching Protocols" {
         return Err(format!("the bridge answered {status} {reason}, not 101 Switching Protocols"));
     }

@@ -1,12 +1,14 @@
-//! A forwarder's template (T-369): a `ws://` or `wss://` URL with `{host}`
+//! A forwarder's template: a `ws://` or `wss://` URL with `{host}`
 //! and `{port}` once each, which the target fills in, or with neither, and
 //! then the target goes in a first frame of JSON. The placeholders go in the
 //! path or the query, never in the authority: a forwarder is reached by its
 //! own name, and only the forwarder dials the target. `wisp+` before the
-//! URL names a Wisp server (T-438), which takes the target in a packet.
+//! URL names a Wisp server, which takes the target in a packet.
 
-use crate::names::check_target;
-use crate::url::WsUrl;
+use pod_core::names::check_target;
+use pod_ws::url::WsUrl;
+
+pub use crate::carry::Form;
 
 /// The placeholder of the target's host.
 pub const HOST: &str = "{host}";
@@ -15,22 +17,8 @@ pub const PORT: &str = "{port}";
 /// The prefix of a Wisp server's URL: `wisp+wss://` or `wisp+ws://`.
 pub const WISP: &str = "wisp+";
 
-/// Where a forwarder takes its target.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Form {
-    /// In the URL, as Mudlet's Worker takes `?host=H&port=P`.
-    Query,
-    /// In a first text frame, `{"Host":HOST,"Port":PORT}`, which the
-    /// forwarder answers with `{"status":"ok"}` before the target's bytes,
-    /// as ssheasy's proxy does.
-    Frame,
-    /// In a CONNECT packet of the Wisp protocol, on a stream of the
-    /// WebSocket ([`crate::wisp`], T-438).
-    Wisp,
-}
-
 /// A template, checked: its text as the user wrote it, its form, and the
-/// URL with no query, which podssh's lines show.
+/// URL with no query, which a line shows.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Template {
     text: String,
@@ -98,7 +86,7 @@ impl Template {
         self.form
     }
 
-    /// The forwarder in podssh's lines: the URL with no query.
+    /// The forwarder in a line: the URL with no query.
     pub fn shown(&self) -> &str {
         &self.shown
     }
@@ -120,7 +108,7 @@ impl Template {
         WsUrl::parse(&text).map_err(|why| format!("the target cannot go to a forwarder: {why}"))
     }
 
-    /// The first frame of the frame form, which podssh writes itself:
+    /// The first frame of the frame form, which the client writes itself:
     /// `{"Host":HOST,"Port":PORT}`, the port a number, as ssheasy's proxy
     /// reads it. `None` in the query form.
     pub fn first_frame(&self, host: &str, port: u16) -> Option<String> {
@@ -229,7 +217,7 @@ mod tests {
         assert!(frame.fill("a&b", 22).is_err(), "the frame form checks it too");
     }
 
-    /// T-438: `wisp+` names a Wisp server, shown with its prefix; the
+    /// `wisp+` names a Wisp server, shown with its prefix; the
     /// target is checked as in each form, and goes in no URL.
     #[test]
     fn a_wisp_server_s_template_is_its_url_after_the_prefix() {

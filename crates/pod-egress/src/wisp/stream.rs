@@ -21,6 +21,8 @@ pub struct WispStream {
     word: watch::Receiver<Word>,
     confirm: bool,
     shared: Arc<Shared>,
+    // Read by a forwarder's road alone, which keeps the tasks.
+    #[cfg_attr(not(feature = "forwarder"), allow(dead_code))]
     tasks: Vec<JoinHandle<()>>,
 }
 
@@ -85,6 +87,7 @@ impl WispStream {
 
     /// The pipe, and the stream's two tasks, for a road that keeps its own
     /// status ([`super::forward`]).
+    #[cfg(feature = "forwarder")]
     pub(crate) fn into_parts(self) -> (DuplexStream, Vec<JoinHandle<()>>) {
         (self.pipe, self.tasks)
     }

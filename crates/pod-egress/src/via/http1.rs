@@ -9,19 +9,26 @@ use pod_core::Stage;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use zeroize::Zeroizing;
 
-use super::Via;
-use crate::dial::{self, DialError};
+use pod_proxy::DialError;
+
+use super::{Said, Via};
 
 /// The longest answer's head that is read before giving up.
 const MAX_HEAD: usize = 16 * 1024;
 
 /// CONNECT `target` on `tls`, within `timeout`: the stream, now the
 /// tunnel, or the proxy's refusal.
-pub(super) async fn connect<S>(mut tls: S, via: &Via, target: &str, timeout: Duration) -> Result<S, DialError>
+pub(super) async fn connect<S>(
+    mut tls: S,
+    via: &Via,
+    said: &Said<'_>,
+    target: &str,
+    timeout: Duration,
+) -> Result<S, DialError>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let request = request(via, target);
+    let request = request(via, target, said.user_agent);
     let exchange = async {
         tls.write_all(request.as_bytes()).await?;
         tls.flush().await?;
@@ -36,20 +43,18 @@ where
             stage: Stage::Proxy,
         })?
         .map_err(|e| DialError::ProxyProtocol { proxy: shown.clone(), detail: e.to_string() })?;
-    let (status, reason) =
-        dial::parse_status_line(&head).map_err(|detail| DialError::ProxyProtocol { proxy: shown, detail })?;
+    let (status, reason) = pod_proxy::http::parse_status_line(&head)
+        .map_err(|detail| DialError::ProxyProtocol { proxy: shown, detail })?;
     if (200..300).contains(&status) {
         return Ok(tls);
     }
-    Err(super::refused(via, target, status, reason, &head))
+    Err(super::refused(via, said, target, status, reason, &head))
 }
 
 /// The request's bytes; they hold the credentials, so they are wiped.
-fn request(via: &Via, target: &str) -> Zeroizing<String> {
-    let mut request = Zeroizing::new(format!(
-        "CONNECT {target} HTTP/1.1\r\nHost: {target}\r\nUser-Agent: podssh/{}\r\n",
-        env!("CARGO_PKG_VERSION")
-    ));
+fn request(via: &Via, target: &str, user_agent: &str) -> Zeroizing<String> {
+    let mut request =
+        Zeroizing::new(format!("CONNECT {target} HTTP/1.1\r\nHost: {target}\r\nUser-Agent: {user_agent}\r\n"));
     if let Some(value) = via.authorization() {
         request.push_str("Proxy-Authorization: ");
         request.push_str(&value);
@@ -85,17 +90,19 @@ async fn read_head<S: AsyncRead + Unpin>(stream: &mut S) -> std::io::Result<Stri
 mod tests {
     use super::*;
 
+    const UA: &str = "podssh/test";
+
     /// The request names the target twice, and Basic only with a password.
     #[test]
     fn the_request_names_the_target_and_carries_basic_only_with_credentials() {
         let bare = Via::parse("https://proxy.example").unwrap();
-        let text = request(&bare, "h.example:22");
+        let text = request(&bare, "h.example:22", UA);
         assert!(text.starts_with("CONNECT h.example:22 HTTP/1.1\r\nHost: h.example:22\r\n"), "{}", text.as_str());
         assert!(text.ends_with("\r\n\r\n") && !text.contains("Proxy-Authorization"));
         let with = Via::parse("https://alice@proxy.example").unwrap().with_credentials("s3cret\n").unwrap();
         use base64::Engine as _;
         let basic = base64::engine::general_purpose::STANDARD.encode("alice:s3cret");
-        assert!(request(&with, "[::1]:22").contains(&format!("Proxy-Authorization: Basic {basic}\r\n")));
+        assert!(request(&with, "[::1]:22", UA).contains(&format!("Proxy-Authorization: Basic {basic}\r\n")));
     }
 
     /// A head ends at its empty line, and the bytes after it stay.

@@ -3,6 +3,9 @@
 
 use super::*;
 
+/// podssh's words, as its binary gives them.
+const PODSSH: Said<'static> = Said { user_agent: "podssh/test", app: "podssh", auth_file: "--via-auth-file FILE" };
+
 #[test]
 fn a_url_names_a_tls_proxy_by_its_host_and_port_and_443_by_default() {
     let via = Via::parse("https://proxy.example").unwrap();
@@ -67,21 +70,22 @@ fn the_versions_offered_are_both_or_one() {
     assert_eq!(Version::Http2.name(), "HTTP/2");
 }
 
-/// A `407` says what the proxy asks for and what podssh gave: none, the
-/// file's, or a scheme that podssh does not speak.
+/// A `407` says what the proxy asks for and what the caller gave: none,
+/// the file's, or a scheme that it does not speak.
 #[test]
 fn a_407_is_said_with_its_schemes_and_what_podssh_sent() {
     let head = "HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic realm=\"Caddy Secure Web \
                 Proxy\"\r\n\r\n";
-    let none = explain("Proxy Authentication Required", head, false);
+    let none = explain("Proxy Authentication Required", head, false, &PODSSH);
     assert!(none.starts_with("Proxy Authentication Required; it asks for Basic, and podssh sent none"), "{none}");
     assert!(none.contains("--via-auth-file"), "{none}");
-    let sent = explain("Proxy Authentication Required", head, true);
+    let sent = explain("Proxy Authentication Required", head, true, &PODSSH);
     assert!(sent.contains("refused the user and password"), "{sent}");
-    let ntlm = explain("", "HTTP/2 407\r\nProxy-Authenticate: NTLM\r\nProxy-Authenticate: Negotiate\r\n", true);
+    let ntlm =
+        explain("", "HTTP/2 407\r\nProxy-Authenticate: NTLM\r\nProxy-Authenticate: Negotiate\r\n", true, &PODSSH);
     assert!(ntlm.starts_with("Proxy Authentication Required; it asks for NTLM and Negotiate"), "{ntlm}");
     assert!(ntlm.contains("Basic only"), "{ntlm}");
-    let silent = explain("Auth", "HTTP/1.1 407 Auth\r\n\r\n", false);
+    let silent = explain("Auth", "HTTP/1.1 407 Auth\r\n\r\n", false, &PODSSH);
     assert!(silent.starts_with("Auth; podssh sent none"), "{silent}");
 }
 
@@ -90,21 +94,21 @@ fn a_407_is_said_with_its_schemes_and_what_podssh_sent() {
 #[test]
 fn a_refusal_names_the_second_proxy_and_the_target() {
     let via = Via::parse("https://dave@proxy.example:8443").unwrap();
-    let e = refused(&via, "h.example:22", 403, "Forbidden".into(), "HTTP/1.1 403 Forbidden\r\n\r\n");
+    let e = refused(&via, &PODSSH, "h.example:22", 403, "Forbidden".into(), "HTTP/1.1 403 Forbidden\r\n\r\n");
     assert_eq!(e.to_string(), "the proxy https://proxy.example:8443 refused CONNECT h.example:22: 403 Forbidden");
 }
 
 /// A page in answer to a CONNECT that carried credentials says what a
-/// probe-resistant proxy does (NaiveProxy's forwardproxy, T-494); with none
+/// probe-resistant proxy does (NaiveProxy's forwardproxy); with none
 /// sent, the page is the proxy's own refusal, and its words alone.
 #[test]
 fn a_page_for_a_connect_with_credentials_names_probe_resistance() {
     let with = Via::parse("https://proxy.example").unwrap().with_credentials("user:secret\n").unwrap();
     assert!(with.has_credentials());
-    let e = refused(&with, "h.example:22", 404, "Not Found".into(), "HTTP/2 404\r\n\r\n").to_string();
+    let e = refused(&with, &PODSSH, "h.example:22", 404, "Not Found".into(), "HTTP/2 404\r\n\r\n").to_string();
     assert!(e.contains("404 Not Found; a proxy with probe resistance"), "{e}");
     assert!(!e.contains("secret"), "{e}");
     let without = Via::parse("https://proxy.example").unwrap();
-    let e = refused(&without, "h.example:22", 404, "Not Found".into(), "HTTP/2 404\r\n\r\n").to_string();
+    let e = refused(&without, &PODSSH, "h.example:22", 404, "Not Found".into(), "HTTP/2 404\r\n\r\n").to_string();
     assert!(!e.contains("probe resistance"), "{e}");
 }

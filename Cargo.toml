@@ -36,6 +36,7 @@ pod-derp = { path = "crates/pod-derp", version = "0.50.0" }
 pod-devtunnel = { path = "crates/pod-devtunnel", version = "0.50.0" }
 pod-dns = { path = "crates/pod-dns", version = "0.50.0" }
 pod-e2e = { path = "crates/pod-e2e", version = "0.50.0" }
+pod-egress = { path = "crates/pod-egress", version = "0.50.0" }
 pod-enter = { path = "crates/pod-enter", version = "0.50.0" }
 pod-extract = { path = "crates/pod-extract", version = "0.50.0" }
 pod-gsr = { path = "crates/pod-gsr", version = "0.50.0" }

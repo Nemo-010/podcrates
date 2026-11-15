@@ -1,7 +1,7 @@
-//! The road to a service that Cloudflare's `cloudflared` publishes (T-264).
+//! The road to a service that Cloudflare's `cloudflared` publishes.
 //! `cloudflared access tcp` carries a TCP stream over a WebSocket to
 //! `wss://HOST/`, the public name of a tunnel's `ssh://` or `tcp://` rule, and
-//! podssh does the same with no program of Cloudflare's. The upgrade is the
+//! this client does the same with no program of Cloudflare's. The upgrade is the
 //! one that cloudflared sends, read in its source at `bf4f502`
 //! (`carrier/carrier.go`, `carrier/websocket.go`,
 //! `cmd/cloudflared/access/carrier.go`) with gorilla/websocket 1.5.3: `GET /`,
@@ -11,7 +11,8 @@
 //!
 //! The origin reads each message into a buffer of 16 KiB and drops the rest
 //! of a longer one (`websocket/connection.go`), so no message is longer. It
-//! answers a Ping outside the lock of its other writes, so podssh sends none;
+//! answers a Ping outside the lock of its other writes, so the client sends
+//! none;
 //! the idle bound of each read finds a dead link, against the origin's own
 //! Ping every 54 s. Neither end sends a Close: the end of the stream is the
 //! end of the session.
@@ -21,11 +22,11 @@ use std::time::Duration;
 
 use zeroize::Zeroizing;
 
-use crate::client::{self, ConnectError, WRITE_TIMEOUT};
-use crate::dial::ProxyChoice;
-use crate::handshake;
-use crate::session::RelaySession;
-use crate::tls::Trust;
+use pod_tls::Trust;
+use pod_ws::Way;
+use pod_ws::client::{self, ConnectError, WRITE_TIMEOUT};
+use pod_ws::handshake;
+use pod_ws::session::RelaySession;
 
 /// The port of `wss://HOST/`.
 pub const PORT: u16 = 443;
@@ -41,8 +42,6 @@ pub const LOGIN_PATH: &str = "/cdn-cgi/access/login";
 pub const CLIENT_ID: &str = "Cf-Access-Client-Id";
 pub const CLIENT_SECRET: &str = "Cf-Access-Client-Secret";
 pub const TOKEN: &str = "Cf-Access-Token";
-/// What podssh says it is, where cloudflared says `cloudflared/VERSION`.
-pub const USER_AGENT: &str = concat!("podssh/", env!("CARGO_PKG_VERSION"));
 
 /// The credentials of Cloudflare Access: a service token (its id and its
 /// secret), a token of a user (`cloudflared access token`), both, or none for
@@ -128,21 +127,20 @@ pub fn refused_by_access(status: u16, body: &str) -> bool {
     matches!(status, 401 | 403) || ((300..400).contains(&status) && body.contains(LOGIN_PATH))
 }
 
-/// Open a session to the tunnel of `host`, through `proxy`, with the
-/// credentials of `access`. Each step is bounded by `timeout`, and each read
-/// of the session by `idle`.
+/// Open a session to the tunnel of `host`, through `way`, with the
+/// credentials of `access`, as the user agent of `way`. Each step is bounded
+/// by `timeout`, and each read of the session by `idle`.
 pub async fn connect(
     host: &str,
     access: &Access,
+    way: &Way,
     trust: &Trust,
-    proxy: &ProxyChoice,
     timeout: Duration,
     idle: Option<Duration>,
 ) -> Result<RelaySession, ConnectError> {
-    let tls = client::open_tls(host, PORT, host, trust, proxy, timeout).await?;
-    let (tls, pending) = upgrade(tls, host, access, timeout).await?;
-    // The stream of each session to a relay, TLS here (T-326).
-    Ok(session(crate::url::Stream::Tls(Box::new(tls)), pending, idle))
+    let (tls, _) = way.open_tls(host, PORT, host, trust, timeout, &[]).await?;
+    let (tls, pending) = upgrade(tls, host, access, &way.user_agent, timeout).await?;
+    Ok(session(pod_ws::url::Stream::Tls(Box::new(tls)), pending, idle))
 }
 
 /// The same over plain TCP to the loopback, for the tests of the road
@@ -152,20 +150,27 @@ pub async fn connect_loopback(
     host: &str,
     port: u16,
     access: &Access,
+    user_agent: &str,
     timeout: Duration,
     idle: Option<Duration>,
 ) -> Result<RelaySession<tokio::net::TcpStream>, ConnectError> {
-    let tcp = crate::plain::loopback_tcp(host, port, timeout).await?;
-    let (tcp, pending) = upgrade(tcp, host, access, timeout).await?;
+    let tcp = pod_ws::plain::loopback_tcp(host, port, timeout).await?;
+    let (tcp, pending) = upgrade(tcp, host, access, user_agent, timeout).await?;
     Ok(session(tcp, pending, idle))
 }
 
-async fn upgrade<S>(stream: S, host: &str, access: &Access, timeout: Duration) -> Result<(S, Vec<u8>), ConnectError>
+async fn upgrade<S>(
+    stream: S,
+    host: &str,
+    access: &Access,
+    user_agent: &str,
+    timeout: Duration,
+) -> Result<(S, Vec<u8>), ConnectError>
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
     let key = handshake::generate_key().map_err(|e| ConnectError::Upgrade(e.to_string()))?;
-    let request = request(host, access, &key, USER_AGENT).map_err(ConnectError::Config)?;
+    let request = request(host, access, &key, user_agent).map_err(ConnectError::Config)?;
     match tokio::time::timeout(timeout, client::upgrade_with(stream, &request, &key)).await {
         Err(_) => Err(ConnectError::Timeout { step: "the WebSocket upgrade", after: timeout }),
         // An answer may quote what it was sent.

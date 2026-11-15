@@ -18,11 +18,13 @@ use tokio::time::Instant;
 use super::handshake::Opened;
 use super::packet::{self, Packet, Reason};
 use super::{End, OnEnd, WispError};
-use crate::forwarder::Note;
-use crate::forwarder::end::{AtEnd, end_of_input};
-use crate::frame;
-use crate::session::{RelaySession, close_code_and_reason};
-use crate::url::Stream;
+use pod_core::Event;
+use pod_ws::frame;
+use pod_ws::session::{RelaySession, close_code_and_reason};
+use pod_ws::url::Stream;
+
+use crate::Note;
+use crate::end::{AtEnd, end_of_input};
 
 /// The WebSocket of a connection.
 pub(super) type Session = RelaySession<Stream>;
@@ -194,7 +196,7 @@ impl Shared {
         at: AtEnd,
         on_end: Option<OnEnd>,
     ) -> Result<Opening, WispError> {
-        crate::names::check_target(host)
+        pod_core::names::check_target(host)
             .map_err(|why| WispError::Failed(format!("the target cannot go to a Wisp server: {why}")))?;
         if port == 0 {
             return Err(WispError::Failed("the target cannot go to a Wisp server: port 0 is not a port".into()));
@@ -310,7 +312,7 @@ async fn until(at: Option<Instant>) {
 /// handle and no stream is left.
 pub(super) async fn read(shared: Arc<Shared>) {
     let session = &shared.session;
-    let liveness = session.watch_liveness(crate::LIVENESS_EVERY, crate::LIVENESS_ALLOWED);
+    let liveness = session.watch_liveness(pod_ws::LIVENESS_EVERY, pod_ws::LIVENESS_ALLOWED);
     tokio::pin!(liveness);
     let mut closing: Option<Instant> = None;
     let end = loop {
@@ -347,7 +349,9 @@ pub(super) async fn read(shared: Arc<Shared>) {
                     break End::Failed(format!("the Wisp server sent {why}"));
                 }
             },
-            frame::OPCODE_TEXT => (shared.note)(&format!("the Wisp server says: {}", super::note_text(&f.payload))),
+            frame::OPCODE_TEXT => shared
+                .note
+                .event(Event::info(super::NOTE, format!("the Wisp server says: {}", super::note_text(&f.payload)))),
             _ => {}
         }
     };
@@ -378,7 +382,10 @@ async fn dispatch(shared: &Shared, id: u32, packet: Packet) -> Option<End> {
         (id, Packet::Close(reason)) => {
             shared.finish(id, End::Closed(reason));
         }
-        (_, other) => (shared.note)(&format!("the Wisp server sent {}, which a client does not take", other.name())),
+        (_, other) => shared.note.event(Event::warn(
+            super::NOTE,
+            format!("the Wisp server sent {}, which a client does not take", other.name()),
+        )),
     }
     None
 }

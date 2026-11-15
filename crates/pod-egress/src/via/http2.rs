@@ -5,27 +5,22 @@
 //! Each tunnel is a stream, so several go on one connection, which a task
 //! drives while a handle or a stream of it lasts.
 
-use std::io;
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::time::Duration;
 
 use bytes::Bytes;
 use h2::client::SendRequest;
-use h2::{Reason, RecvStream, SendStream};
+use h2::{Reason, RecvStream};
 use pod_core::Stage;
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use pod_proxy::DialError;
+use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::Via;
-use crate::dial::DialError;
+use super::{Said, Stream, Via};
 
 /// The windows that the client grants, as WARP's road grants them: a few
 /// round trips of a fast link, where HTTP/2's own 64 KiB would hold a copy
 /// to one window for each round trip.
 const STREAM_WINDOW: u32 = 4 << 20;
 const CONNECTION_WINDOW: u32 = 8 << 20;
-/// The most bytes of one write that go in one turn.
-const CHUNK: usize = 64 * 1024;
 
 /// Why a CONNECT over HTTP/2 gave no tunnel.
 pub(super) enum Failed {
@@ -64,10 +59,11 @@ where
 pub(super) async fn connect(
     sender: SendRequest<Bytes>,
     via: &Via,
+    said: &Said<'_>,
     target: &str,
     timeout: Duration,
 ) -> Result<Stream, Failed> {
-    let request = request(via, target).map_err(|why| Failed::Answer(DialError::InvalidTarget(why)))?;
+    let request = request(via, target, said.user_agent).map_err(|why| Failed::Answer(DialError::InvalidTarget(why)))?;
     let asked = async {
         let mut sender = sender.ready().await.map_err(|e| Failed::Carried(format!("HTTP/2: {e}")))?;
         let (response, send) =
@@ -83,17 +79,15 @@ pub(super) async fn connect(
     if !status.is_success() {
         let head = head(&response);
         let reason = status.canonical_reason().unwrap_or_default().to_string();
-        return Err(Failed::Answer(super::refused(via, target, status.as_u16(), reason, &head)));
+        return Err(Failed::Answer(super::refused(via, said, target, status.as_u16(), reason, &head)));
     }
-    Ok(Stream { send, recv: response.into_body(), pending: Bytes::new(), shut: false })
+    Ok(pod_ws::h2_road::duplex(send, response.into_body()))
 }
 
 /// The CONNECT's request, with Basic as a value that HPACK never indexes.
-fn request(via: &Via, target: &str) -> Result<http::Request<()>, String> {
-    let mut builder = http::Request::builder()
-        .method(http::Method::CONNECT)
-        .uri(target)
-        .header(http::header::USER_AGENT, concat!("podssh/", env!("CARGO_PKG_VERSION")));
+fn request(via: &Via, target: &str, user_agent: &str) -> Result<http::Request<()>, String> {
+    let mut builder =
+        http::Request::builder().method(http::Method::CONNECT).uri(target).header(http::header::USER_AGENT, user_agent);
     if let Some(value) = via.authorization() {
         let mut value = http::HeaderValue::from_str(&value).map_err(|_| "the credentials are no header's value")?;
         value.set_sensitive(true);
@@ -127,95 +121,6 @@ fn head(response: &http::Response<RecvStream>) -> String {
     head
 }
 
-/// A tunnel on a stream of HTTP/2.
-pub struct Stream {
-    send: SendStream<Bytes>,
-    recv: RecvStream,
-    /// The rest of a DATA frame that the reader's buffer did not take.
-    pending: Bytes,
-    shut: bool,
-}
-
-impl Stream {
-    /// The body and the answer of another request, as XHTTP's (T-440).
-    pub(crate) fn from_parts(send: SendStream<Bytes>, recv: RecvStream) -> Stream {
-        Stream { send, recv, pending: Bytes::new(), shut: false }
-    }
-}
-
-impl AsyncRead for Stream {
-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut ReadBuf<'_>) -> Poll<io::Result<()>> {
-        let this = &mut *self;
-        loop {
-            if !this.pending.is_empty() {
-                let n = this.pending.len().min(buf.remaining());
-                buf.put_slice(&this.pending.split_to(n));
-                return Poll::Ready(Ok(()));
-            }
-            match std::task::ready!(this.recv.poll_data(cx)) {
-                Some(Ok(chunk)) => {
-                    // The window opens as a frame is taken, and no frame is
-                    // taken before the last one is read: the reader's pace
-                    // holds the proxy back.
-                    let _ = this.recv.flow_control().release_capacity(chunk.len());
-                    this.pending = chunk;
-                }
-                Some(Err(e)) => return Poll::Ready(Err(io_error(e))),
-                None => return Poll::Ready(Ok(())),
-            }
-        }
-    }
-}
-
-impl AsyncWrite for Stream {
-    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, data: &[u8]) -> Poll<io::Result<usize>> {
-        if data.is_empty() {
-            return Poll::Ready(Ok(0));
-        }
-        let this = &mut *self;
-        let want = data.len().min(CHUNK);
-        this.send.reserve_capacity(want);
-        loop {
-            match std::task::ready!(this.send.poll_capacity(cx)) {
-                // Capacity that frames queued before took: the next call
-                // waits for more.
-                Some(Ok(0)) => continue,
-                Some(Ok(room)) => {
-                    let n = room.min(want);
-                    this.send.send_data(Bytes::copy_from_slice(&data[..n]), false).map_err(io_error)?;
-                    return Poll::Ready(Ok(n));
-                }
-                Some(Err(e)) => return Poll::Ready(Err(io_error(e))),
-                None => {
-                    return Poll::Ready(Err(io::Error::new(io::ErrorKind::BrokenPipe, "the proxy ended the tunnel")));
-                }
-            }
-        }
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        // The connection's task sends each frame as the windows let it.
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_shutdown(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        if !self.shut {
-            self.shut = true;
-            // END_STREAM: the half-close, which the proxy passes to the
-            // target as TCP's own.
-            let _ = self.send.send_data(Bytes::new(), true);
-        }
-        Poll::Ready(Ok(()))
-    }
-}
-
-fn io_error(e: h2::Error) -> io::Error {
-    if e.is_io() {
-        return e.into_io().unwrap_or_else(|| io::Error::other("HTTP/2's connection failed"));
-    }
-    io::Error::other(format!("the tunnel's stream: {e}"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -224,7 +129,7 @@ mod tests {
     #[test]
     fn the_connect_names_the_authority_alone_and_hides_basic_from_hpack() {
         let via = Via::parse("https://proxy.example").unwrap().with_credentials("u:p").unwrap();
-        let request = request(&via, "[2001:db8::1]:22").unwrap();
+        let request = request(&via, "[2001:db8::1]:22", "podssh/test").unwrap();
         assert_eq!(request.method(), http::Method::CONNECT);
         assert_eq!(request.uri().authority().map(|a| a.as_str()), Some("[2001:db8::1]:22"));
         assert_eq!(request.uri().scheme(), None);
@@ -234,6 +139,6 @@ mod tests {
     }
 
     fn request_of(url: &str) -> http::Request<()> {
-        request(&Via::parse(url).unwrap(), "h.example:22").unwrap()
+        request(&Via::parse(url).unwrap(), "h.example:22", "podssh/test").unwrap()
     }
 }

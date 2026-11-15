@@ -1,4 +1,4 @@
-//! meek_lite (T-385), Tor's meek as lyrebird's client speaks it: a bridge's
+//! meek_lite, Tor's meek as lyrebird's client speaks it: a bridge's
 //! bytes in the bodies of HTTP POSTs to its `url=`, through a CDN that
 //! `front=` names. The connection and TLS go to the front, with its name in
 //! TLS's SNI; `Host` names the URL's host, which the CDN routes by. A proxy
@@ -16,8 +16,8 @@
 //! 10 times at most, 100 ms apart after a refusal; then the session ends.
 //!
 //! The connection is HTTP/1.1, kept between requests, opened again when it
-//! ends. `utls=` is read and left: TLS is rustls's, checked as each road's
-//! (`tls.rs`), never another browser's form.
+//! ends. `utls=` is read and left: TLS is rustls's, checked as each road's,
+//! never another browser's form.
 
 mod args;
 mod carry;
@@ -63,8 +63,8 @@ pub fn next_poll(now: Duration) -> Duration {
 pub fn session_id() -> Result<String, String> {
     use sha2::Digest as _;
     let mut seed = [0u8; 64];
-    use rustls::crypto::SecureRandom as _;
-    crate::crypto::random::OsRandom.fill(&mut seed).map_err(|_| "no random bytes for meek's session id".to_string())?;
+    use pod_core::entropy::Entropy as _;
+    pod_core::entropy::OsEntropy.fill(&mut seed).map_err(|_| "no random bytes for meek's session id".to_string())?;
     let digest = sha2::Sha256::digest(seed);
     Ok(digest[..16].iter().map(|b| format!("{b:02x}")).collect())
 }

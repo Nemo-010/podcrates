@@ -96,8 +96,8 @@ fn targets_of(text: &str) -> Result<Vec<(String, String)>, String> {
 /// order of the fronts spreads load and guards nothing.
 fn random_below(n: usize) -> usize {
     let mut bytes = [0u8; 8];
-    use rustls::crypto::SecureRandom as _;
-    match crate::crypto::random::OsRandom.fill(&mut bytes) {
+    use pod_core::entropy::Entropy as _;
+    match pod_core::entropy::OsEntropy.fill(&mut bytes) {
         Ok(()) if n > 0 => (u64::from_le_bytes(bytes) % n as u64) as usize,
         _ => 0,
     }

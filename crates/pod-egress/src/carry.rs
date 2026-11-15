@@ -1,9 +1,10 @@
-//! A forwarder's session as a byte stream (T-369), and a wstunnel server's
-//! (T-441), which names its peer in its words. Two tasks copy between
+//! A WebSocket session as a byte stream: a forwarder's, a wstunnel server's,
+//! and each road's whose server carries the bytes in binary frames; the
+//! session names its peer in its words. Two tasks copy between
 //! the session and one end of a pipe in memory: bytes out in binary frames
 //! of 32 KiB at most, as each Worker's socket takes them safely; binary
 //! frames back in as bytes. A text frame is the forwarder's own word (a
-//! Worker's `{"type":"game.connected"}`): it goes to the note of the caller,
+//! Worker's `{"type":"game.connected"}`): it goes to the caller's events,
 //! never into the stream. The first frame of the frame form is the
 //! forwarder's answer to the target, and is read here, not passed on. The
 //! forwarder's Close, or a failure, is kept in a [`Status`], because the
@@ -15,11 +16,13 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, DuplexStream
 use tokio::sync::{Notify, oneshot};
 use tokio::task::JoinHandle;
 
-use super::Note;
-use super::end::{AtEnd, end_of_input};
-use super::template::Form;
-use crate::frame;
-use crate::session::{RelaySession, close_code_and_reason};
+use pod_core::Event;
+use pod_core::text::one_line;
+use pod_ws::frame;
+use pod_ws::session::{RelaySession, close_code_and_reason};
+
+use crate::Note;
+use crate::end::{AtEnd, end_of_input};
 
 /// The pipe in memory, each way.
 const PIPE: usize = 256 * 1024;
@@ -28,6 +31,52 @@ const PIPE: usize = 256 * 1024;
 const CHUNK: usize = frame::FORWARD_SEND_PAYLOAD;
 /// The most characters of a forwarder's text frame that a note shows.
 const NOTE_CHARS: usize = 200;
+
+/// How long a road whose server says nothing of a target that it reached
+/// waits after the opening for its first word. A Worker answers the upgrade
+/// before it dials the target, so a target that it cannot reach is a Close
+/// that comes after the 101: one that comes within this wait lets the next
+/// road be tried. A target whose client speaks first sends nothing, and its
+/// session starts once the wait ends.
+pub const EARLY_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// The kind of the event of a peer's text frame.
+pub const NOTE: &str = "egress.note";
+
+/// Where a forwarder takes its target, and so what its first frame is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Form {
+    /// In the URL, as Mudlet's Worker takes `?host=H&port=P`: no answer
+    /// comes before the target's bytes.
+    Query,
+    /// In a first text frame, `{"Host":HOST,"Port":PORT}`, which the
+    /// forwarder answers with `{"status":"ok"}` before the target's bytes,
+    /// as ssheasy's proxy does.
+    Frame,
+    /// In a CONNECT packet of the Wisp protocol, on a stream of the
+    /// WebSocket (`crate::wisp`).
+    Wisp,
+}
+
+/// The answer of the frame form: `{"status":"ok"}`, as ssheasy sends it;
+/// `{"status":"failed","error":E}` is its word that it could not reach the
+/// target.
+pub fn answer(payload: &[u8]) -> Result<(), String> {
+    let doc: serde_json::Value = serde_json::from_slice(payload)
+        .map_err(|_| "its first answer is not JSON: it may not take a target in a first frame".to_string())?;
+    match doc.get("status").and_then(|s| s.as_str()) {
+        Some("ok") => Ok(()),
+        Some(status) => {
+            let error = doc.get("error").and_then(|e| e.as_str()).map(one_line).unwrap_or_default();
+            let status = one_line(status);
+            match error.is_empty() {
+                true => Err(format!("it could not reach the target ({status})")),
+                false => Err(format!("it could not reach the target ({status}): {error}")),
+            }
+        }
+        None => Err("its first answer has no status".into()),
+    }
+}
 
 /// How a forwarder's session ended.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,8 +96,9 @@ impl Status {
         self.0.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
-    /// A Wisp stream's end sets it too (T-438).
-    pub(crate) fn set_once(&self, ended: Ended) {
+    /// The first end; a later one is dropped. A road whose stream another
+    /// protocol carries (a Wisp stream) sets it at its end.
+    pub fn set_once(&self, ended: Ended) {
         let mut slot = self.0.lock().unwrap_or_else(|e| e.into_inner());
         if slot.is_none() {
             *slot = Some(ended);
@@ -71,13 +121,13 @@ impl std::fmt::Debug for Carried {
 
 impl Carried {
     /// A session that another protocol carries, its tasks with it: a
-    /// stream of a Wisp server (T-438).
-    pub(crate) fn of(stream: DuplexStream, status: Status, tasks: Vec<JoinHandle<()>>) -> Carried {
+    /// stream of a Wisp server.
+    pub fn of(stream: DuplexStream, status: Status, tasks: Vec<JoinHandle<()>>) -> Carried {
         Carried { stream, status, tasks }
     }
 
     /// Stop each task, for a session that is given up before its use.
-    pub(crate) fn abort(&self) {
+    pub fn abort(&self) {
         for task in &self.tasks {
             task.abort();
         }
@@ -85,7 +135,8 @@ impl Carried {
 }
 
 /// The forwarder's first word after the upgrade.
-pub(crate) enum First {
+#[derive(Debug)]
+pub enum First {
     /// A frame came: the target's bytes or a note, or the answer `ok`.
     Ready,
     Closed {
@@ -103,7 +154,7 @@ fn say(first: &mut Option<oneshot::Sender<First>>, word: First) {
 
 /// A note of a text frame: one line, made safe for a terminal, and short.
 fn note_text(payload: &[u8]) -> String {
-    let line = crate::text::one_line(&String::from_utf8_lossy(payload));
+    let line = one_line(&String::from_utf8_lossy(payload));
     match line.char_indices().nth(NOTE_CHARS) {
         Some((at, _)) => format!("{}...", &line[..at]),
         None => line,
@@ -116,7 +167,7 @@ fn note_text(payload: &[u8]) -> String {
 /// for the forwarder's end, as the target may still answer (a pipe). `peer`
 /// names the other end in a failure's words: `the forwarder`, `the wstunnel
 /// server`.
-pub(crate) fn spawn<S>(
+pub fn spawn<S>(
     session: RelaySession<S>,
     form: Form,
     at: AtEnd,
@@ -136,17 +187,17 @@ enum Texts {
     Notes,
     /// Bytes of the stream, as a binary frame's: Go's `x/net/websocket`,
     /// which frps serves its WebSocket with, sends text frames by default
-    /// whatever the bytes (T-498).
+    /// whatever the bytes.
     Bytes,
 }
 
 /// [`spawn`] of a peer whose every data frame is the stream's bytes, text
 /// or binary, and which has no answer to wait for: frps's WebSocket.
-pub(crate) fn spawn_bytes<S>(session: RelaySession<S>, at: AtEnd, peer: &'static str) -> Carried
+pub fn spawn_bytes<S>(session: RelaySession<S>, at: AtEnd, peer: &'static str) -> Carried
 where
     S: AsyncRead + AsyncWrite + Send + 'static,
 {
-    let note: Note = Arc::new(|_: &str| {});
+    let note: Note = Arc::new(pod_core::NoEvents);
     spawn_as(session, Form::Query, at, note, peer, Texts::Bytes).0
 }
 
@@ -207,7 +258,7 @@ where
         let mut first = Some(first_tx);
         // The query form has no answer to wait for.
         let mut answered = form == Form::Query;
-        let liveness = session.watch_liveness(crate::LIVENESS_EVERY, crate::LIVENESS_ALLOWED);
+        let liveness = session.watch_liveness(pod_ws::LIVENESS_EVERY, pod_ws::LIVENESS_ALLOWED);
         tokio::pin!(liveness);
         loop {
             let read = tokio::select! {
@@ -238,7 +289,7 @@ where
                 }
                 // ssheasy answers in a binary frame, another forwarder may in a
                 // text one: either is the answer, and neither is the target's.
-                frame::OPCODE_TEXT | frame::OPCODE_BINARY if !answered => match super::answer(&f.payload) {
+                frame::OPCODE_TEXT | frame::OPCODE_BINARY if !answered => match answer(&f.payload) {
                     Ok(()) => {
                         answered = true;
                         say(&mut first, First::Ready);
@@ -252,7 +303,7 @@ where
                 },
                 frame::OPCODE_TEXT if texts == Texts::Notes => {
                     say(&mut first, First::Ready);
-                    (*note)(&note_text(&f.payload));
+                    note.event(Event::info(NOTE, note_text(&f.payload)));
                 }
                 frame::OPCODE_BINARY | frame::OPCODE_TEXT => {
                     say(&mut first, First::Ready);
@@ -288,6 +339,17 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_answer_of_the_frame_form_is_ok_or_says_why() {
+        assert_eq!(answer(br#"{"status":"ok"}"#), Ok(()));
+        let failed = answer(br#"{"status":"failed","error":"dial tcp 10.0.0.1:22: i/o timeout"}"#).unwrap_err();
+        assert_eq!(failed, "it could not reach the target (failed): dial tcp 10.0.0.1:22: i/o timeout");
+        assert!(answer(b"SSH-2.0-OpenSSH_9.9\r\n").unwrap_err().contains("not JSON"));
+        assert!(answer(br#"{"type":"game.connected"}"#).unwrap_err().contains("no status"));
+        let evil = answer(b"{\"status\":\"x\",\"error\":\"a\\u001b[2Jb\"}").unwrap_err();
+        assert!(!evil.contains('\u{1b}'), "{evil:?}");
+    }
+
+    #[test]
     fn a_note_is_one_safe_short_line() {
         assert_eq!(note_text(b"{\"type\":\"game.connected\"}"), "{\"type\":\"game.connected\"}");
         assert_eq!(note_text(b"a\x1b[2J\r\nb"), "a[2J b");
@@ -311,11 +373,11 @@ mod tests {
         let limit = std::time::Duration::from_secs(5);
         for bytes_of_text in [true, false] {
             let (ours, mut theirs) = tokio::io::duplex(1 << 16);
-            let session = RelaySession::new(ours, Vec::new(), None, crate::client::WRITE_TIMEOUT);
+            let session = RelaySession::new(ours, Vec::new(), None, pod_ws::client::WRITE_TIMEOUT);
             let mut carried = if bytes_of_text {
                 spawn_bytes(session, AtEnd::AfterPeer, "frps")
             } else {
-                let note: Note = Arc::new(|_: &str| {});
+                let note: Note = Arc::new(pod_core::NoEvents);
                 spawn(session, Form::Query, AtEnd::AfterPeer, note, "the forwarder").0
             };
             theirs.write_all(&sent).await.unwrap();

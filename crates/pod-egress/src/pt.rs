@@ -1,23 +1,21 @@
-//! What Tor's two pluggable transports of podssh share (T-385), meek_lite
-//! ([`crate::meek`]) and WebTunnel ([`crate::webtunnel`]): a bridge's
-//! arguments, as Arti hands them over (`k=v`, from the bridge line), the URL
-//! that each argument `url=` names, and the connection that each opens to
-//! its server. That connection is every road's: TCP through the proxy of the
-//! environment, then TLS checked with podssh's trust for the name sent,
-//! with no bypass of the check (`tls.rs`).
+//! What Tor's two pluggable transports share, meek_lite (`crate::meek`) and
+//! WebTunnel (`crate::webtunnel`): a bridge's arguments, as Arti hands them
+//! over (`k=v`, from the bridge line), the URL that each argument `url=`
+//! names, and the connection that each opens to its server. That connection
+//! is every road's: TCP through the caller's way out, then TLS checked with
+//! the caller's trust for the name sent, with no bypass of the check.
 
 use std::time::Duration;
 
-use crate::client::ConnectError;
-use crate::dial::ProxyChoice;
-use crate::tls::Trust;
-use crate::url::Stream;
+use pod_tls::Trust;
+use pod_ws::url::Stream;
+use pod_ws::{ConnectError, Way};
 
 /// How a transport reaches its server.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Reach {
-    /// The proxy of each connection.
-    pub proxy: ProxyChoice,
+    /// The way out of each connection: the dialer, the TLS context.
+    pub way: Way,
     /// The roots of each TLS handshake.
     pub trust: Trust,
     /// The bound of each dial, TLS handshake and answer.
@@ -70,7 +68,7 @@ impl HttpUrl {
             t if t.starts_with('/') => t.to_string(),
             t => format!("/{t}"),
         };
-        let target = crate::url::request_target(&target)
+        let target = pod_ws::url::request_target(&target)
             .map_err(|_| "a bridge's url holds a space or a control character in its path".to_string())?;
         Ok(HttpUrl { tls, host, port, authority: authority.to_string(), target })
     }
@@ -80,7 +78,7 @@ impl HttpUrl {
         self.target.split('?').next().unwrap_or("/")
     }
 
-    /// The URL for a line of podssh's: no query.
+    /// The URL for a line: no query.
     pub fn shown(&self) -> String {
         format!("{}://{}{}", if self.tls { "https" } else { "http" }, self.authority, self.path())
     }
@@ -89,13 +87,13 @@ impl HttpUrl {
 /// `HOST`, `HOST:PORT`, `[IPV6]` or `[IPV6]:PORT`, the port `default` when
 /// none is given.
 pub fn host_port(authority: &str, default: u16) -> Result<(String, u16), String> {
-    let (host, port) = crate::dial::split_host_port(authority)?;
+    let (host, port) = pod_proxy::host::split_host_port(authority)?;
     if authority.starts_with('[') {
         host.parse::<std::net::Ipv6Addr>().map_err(|_| format!("{authority:?}: brackets hold an IPv6 address"))?;
     } else if host.contains(':') {
         return Err(format!("{authority:?}: an IPv6 address goes in brackets"));
     } else {
-        crate::names::check_host(&host)?;
+        pod_core::names::check_host(&host)?;
     }
     match port {
         Some(0) => Err(format!("{authority:?}: port 0")),
@@ -104,15 +102,15 @@ pub fn host_port(authority: &str, default: u16) -> Result<(String, u16), String>
     }
 }
 
-/// A connection to `host:port` through the reach's proxy, with TLS checked
-/// for `server_name` when `tls`, all within the reach's wait.
+/// A connection to `host:port` through the reach's way out, with TLS
+/// checked for `server_name` when `tls`, all within the reach's wait.
 pub(crate) async fn open(host: &str, port: u16, tls: bool, server_name: &str, reach: &Reach) -> Result<Stream, String> {
     if !tls {
-        let tcp = crate::dial::dial(host, port, &reach.proxy, reach.wait).await.map_err(|e| e.to_string())?;
-        return Ok(Stream::Plain(Box::new(tcp)));
+        let tcp = reach.way.tcp(host, port, reach.wait).await.map_err(|e| e.to_string())?;
+        return Ok(Stream::Plain(tcp.io));
     }
-    match crate::client::open_tls(host, port, server_name, &reach.trust, &reach.proxy, reach.wait).await {
-        Ok(stream) => Ok(Stream::Tls(Box::new(stream))),
+    match reach.way.open_tls(host, port, server_name, &reach.trust, reach.wait, &[]).await {
+        Ok((stream, _)) => Ok(Stream::Tls(Box::new(stream))),
         Err(ConnectError::Tls(why)) => Err(format!("TLS with {server_name} failed: {why}")),
         Err(e) => Err(e.to_string()),
     }

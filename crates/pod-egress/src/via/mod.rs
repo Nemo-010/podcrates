@@ -1,9 +1,9 @@
-//! A second proxy over TLS (T-439, the operator's ruling Q66): a forward
-//! proxy that the user runs, as Caddy's forwardproxy, squid's `https_port`
-//! or h2o, is the road in place of the relay. podssh opens TLS to it,
-//! through the host's own proxy first when one is set, as each connection
-//! goes (`dial`); then it asks it for the target with CONNECT inside that
-//! TLS, and the tunnel carries the session as a TCP connection does.
+//! A second proxy over TLS: a forward proxy that the user runs, as Caddy's
+//! forwardproxy, squid's `https_port` or h2o, is the road in place of the
+//! relay. The client opens TLS to it through the caller's way out (the
+//! host's own proxy first when one is set); then it asks it for the target
+//! with CONNECT inside that TLS, and the tunnel carries the session as a
+//! TCP connection does.
 //!
 //! HTTP/2's CONNECT (RFC 9113, section 8.5) when the proxy chooses `h2` by
 //! ALPN, each tunnel a stream, so that several share one connection
@@ -12,6 +12,8 @@
 //! CONNECT gets HTTP/1.1 on a connection of its own. The credentials are
 //! Basic, from the text of a private file that the caller read: a URL with a
 //! password is refused, as argv and the list of processes would show it.
+//!
+//! [`Client`] is a [`pod_core::Dial`]: a dial of a target is a tunnel to it.
 
 mod http1;
 mod http2;
@@ -19,25 +21,24 @@ mod http2;
 use std::sync::Arc;
 use std::time::Duration;
 
+use tokio::time::Instant;
+
 use base64::Engine as _;
 use bytes::Bytes;
-use pod_core::Stage;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::net::TcpStream;
+use pod_core::{BoxFuture, BoxedIo, Connected, Failure, Stage, Target};
+use pod_proxy::DialError;
+use pod_proxy::host::{authority, check_name, split_host_port};
+use pod_tls::Trust;
+use pod_ws::Way;
 use tokio_rustls::client::TlsStream;
 use zeroize::Zeroizing;
 
-use crate::dial::{self, DialError, ProxyChoice};
-use crate::tls::Trust;
-pub use http2::Stream;
+pub use crate::Duplex;
+/// A tunnel on a stream of HTTP/2: `pod-ws`'s byte stream of one stream.
+pub use pod_ws::h2_road::Stream;
 
 /// The second proxy's port when its URL names none.
 pub const DEFAULT_PORT: u16 = 443;
-
-/// A stream of a tunnel: the TLS of HTTP/1.1, or a stream of HTTP/2.
-pub trait Duplex: AsyncRead + AsyncWrite + Unpin + Send {}
-
-impl<T: AsyncRead + AsyncWrite + Unpin + Send> Duplex for T {}
 
 /// The version of HTTP that carried a CONNECT.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,7 +57,7 @@ impl Version {
     }
 }
 
-/// The versions that podssh offers by ALPN.
+/// The versions that the client offers by ALPN.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Offer {
     /// `h2`, then `http/1.1`: the proxy chooses.
@@ -135,7 +136,7 @@ impl Via {
                     .into());
             }
             Some((userinfo, hostport)) => {
-                let user = crate::proxy::percent_decode(userinfo)?;
+                let user = pod_proxy::proxy::percent_decode(userinfo)?;
                 // RFC 7617: a user-id holds no colon.
                 if user.is_empty() || user.contains(':') || user.chars().any(char::is_control) {
                     return Err("the URL's user is empty, or holds a colon or a control character".into());
@@ -144,11 +145,11 @@ impl Via {
             }
             None => (None, authority),
         };
-        let (host, port) = dial::split_host_port(hostport)?;
+        let (host, port) = split_host_port(hostport)?;
         if host.is_empty() {
             return Err("the URL names no host".into());
         }
-        dial::check_name(&host).map_err(|e| e.to_string())?;
+        check_name(&host).map_err(|e| e.to_string())?;
         let port = port.unwrap_or(DEFAULT_PORT);
         if port == 0 {
             return Err("port 0 is no port".into());
@@ -187,7 +188,7 @@ impl Via {
 
     /// The URL with no user: `https://HOST:PORT`.
     pub fn shown(&self) -> String {
-        format!("https://{}", dial::authority(&self.host, self.port))
+        format!("https://{}", authority(&self.host, self.port))
     }
 
     /// Whether the URL names a user.
@@ -212,13 +213,26 @@ impl Via {
 /// How a [`Client`] reaches its proxy.
 #[derive(Debug, Clone)]
 pub struct Dial {
+    /// The way out: the dialer of the TCP to the proxy (the host's own
+    /// proxy first when one is set), the TLS context and its words, and the
+    /// user agent of each CONNECT.
+    pub way: Way,
     /// The trust of the proxy's certificate, checked with its name.
     pub trust: Trust,
-    /// The host's own proxy, which carries the TCP to the second.
-    pub proxy: ProxyChoice,
     /// The bound of each step: the TCP, TLS, HTTP/2's handshake, a CONNECT.
     pub timeout: Duration,
     pub offer: Offer,
+    /// Where the user gives the credentials file, as the words of a `407`
+    /// name it (podssh: `--via-auth-file FILE`).
+    pub auth_file: String,
+}
+
+/// What a CONNECT says of the caller: its user agent, and its name and the
+/// place of its credentials file in the words of a `407`.
+pub(crate) struct Said<'a> {
+    pub user_agent: &'a str,
+    pub app: &'a str,
+    pub auth_file: &'a str,
 }
 
 /// A tunnel to a target.
@@ -243,7 +257,7 @@ pub struct Client {
 /// A connection for one CONNECT.
 enum Connection {
     // Boxed: a TLS stream is far larger than a handle of HTTP/2.
-    Http1(Box<TlsStream<TcpStream>>),
+    Http1(Box<TlsStream<BoxedIo>>),
     Http2 { sender: ::h2::client::SendRequest<Bytes>, shared: bool },
 }
 
@@ -256,18 +270,24 @@ impl Client {
         &self.via
     }
 
+    fn said(&self) -> Said<'_> {
+        let way = &self.dial.way;
+        Said { user_agent: &way.user_agent, app: &way.tls.words().app, auth_file: &self.dial.auth_file }
+    }
+
     /// A tunnel to `host:port`.
     pub async fn open(&self, host: &str, port: u16) -> Result<Opened, DialError> {
-        dial::check_name(host)?;
-        let target = dial::authority(host, port);
+        check_name(host)?;
+        let target = authority(host, port);
+        let said = self.said();
         let (sender, shared) = match self.connection().await? {
             Connection::Http1(tls) => {
-                let tls = http1::connect(tls, &self.via, &target, self.dial.timeout).await?;
+                let tls = http1::connect(tls, &self.via, &said, &target, self.dial.timeout).await?;
                 return Ok(Opened { stream: Box::new(tls), version: Version::Http1, shared: false, fell_back: None });
             }
             Connection::Http2 { sender, shared } => (sender, shared),
         };
-        let why = match http2::connect(sender, &self.via, &target, self.dial.timeout).await {
+        let why = match http2::connect(sender, &self.via, &said, &target, self.dial.timeout).await {
             Ok(stream) => {
                 return Ok(Opened { stream: Box::new(stream), version: Version::Http2, shared, fell_back: None });
             }
@@ -280,7 +300,7 @@ impl Client {
             return Err(DialError::ProxyProtocol { proxy: self.via.shown(), detail: why });
         }
         let tls = self.tls(Offer::Http1).await?;
-        let tls = http1::connect(tls, &self.via, &target, self.dial.timeout).await?;
+        let tls = http1::connect(tls, &self.via, &said, &target, self.dial.timeout).await?;
         Ok(Opened { stream: Box::new(tls), version: Version::Http1, shared: false, fell_back: Some(why) })
     }
 
@@ -311,10 +331,10 @@ impl Client {
 
     /// TCP to the proxy, through the host's own proxy when one is set, then
     /// TLS checked for the proxy's name, offering `offer`.
-    async fn tls(&self, offer: Offer) -> Result<TlsStream<TcpStream>, DialError> {
-        let (shown, limit) = (self.via.shown(), self.dial.timeout);
-        let tcp = dial::dial(&self.via.host, self.via.port, &self.dial.proxy, limit).await?;
-        let config = crate::tls::config_for(&self.dial.trust).map_err(|e| DialError::BadProxy(e.to_string()))?;
+    async fn tls(&self, offer: Offer) -> Result<TlsStream<BoxedIo>, DialError> {
+        let (shown, limit, way) = (self.via.shown(), self.dial.timeout, &self.dial.way);
+        let tcp = way.tcp(&self.via.host, self.via.port, limit).await?.io;
+        let config = way.tls.config_for(&self.dial.trust).map_err(|e| DialError::BadProxy(e.to_string()))?;
         let mut config = (*config).clone();
         config.alpn_protocols = offer.alpn();
         let name = rustls_pki_types::ServerName::try_from(self.via.host.clone())
@@ -341,7 +361,7 @@ impl Client {
                 }
                 DialError::ProxyUnreachable {
                     proxy: shown,
-                    detail: format!("TLS: {}", crate::tls::handshake_failure(&e)),
+                    detail: format!("TLS: {}", pod_tls::handshake_failure(&e, way.tls.words())),
                 }
             })
     }
@@ -350,11 +370,11 @@ impl Client {
 /// The proxy's refusal of a CONNECT to `target`; a `407` says what it asks
 /// for, and whether credentials went with it. Another refusal of a CONNECT
 /// that carried credentials may be a probe-resistant proxy's (NaiveProxy's
-/// forwardproxy, T-494), which answers as its web server does where its
+/// forwardproxy), which answers as its web server does where its
 /// credentials do not match, so as to look like no proxy at all.
-fn refused(via: &Via, target: &str, status: u16, reason: String, head: &str) -> DialError {
+fn refused(via: &Via, said: &Said<'_>, target: &str, status: u16, reason: String, head: &str) -> DialError {
     let reason = match status {
-        407 => explain(&reason, head, via.has_credentials()),
+        407 => explain(&reason, head, via.has_credentials(), said),
         200..=299 => reason,
         _ if via.has_credentials() => format!(
             "{reason}; a proxy with probe resistance answers so where its credentials do not match: check the \
@@ -366,8 +386,8 @@ fn refused(via: &Via, target: &str, status: u16, reason: String, head: &str) -> 
 }
 
 /// The words of a `407`: the schemes of its `Proxy-Authenticate`, and what
-/// podssh gave. `head` is a response's head, its first line the status.
-pub(crate) fn explain(reason: &str, head: &str, sent: bool) -> String {
+/// the caller gave. `head` is a response's head, its first line the status.
+pub(crate) fn explain(reason: &str, head: &str, sent: bool, said: &Said<'_>) -> String {
     let reason = if reason.trim().is_empty() { "Proxy Authentication Required" } else { reason };
     let asks = pod_proxy::proxy_auth::schemes(head);
     let list = match asks.as_slice() {
@@ -379,13 +399,38 @@ pub(crate) fn explain(reason: &str, head: &str, sent: bool) -> String {
     let what = match (basic, sent) {
         (true, true) => "it refused the user and password of the credentials file (Basic)".to_string(),
         (true, false) => {
-            "podssh sent none: give USER:PASSWORD in a file of mode 0600 (--via-auth-file FILE)".to_string()
+            format!("{} sent none: give USER:PASSWORD in a file of mode 0600 ({})", said.app, said.auth_file)
         }
-        (false, _) => "podssh sends Basic only, from the credentials file".to_string(),
+        (false, _) => format!("{} sends Basic only, from the credentials file", said.app),
     };
     match asks.is_empty() {
         true => format!("{reason}; {what}"),
         false => format!("{reason}; it asks for {list}, and {what}"),
+    }
+}
+
+impl pod_core::Dial for Client {
+    fn label(&self) -> String {
+        format!("via {}", self.via.shown())
+    }
+
+    fn proxy_label(&self, _target: &Target) -> Option<String> {
+        Some(self.via.shown())
+    }
+
+    /// A tunnel to `target`, the whole of it before `deadline`.
+    fn dial<'a>(&'a self, target: &'a Target, deadline: Instant) -> BoxFuture<'a, Result<Connected, Failure>> {
+        Box::pin(async move {
+            crate::road::left(deadline, target)?;
+            let opened = tokio::time::timeout_at(deadline, self.open(&target.host(), target.port()))
+                .await
+                .map_err(|_| crate::road::late(target, &self.via.shown()))??;
+            Ok(Connected::new(Box::new(opened.stream)))
+        })
+    }
+
+    fn names_inside(&self) -> bool {
+        true
     }
 }
 

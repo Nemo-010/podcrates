@@ -6,11 +6,12 @@
 
 use tokio::io::AsyncWriteExt as _;
 
+use pod_proxy::http::Response;
+use pod_ws::url::Stream;
+
 use super::args::{Args, Front};
 use super::{EXCHANGE_WAIT, MAX_PAYLOAD, MAX_TRIES, RETRY_DELAY};
-use crate::http::Response;
 use crate::pt::Reach;
-use crate::url::Stream;
 
 /// What one exchange brought.
 enum Answer {
@@ -112,7 +113,7 @@ impl Client {
             conn.write_all(head.as_bytes()).await?;
             conn.write_all(body).await?;
             conn.flush().await?;
-            crate::http::read_response(conn, Vec::new(), MAX_PAYLOAD).await
+            pod_proxy::http::read_response(conn, Vec::new(), MAX_PAYLOAD).await
         })
         .await;
         let response = match exchanged {

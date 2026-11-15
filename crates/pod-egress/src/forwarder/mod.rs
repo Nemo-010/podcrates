@@ -1,56 +1,48 @@
-//! A WebSocket forwarder that takes its target from the client (T-369): the
+//! A WebSocket forwarder that takes its target from the client: the
 //! plumbing of another product, such as the Worker of Mudlet's web client or
 //! the proxy of ssheasy's SSH client in a browser, which dials the host and
 //! the port that a client names and carries the bytes in binary frames.
 //! The target goes in the URL, by a [`Template`] with `{host}` and
 //! `{port}`, or in a first text frame of JSON, which the forwarder answers
 //! before the target's bytes. The dial is that of a WebSocket by its URL
-//! ([`crate::url::dial`]): TLS checked for the forwarder's name, through the
-//! proxy of the environment, and no token: a relay token goes only to the
+//! (`pod_ws::url::dial`): TLS checked for the forwarder's name, through the
+//! caller's way out, and no token: a relay token goes only to the
 //! deployment that minted it, and a forwarder is another product's. A
 //! template `wisp+wss://HOST/PATH/` names a server of the Wisp protocol,
-//! which takes the target in a packet of its own ([`crate::wisp`], T-438).
+//! which takes the target in a packet of its own ([`crate::wisp`]).
+//!
+//! [`Forwarder`] is a [`pod_core::Dial`]: a dial of a target is a session
+//! through the forwarder.
 
-// The public forwarders of other products that the binary names (T-370).
+// The public forwarders of other products that the binary names.
 pub mod builtin;
-// A wstunnel server's session is carried the same way (T-441).
-pub(crate) mod carry;
-// The end of this side's input, for each carrier of these roads (T-699).
-pub(crate) mod end;
 mod template;
 
-use std::sync::Arc;
 use std::time::Duration;
 
-use carry::First;
+use pod_core::{BoxFuture, Class, Connected, Failure, Stage, Target};
+use pod_tls::Trust;
+use pod_ws::{ConnectError, Way};
+use tokio::time::Instant;
 
-use crate::client::ConnectError;
-use crate::dial::ProxyChoice;
-use crate::tls::Trust;
+use crate::carry::{self, First};
 
-pub use carry::{Carried, Ended, Status};
-pub use end::AtEnd;
-pub use template::{Form, Template, HOST, PORT, WISP};
-
-/// Where each text frame of a forwarder goes, one safe line each.
-pub type Note = Arc<dyn Fn(&str) + Send + Sync>;
-
-/// How long the query form waits after the upgrade for the forwarder's
-/// first frame. A Worker answers the upgrade before it dials the target,
-/// so a target that it cannot reach is a Close that comes after the 101:
-/// one that comes within this wait lets the next forwarder be tried. A
-/// target whose client speaks first sends nothing, and its session starts
-/// once the wait ends.
-pub const EARLY_WAIT: Duration = Duration::from_secs(3);
+pub use crate::Note;
+pub use crate::carry::{Carried, EARLY_WAIT, Ended, Form, Status, answer};
+pub use crate::end::AtEnd;
+pub use template::{HOST, PORT, Template, WISP};
 
 /// The largest frame taken from a forwarder, which publishes no size: a
 /// Worker sends what each read of its socket gave.
 pub const RECEIVE_CAP: usize = 1024 * 1024;
 
 /// What a forwarder's road needs, beside its template and its target.
-pub struct Dial<'a> {
-    pub trust: &'a Trust,
-    pub proxy: &'a ProxyChoice,
+#[derive(Clone)]
+pub struct Dial {
+    /// The way out: the dialer, the TLS context, the user agent.
+    pub way: Way,
+    /// The trust of the forwarder's certificate.
+    pub trust: Trust,
     /// Bound on the dial, on the upgrade, and on the answer of the frame
     /// form.
     pub timeout: Duration,
@@ -58,7 +50,14 @@ pub struct Dial<'a> {
     /// session's end), or after the forwarder's end, as the target may still
     /// answer (a pipe).
     pub at_end: AtEnd,
+    /// Where the forwarder's own words go.
     pub note: Note,
+}
+
+impl std::fmt::Debug for Dial {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Dial").field("way", &self.way).field("timeout", &self.timeout).finish_non_exhaustive()
+    }
 }
 
 /// Why a forwarder carried no session.
@@ -66,7 +65,7 @@ pub struct Dial<'a> {
 pub enum ForwarderError {
     /// The target cannot go in the template; no other forwarder takes it.
     Target(String),
-    /// The dial or the upgrade, as [`crate::url::dial`] gives it.
+    /// The dial or the upgrade, as `pod_ws::url::dial` gives it.
     Connect(ConnectError),
     /// The forwarder's answer to the target, or none.
     Answer(String),
@@ -93,31 +92,11 @@ impl ForwarderError {
             ForwarderError::Connect(other) => format!("the forwarder {shown}: {other}"),
             ForwarderError::Closed { code, reason } => {
                 let code = code.map_or_else(|| "no code".to_string(), |c| c.to_string());
-                let reason = crate::text::one_line(reason);
+                let reason = pod_core::text::one_line(reason);
                 let said = if reason.is_empty() { String::new() } else { format!(" {reason}") };
                 format!("the forwarder {shown} closed the WebSocket before the target's bytes: {code}{said}")
             }
         }
-    }
-}
-
-/// The answer of the frame form: `{"status":"ok"}`, as ssheasy sends it;
-/// `{"status":"failed","error":E}` is its word that it could not reach the
-/// target.
-pub fn answer(payload: &[u8]) -> Result<(), String> {
-    let doc: serde_json::Value = serde_json::from_slice(payload)
-        .map_err(|_| "its first answer is not JSON: it may not take a target in a first frame".to_string())?;
-    match doc.get("status").and_then(|s| s.as_str()) {
-        Some("ok") => Ok(()),
-        Some(status) => {
-            let error = doc.get("error").and_then(|e| e.as_str()).map(crate::text::one_line).unwrap_or_default();
-            let status = crate::text::one_line(status);
-            match error.is_empty() {
-                true => Err(format!("it could not reach the target ({status})")),
-                false => Err(format!("it could not reach the target ({status}): {error}")),
-            }
-        }
-        None => Err("its first answer has no status".into()),
     }
 }
 
@@ -126,13 +105,13 @@ pub fn answer(payload: &[u8]) -> Result<(), String> {
 /// answer, and the forwarder's first word in the query form, within
 /// [`EARLY_WAIT`]. A Wisp server's template takes the road of
 /// [`crate::wisp`].
-pub async fn open(template: &Template, host: &str, port: u16, dial: &Dial<'_>) -> Result<Carried, ForwarderError> {
+pub async fn open(template: &Template, host: &str, port: u16, dial: &Dial) -> Result<Carried, ForwarderError> {
     if template.form() == Form::Wisp {
         return crate::wisp::forward::open(template, host, port, dial).await;
     }
     let url = template.fill(host, port).map_err(ForwarderError::Target)?;
-    let idle = Some(crate::client::DEFAULT_IDLE_TIMEOUT);
-    let session = crate::url::dial(&url, dial.trust, dial.proxy, dial.timeout, idle)
+    let idle = Some(pod_ws::DEFAULT_IDLE_TIMEOUT);
+    let session = pod_ws::url::dial(&url, &dial.way, &dial.trust, dial.timeout, idle)
         .await
         .map_err(ForwarderError::Connect)?
         .naming("the forwarder");
@@ -165,20 +144,83 @@ pub async fn open(template: &Template, host: &str, port: u16, dial: &Dial<'_>) -
     }
 }
 
+impl ForwarderError {
+    /// The stage and the class of the failure.
+    pub fn stage_and_class(&self) -> (Stage, Class) {
+        match self {
+            ForwarderError::Target(_) => (Stage::Connect, Class::Usage),
+            ForwarderError::Connect(e) => e.stage_and_class(),
+            ForwarderError::Answer(_) => (Stage::WebSocket, Class::Protocol),
+            ForwarderError::Closed { .. } => (Stage::Origin, Class::Unavailable),
+        }
+    }
+}
+
+impl std::fmt::Display for ForwarderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ForwarderError::Target(why) | ForwarderError::Answer(why) => f.write_str(why),
+            ForwarderError::Connect(e) => write!(f, "{e}"),
+            ForwarderError::Closed { .. } => {
+                let line = self.line("");
+                f.write_str(line.trim_start_matches("the forwarder  "))
+            }
+        }
+    }
+}
+
+impl std::error::Error for ForwarderError {}
+
+impl From<ForwarderError> for Failure {
+    fn from(e: ForwarderError) -> Failure {
+        let (stage, class) = e.stage_and_class();
+        Failure::caused(stage, class, e.to_string(), e)
+    }
+}
+
+/// A forwarder as a dialer: each dial is a session to its target through
+/// the forwarder of the template.
+#[derive(Debug, Clone)]
+pub struct Forwarder {
+    pub template: Template,
+    pub dial: Dial,
+}
+
+impl pod_core::Dial for Forwarder {
+    fn label(&self) -> String {
+        format!("forwarder {}", self.template.shown())
+    }
+
+    fn proxy_label(&self, _target: &Target) -> Option<String> {
+        Some(self.template.shown().to_string())
+    }
+
+    /// A session to `target`, the whole of its opening before `deadline`.
+    fn dial<'a>(&'a self, target: &'a Target, deadline: Instant) -> BoxFuture<'a, Result<Connected, Failure>> {
+        Box::pin(async move {
+            let left = crate::road::left(deadline, target)?;
+            let dial = Dial { timeout: self.dial.timeout.min(left), ..self.dial.clone() };
+            let host = target.host();
+            let opening = open(&self.template, &host, target.port(), &dial);
+            let carried = tokio::time::timeout_at(deadline, opening)
+                .await
+                .map_err(|_| crate::road::late(target, self.template.shown()))?
+                .map_err(|e| {
+                    let (stage, class) = e.stage_and_class();
+                    Failure::caused(stage, class, e.line(self.template.shown()), e)
+                })?;
+            Ok(Connected::new(Box::new(carried.stream)))
+        })
+    }
+
+    fn names_inside(&self) -> bool {
+        true
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_answer_of_the_frame_form_is_ok_or_says_why() {
-        assert_eq!(answer(br#"{"status":"ok"}"#), Ok(()));
-        let failed = answer(br#"{"status":"failed","error":"dial tcp 10.0.0.1:22: i/o timeout"}"#).unwrap_err();
-        assert_eq!(failed, "it could not reach the target (failed): dial tcp 10.0.0.1:22: i/o timeout");
-        assert!(answer(b"SSH-2.0-OpenSSH_9.9\r\n").unwrap_err().contains("not JSON"));
-        assert!(answer(br#"{"type":"game.connected"}"#).unwrap_err().contains("no status"));
-        let evil = answer(b"{\"status\":\"x\",\"error\":\"a\\u001b[2Jb\"}").unwrap_err();
-        assert!(!evil.contains('\u{1b}'), "{evil:?}");
-    }
 
     #[test]
     fn a_line_names_the_forwarder_and_its_close() {

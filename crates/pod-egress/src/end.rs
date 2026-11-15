@@ -1,4 +1,4 @@
-//! What a road does at the end of this side's input (T-699). A WebSocket
+//! What a road does at the end of this side's input. A WebSocket
 //! has no half-close: a peer may answer a Close at once and send nothing
 //! after it (RFC 6455, section 5.5.1), and a Wisp stream's CLOSE drops what
 //! is still on its way. So a road whose session is done at that end (an SSH
@@ -22,7 +22,7 @@ pub enum AtEnd {
 /// The end of this side's input: `close` at once, or once `peer_ended`
 /// came. No timer: the wait is the peer's, as a timer waits for a
 /// measurement of the public relay.
-pub(crate) async fn end_of_input(at: AtEnd, peer_ended: impl Future<Output = ()>, close: impl Future<Output = ()>) {
+pub async fn end_of_input(at: AtEnd, peer_ended: impl Future<Output = ()>, close: impl Future<Output = ()>) {
     if at == AtEnd::AfterPeer {
         peer_ended.await;
     }

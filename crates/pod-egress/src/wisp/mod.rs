@@ -1,4 +1,4 @@
-//! A Wisp client (T-438): many TCP streams over one WebSocket, by Mercury
+//! A Wisp client: many TCP streams over one WebSocket, by Mercury
 //! Workshop's protocol, version 2 and version 1, written from its document
 //! (MercuryWorkshop/wisp-protocol:protocol.md). The server dials the host
 //! and the port that each CONNECT names; its CONTINUE says how many DATA
@@ -8,11 +8,13 @@
 //! its CONTINUE first speaks version 1, with no INFO. Each stream is given
 //! to its caller as a byte stream ([`WispStream`]).
 //!
-//! The dial is that of a WebSocket by its URL ([`crate::url`]): TLS checked
-//! for the server's name, through the proxy of the environment, one
-//! connection, and no token. A forwarder of `podssh_ws::forwarder` whose
-//! template is `wisp+wss://HOST/PATH/` takes this road ([`forward`]).
+//! The dial is that of a WebSocket by its URL (`pod_ws::url`): TLS checked
+//! for the server's name, through the caller's way out, one connection, and
+//! no token. A forwarder whose template is `wisp+wss://HOST/PATH/` takes
+//! this road (`forward`). A [`Road`] is a [`pod_core::Dial`]: a dial of a
+//! target is a stream to it.
 
+#[cfg(feature = "forwarder")]
 pub(crate) mod forward;
 mod handshake;
 mod mux;
@@ -26,13 +28,18 @@ pub use handshake::{Opened, answer};
 pub use packet::Reason;
 pub use stream::WispStream;
 // What the end of a stream's input does, as on each forwarder's road.
-pub use crate::forwarder::AtEnd;
+pub use crate::end::AtEnd;
 
-use crate::client::ConnectError;
-use crate::dial::ProxyChoice;
-use crate::forwarder::Note;
-use crate::tls::Trust;
-use crate::url::{self, WsUrl};
+use pod_core::{BoxFuture, Class, Connected, Event, Failure, Stage, Target};
+use pod_tls::Trust;
+use pod_ws::url::{self, WsUrl};
+use pod_ws::{ConnectError, Way};
+use tokio::time::Instant;
+
+use crate::Note;
+
+/// The kind of the event of a Wisp server's own words.
+pub const NOTE: &str = "wisp.note";
 
 /// The protocol that the upgrade offers. A server speaks version 2 only
 /// where the request names one, whatever its value; `wisp-v2` is the value
@@ -44,7 +51,7 @@ pub const PROTOCOL: &str = "wisp-v2";
 pub const VERSION: (u8, u8) = (2, 1);
 
 /// The largest DATA payload sent: 32 KiB, as each forwarder's frame.
-const CHUNK: usize = crate::frame::FORWARD_SEND_PAYLOAD;
+const CHUNK: usize = pod_ws::frame::FORWARD_SEND_PAYLOAD;
 
 /// The largest message taken from a server, which publishes no size:
 /// wisp-server-python sends what one read of 64 KiB gave.
@@ -54,19 +61,28 @@ pub const RECEIVE_CAP: usize = 1024 * 1024;
 const NOTE_CHARS: usize = 200;
 
 /// What a connection needs beside its URL.
-pub struct Connect<'a> {
-    pub trust: &'a Trust,
-    pub proxy: &'a ProxyChoice,
+#[derive(Clone)]
+pub struct Connect {
+    /// The way out: the dialer, the TLS context, the user agent.
+    pub way: Way,
+    /// The trust of the server's certificate.
+    pub trust: Trust,
     /// Bound on the dial, on the upgrade, and on the opening.
     pub timeout: Duration,
     /// Where the server's message of the day and its other words go.
     pub note: Note,
 }
 
+impl std::fmt::Debug for Connect {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Connect").field("way", &self.way).field("timeout", &self.timeout).finish_non_exhaustive()
+    }
+}
+
 /// Why a connection or a stream carried nothing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WispError {
-    /// The dial or the upgrade, as [`crate::url::dial`] gives it.
+    /// The dial or the upgrade, as `pod_ws::url::dial` gives it.
     Connect(ConnectError),
     /// The opening: a packet out of turn, an extension that this side
     /// cannot meet, or no opening within the bound.
@@ -101,6 +117,27 @@ impl std::fmt::Display for WispError {
 
 impl std::error::Error for WispError {}
 
+impl WispError {
+    /// The stage and the class of the failure.
+    pub fn stage_and_class(&self) -> (Stage, Class) {
+        match self {
+            WispError::Connect(e) => e.stage_and_class(),
+            WispError::Opening(_) => (Stage::WebSocket, Class::Protocol),
+            WispError::Refused(_) => (Stage::Origin, Class::Refused),
+            WispError::Closed(r) if *r == Reason::BLOCKED => (Stage::Origin, Class::Policy),
+            WispError::Closed(_) => (Stage::Origin, Class::Unavailable),
+            WispError::Gone { .. } | WispError::Failed(_) => (Stage::WebSocket, Class::Unavailable),
+        }
+    }
+}
+
+impl From<WispError> for Failure {
+    fn from(e: WispError) -> Failure {
+        let (stage, class) = e.stage_and_class();
+        Failure::caused(stage, class, e.to_string(), e)
+    }
+}
+
 /// How a stream ended.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum End {
@@ -132,7 +169,7 @@ pub(crate) type OnEnd = Box<dyn Fn(&End) + Send + Sync>;
 
 /// A server's words for a line: one line, made safe for a terminal, short.
 fn note_text(bytes: &[u8]) -> String {
-    let line = crate::text::one_line(&String::from_utf8_lossy(bytes));
+    let line = pod_core::text::one_line(&String::from_utf8_lossy(bytes));
     match line.char_indices().nth(NOTE_CHARS) {
         Some((at, _)) => format!("{}...", &line[..at]),
         None => line,
@@ -156,13 +193,13 @@ impl Wisp {
     /// the server sends its INFO, version 1 when it sends its CONTINUE. A
     /// server that refuses the offer of a protocol (HTTP 400) is dialed once
     /// more with none, as version 1 asks none.
-    pub async fn connect(url: &WsUrl, how: &Connect<'_>) -> Result<Wisp, WispError> {
-        let idle = Some(crate::client::DEFAULT_IDLE_TIMEOUT);
-        let offered = url::dial_offering(url, Some(PROTOCOL), how.trust, how.proxy, how.timeout, idle).await;
+    pub async fn connect(url: &WsUrl, how: &Connect) -> Result<Wisp, WispError> {
+        let idle = Some(pod_ws::DEFAULT_IDLE_TIMEOUT);
+        let offered = url::dial_offering(url, Some(PROTOCOL), &how.way, &how.trust, how.timeout, idle).await;
         let session = match offered {
             Ok(session) => session,
             Err(ConnectError::Refused { status: 400, .. }) => {
-                url::dial(url, how.trust, how.proxy, how.timeout, idle).await.map_err(WispError::Connect)?
+                url::dial(url, &how.way, &how.trust, how.timeout, idle).await.map_err(WispError::Connect)?
             }
             Err(e) => return Err(WispError::Connect(e)),
         };
@@ -170,7 +207,7 @@ impl Wisp {
         session.set_receive_cap(RECEIVE_CAP);
         let opened = handshake::open(&session, how.timeout).await?;
         if let Some(motd) = &opened.motd {
-            (how.note)(&format!("the Wisp server's message: {motd}"));
+            how.note.event(Event::info(NOTE, format!("the Wisp server's message: {motd}")));
         }
         let shared = Arc::new(mux::Shared::new(session, opened, how.note.clone()));
         tokio::spawn(mux::read(shared.clone()));
@@ -209,6 +246,50 @@ impl Wisp {
     ) -> Result<WispStream, WispError> {
         let opening = self.shared.open(host, port, at, on_end).await?;
         Ok(WispStream::new(opening, self.shared.clone()))
+    }
+}
+
+/// A Wisp connection as a dialer: each dial is a stream of it, whose end
+/// of input does what `at_end` says.
+#[derive(Debug)]
+pub struct Road {
+    pub wisp: Wisp,
+    pub at_end: AtEnd,
+    /// The name of the server in a line: its URL with no query.
+    pub shown: String,
+}
+
+impl pod_core::Dial for Road {
+    fn label(&self) -> String {
+        format!("wisp {}", self.shown)
+    }
+
+    fn proxy_label(&self, _target: &Target) -> Option<String> {
+        Some(self.shown.clone())
+    }
+
+    /// A stream to `target`, open before `deadline`: confirmed where the
+    /// server confirms streams, else not closed by the server within
+    /// [`crate::carry::EARLY_WAIT`].
+    fn dial<'a>(&'a self, target: &'a Target, deadline: Instant) -> BoxFuture<'a, Result<Connected, Failure>> {
+        Box::pin(async move {
+            let left = crate::road::left(deadline, target)?;
+            let host = target.host();
+            let opening = self.wisp.open(&host, target.port(), self.at_end);
+            let mut stream = tokio::time::timeout_at(deadline, opening)
+                .await
+                .map_err(|_| crate::road::late(target, &self.shown))??;
+            let wait = if self.wisp.confirms() { left } else { left.min(crate::carry::EARLY_WAIT) };
+            if let Err(e) = stream.opened(wait).await {
+                stream.close().await;
+                return Err(e.into());
+            }
+            Ok(Connected::new(Box::new(stream)))
+        })
+    }
+
+    fn names_inside(&self) -> bool {
+        true
     }
 }
 

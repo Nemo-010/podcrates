@@ -1,4 +1,4 @@
-//! The upgrade of a tunnel (T-441): the request, as wstunnel's client sends
+//! The upgrade of a tunnel: the request, as wstunnel's client sends
 //! it, and the server's answer, said in the words of the version that sends
 //! them. A wstunnel server answers a tunnel with 101 and the subprotocol `v1`
 //! once the target is dialed, or refuses it with a 400 whose body names no
@@ -12,14 +12,17 @@ use std::time::Duration;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use zeroize::Zeroizing;
 
+use pod_core::text;
+use pod_proxy::http;
+use pod_ws::client::{ConnectError, UPGRADE_HEAD};
+use pod_ws::handshake;
+
 use super::{Secret, WstunnelError};
-use crate::client::{ConnectError, UPGRADE_HEAD};
-use crate::{handshake, http, text};
 
 /// The subprotocol of the request and of the server's 101, since 7.
 pub const SUBPROTOCOL: &str = "v1";
 
-/// The versions whose protocol podssh speaks, as a line names them.
+/// The versions whose protocol this client speaks, as a line names them.
 pub const VERSIONS: &str = "wstunnel 9.1 to 11";
 
 /// The refusal of wstunnel 10 and later, for each cause.
@@ -31,7 +34,7 @@ pub const REFUSED_9: &str = "Invalid upgrade request";
 /// The upgrade request of a tunnel: `GET /PREFIX/events`, the token after
 /// the subprotocol `v1`, and the `Authorization` of the secret when it has
 /// one. It holds the secret, so it is wiped when dropped.
-pub fn request(host_header: &str, secret: &Secret, token: &str, key: &str) -> Zeroizing<String> {
+pub fn request(host_header: &str, secret: &Secret, token: &str, key: &str, user_agent: &str) -> Zeroizing<String> {
     // Room for all of it: a String that grows leaves a copy of the secret.
     let room = 512 + host_header.len() + token.len() + secret.prefix().len();
     let mut r = Zeroizing::new(String::with_capacity(room + secret.authorization().map_or(0, str::len)));
@@ -39,7 +42,7 @@ pub fn request(host_header: &str, secret: &Secret, token: &str, key: &str) -> Ze
     r.push_str("GET /");
     r.push_str(secret.prefix());
     r.push_str("/events HTTP/1.1\r\n");
-    r.push_str(&format!("Host: {host_header}\r\nUser-Agent: {}\r\n", crate::url::USER_AGENT));
+    r.push_str(&format!("Host: {host_header}\r\nUser-Agent: {user_agent}\r\n"));
     r.push_str("Upgrade: websocket\r\nConnection: Upgrade\r\n");
     r.push_str(&format!("Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n"));
     r.push_str(&format!("Sec-WebSocket-Protocol: {SUBPROTOCOL}, {}{token}\r\n", super::PREFIX));
@@ -53,8 +56,19 @@ pub fn request(host_header: &str, secret: &Secret, token: &str, key: &str) -> Ze
 }
 
 /// Send `request` on `stream` and read the answer: the stream and the bytes
-/// after the head on a 101 of wstunnel's, else why not.
-pub async fn upgrade<S>(mut stream: S, request: &[u8], key: &str) -> Result<(S, Vec<u8>), WstunnelError>
+/// after the head on a 101 of wstunnel's, else why not. `app` names the
+/// caller in the words of an answer that is not wstunnel's.
+pub async fn upgrade<S>(stream: S, request: &[u8], key: &str, app: &str) -> Result<(S, Vec<u8>), WstunnelError>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    match exchange(stream, request, key, app).await {
+        Err(WstunnelError::NotWstunnel(why)) => Err(WstunnelError::NotWstunnel(format!("that {app} speaks to: {why}"))),
+        other => other,
+    }
+}
+
+async fn exchange<S>(mut stream: S, request: &[u8], key: &str, app: &str) -> Result<(S, Vec<u8>), WstunnelError>
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
@@ -81,11 +95,11 @@ where
     let not_http = |why: String| WstunnelError::NotWstunnel(format!("its answer is no HTTP: {}", text::one_line(&why)));
     let (status, reason, headers) = http::parse_head(&head).map_err(not_http)?;
     if status == 101 {
-        let not_ws = |e: crate::error::WsError| WstunnelError::NotWstunnel(format!("its 101 is no WebSocket's: {e}"));
+        let not_ws = |e: pod_ws::WsError| WstunnelError::NotWstunnel(format!("its 101 is no WebSocket's: {e}"));
         handshake::check_response(&head, key).map_err(not_ws)?;
         let chosen = headers.iter().find(|(name, _)| name == "sec-websocket-protocol").map(|(_, v)| v.as_str());
         if chosen != Some(SUBPROTOCOL) {
-            return Err(WstunnelError::NotWstunnel(no_subprotocol(chosen)));
+            return Err(WstunnelError::NotWstunnel(no_subprotocol(chosen, app)));
         }
         return Ok((stream, buf.split_off(end)));
     }
@@ -101,14 +115,14 @@ where
 
 /// Why a 101 is not a tunnel of wstunnel's: each server of 7 and later
 /// names the subprotocol `v1`.
-fn no_subprotocol(chosen: Option<&str>) -> String {
+fn no_subprotocol(chosen: Option<&str>, app: &str) -> String {
     let gave = match chosen {
         Some(other) => format!("it named the subprotocol {:?}", text::one_line(other)),
         None => "it named no subprotocol".to_string(),
     };
     format!(
         "its 101 lacks wstunnel's subprotocol v1 ({gave}): another server answered, or a wstunnel whose protocol \
-         podssh does not speak; podssh speaks that of {VERSIONS}"
+         {app} does not speak; {app} speaks that of {VERSIONS}"
     )
 }
 
