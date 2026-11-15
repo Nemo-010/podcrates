@@ -15,7 +15,7 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use zeroize::Zeroizing;
 
-use crate::session::{Entropy, NoRandom};
+use pod_session::{Entropy, NoRandom};
 
 const KEY_LABEL: &[u8] = b"podssh piping v1 key";
 const DOOR_LABEL: &[u8] = b"podssh piping v1 door";
@@ -163,10 +163,10 @@ impl Secret {
             return Err(format!("a hello of {} words, not 5", words.len()));
         };
         if word != HELLO_WORD {
-            return Err("not a hello of podssh".into());
+            return Err("not a hello of this carrier".into());
         }
         if version != VERSION {
-            return Err(format!("a hello of version {}, which this podssh does not read", one_word(version)));
+            return Err(format!("a hello of version {}, which this end does not read", one_word(version)));
         }
         let mode = Mode::of_word(mode).ok_or_else(|| format!("a hello of the mode {}", one_word(mode)))?;
         let link = unhex(link).filter(|b| b.len() == 16).ok_or("a hello whose link is not 32 hex digits")?;
@@ -259,7 +259,7 @@ fn unhex(text: &str) -> Option<Vec<u8>> {
 
 /// A word of a peer's for a line: short, and one line.
 fn one_word(word: &str) -> String {
-    podssh_ws::text::one_line(&word.chars().take(16).collect::<String>())
+    pod_core::text::one_line(&word.chars().take(16).collect::<String>())
 }
 
 #[cfg(test)]

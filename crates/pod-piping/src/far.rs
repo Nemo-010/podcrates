@@ -8,11 +8,11 @@
 //!
 //! Over HTTP/1.1, where each way of a link holds a connection, the door is
 //! closed while a link runs, so that the node holds two connections at
-//! most, as the operator's ruling Q44 allows a road that a refused upgrade
-//! chose; a second client waits for the first link's end. Over HTTP/2 the
+//! most, as a proxy that limits the connections of a host allows; a second
+//! client waits for the first link's end. Over HTTP/2 the
 //! door and each link are streams of one connection.
 //!
-//! With the public servers (T-497), the door is at the first server that
+//! With the public servers, the door is at the first server that
 //! answers: a server whose door fails sends it to the next, and after a
 //! refresh with no link at a later server it goes back to the first, where
 //! a client knocks first. A door that waits keeps a free service of Render
@@ -26,16 +26,16 @@ use std::time::{Duration, Instant};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
+use super::Say;
 use super::dial::Proto;
 use super::exchange::Http;
 use super::flow::{self, Opening};
 use super::numbered;
-use super::paths::{Ends, LinkId, Mode, Secret, HELLO_MAX};
-use super::Say;
-use crate::session::far as layer;
-use crate::session::keep::Keeper;
-use crate::session::record::Role;
-use crate::session::Settings;
+use super::paths::{Ends, HELLO_MAX, LinkId, Mode, Secret};
+use pod_session::Settings;
+use pod_session::far as layer;
+use pod_session::keep::Keeper;
+use pod_session::record::Role;
 
 /// How often the sessions whose links are lost are checked for their
 /// deadline.
@@ -58,7 +58,7 @@ pub struct Node {
     /// The first server, where the node waits while it answers.
     pub http: Arc<Http>,
     /// The servers after it, in order: the node's door moves to the next
-    /// when the one before fails, never to two at once (T-497).
+    /// when the one before fails, never to two at once.
     pub fallbacks: Vec<Arc<Http>>,
     pub say: Say,
 }
@@ -151,7 +151,7 @@ where
             }
             Err(why) => {
                 failed = failed.saturating_add(1);
-                let wait = crate::open::backoff(failed);
+                let wait = pod_core::backoff::backoff(failed);
                 (node.say)(format!("the door at {}: {why}; asking again in {} ms", http.server(), wait.as_millis()));
                 tokio::time::sleep(wait).await;
                 if why.status != Some(400) {

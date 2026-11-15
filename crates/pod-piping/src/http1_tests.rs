@@ -2,7 +2,7 @@
 //! hyper's servers frame them: a length, chunks with an extension and
 //! trailers, a body to the close, and a body that is cut short.
 
-use super::http1::{chunk, read_head, request, Answer, Framing, Length, Reader, LAST_CHUNK};
+use super::http1::{Answer, Framing, LAST_CHUNK, Length, Reader, chunk, read_head, request};
 
 /// The whole body of `raw`, an answer's head and body, read in pieces.
 async fn body_of(raw: &[u8]) -> (Answer, Result<Vec<u8>, String>, bool) {
@@ -17,12 +17,12 @@ async fn body_of(raw: &[u8]) -> (Answer, Result<Vec<u8>, String>, bool) {
 
 #[test]
 fn a_request_names_its_body_s_length_or_its_chunks_and_a_get_names_none() {
-    let get = String::from_utf8(request("GET", "ppng.io", "/abc", Length::None)).unwrap();
+    let get = String::from_utf8(request("GET", "ppng.io", "/abc", "podssh/1", Length::None)).unwrap();
     assert!(get.starts_with("GET /abc HTTP/1.1\r\nHost: ppng.io\r\nUser-Agent: podssh/"), "{get}");
     assert!(get.ends_with("\r\n\r\n") && !get.contains("Content-") && !get.contains("Transfer-"), "{get}");
-    let post = String::from_utf8(request("POST", "h:8080", "/p/abc", Length::Chunked)).unwrap();
+    let post = String::from_utf8(request("POST", "h:8080", "/p/abc", "podssh/1", Length::Chunked)).unwrap();
     assert!(post.contains("\r\nTransfer-Encoding: chunked\r\n") && !post.contains("Content-Length"), "{post}");
-    let whole = String::from_utf8(request("POST", "h", "/abc-3", Length::Fixed(5))).unwrap();
+    let whole = String::from_utf8(request("POST", "h", "/abc-3", "podssh/1", Length::Fixed(5))).unwrap();
     assert!(whole.contains("\r\nContent-Length: 5\r\n") && !whole.contains("chunked"), "{whole}");
     assert_eq!(chunk(b"hello"), b"5\r\nhello\r\n");
     assert_eq!(chunk(&[0u8; 26])[..4], *b"1a\r\n");

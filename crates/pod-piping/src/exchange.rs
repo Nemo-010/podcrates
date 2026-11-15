@@ -93,7 +93,7 @@ pub fn delivered_whole(text: &str) -> Result<(), String> {
         return Ok(());
     }
     // An answer that ends after the transfer began and before it ended: a
-    // front cut the transfer (`piping.onrender.com`, T-497), and the
+    // front cut the transfer (`piping.onrender.com`), and the
     // receiver may hold part of the body.
     if text.contains("Start sending") && !text.contains("Sent successfully") {
         return Err("the server's answer ended before its receiver took the whole body".into());
@@ -103,7 +103,7 @@ pub fn delivered_whole(text: &str) -> Result<(), String> {
 
 /// A server's words for a line: one line, 200 characters at most.
 fn shown(text: &str) -> String {
-    podssh_ws::text::one_line(text.trim()).chars().take(200).collect()
+    pod_core::text::one_line(text.trim()).chars().take(200).collect()
 }
 
 /// A body, read as it comes.
@@ -201,14 +201,31 @@ impl Tried {
 pub struct Http {
     server: Server,
     dial: Dial,
+    /// The `User-Agent` of each request: the caller's name.
+    agent: String,
     h2: tokio::sync::Mutex<Option<http2::Conn>>,
     idle: Mutex<Vec<(Instant, Kept)>>,
     proto: Mutex<Option<Proto>>,
 }
 
 impl Http {
-    pub fn new(server: Server, dial: Dial) -> Http {
-        Http { server, dial, h2: tokio::sync::Mutex::new(None), idle: Mutex::new(Vec::new()), proto: Mutex::new(None) }
+    /// The client of `server` over the connections of `dial`, whose
+    /// requests name `user_agent` (`podssh/VERSION`), made one line.
+    pub fn new(server: Server, dial: Dial, user_agent: &str) -> Http {
+        let agent = pod_core::text::one_line(user_agent);
+        Http {
+            server,
+            dial,
+            agent,
+            h2: tokio::sync::Mutex::new(None),
+            idle: Mutex::new(Vec::new()),
+            proto: Mutex::new(None),
+        }
+    }
+
+    /// The `User-Agent` of each request.
+    pub fn user_agent(&self) -> &str {
+        &self.agent
     }
 
     pub fn server(&self) -> &Server {
@@ -235,7 +252,7 @@ impl Http {
         } else {
             // A new connection for a streamed way ends each idle one first:
             // over HTTP/1.1 an end holds two connections at most, its two
-            // ways, as the operator's ruling Q44 allows (T-437).
+            // ways, which a proxy that limits the connections of a host allows.
             lock(&self.idle).clear();
         }
         let (io, proto) = (self.dial)(&self.server).await.map_err(Failed::lost)?;
@@ -273,10 +290,10 @@ impl Http {
     /// sender does.
     pub async fn get(&self, path: &str, wait: Option<Duration>) -> Result<Body, Failed> {
         match self.conn(false).await? {
-            Conn::H2(send) => Ok(Body::H2(http2::get(send, &self.server, path, wait).await?)),
+            Conn::H2(send) => Ok(Body::H2(http2::get(send, &self.server, &self.agent, path, wait).await?)),
             Conn::H1 { kept, .. } => {
                 let Kept { mut io, mut buf } = kept;
-                let head = http1::request("GET", &self.server.authority(), path, Length::None);
+                let head = http1::request("GET", &self.server.authority(), path, &self.agent, Length::None);
                 send_head(&mut io, &head).await.map_err(|e| Failed::lost(e.to_string()))?;
                 let answer = read_answer(&mut io, &mut buf, wait).await.map_err(|tried| tried.failed)?;
                 let mut reader = Reader::new(io, buf, answer.framing);
@@ -295,7 +312,7 @@ impl Http {
         loop {
             match self.conn(reuse).await? {
                 Conn::H2(send) => {
-                    let (body, length) = http2::get_sized(send, &self.server, path, wait).await?;
+                    let (body, length) = http2::get_sized(send, &self.server, &self.agent, path, wait).await?;
                     let got = all(&mut Body::H2(body), cap).await.map_err(Failed::lost)?;
                     return match length {
                         Some(length) if length != got.len() as u64 => {
@@ -314,7 +331,7 @@ impl Http {
 
     async fn h1_get_all(&self, kept: Kept, path: &str, wait: Option<Duration>, cap: usize) -> Result<Vec<u8>, Tried> {
         let Kept { mut io, mut buf } = kept;
-        let head = http1::request("GET", &self.server.authority(), path, Length::None);
+        let head = http1::request("GET", &self.server.authority(), path, &self.agent, Length::None);
         send_head(&mut io, &head).await.map_err(Tried::stale)?;
         let answer = read_answer(&mut io, &mut buf, wait).await?;
         let mut reader = Reader::new(io, buf, answer.framing);
@@ -337,7 +354,7 @@ impl Http {
             let mut reuse = true;
             loop {
                 match self.conn(reuse).await? {
-                    Conn::H2(send) => return http2::post(send, &self.server, path, body, wait).await,
+                    Conn::H2(send) => return http2::post(send, &self.server, &self.agent, path, body, wait).await,
                     Conn::H1 { kept, reused } => match self.h1_post(kept, path, body).await {
                         Err(tried) if reused && tried.stale => reuse = false,
                         done => return done.map_err(|tried| tried.failed),
@@ -351,7 +368,7 @@ impl Http {
     async fn h1_post(&self, kept: Kept, path: &str, body: &[u8]) -> Result<String, Tried> {
         let Kept { io, buf } = kept;
         let (mut read, mut write) = tokio::io::split(io);
-        let head = http1::request("POST", &self.server.authority(), path, Length::Fixed(body.len()));
+        let head = http1::request("POST", &self.server.authority(), path, &self.agent, Length::Fixed(body.len()));
         // The body and the answer at once: the server answers a sender before
         // it reads the body, and reads it only once its receiver came.
         let sending = async {
@@ -393,13 +410,13 @@ impl Http {
     pub async fn post_stream(&self, path: &str, wait: Duration, first: &[u8]) -> Result<Upload, Failed> {
         match self.conn(false).await? {
             Conn::H2(send) => {
-                let (stream, drain) = http2::post_stream(send, &self.server, path, wait, first).await?;
+                let (stream, drain) = http2::post_stream(send, &self.server, &self.agent, path, wait, first).await?;
                 Ok(Upload { way: Way::H2(stream), drain })
             }
             Conn::H1 { kept, .. } => {
                 let Kept { io, mut buf } = kept;
                 let (mut read, mut write) = tokio::io::split(io);
-                let head = http1::request("POST", &self.server.authority(), path, Length::Chunked);
+                let head = http1::request("POST", &self.server.authority(), path, &self.agent, Length::Chunked);
                 send_head(&mut write, &head).await.map_err(|e| Failed::lost(e.to_string()))?;
                 if !first.is_empty() {
                     let sent = async {

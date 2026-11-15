@@ -1,5 +1,5 @@
 //! The words of a Piping Server's answer to a sender, as nwtgck's servers
-//! and `piping.onrender.com` wrote them (T-497, 2026-11-06).
+//! and `piping.onrender.com` wrote them.
 
 use super::exchange::{delivered, delivered_whole};
 

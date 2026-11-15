@@ -1,10 +1,10 @@
-//! The way to a Piping Server: TCP through `HTTPS_PROXY` when one is set
-//! (podssh-ws's dialer), then TLS verified with podssh-ws's provider and
-//! trust store, offering HTTP/2 and HTTP/1.1 by ALPN. `ppng.io` takes `h2`
-//! (read on 2026-11-02), so a node's door and each of its links share one
-//! connection; a server or a proxy that takes HTTP/1.1 alone gets that. A
-//! caller's own TLS configuration (`Trust::caller`) is used as it is, with
-//! no ALPN, so HTTP/1.1.
+//! The way to a Piping Server: TCP through the dialer of the caller's
+//! [`Way`], then TLS verified with the provider and the trust store of its
+//! context, offering HTTP/2 and HTTP/1.1 by ALPN. `ppng.io` takes `h2`, so a
+//! node's door and each of its links share one connection; a server or a
+//! proxy that takes HTTP/1.1 alone gets that. A caller's own TLS
+//! configuration (`Trust::caller`) is used as it is, with no ALPN, so
+//! HTTP/1.1.
 //!
 //! A [`Dial`] gives the stream and its protocol, so that a test gives the
 //! loopback's TCP in place of TLS, as a Piping Server on the loopback serves
@@ -15,7 +15,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
-use podssh_ws::{ProxyChoice, Trust};
+use pod_tls::{Context, Trust};
+use pod_ws::Way;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::server::Server;
@@ -53,22 +54,21 @@ pub type Dialing = Pin<Box<dyn Future<Output = Result<(BoxIo, Proto), String>> +
 /// How to reach a server: TLS through the proxy ([`tls`]), or a test's TCP.
 pub type Dial = Arc<dyn Fn(&Server) -> Dialing + Send + Sync>;
 
-/// TLS to each server, through `proxy`, verified with `trust`.
-pub fn tls(trust: Trust, proxy: ProxyChoice) -> Dial {
+/// TLS to each server, through the dialer of `way`, verified with `trust`
+/// in the TLS context of `way`.
+pub fn tls(way: Arc<Way>, trust: Trust) -> Dial {
     Arc::new(move |server: &Server| -> Dialing {
-        let (server, trust, proxy) = (server.clone(), trust.clone(), proxy.clone());
+        let (server, trust, way) = (server.clone(), trust.clone(), way.clone());
         Box::pin(async move {
             let shown = server.to_string();
-            let config = config(&trust).map_err(|why| format!("{shown}: {why}"))?;
+            let config = config(&way.tls, &trust).map_err(|why| format!("{shown}: {why}"))?;
             let name = rustls::pki_types::ServerName::try_from(server.host.clone())
                 .map_err(|e| format!("{shown}: {:?} is not a server name: {e}", server.host))?;
-            let tcp = podssh_ws::dial::dial(&server.host, server.port, &proxy, CONNECT_LIMIT)
-                .await
-                .map_err(|e| format!("{shown}: {e}"))?;
+            let tcp = way.tcp(&server.host, server.port, CONNECT_LIMIT).await.map_err(|e| format!("{shown}: {e}"))?;
             let connector = tokio_rustls::TlsConnector::from(config);
-            let tls = match tokio::time::timeout(CONNECT_LIMIT, connector.connect(name, tcp)).await {
+            let tls = match tokio::time::timeout(CONNECT_LIMIT, connector.connect(name, tcp.io)).await {
                 Err(_) => return Err(format!("{shown}: no TLS within {} s", CONNECT_LIMIT.as_secs())),
-                Ok(Err(e)) => return Err(format!("{shown}: {}", podssh_ws::tls::handshake_failure(&e))),
+                Ok(Err(e)) => return Err(format!("{shown}: {}", pod_tls::handshake_failure(&e, way.tls.words()))),
                 Ok(Ok(tls)) => tls,
             };
             let proto = if tls.get_ref().1.alpn_protocol() == Some(ALPN_H2) { Proto::H2 } else { Proto::H1 };
@@ -77,10 +77,10 @@ pub fn tls(trust: Trust, proxy: ProxyChoice) -> Dial {
     })
 }
 
-/// podssh's configuration for `trust`, offering both protocols; a caller's
-/// own, unchanged.
-fn config(trust: &Trust) -> Result<Arc<rustls::ClientConfig>, String> {
-    let base = podssh_ws::tls::config_for(trust).map_err(|e| e.to_string())?;
+/// The configuration of `trust` in `tls`, offering both protocols; a
+/// caller's own, unchanged.
+fn config(tls: &Context, trust: &Trust) -> Result<Arc<rustls::ClientConfig>, String> {
+    let base = tls.config_for(trust).map_err(|e| e.to_string())?;
     if matches!(trust, Trust::Caller(_)) {
         return Ok(base);
     }
@@ -93,11 +93,17 @@ fn config(trust: &Trust) -> Result<Arc<rustls::ClientConfig>, String> {
 mod tests {
     use super::*;
 
+    fn context() -> Context {
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        Context::new(provider, pod_tls::Settings::new(pod_tls::Words::new("pod-piping")))
+    }
+
     #[test]
     fn podssh_s_own_trust_offers_h2_then_http_1_1() {
-        let config = config(&Trust::Default).unwrap();
+        let tls = context();
+        let config = config(&tls, &Trust::Default).unwrap();
         assert_eq!(config.alpn_protocols, vec![b"h2".to_vec(), b"http/1.1".to_vec()]);
-        let unchanged = podssh_ws::tls::config_for(&Trust::Default).unwrap();
+        let unchanged = tls.config_for(&Trust::Default).unwrap();
         assert!(unchanged.alpn_protocols.is_empty(), "the relay's configuration keeps no ALPN");
     }
 }

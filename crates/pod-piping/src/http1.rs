@@ -24,8 +24,8 @@ pub enum Length {
 
 /// A request's head. `authority` and `path` are the road's own words, which
 /// hold no space and no line break ([`super::server::Server::parse`]).
-pub fn request(method: &str, authority: &str, path: &str, length: Length) -> Vec<u8> {
-    let mut head = format!("{method} {path} HTTP/1.1\r\nHost: {authority}\r\nUser-Agent: {}\r\n", super::USER_AGENT);
+pub fn request(method: &str, authority: &str, path: &str, agent: &str, length: Length) -> Vec<u8> {
+    let mut head = format!("{method} {path} HTTP/1.1\r\nHost: {authority}\r\nUser-Agent: {agent}\r\n");
     match length {
         Length::None => {}
         Length::Chunked => head.push_str("Content-Type: application/octet-stream\r\nTransfer-Encoding: chunked\r\n"),
@@ -83,7 +83,7 @@ pub async fn read_head<R: AsyncRead + Unpin>(io: &mut R, buf: &mut Vec<u8>) -> R
         };
         let text = String::from_utf8_lossy(&buf[..end]).into_owned();
         buf.drain(..end);
-        let (status, _, headers) = podssh_ws::http::parse_head(&text)?;
+        let (status, _, headers) = pod_proxy::http::parse_head(&text)?;
         if (100..200).contains(&status) {
             continue;
         }
@@ -233,7 +233,7 @@ impl<R: AsyncRead + Unpin> Reader<R> {
 fn size(line: &[u8]) -> Result<u64, String> {
     let text = std::str::from_utf8(line).map_err(|_| "a chunk's size that is not text".to_string())?;
     let digits = text.split(';').next().unwrap_or_default().trim();
-    u64::from_str_radix(digits, 16).map_err(|_| format!("a chunk's size {:?}", podssh_ws::text::one_line(digits)))
+    u64::from_str_radix(digits, 16).map_err(|_| format!("a chunk's size {:?}", pod_core::text::one_line(digits)))
 }
 
 /// Read once more into `buf`; `false` at the end of the stream.

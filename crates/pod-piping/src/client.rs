@@ -6,23 +6,23 @@
 //! client's links are numbered. The end-to-end channel above the layer
 //! checks the node's identity, as the paths prove only the pair's secret.
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::time::Duration;
 
 use rand::RngExt;
 use tokio::io::{AsyncRead, AsyncWrite};
 
+use super::Say;
 use super::dial::Proto;
-use super::exchange::{delivered_whole, Http};
+use super::exchange::{Http, delivered_whole};
 use super::flow::{self, Link, Opening};
 use super::numbered;
 use super::paths::{Ends, LinkId, Mode, Secret};
 use super::server::Server;
-use super::Say;
-use crate::session::client::{self, Outcome};
-use crate::session::resume::{self, Next, Note};
-use crate::session::{Ask, Ended, Hearing, OsEntropy, Settings};
+use pod_session::client::{self, Outcome};
+use pod_session::resume::{self, Next, Note};
+use pod_session::{Ask, Ended, Hearing, OsEntropy, Settings};
 
 /// How long a hello waits for the node at its door.
 pub const DOOR_LIMIT: Duration = Duration::from_secs(20);
@@ -48,7 +48,7 @@ enum Missed {
 }
 
 /// The links of one client to the node of one pair, through the first of
-/// its servers where the node waits (T-497).
+/// its servers where the node waits.
 pub struct Dialer {
     secret: Arc<Secret>,
     doors: Vec<Door>,
@@ -164,7 +164,7 @@ impl Dialer {
                          road",
                         http.server(),
                         DOOR_LIMIT.as_secs()
-                    )))
+                    )));
                 }
                 // Another client's hello holds the door for a moment (400),
                 // or the way lost the connection: the same door again.

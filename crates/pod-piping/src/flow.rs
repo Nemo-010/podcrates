@@ -16,7 +16,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, DuplexStream
 use tokio::task::AbortHandle;
 
 use super::exchange::{Body, Failed, Http, Upload};
-use super::paths::{same, Ends, MARK_BYTES};
+use super::paths::{Ends, MARK_BYTES, same};
 
 /// How long a link may take to open: each end's two requests, and the far
 /// end's mark. A streamed POST that gets no answer this long is held on the

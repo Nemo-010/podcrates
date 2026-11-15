@@ -16,16 +16,16 @@ use std::time::Duration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-use super::exchange::{delivered_whole, Failed, Http};
-use super::flow::{check_mark, Link, Opening, HELLO_LIMIT, PIPE};
+use super::exchange::{Failed, Http, delivered_whole};
+use super::flow::{HELLO_LIMIT, Link, Opening, PIPE, check_mark};
 use super::paths::{Ends, MARK_BYTES};
 
 /// The most bytes of a piece.
 pub const PIECE: usize = 64 * 1024;
 /// The most bytes of a piece that a server sends, where pod-services says
 /// that it holds a body to its end: `piping.onrender.com` cut 2 of 4
-/// transfers of 16 KiB and 32 KiB, and none of 20 of 4 KiB and 8 KiB
-/// (T-497, 2026-11-06), so a piece there is small.
+/// transfers of 16 KiB and 32 KiB, and none of 20 of 4 KiB and 8 KiB,
+/// so a piece there is small.
 pub const SMALL_PIECE: usize = 8 * 1024;
 /// How long a POST of a piece may wait for its receiver.
 const POST_WAIT: Duration = Duration::from_secs(60);

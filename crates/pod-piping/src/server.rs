@@ -32,7 +32,7 @@ pub struct Server {
 
 /// The public servers of the road, in the order of pod-services: `ppng.io`
 /// first, then each other of kind `piping`, each tried once the one before
-/// failed (T-497).
+/// failed.
 pub fn public() -> Vec<Server> {
     let servers = pod_services::of_kind("piping").filter_map(|service| service.endpoint("server"));
     servers.map(|e| Server { host: e.host().to_ascii_lowercase(), port: e.port(), prefix: String::new() }).collect()
@@ -49,7 +49,7 @@ impl Server {
     /// user, a query or a fragment is refused: a Piping Server reads the
     /// path alone, and a `?n=` would change who meets.
     pub fn parse(text: &str) -> Result<Server, String> {
-        let shown = podssh_ws::text::one_line(text.trim());
+        let shown = pod_core::text::one_line(text.trim());
         let rest = text.trim().strip_prefix("https://").ok_or_else(|| format!("{shown:?} is not an https:// URL"))?;
         if rest.contains(['?', '#', '@', '%', '\\']) || rest.chars().any(|c| c.is_whitespace() || c.is_control()) {
             return Err(format!("{shown:?}: a Piping Server's URL has no user, query, fragment or escape"));
@@ -63,7 +63,7 @@ impl Server {
         }
         let (host, port) = split_port(authority).map_err(|why| format!("{shown:?}: {why}"))?;
         // A name, an IPv4 address, or an IPv6 one with no zone.
-        podssh_ws::names::check_target(host).map_err(|why| format!("{shown:?}: {why}"))?;
+        pod_core::names::check_target(host).map_err(|why| format!("{shown:?}: {why}"))?;
         Ok(Server { host: host.to_ascii_lowercase(), port, prefix: prefix.to_string() })
     }
 
@@ -73,7 +73,7 @@ impl Server {
         match (self.port, self.host.contains(':')) {
             (PORT, false) => self.host.clone(),
             (PORT, true) => format!("[{}]", self.host),
-            (port, _) => podssh_ws::dial::authority(&self.host, port),
+            (port, _) => pod_proxy::host::authority(&self.host, port),
         }
     }
 
@@ -142,11 +142,11 @@ mod tests {
         let public = public();
         let shown: Vec<String> = public.iter().map(Server::to_string).collect();
         let want = ["https://ppng.io", "https://piping.onrender.com", "https://p.kokoro.serv00.net"];
-        assert_eq!(shown[..3], want.map(String::from), "in the order of their rank (T-497, T-575)");
+        assert_eq!(shown[..3], want.map(String::from), "in the order of their rank");
         assert_eq!(public[0], Server::default());
         assert!(!public[0].holds_bodies());
         assert!(public[1].holds_bodies(), "pod-services measured that it holds a body to its end");
-        assert!(public[2].holds_bodies(), "serv00's too, measured on 2026-11-14 (T-575)");
+        assert!(public[2].holds_bodies(), "serv00's too");
         assert!(!Server::parse("https://piping.onrender.com:8443").unwrap().holds_bodies());
     }
 

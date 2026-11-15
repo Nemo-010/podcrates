@@ -5,8 +5,8 @@
 //! receiver's body as the sender's DATA comes (its `http2` compatibility
 //! layer), so a stream is a way of a link.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -88,10 +88,11 @@ async fn keep_alive(pings: Option<h2::PingPong>, ended: Arc<AtomicBool>, driver:
     }
 }
 
-/// A request of HTTP/2 for `path` on `server`; a POST of a known length
-/// says it.
+/// A request of HTTP/2 for `path` on `server`, with the user agent `agent`;
+/// a POST of a known length says it.
 fn request(
     server: &Server,
+    agent: &str,
     method: http::Method,
     path: &str,
     length: Option<usize>,
@@ -100,7 +101,7 @@ fn request(
         .method(method)
         .uri(format!("https://{}{path}", server.authority()))
         .version(http::Version::HTTP_2)
-        .header("user-agent", super::USER_AGENT);
+        .header("user-agent", agent);
     if let Some(length) = length {
         builder =
             builder.header("content-type", "application/octet-stream").header("content-length", length.to_string());
@@ -113,22 +114,24 @@ fn request(
 pub async fn get(
     send: SendRequest<Bytes>,
     server: &Server,
+    agent: &str,
     path: &str,
     wait: Option<Duration>,
 ) -> Result<RecvStream, Failed> {
-    get_sized(send, server, path, wait).await.map(|(body, _)| body)
+    get_sized(send, server, agent, path, wait).await.map(|(body, _)| body)
 }
 
 /// [`get`], and the length that the answer's `Content-Length` gives, which
 /// a whole body must have: a front that cuts a transfer can end the stream
-/// cleanly, short (T-497, `piping.onrender.com`).
+/// cleanly, short (`piping.onrender.com`).
 pub async fn get_sized(
     send: SendRequest<Bytes>,
     server: &Server,
+    agent: &str,
     path: &str,
     wait: Option<Duration>,
 ) -> Result<(RecvStream, Option<u64>), Failed> {
-    let request = request(server, http::Method::GET, path, None)?;
+    let request = request(server, agent, http::Method::GET, path, None)?;
     let mut send = send.ready().await.map_err(lost)?;
     let (answer, _) = send.send_request(request, true).map_err(lost)?;
     let answer = match wait {
@@ -151,11 +154,12 @@ pub async fn get_sized(
 pub async fn post(
     send: SendRequest<Bytes>,
     server: &Server,
+    agent: &str,
     path: &str,
     body: &[u8],
     wait: Duration,
 ) -> Result<String, Failed> {
-    let request = request(server, http::Method::POST, path, Some(body.len()))?;
+    let request = request(server, agent, http::Method::POST, path, Some(body.len()))?;
     let work = async {
         let mut send = send.ready().await.map_err(lost)?;
         let (answer, mut stream) = send.send_request(request, false).map_err(lost)?;
@@ -187,11 +191,12 @@ pub async fn post(
 pub async fn post_stream(
     send: SendRequest<Bytes>,
     server: &Server,
+    agent: &str,
     path: &str,
     wait: Duration,
     first: &[u8],
 ) -> Result<(SendStream<Bytes>, AbortHandle), Failed> {
-    let request = request(server, http::Method::POST, path, None)?;
+    let request = request(server, agent, http::Method::POST, path, None)?;
     let mut send = send.ready().await.map_err(lost)?;
     let (answer, mut stream) = send.send_request(request, false).map_err(lost)?;
     // The first bytes before the answer: nwtgck's server answers a sender

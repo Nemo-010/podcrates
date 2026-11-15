@@ -1,12 +1,13 @@
 //! Whether the WebSocket upgrade to the relay is refused on the way: the
-//! cue to try the road unasked (Q65). The relay's own refusals are plain text
+//! cue to try the carrier when the user did not ask for it. The relay's own
+//! refusals are plain text
 //! that starts with the word of their path, or the path (`reverse:
 //! forbidden`, `/x: not found`; docs/relay.md, "Errors and close codes"), or
 //! name a token; a proxy's are its own page, with a status of a refusal, or
 //! a `426` of a relay that got the request with its `Upgrade` taken off on
 //! the way. A connection that ends with no answer, or a gateway's `5xx`, is
-//! no cue: a relay that went away looks the same, and `PODSSH_PIPING=yes`
-//! asks for the road there.
+//! no cue: a relay that went away looks the same, and the user asks for the
+//! carrier there.
 //!
 //! [`upgrade`] asks the relay for a node's socket with no token: the relay
 //! refuses it with its own word and changes nothing, so the probe costs one
@@ -14,10 +15,10 @@
 
 use std::time::Duration;
 
-use podssh_ws::client::ConnectError;
-use podssh_ws::{ProxyChoice, Trust};
-
-use crate::relay::Relay;
+use pod_relay::relay::Relay;
+use pod_tls::Trust;
+use pod_ws::Way;
+use pod_ws::client::ConnectError;
 
 /// The words that begin the relay's refusals.
 const RELAY_WORDS: &[&str] =
@@ -56,25 +57,25 @@ pub enum Probe {
 }
 
 /// One upgrade of `/v1/node/<name>` at `relay`, with no token, through
-/// `proxy`, within `limit` for each step.
-pub async fn upgrade(relay: &Relay, name: &str, trust: &Trust, proxy: &ProxyChoice, limit: Duration) -> Probe {
-    if podssh_ws::names::check_node_name(name).is_err() {
+/// `way`, within `limit` for each step.
+pub async fn upgrade(relay: &Relay, name: &str, way: &Way, trust: &Trust, limit: Duration) -> Probe {
+    if pod_core::names::check_node_name(name).is_err() {
         return Probe::Unknown("the pair's name is not one that the relay takes".into());
     }
-    let tls = match podssh_ws::client::open_tls(&relay.host, relay.port, &relay.host, trust, proxy, limit).await {
-        Ok(tls) => tls,
+    let tls = match way.open_tls(&relay.host, relay.port, &relay.host, trust, limit, &[]).await {
+        Ok((tls, _)) => tls,
         Err(e) => return Probe::Unknown(e.to_string()),
     };
-    let key = match podssh_ws::handshake::generate_key() {
+    let key = match pod_ws::handshake::generate_key() {
         Ok(key) => key,
         Err(e) => return Probe::Unknown(e.to_string()),
     };
     let host = match relay.port {
         443 => relay.host.clone(),
-        port => podssh_ws::dial::authority(&relay.host, port),
+        port => pod_proxy::host::authority(&relay.host, port),
     };
-    let request = request(&host, name, &key);
-    match tokio::time::timeout(limit, podssh_ws::client::upgrade_with(tls, &request, &key)).await {
+    let request = request(&host, name, &key, &way.user_agent);
+    match tokio::time::timeout(limit, pod_ws::client::upgrade_with(tls, &request, &key)).await {
         Err(_) => Probe::Unknown(format!("no answer to the upgrade within {} s", limit.as_secs())),
         Ok(Ok(_)) => Probe::Passes,
         Ok(Err(e)) if upgrade_refused(&e) => Probe::Refused(e.to_string()),
@@ -84,9 +85,11 @@ pub async fn upgrade(relay: &Relay, name: &str, trust: &Trust, proxy: &ProxyChoi
     }
 }
 
-/// The upgrade of a node's socket with no `X-Relay-Token`.
-fn request(host: &str, name: &str, key: &str) -> Vec<u8> {
-    let mut out = format!("GET /v1/node/{name} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: {}\r\n", super::USER_AGENT);
+/// The upgrade of a node's socket with no `X-Relay-Token`, with the user
+/// agent `agent`, made one line.
+fn request(host: &str, name: &str, key: &str, agent: &str) -> Vec<u8> {
+    let agent = pod_core::text::one_line(agent);
+    let mut out = format!("GET /v1/node/{name} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: {agent}\r\n");
     out.push_str("Upgrade: websocket\r\nConnection: Upgrade\r\n");
     out.push_str(&format!("Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n"));
     out.into_bytes()
@@ -132,7 +135,8 @@ mod tests {
 
     #[test]
     fn the_probe_names_no_token() {
-        let text = String::from_utf8(request("tcp.ssh.relay.ajam.dev", "abc", "dGhlIHNhbXBsZSBub25jZQ==")).unwrap();
+        let text = String::from_utf8(request("tcp.ssh.relay.ajam.dev", "abc", "dGhlIHNhbXBsZSBub25jZQ==", "podssh/1"))
+            .unwrap();
         assert!(text.starts_with("GET /v1/node/abc HTTP/1.1\r\nHost: tcp.ssh.relay.ajam.dev\r\n"), "{text}");
         assert!(text.contains("\r\nUpgrade: websocket\r\n") && text.ends_with("\r\n\r\n"), "{text}");
         assert!(!text.to_ascii_lowercase().contains("token"), "a probe sends no credential");
