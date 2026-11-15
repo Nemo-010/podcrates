@@ -1,0 +1,13 @@
+--- a/crates/pod-acme/src/certs.rs
++++ b/crates/pod-acme/src/certs.rs
+@@ -78,7 +78,9 @@
+     params.not_before = day(now_secs - 86_400);
+     params.not_after = day(now_secs + CHALLENGE_DAYS * 86_400);
+     let digest = sha2::Sha256::digest(key_authorization.as_bytes());
+-    params.custom_extensions = vec![rcgen::CustomExtension::new_acme_identifier(&digest[..])];
++    let mut acme = rcgen::CustomExtension::new_acme_identifier(&digest[..]);
++    acme.set_criticality(false);
++    params.custom_extensions = vec![acme];
+     let cert = params.self_signed(&key).map_err(|e| format!("the challenge's certificate for {name}: {e}"))?;
+     Ok((pem("CERTIFICATE", cert.der()), key.pem()))
+ }

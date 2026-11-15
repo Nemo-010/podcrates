@@ -1,0 +1,11 @@
+--- a/crates/pod-acme/src/client.rs
++++ b/crates/pod-acme/src/client.rs
+@@ -155,7 +155,7 @@
+ /// alone (RFC 8555, section 6.5.1), as it goes into a header of JSON.
+ fn replay_nonce(answer: &Response) -> Option<String> {
+     let nonce = answer.header("replay-nonce")?;
+-    let ok = !nonce.is_empty() && nonce.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_');
++    let ok = !nonce.is_empty();
+     ok.then(|| nonce.to_string())
+ }
+ 

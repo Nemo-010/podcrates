@@ -1,0 +1,12 @@
+--- a/crates/pod-acme/src/certs.rs
++++ b/crates/pod-acme/src/certs.rs
+@@ -42,8 +42,7 @@
+ /// it: the name in subjectAltName alone, and no subject, as RFC 8555 lets a
+ /// CA read the names from there.
+ pub fn csr(name: &str, key: &Key) -> Result<Vec<u8>, String> {
+-    let mut params = rcgen::CertificateParams::new(vec![name.to_string()]).map_err(|e| format!("{name}: {e}"))?;
+-    params.distinguished_name = rcgen::DistinguishedName::new();
++    let params = rcgen::CertificateParams::new(vec![name.to_string()]).map_err(|e| format!("{name}: {e}"))?;
+     let request = params.serialize_request(key).map_err(|e| format!("the CSR of {name}: {e}"))?;
+     Ok(request.der().as_ref().to_vec())
+ }

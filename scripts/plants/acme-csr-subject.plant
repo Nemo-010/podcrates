@@ -1,0 +1,6 @@
+# The CSR of a name keeps rcgen's default subject, which RFC 8555 does not
+# ask for and some CAs refuse; the test of the CSR must fail.
+ENTRY=T-034
+GROUP=acme
+EXPECT='test certs::tests::a_csr_names_its_name_alone_and_its_key_signs_it \.\.\. FAILED'
+RUN='cargo test -p pod-acme --lib -- certs::tests::a_csr_names_its_name_alone_and_its_key_signs_it --exact'

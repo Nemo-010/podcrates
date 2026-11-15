@@ -1,0 +1,6 @@
+# The fixed form of a signature swaps r and s, so no CA verifies a JWS;
+# the test of the key's two forms must fail.
+ENTRY=T-034
+GROUP=acme
+EXPECT='test key::tests::a_key_is_drawn_written_as_pkcs8_and_signs_in_both_forms \.\.\. FAILED'
+RUN='cargo test -p pod-acme --lib -- key::tests::a_key_is_drawn_written_as_pkcs8_and_signs_in_both_forms --exact'
