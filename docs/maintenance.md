@@ -180,6 +180,10 @@ starts `ci.yml`, `adoption.yml`, `plants.yml`, `deny.yml` and
 `adoption.yml` and `plants.yml`. Dispatch the other workflows (`nightly.yml`, `live.yml`,
 `services.yml`, `release.yml`, `upstream.yml`, `record-issues.yml`) when a step needs them.
 
+A push of a session whose account has no GitHub Actions starts no run:
+then ask for `ci.yml`, `adoption.yml`, `plants.yml`, `secrets.yml` and
+`deny.yml` of the pushed commit in the same way (each takes a dispatch).
+
 When the dispatch fails, open a new issue titled exactly
 `[gh action] requested`: one line of why, and one `sh` block with each
 `gh` command in full (`-R` and each flag), `set -e` first. The owner's
