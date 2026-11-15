@@ -4,7 +4,12 @@ name: release
 # main, which each consumer names in its Cargo.toml, and a GitHub release
 # with the notes of docs/releases/vX.Y.Z.md. With no input, a dry run that
 # checks each condition and tags nothing. After the tag, it starts the dry
-# run of publish.yml on the tag; the publish to crates.io is apart.
+# run of publish.yml on the tag; the publish to crates.io is apart. Each
+# run (the dry run too) builds the assets of podlab (docs/install.md): a
+# static musl binary for x86_64 and aarch64, the installer
+# podlab-install.sh with the core inline and the pins of the release, the
+# offline bundle podlab-VERSION.tar.gz and SHA256SUMS; the release
+# attaches them.
 
 on:
   workflow_dispatch:
@@ -20,7 +25,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 45
     permissions:
       contents: write
       actions: write
@@ -49,11 +54,59 @@ jobs:
             --jq '[.workflow_runs[] | select(.status == "completed")][0].conclusion // "none"')
           echo "ci at $sha: $state"
           [ "$state" = success ] || { echo "ci is not green at $sha"; exit 1; }
+      - name: Toolchain and targets
+        run: |
+          sh scripts/retry.sh rustup toolchain install
+          sh scripts/retry.sh rustup target add x86_64-unknown-linux-musl aarch64-unknown-linux-musl
+      - name: zig and cargo-zigbuild
+        run: |
+          set -eu
+          # The versions and the SHA-256 sums of ci.yml: one place for them.
+          sed -n 's/^  \(ZIG_VERSION\|ZIG_SHA256\|ZIGBUILD_VERSION\|ZIGBUILD_SHA256\): \(.*\)$/\1=\2/p' \
+            .github/workflows/ci.yml > "$RUNNER_TEMP/zig.env"
+          [ "$(wc -l < "$RUNNER_TEMP/zig.env")" = 4 ] || { echo "ci.yml does not give the four values of zig"; exit 1; }
+          set -a
+          . "$RUNNER_TEMP/zig.env"
+          set +a
+          sh scripts/ci/zig-tools.sh "$RUNNER_TEMP/tools"
+      - name: The assets of podlab
+        run: |
+          set -eu
+          v=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
+          # The time of the commit: the same input gives the same bytes.
+          SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
+          export SOURCE_DATE_EPOCH
+          mkdir -p dist
+          for t in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
+            cargo zigbuild --locked --release --target "$t" -p pod-lab --features cli --bin podlab
+            sh scripts/check-static.sh "target/$t/release/podlab"
+            python3 -I scripts/check-strings.py "target/$t/release/podlab"
+            cp "target/$t/release/podlab" "dist/podlab-$t"
+          done
+          python3 -I scripts/install/pins.py sums dist podlab-x86_64-unknown-linux-musl podlab-aarch64-unknown-linux-musl
+          python3 -I scripts/install/pins.py stamp scripts/install/podlab.sh --version "$v" --assets dist --out dist/podlab-install.sh
+          python3 -I scripts/install/pins.py bundle "dist/podlab-$v.tar.gz" "podlab-$v" \
+            dist/podlab-install.sh dist/podlab-x86_64-unknown-linux-musl dist/podlab-aarch64-unknown-linux-musl
+          # SHA256SUMS of each published file.
+          (cd dist && sha256sum podlab-* > SHA256SUMS.new && mv SHA256SUMS.new SHA256SUMS)
+          cat dist/SHA256SUMS
+      # The published files themselves: the installer from the bundle, then
+      # a second run that changes nothing.
+      - name: The published installer installs
+        run: |
+          set -eu
+          v=$(sed -n '/^\[workspace.package\]/,/^\[/s/^version = "\(.*\)"/\1/p' Cargo.toml)
+          p=$RUNNER_TEMP/podlab-prefix
+          sh dist/podlab-install.sh --offline "dist/podlab-$v.tar.gz" --prefix "$p"
+          sh dist/podlab-install.sh --offline "dist/podlab-$v.tar.gz" --prefix "$p" > "$RUNNER_TEMP/second.txt"
+          cat "$RUNNER_TEMP/second.txt"
+          grep -q 'is already installed' "$RUNNER_TEMP/second.txt"
+          [ "$("$p/podlab" --version)" = "podlab $v" ]
       - name: Tag and publish
         if: inputs.version != ''
         run: |
           set -eu
           git -c user.name=Azathothas -c user.email=ajamx101@gmail.com tag -a "v$VERSION" -m "podcrates v$VERSION"
           git push origin "v$VERSION"
-          gh release create "v$VERSION" --verify-tag --title "podcrates v$VERSION" --notes-file "docs/releases/v$VERSION.md"
+          gh release create "v$VERSION" --verify-tag --title "podcrates v$VERSION" --notes-file "docs/releases/v$VERSION.md" dist/*
           gh workflow run publish.yml --ref "v$VERSION"

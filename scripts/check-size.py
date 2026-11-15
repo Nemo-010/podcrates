@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Check the size of each Rust file of the repository.
+"""Check the size of each source file of the repository.
 
   python3 -I scripts/check-size.py [--self-test]
 
-No `.rs` file has more than LIMIT lines (docs/decisions.md, File size).
+No `.rs`, `.sh` or `.py` file has more than LIMIT lines (docs/decisions.md,
+File size).
 There is no allowlist: a longer file is split.
 
-The scan reads each `.rs` file under the root of the repository, but not in
+The scan reads each such file under the root of the repository, but not in
 `vendor/` (the forks keep their own files), in a directory named `target`,
 or in a directory whose name starts with `.`. A scan that reads fewer than
 MIN_FILES files is a fault: a scan of nothing proves nothing.
@@ -25,6 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent
 LIMIT = 500
 MIN_FILES = 10
 SKIP_TOP = {"vendor"}
+SUFFIXES = {".rs", ".sh", ".py"}
 
 
 def count_lines(path: Path) -> int:
@@ -32,7 +34,7 @@ def count_lines(path: Path) -> int:
 
 
 def rust_files(root: Path) -> list[str]:
-    """Each `.rs` file under `root` that the rule covers, relative to it."""
+    """Each source file under `root` that the rule covers, relative to it."""
     out = []
     stack = [root]
     while stack:
@@ -44,7 +46,7 @@ def rust_files(root: Path) -> list[str]:
                     skip = True
                 if not skip:
                     stack.append(entry)
-            elif entry.suffix == ".rs" and entry.is_file():
+            elif entry.suffix in SUFFIXES and entry.is_file():
                 out.append(entry.relative_to(root).as_posix())
     return sorted(out)
 
@@ -53,7 +55,7 @@ def check(root: Path, min_files: int) -> list[str]:
     files = rust_files(root)
     faults = []
     if len(files) < min_files:
-        faults.append(f"{len(files)} Rust files read, fewer than {min_files}: the scan read too little to pass")
+        faults.append(f"{len(files)} source files read, fewer than {min_files}: the scan read too little to pass")
     for rel in files:
         lines = count_lines(root / rel)
         if lines > LIMIT:
@@ -85,11 +87,16 @@ def self_test() -> int:
         control(root)
         plant(root, "crates/a/tests/long.rs", LIMIT + 1)
 
+    def long_script(root):
+        control(root)
+        plant(root, "scripts/install/long.sh", LIMIT + 1)
+
     cases = [
         ("control", control, None),
         ("a source file over the limit", long_file, f"crates/a/src/long.rs: {LIMIT + 1} lines, over {LIMIT}"),
         ("a test file over the limit", long_test, f"crates/a/tests/long.rs: {LIMIT + 1} lines, over {LIMIT}"),
-        ("an empty tree", lambda root: None, "0 Rust files read, fewer than 3"),
+        ("a script over the limit", long_script, f"scripts/install/long.sh: {LIMIT + 1} lines, over {LIMIT}"),
+        ("an empty tree", lambda root: None, "0 source files read, fewer than 3"),
     ]
     failed = 0
     for name, setup, expect in cases:
@@ -112,7 +119,7 @@ def main(argv: list[str]) -> int:
     faults = check(ROOT, MIN_FILES)
     for f in faults:
         print(f)
-    print(f"check-size: {len(rust_files(ROOT))} Rust files, {len(faults)} faults (limit {LIMIT} lines)")
+    print(f"check-size: {len(rust_files(ROOT))} source files, {len(faults)} faults (limit {LIMIT} lines)")
     return 1 if faults else 0
 
 

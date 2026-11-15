@@ -12,6 +12,10 @@ name: ci
 #   of the consumers, and podlab of pod-lab on each Linux target, checked
 #   by scripts/check-static.sh; the strings of podlab by
 #   scripts/check-strings.py, and its man page by scripts/check-man.sh.
+# * install: the installer core (scripts/install/test.sh) with the
+#   installer of podlab as a release stamps it, against a mirror on the
+#   loopback, under dash, busybox sh and bash --posix, and in the labs of
+#   pod-lab that hold with no root; a skip fails.
 # * all: the one status to require. It fails when a job failed or was
 #   skipped.
 #
@@ -380,15 +384,49 @@ jobs:
           "$exe" man --no-pager > /dev/null
           sh scripts/check-man.sh "$exe"
 
+  install:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: sh scripts/retry.sh rustup toolchain install
+      - name: The cache of the registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ github.job }}-${{ hashFiles('Cargo.lock', 'fuzz/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-${{ github.job }}-
+      - name: dash, busybox and shellcheck
+        run: |
+          set -eu
+          sh scripts/retry.sh sudo apt-get update
+          sh scripts/retry.sh sudo apt-get install -y --no-install-recommends dash busybox-static shellcheck
+      - name: podlab
+        run: cargo build --locked --release -p pod-lab --features cli --bin podlab
+      # The labs need a user namespace with capabilities: Ubuntu keeps them
+      # out with kernel.apparmor_restrict_unprivileged_userns=1.
+      - name: The installer in each shell and each lab
+        run: |
+          set -eu
+          restrict=/proc/sys/kernel/apparmor_restrict_unprivileged_userns
+          if [ -f "$restrict" ]; then sudo sh -c "echo 0 > $restrict"; fi
+          sh scripts/install/test.sh --strict
+
   all:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     if: always()
-    needs: [lint, test, record, static]
+    needs: [lint, test, record, static, install]
     steps:
       - name: Each job passed
         run: |
           set -eu
-          for r in "${{ needs.lint.result }}" "${{ needs.test.result }}" "${{ needs.record.result }}" "${{ needs.static.result }}"; do
+          for r in "${{ needs.lint.result }}" "${{ needs.test.result }}" "${{ needs.record.result }}" "${{ needs.static.result }}" "${{ needs.install.result }}"; do
             [ "$r" = success ] || { echo "a job ended: $r"; exit 1; }
           done

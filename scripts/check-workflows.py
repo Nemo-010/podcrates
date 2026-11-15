@@ -34,7 +34,7 @@ import yaml
 # The jobs that run the code of the repository or of a consumer.
 READ_ONLY = {
     "lint", "test", "record", "static", "nightly", "deny", "secrets", "plants", "adoption", "workflows", "sources",
-    "numbers", "fuzz", "dry-run",
+    "numbers", "fuzz", "dry-run", "install",
 }
 # A file of .github that is not a workflow.
 NOT_WORKFLOWS = {"dependabot.yml"}
