@@ -1,0 +1,5 @@
+# The man page of podlab in the repository differs from the model; the drift test must fail.
+ENTRY=T-700
+GROUP=lab
+EXPECT='test tests::the_generated_files_equal_the_model \.\.\. FAILED'
+RUN='cargo test -p pod-lab --features cli --bin podlab -- tests::the_generated_files_equal_the_model --exact'

@@ -1,0 +1,12 @@
+diff --git a/crates/pod-lab/man/podlab.1 b/crates/pod-lab/man/podlab.1
+--- a/crates/pod-lab/man/podlab.1
++++ b/crates/pod-lab/man/podlab.1
+@@ -13,7 +13,7 @@
+ Print version.
+ .TP
+ \fB\-h\fR, \fB\-\-help\fR
+-Print the help.
++Print help.
+ .PP
+ \fBCommands:\fR
+ .TP

@@ -1,0 +1,5 @@
+# pod-manual: the check of the exit codes lets a code with no fact pass; its test must fail.
+ENTRY=T-700
+GROUP=manual
+EXPECT='test check::tests::the_exit_codes_are_checked_both_ways \.\.\. FAILED'
+RUN='cargo test -p pod-manual --lib -- check::tests::the_exit_codes_are_checked_both_ways --exact'

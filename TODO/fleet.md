@@ -3046,7 +3046,7 @@ cargo test -p pod-lab --all-features
 **Milestone:** M8
 **Priority:** P1
 **Effort:** L
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -3087,6 +3087,62 @@ Not needed by a consumer: a page for each subcommand, translations. The handoff 
 ```sh
 cargo test -p pod-manual --all-features
 ```
+
+## Done
+
+Part 1, 2026-11-15, on the local branch `manual` (the commit of
+`crates/pod-manual` and the next one); calls C682 to C687.
+
+- `crates/pod-manual` (about 4,000 lines): the model (`Manual`,
+  `Command` with other names, `Flag` with `FlagKind` and `Parity`, `Arg`,
+  `Rule`, `Topic` of blocks), the facts (`VarGroup`, `Var`, `Exit` with
+  `Code::{Value, Range, Signal, Payload}`, `FileFact`, `ConfigFile`,
+  `Table`; `failure_classes` of `pod_core::failure`, feature `core`), the
+  reader of clap and the rows of its parser (feature `clap`), the writers
+  (text, man(7), JSON and its reader, `llms.txt` and `llms-full.txt` from
+  the JSON), the help of each command (`help::request`, with `--json`),
+  `CLI man [SECTION...]` (`select`), the pager (C682), the text rules
+  (`rules`, C683), the checks of a program (`check::{texts, model,
+  generated, variables, exit_codes, flags}`), the reader of the source
+  (`scan`), the form of an error (`error::fault`), `Manual::named` for
+  `argv[0]`.
+- From podnet `78a3911`: PodUtils/podnet:src/manual/ and
+  PodUtils/podnet:scripts/gen-llms.py (in Rust, C686). From podssh
+  `cfc3ae3`: PodUtils/podssh:crates/podssh-cli/src/man/ (model, text,
+  roff, json; the reader of the variables of its `facts/tests.rs`),
+  PodUtils/podssh:crates/podssh-cli/src/pager.rs, the form of
+  PodUtils/podssh:crates/podssh-cli/src/flags.rs and
+  PodUtils/podssh:scripts/interop-man.sh (now `scripts/check-man.sh`).
+  `crates/pod-manual/SOURCES`.
+- `scripts/check-strings.py`: the text rules over `.rodata` of a release
+  binary (C684); `scripts/check-man.sh`: groff and mandoc render
+  `BINARY man --roff` with no warning and show each flag. The static job
+  runs both on `podlab`.
+- `podlab`: `podlab man [--no-pager] [--roff | --json] [SECTION...]`;
+  the help of each command from the model (C687); the exit codes and the
+  variables are `codes::facts()`, one table; `man/podlab.1` and
+  `man/llms.txt` are generated; its tests call each check
+  (`crates/pod-lab/src/bin/podlab/tests.rs`).
+- Tests: `pod-manual` 54 unit tests and 7 of `tests/clap.rs`; `pod-lab`
+  24 unit tests, 6 of the binary (1 ignored: the writer of the
+  generated files), 4 of `tests/cli.rs`; each passes as uid 65534 too.
+  Plants: 8 of group `manual` and 3 of group `lab`, each caught.
+- `podlab` for `x86_64-unknown-linux-musl` (cargo zigbuild) is static,
+  `check-strings.py` finds no fault in it, `check-man.sh` passes on it,
+  and `podlab man --no-pager` prints the manual.
+- The parts of the Approach: 2, 3, 4, 6, 7, 8, 9, 10, 11, 13 and 14 are
+  in. Of 1, the model and the check of each row against the parser are
+  in; a parser driven by the model is not. Of 5, the rules are in the
+  model, the writers and the reader of clap; contract tests from them are
+  not.
+- Findings: T-704 (the usage errors of clap in `podlab`), T-705 (the
+  strings of Mach-O and PE binaries).
+
+What stays: a parser driven by the model and contract tests from the
+rules (podrunner's take), the take of each consumer (podnet, podssh,
+podvm, podrunner: its help and its manual from `pod-manual`, `CLI man
+--no-pager`, the checks in its CI), and the hand-off of the tag on
+PodUtils/podcrates#181.
 
 # T-701: `pod-lab`: the host classes of podssh and podnet as profiles, with the lane of each project (PodUtils/podssh#268, PodUtils/podnet#585)
 
@@ -3187,3 +3243,79 @@ The kinds of issue, each with its rule (from the answers): an external report (a
 ```sh
 cargo test -p pod-todo
 ```
+
+# T-704: `podlab`: the usage errors of clap in the form of `pod_manual::error::fault`
+
+**Source:** T-700 (a finding of part 1).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The help and the manual of `podlab` come from the model of `pod-manual`,
+but its usage errors come from the text of clap:
+`podlab man --roff --json` writes "error: the argument '--roff' cannot be
+used with '--json'" and a usage line, then exits 2. The text is not in the
+form "OPTION: what is wrong; fix: what to do" (the ruling "The text of a
+command line" and part 14 of T-700), and no check of `pod-manual` reads
+it.
+
+## Premise
+
+- Read: `crates/pod-lab/src/bin/podlab.rs`, `crates/pod-manual/src/error.rs`.
+- Measured: the output of `podlab man --roff --json` (a `podlab` of the
+  local branch `manual`).
+
+## Approach
+
+Map each kind of `clap::Error` that `podlab` can give (an unknown
+argument, a missing argument, a conflict, a bad value, an unknown
+command) to `pod_manual::error::fault`, with the option from the context
+of the error and a fix from the model. A test gives each kind and checks
+the text with `pod_manual::error::check`. The map can move to
+`pod_manual::clap` for each clap program.
+
+## Prove
+
+```sh
+cargo test -p pod-lab --all-features
+```
+
+# T-705: `check-strings.py`: the strings of Mach-O and PE binaries
+
+**Source:** T-700 (a finding of part 1).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`scripts/check-strings.py` reads the section `.rodata` of an ELF file
+only. The consumers release binaries for macOS and Windows too (podssh,
+podnet), and the ruling "The text of a command line" asks for a check of
+the strings of each release binary.
+
+## Premise
+
+- Read: `scripts/check-strings.py`, the targets of `docs/design.md`,
+  section 7.
+- Not measured: the sections of a Mach-O and a PE binary of the static
+  probe.
+
+## Approach
+
+Read the sections of the string literals of Mach-O (`__TEXT,__cstring`,
+`__TEXT,__const`) and of PE (`.rdata`), with the same rules and the same
+plant. The static job runs the check on the static probe of each target.
+
+## Prove
+
+```sh
+python3 -I scripts/check-strings.py --plant /bin/ls
+```
+

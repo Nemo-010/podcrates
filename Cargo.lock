@@ -2507,7 +2507,9 @@ dependencies = [
  "linux-raw-sys",
  "pod-confine",
  "pod-hostprobe",
+ "pod-manual",
  "pod-testkit",
+ "serde_json",
 ]
 
 [[package]]
@@ -2535,6 +2537,17 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tracing",
+]
+
+[[package]]
+name = "pod-manual"
+version = "0.53.0"
+dependencies = [
+ "clap",
+ "libc",
+ "pod-core",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -3933,6 +3946,7 @@ name = "static-probe"
 version = "0.53.0"
 dependencies = [
  "bytes",
+ "clap",
  "pod-acme",
  "pod-actions-expr",
  "pod-actions-results",
@@ -3957,6 +3971,7 @@ dependencies = [
  "pod-job",
  "pod-lab",
  "pod-link",
+ "pod-manual",
  "pod-netlab",
  "pod-netstack",
  "pod-oci",

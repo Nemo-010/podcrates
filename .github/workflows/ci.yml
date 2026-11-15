@@ -10,7 +10,8 @@ name: ci
 # * record: the tests of pod-todo, and `cargo todo check`.
 # * static: the probe of each crate (examples/static-probe) on each target
 #   of the consumers, and podlab of pod-lab on each Linux target, checked
-#   by scripts/check-static.sh.
+#   by scripts/check-static.sh; the strings of podlab by
+#   scripts/check-strings.py, and its man page by scripts/check-man.sh.
 # * all: the one status to require. It fails when a job failed or was
 #   skipped.
 #
@@ -321,7 +322,9 @@ jobs:
             cargo zigbuild --locked --release --target ${{ matrix.target }} -p "$p"
           done
           # The binary podlab of pod-lab (Linux only), with its feature cli.
-          cargo zigbuild --locked --release --target ${{ matrix.target }} -p pod-lab --features cli --bin podlab
+          # SOURCE_DATE_EPOCH: the date of its man page, the time of the commit.
+          SOURCE_DATE_EPOCH=$(git log -1 --format=%ct) \
+            cargo zigbuild --locked --release --target ${{ matrix.target }} -p pod-lab --features cli --bin podlab
       # The OpenSSL of pod-gsr builds from source: its Configure needs a
       # perl of Windows, not the perl of Git Bash.
       - name: A perl for OpenSSL
@@ -359,6 +362,21 @@ jobs:
           exe=target/${{ matrix.target }}/release/podlab
           sh scripts/check-static.sh "$exe"
           echo "| ${{ matrix.target }} podlab | $(wc -c < "$exe") bytes |" >> "$GITHUB_STEP_SUMMARY"
+      # The text rules over the strings of the release binary (pod-manual).
+      - name: The strings of podlab
+        if: matrix.zig
+        run: python3 -I scripts/check-strings.py target/${{ matrix.target }}/release/podlab
+      # The manual of podlab: it prints with no pager, and groff and mandoc
+      # render its man page with no warning.
+      - name: The manual of podlab
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: |
+          set -eu
+          sh scripts/retry.sh sudo apt-get update
+          sh scripts/retry.sh sudo apt-get install -y --no-install-recommends groff-base mandoc
+          exe=target/${{ matrix.target }}/release/podlab
+          "$exe" man --no-pager > /dev/null
+          sh scripts/check-man.sh "$exe"
 
   all:
     runs-on: ubuntu-24.04

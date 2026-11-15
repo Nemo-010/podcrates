@@ -1,0 +1,8 @@
+# check-strings.py over a binary with a planted text in its .rodata (an
+# emoji and a work id): the check must fail and name both.
+ENTRY=T-700
+GROUP=manual
+SWITCH=1
+EXPECT='the work id T-700 in'
+RUN='python3 -I scripts/check-strings.py --plant /bin/ls'
+LIMIT=120

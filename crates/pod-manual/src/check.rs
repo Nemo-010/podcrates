@@ -1,0 +1,237 @@
+//! The mechanical checks that a program calls from its own tests. Each
+//! returns its findings; [`assert_none`] fails a test with each of them.
+//!
+//! * [`texts`]: the text rules over each string of the model, the facts and
+//!   the tables, and over the help and the text that the writers make.
+//! * [`generated`]: a file of the repository (a man page, `llms.txt`)
+//!   equals the text that the model gives now.
+//! * [`variables`]: each variable that the source reads is a fact, and each
+//!   fact is in the source.
+//! * [`exit_codes`]: each exit code that the program gives has a fact, and
+//!   each fact of one code is a code that it gives.
+//! * [`flags`]: each command and flag of the model against the parser.
+//! * [`model`]: each rule names flags of its command, and each name selects
+//!   one section.
+
+use std::fmt;
+use std::path::{Path, PathBuf};
+
+use crate::model::Manual;
+use crate::rules::Kind;
+
+mod walk;
+
+pub use walk::texts;
+
+/// One finding of a check.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Finding {
+    /// Where: a command, a fact, a file.
+    pub at: String,
+    pub what: String,
+}
+
+impl fmt::Display for Finding {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.at, self.what)
+    }
+}
+
+pub(crate) fn finding(at: impl Into<String>, what: impl Into<String>) -> Finding {
+    Finding { at: at.into(), what: what.into() }
+}
+
+/// Fail with each finding, one on each line.
+#[track_caller]
+pub fn assert_none(findings: Vec<Finding>) {
+    if !findings.is_empty() {
+        let lines: Vec<String> = findings.iter().map(Finding::to_string).collect();
+        panic!("{} findings:\n{}", lines.len(), lines.join("\n"));
+    }
+}
+
+/// The findings of the text rules in one text. With no kind, the text is a
+/// term or a command line: no limit of words.
+pub fn text(at: &str, text: &str, kind: Option<Kind>) -> Vec<Finding> {
+    let faults = match kind {
+        Some(k) => crate::rules::faults(text, k),
+        None => {
+            let mut f = crate::rules::char_faults(text);
+            f.extend(crate::rules::work_ids(text).into_iter().map(crate::rules::Fault::WorkId));
+            f
+        }
+    };
+    faults.into_iter().map(|f| finding(at, f.to_string())).collect()
+}
+
+/// The file at `path` against `want`, the text that the model gives now.
+/// `fix` is the instruction that writes the file again.
+pub fn generated(path: &Path, want: &str, fix: &str) -> Vec<Finding> {
+    let at = path.display().to_string();
+    let have = match std::fs::read(path) {
+        Ok(b) => b,
+        Err(e) => return vec![finding(at, crate::error::fault("the file", &format!("cannot be read: {e}"), fix))],
+    };
+    let have = String::from_utf8_lossy(&have);
+    if have == want {
+        return Vec::new();
+    }
+    let (n, h, w) = have
+        .lines()
+        .map(Some)
+        .chain(std::iter::repeat(None))
+        .zip(want.lines().map(Some).chain(std::iter::repeat(None)))
+        .enumerate()
+        .find(|(_, (h, w))| h != w)
+        .map(|(n, (h, w))| (n + 1, h.unwrap_or("(the end)"), w.unwrap_or("(the end)")))
+        .unwrap_or((have.lines().count() + 1, "(a different end)", "(the end)"));
+    let what = format!("line {n} differs from the model: the file has {h:?}, the model gives {w:?}");
+    vec![finding(at, crate::error::fault("the file", &what, fix))]
+}
+
+/// Each variable that `sources` read, against the facts of `manual`, both
+/// ways. `exempt` holds names that need no fact (a shaped word that is no
+/// variable), and names of facts that no source holds (a variable that a
+/// library reads). Give [`crate::pager::SOURCE`] in `sources` when the
+/// program pages its manual.
+pub fn variables(manual: &Manual, sources: &[(PathBuf, String)], exempt: &[&str]) -> Vec<Finding> {
+    let facts: Vec<&str> =
+        manual.facts.variables.iter().flat_map(|g| &g.vars).flat_map(|v| &v.names).map(String::as_str).collect();
+    let mut out = Vec::new();
+    for (path, code) in sources {
+        for name in crate::scan::variables_read(code) {
+            if !facts.contains(&name.as_str()) && !exempt.contains(&name.as_str()) {
+                out.push(finding(path.display().to_string(), format!("the code reads {name}, and no fact names it")));
+            }
+        }
+    }
+    for name in facts {
+        let quoted = format!("\"{name}\"");
+        if !exempt.contains(&name) && !sources.iter().any(|(_, code)| code.contains(&quoted)) {
+            out.push(finding("the facts", format!("{name} is a fact, and no source reads or sets it")));
+        }
+    }
+    out
+}
+
+/// Each exit code in `given` (the codes that the program gives) against the
+/// facts, both ways: a code with no row fails, and a row of one code that
+/// the program does not give fails.
+pub fn exit_codes(manual: &Manual, given: &[i32]) -> Vec<Finding> {
+    let exits = &manual.facts.exits;
+    let mut out = Vec::new();
+    for &code in given {
+        if !crate::facts::covers(exits, code) {
+            out.push(finding("the exit codes", format!("the program gives {code}, and no fact names it")));
+        }
+    }
+    for e in exits {
+        if let crate::facts::Code::Value(n) = e.code
+            && !given.contains(&n)
+        {
+            out.push(finding("the exit codes", format!("the fact of {n} names a code that the program does not give")));
+        }
+    }
+    out
+}
+
+/// What the parser of a program knows of one command.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ParserCommand {
+    pub flags: Vec<ParserFlag>,
+    /// The names of its subcommands, with no alias.
+    pub subcommands: Vec<String>,
+}
+
+/// One flag of the parser.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ParserFlag {
+    /// `-x` and `--long`.
+    pub spellings: Vec<String>,
+    pub takes_value: bool,
+}
+
+/// Each command and flag of the model against the parser. `parser` gives
+/// the command at a path, or `None` when the parser has no such command.
+pub fn flags(manual: &Manual, parser: impl Fn(&[String]) -> Option<ParserCommand>) -> Vec<Finding> {
+    let mut out = Vec::new();
+    for c in &manual.commands {
+        let at = format!("{} {}", manual.name, c.name()).trim().to_string();
+        let Some(p) = parser(&c.path) else {
+            out.push(finding(at, "the parser has no such command"));
+            continue;
+        };
+        for f in &c.flags {
+            let mut want = f.spellings();
+            want.sort();
+            match p.flags.iter().find(|pf| f.spellings().iter().any(|s| pf.spellings.contains(s))) {
+                None => {
+                    out.push(finding(&at, format!("{} is in the model, and the parser has no such flag", f.term())))
+                }
+                Some(pf) => {
+                    let mut have = pf.spellings.clone();
+                    have.sort();
+                    if have != want {
+                        out.push(finding(&at, format!("{} is {} in the parser", f.term(), have.join(", "))));
+                    }
+                    if pf.takes_value != f.value.is_some() {
+                        let says = if pf.takes_value { "takes a value" } else { "takes no value" };
+                        out.push(finding(&at, format!("{} {says} in the parser", f.term())));
+                    }
+                }
+            }
+        }
+        for pf in &p.flags {
+            if !c.flags.iter().any(|f| f.spellings().iter().any(|s| pf.spellings.contains(s))) {
+                out.push(finding(
+                    &at,
+                    format!("the parser has {}, and the model has no such flag", pf.spellings.join(", ")),
+                ));
+            }
+        }
+        let children: Vec<String> = manual.children(&c.path).iter().filter_map(|k| k.path.last().cloned()).collect();
+        for s in &p.subcommands {
+            if !children.contains(s) {
+                out.push(finding(&at, format!("the parser has the command {s}, and the model has none")));
+            }
+        }
+    }
+    out
+}
+
+/// The rules of the model itself: each rule names flags of its command, and
+/// each name of a section selects one section.
+pub fn model(manual: &Manual) -> Vec<Finding> {
+    let mut out = Vec::new();
+    for c in &manual.commands {
+        for r in &c.rules {
+            for name in r.names() {
+                if c.flag(name).is_none() {
+                    out.push(finding(
+                        format!("{} {}", manual.name, c.name()),
+                        format!("the rule names {name}, which is no flag"),
+                    ));
+                }
+            }
+        }
+    }
+    let all = crate::sections::sections(manual);
+    let mut seen: Vec<String> = Vec::new();
+    for s in &all {
+        for name in std::iter::once(&s.key).chain(&s.aliases) {
+            let name = name.to_ascii_lowercase();
+            if seen.contains(&name) {
+                out.push(finding("the sections", format!("{name} names two sections")));
+            }
+            seen.push(name);
+        }
+        let back = crate::sections::find(manual, &all, &s.key);
+        if back.map(|b| &b.key) != Some(&s.key) {
+            out.push(finding("the sections", format!("{} does not select its own section", s.key)));
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests;

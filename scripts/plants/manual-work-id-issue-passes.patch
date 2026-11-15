@@ -1,0 +1,12 @@
+diff --git a/crates/pod-manual/src/rules.rs b/crates/pod-manual/src/rules.rs
+--- a/crates/pod-manual/src/rules.rs
++++ b/crates/pod-manual/src/rules.rs
+@@ -123,7 +123,7 @@
+             Some(6 + digits(i + 6))
+         } else if b[i..].starts_with(b"Q-A") && digits(i + 3) > 0 {
+             Some(3 + digits(i + 3))
+-        } else if (b[i] == b'C' || b[i] == b'Q' || b[i] == b'#') && digits(i + 1) > 0 {
++        } else if (b[i] == b'C' || b[i] == b'Q') && digits(i + 1) > 0 {
+             Some(1 + digits(i + 1))
+         } else {
+             None

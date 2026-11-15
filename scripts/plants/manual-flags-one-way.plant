@@ -1,0 +1,5 @@
+# pod-manual: the check of the flags does not look for each flag of the parser in the model; its test must fail.
+ENTRY=T-700
+GROUP=manual
+EXPECT='test check::tests::each_flag_row_is_checked_against_the_parser \.\.\. FAILED'
+RUN='cargo test -p pod-manual --lib -- check::tests::each_flag_row_is_checked_against_the_parser --exact'

@@ -1,0 +1,12 @@
+diff --git a/crates/pod-manual/src/check.rs b/crates/pod-manual/src/check.rs
+--- a/crates/pod-manual/src/check.rs
++++ b/crates/pod-manual/src/check.rs
+@@ -121,7 +121,7 @@
+     let exits = &manual.facts.exits;
+     let mut out = Vec::new();
+     for &code in given {
+-        if !crate::facts::covers(exits, code) {
++        if code < 0 && !crate::facts::covers(exits, code) {
+             out.push(finding("the exit codes", format!("the program gives {code}, and no fact names it")));
+         }
+     }

@@ -1,0 +1,11 @@
+diff --git a/crates/pod-manual/src/check/walk.rs b/crates/pod-manual/src/check/walk.rs
+--- a/crates/pod-manual/src/check/walk.rs
++++ b/crates/pod-manual/src/check/walk.rs
+@@ -83,7 +83,6 @@
+         for f in &c.flags {
+             let at = format!("{at} {}", f.spelling());
+             w.all(&at, f.long.iter().chain(&f.value).chain(&f.default).chain(&f.values).chain(&f.env), TERM);
+-            w.one(&at, &f.help, D);
+             match &f.kind {
+                 FlagKind::Wired => {}
+                 FlagKind::Ignored { why } => w.one(&at, why, D),

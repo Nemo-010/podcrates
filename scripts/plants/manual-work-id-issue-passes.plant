@@ -1,0 +1,5 @@
+# pod-manual: the text rules let an issue number (#12) pass; the test of the rules must fail.
+ENTRY=T-700
+GROUP=manual
+EXPECT='test rules::tests::the_rules_find_each_fault \.\.\. FAILED'
+RUN='cargo test -p pod-manual --lib -- rules::tests::the_rules_find_each_fault --exact'

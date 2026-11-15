@@ -1,0 +1,5 @@
+# podlab gives the exit code 126, and its facts have no row of it; the test of the exit codes must fail.
+ENTRY=T-700
+GROUP=lab
+EXPECT='test tests::each_exit_code_has_a_fact \.\.\. FAILED'
+RUN='cargo test -p pod-lab --features cli --bin podlab -- tests::each_exit_code_has_a_fact --exact'

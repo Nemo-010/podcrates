@@ -21,8 +21,10 @@ mod cli {
 
     /// The classes of hostile hosts as profiles: list them, check one
     /// against this host, or run a command in a lab of one.
+    // The help and the manual come from the model of pod-manual: the parser
+    // of clap gives no help of its own.
     #[derive(Parser)]
-    #[command(name = "podlab", version)]
+    #[command(name = "podlab", version, disable_help_flag = true, disable_help_subcommand = true)]
     pub(super) struct Cli {
         #[command(subcommand)]
         command: Cmd,
@@ -55,6 +57,22 @@ mod cli {
             #[arg(last = true, required = true, value_name = "CMD")]
             cmd: Vec<OsString>,
         },
+        /// The manual: each command, profile, variable and exit code. A pager
+        /// shows it on a terminal.
+        Man {
+            /// Write the text with no pager, also on a terminal.
+            #[arg(long)]
+            no_pager: bool,
+            /// Write the manual as a man(7) page.
+            #[arg(long, conflicts_with = "json")]
+            roff: bool,
+            /// Write the manual as one JSON object.
+            #[arg(long)]
+            json: bool,
+            /// One section: a command, a topic, a table of facts.
+            #[arg(value_name = "SECTION")]
+            section: Vec<String>,
+        },
     }
 
     fn profile(settings: &Settings, name: &str) -> Result<&'static Profile, i32> {
@@ -84,11 +102,35 @@ mod cli {
         }
     }
 
+    /// The parser of this binary.
+    #[cfg(test)]
+    pub(super) fn command() -> clap::Command {
+        Cli::command()
+    }
+
+    /// The manual of this binary, as the name of `argv[0]` shows it.
+    pub(super) fn manual(argv0: &str) -> pod_manual::Manual {
+        pod_lab::manual::manual(Cli::command()).named(argv0)
+    }
+
     pub fn main() -> i32 {
         let settings = Settings::default();
         pod_lab::dispatch(&settings);
-        let command = Cli::command().after_long_help(pod_lab::codes::help());
-        let cli = match command.try_get_matches().and_then(|m| Cli::from_arg_matches(&m)) {
+        let args: Vec<String> = std::env::args_os().map(|a| a.to_string_lossy().into_owned()).collect();
+        let manual = manual(args.first().map(String::as_str).unwrap_or("podlab"));
+        if let Some(help) = pod_manual::help::request(&manual, args.get(1..).unwrap_or(&[])) {
+            return match pod_manual::help::answer(&manual, &help) {
+                Ok(text) => {
+                    let _ = std::io::stdout().write_all(text.as_bytes());
+                    EXIT_HOLDS
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    EXIT_USAGE
+                }
+            };
+        }
+        let cli = match Cli::command().try_get_matches().and_then(|m| Cli::from_arg_matches(&m)) {
             Ok(cli) => cli,
             Err(e) => {
                 let _ = e.print();
@@ -96,6 +138,19 @@ mod cli {
             }
         };
         match cli.command {
+            Cmd::Man { no_pager, roff, json, section } => {
+                let section = (!section.is_empty()).then(|| section.join(" "));
+                let req = pod_manual::Request { section, no_pager, roff, json };
+                let (mut out, mut err) = (std::io::stdout().lock(), std::io::stderr());
+                let tty = pod_manual::pager::Tty::probed();
+                match pod_manual::run(&manual, &req, tty, &mut std::io::stdin().lock(), &mut out, &mut err) {
+                    Ok(()) => EXIT_HOLDS,
+                    Err(e) => {
+                        eprintln!("{e}");
+                        EXIT_USAGE
+                    }
+                }
+            }
             Cmd::List => {
                 for p in settings.profiles {
                     out!("{:<20} {} ({})", p.name, p.about, p.source);
@@ -160,24 +215,11 @@ mod cli {
     }
 }
 
+// The root of a binary keeps its modules beside it: the path names the
+// directory of the binary.
 #[cfg(all(test, target_os = "linux"))]
-mod tests {
-    use clap::CommandFactory;
-
-    /// Each help text keeps the rules of a printed text.
-    #[test]
-    fn each_help_keeps_the_rules_of_a_printed_text() {
-        let mut cmd = super::cli::Cli::command().after_long_help(pod_lab::codes::help());
-        let mut texts = vec![cmd.render_long_help().to_string()];
-        for sub in cmd.get_subcommands_mut() {
-            texts.push(sub.render_long_help().to_string());
-        }
-        assert!(texts.len() >= 4, "{} texts", texts.len());
-        for t in texts {
-            assert_eq!(pod_lab::codes::fault(&t), None, "{t}");
-        }
-    }
-}
+#[path = "podlab/tests.rs"]
+mod tests;
 
 #[cfg(target_os = "linux")]
 fn main() {

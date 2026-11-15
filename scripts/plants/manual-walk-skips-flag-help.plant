@@ -1,0 +1,5 @@
+# pod-manual: the walk of the text rules does not read the help of a flag; its test must fail.
+ENTRY=T-700
+GROUP=manual
+EXPECT='test check::tests::a_fault_in_each_part_of_the_model_is_found \.\.\. FAILED'
+RUN='cargo test -p pod-manual --lib -- check::tests::a_fault_in_each_part_of_the_model_is_found --exact'

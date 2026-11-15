@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**569 entries: 115 open, 9 partial, 6 blocked, 439 done.**
+**571 entries: 116 open, 10 partial, 6 blocked, 439 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 15 | 4 | 0 | 121 | 140 |
-| P2 | 49 | 2 | 4 | 230 | 285 |
+| P1 | 14 | 5 | 0 | 121 | 140 |
+| P2 | 51 | 2 | 4 | 230 | 287 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 115 | 9 | 6 | 439 | 569 |
+| **All** | 116 | 10 | 6 | 439 | 571 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -609,10 +609,12 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-694](fleet.md) | P2 | S | M8 | feature | open | `pod-hostprobe`: the rows of `TMPDIR` and of the inherited descriptors |
 | [T-695](fleet.md) | P2 | S | M8 | feature | open | `pod-hostprobe`: the rows of the machine, the cgroup version and the `/proc` mount |
 | [T-696](fleet.md) | P2 | S | M8 | feature | open | `pod-lab`: `bind-denied` refuses UDP bind and connect of AF_INET and AF_INET6 |
-| [T-700](fleet.md) | P1 | L | M8 | feature | open | `pod-manual`: one crate for the help and the manual of each command line of PodUtils (PodUtils/podnet#584) |
+| [T-700](fleet.md) | P1 | L | M8 | feature | partial | `pod-manual`: one crate for the help and the manual of each command line of PodUtils (PodUtils/podnet#584) |
 | [T-701](fleet.md) | P1 | M | M8 | feature | open | `pod-lab`: the host classes of podssh and podnet as profiles, with the lane of each project (PodUtils/podssh#268, PodUtils/podnet#585) |
 | [T-702](fleet.md) | P1 | M | M8 | feature | open | one POSIX installer for each project, hermetic, idempotent and fast, run in the labs (the ruling "Installer") |
 | [T-703](fleet.md) | P1 | M | M8 | feature | open | a mechanical check of the open issues and their comments against the record, for each project (the ruling "Issues") |
+| [T-704](fleet.md) | P2 | S | M8 | feature | open | `podlab`: the usage errors of clap in the form of `pod_manual::error::fault` |
+| [T-705](fleet.md) | P2 | S | M8 | feature | open | `check-strings.py`: the strings of Mach-O and PE binaries |
 | [T-710](foundation.md) | P1 | S | M0 | chore | done | one watcher of the organization for each session: issues, pull requests and Actions runs (the ruling "Watcher") |
 | [T-711](foundation.md) | P1 | S | M0 | chore | done | a message from outside the team: its own session verifies and confirms it; each other session checks the author (the ruling "Strangers") |
 | [T-712](foundation.md) | P1 | S | M0 | chore | done | the watcher reports each comment that is new or edited (the owner's ask) |

@@ -2,24 +2,24 @@
 //! line"): no emoji, no control character but the newline and the tab, no
 //! id of a work entry or of an issue, and short sentences. The tests walk
 //! the text of each profile and each string literal of the code of the
-//! crate; a doc comment or a comment may cite an entry.
+//! crate; a doc comment or a comment may cite an entry. The rules are the
+//! ones of `pod_manual::rules`.
 
-use crate::codes::fault;
 use crate::profile::{Hold, IdFact, LabFact, Observe};
 use crate::table::PROFILES;
-
-/// A description has at most 25 words in a sentence.
-fn long_sentence(text: &str) -> Option<usize> {
-    text.split(['.', ';', ':']).map(|s| s.split_whitespace().count()).find(|&n| n > 25)
-}
+use pod_manual::rules::{Kind, faults};
 
 fn check(at: &str, text: &str) {
-    if let Some(f) = fault(text) {
+    if let Some(f) = faults(text, Kind::Description).first() {
         panic!("{at}: {f} in {text:?}");
     }
-    if let Some(n) = long_sentence(text) {
-        panic!("{at}: a sentence of {n} words in {text:?}");
-    }
+}
+
+/// The rules of the characters and the work ids: a literal of the code can
+/// be a part of a sentence.
+fn fault(text: &str) -> Option<String> {
+    let mut f = pod_manual::rules::char_faults(text).into_iter().map(|f| f.to_string());
+    f.next().or_else(|| pod_manual::rules::work_ids(text).first().map(|id| format!("the work id {id}")))
 }
 
 #[test]
@@ -30,7 +30,7 @@ fn the_rules_find_each_fault() {
     for good in ["chroot(/tmp) gives EPERM", "TCP bind\tand\nconnect", "CapEff is 0", "AF_INET6", "Concat", "PART-2"] {
         assert_eq!(fault(good), None, "{good:?}");
     }
-    assert_eq!(long_sentence(&"word ".repeat(26)), Some(26));
+    assert!(!faults(&"word ".repeat(26), Kind::Description).is_empty());
 }
 
 #[test]
@@ -73,15 +73,11 @@ fn each_text_of_each_profile_keeps_the_rules() {
     }
 }
 
+#[cfg(feature = "manual")]
 #[test]
 fn the_exit_codes_and_the_environment_keep_the_rules() {
-    for e in crate::codes::EXITS {
-        check("exit code", e.meaning);
-    }
-    for v in crate::codes::ENVIRONMENT {
-        check("environment", v.meaning);
-    }
-    check("help", &crate::codes::help());
+    let m = pod_manual::Manual { name: "podlab".into(), facts: crate::codes::facts(), ..Default::default() };
+    pod_manual::check::assert_none(pod_manual::check::texts(&m));
 }
 
 /// The string literals of `source`, with no comment: a crude lexer of
@@ -142,6 +138,7 @@ fn each_fixed_message_of_the_crate_keeps_the_rules() {
         ("hold.rs", include_str!("hold.rs")),
         ("inside.rs", include_str!("inside.rs")),
         ("lab.rs", include_str!("lab.rs")),
+        ("manual.rs", include_str!("manual.rs")),
         ("bin/podlab.rs", include_str!("bin/podlab.rs")),
     ];
     let mut count = 0;

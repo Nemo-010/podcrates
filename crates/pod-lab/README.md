@@ -27,7 +27,8 @@ must refuse fails its own check.
 | `Settings { hostprobe, lab_flag, profiles }` | the flags of the probe children and of the lab process, and the table that the lab process reads |
 | `dispatch(&Settings)` | the start of a binary that calls `run`: the work of a probe child or of the lab process |
 | `exit_code(status)` | the code of a shell: the code, or 128 and the signal |
-| `codes::{EXITS, ENVIRONMENT, help, fault}` | the exit codes and the variables of `podlab`, one typed table each; the rules of a printed text |
+| `codes::{EXIT_*, facts}` | the exit codes of `podlab`; `facts()` (feature `manual`): its exit codes and its variables as the facts of a `pod-manual` model, the one table of them |
+| `manual::{manual, docs, DOCS_BASE}` (feature `cli`) | the manual of `podlab`: the clap tree of its parser with the facts, the table of the profiles and the examples |
 
 ### `check`
 
@@ -96,8 +97,15 @@ the `hidepid` form of `/proc` (T-695). The printed texts name no entry.
 
 * `report`: `check_report`, through the feature `report` of
   `pod-hostprobe`.
-* `cli`: the binary `podlab` (clap) and `report`. `podlab --help` gives
-  each command, the exit codes and the environment.
+* `manual`: `codes::facts`, the facts of `podlab` for `pod-manual`.
+* `cli`: the binary `podlab` (clap), `report` and `manual`. The help and
+  the manual come from the model of `pod-manual` (module `manual`):
+  `podlab --help`, `podlab COMMAND --help`, `podlab help COMMAND`,
+  `podlab man [--no-pager] [--roff | --json] [SECTION...]`. `man/podlab.1`
+  and `man/llms.txt` are generated from the model with no version and no
+  date: `cargo test -p pod-lab --features cli -- --ignored
+  write_the_generated_files` writes them. A build with
+  `SOURCE_DATE_EPOCH` gives the date of the man page of the binary.
 
 ## Settings
 
@@ -112,7 +120,14 @@ environment variable and prints nothing; `podlab` prints.
   errno one that a filter can give, the filter of each profile compiles.
 * `src/check/tests.rs`: `check` against made-up findings and a report.
 * `src/text.rs`: each printed text and each string literal of the code:
-  no emoji, no control character, no id of the record.
+  the rules of `pod_manual::rules`.
+* `src/bin/podlab/tests.rs`: the checks of `pod-manual` over the manual of
+  `podlab`: the text rules, the model against the parser of clap, the
+  generated files, the variables of the code both ways, the exit codes
+  both ways, the help of each command.
+* `tests/cli.rs`: the binary prints its manual with no pager, one section,
+  the JSON and the man page, refuses an unknown section with exit 2, and
+  answers `--help`, `help COMMAND` and `--help --json` from the model.
 * `tests/lab.rs` (no libtest): `inherited-fds`, `bind-denied` (with
   AF_UNIX), `small-tmp`, a profile that no lab here holds, a part whose
   check from inside fails. As root it starts again as uid 65534.

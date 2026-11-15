@@ -44,6 +44,9 @@ pod-job = { workspace = true }
 pod-lab = { workspace = true, features = ["cli"] }
 # `tcp`: the probe links to itself over TLS on the loopback; `quic` over
 # QUIC; `udp` over KCP; `poll` over requests of HTTP/1.1.
+# `clap`: the reader of a clap tree; `core`: the exit codes of the failure
+# classes. Each writer and the pager link in.
+pod-manual = { workspace = true, features = ["clap", "core"] }
 pod-link = { workspace = true, features = ["tcp", "ws", "h2", "poll", "quic", "udp", "dns", "icmp", "s3"] }
 pod-netlab = { workspace = true }
 # `ipv4-fragmentation`: a datagram over the MTU, so that the fragmenter of
@@ -85,6 +88,8 @@ pod-wg = { workspace = true, features = ["standin"] }
 tokio = { workspace = true, features = ["rt", "time", "io-util"] }
 # The reader and the writer of the records of pod-job.
 serde_json = { workspace = true }
+# A command tree for the reader of pod-manual.
+clap = { workspace = true }
 # The keys of a held channel of pod-e2e.
 zeroize = { workspace = true }
 # The provider of a MASQUE session and a capsule of pod-warp.

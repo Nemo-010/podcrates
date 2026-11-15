@@ -1,0 +1,30 @@
+[package]
+name = "pod-manual"
+description = "The help and the manual of a command line from one model that the program fills: plain text, man(7), JSON and llms.txt, the pager, and the checks of the text rules and of each drift."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# The reader of a clap command tree, and the rows of its parser for the
+# check of the flags.
+clap = ["dep:clap"]
+# The exit codes of the failure classes of pod-core, as facts.
+core = ["dep:pod-core"]
+
+[dependencies]
+# The model is data: the JSON writer and the reader of the llms writer.
+serde = { workspace = true }
+serde_json = { workspace = true }
+clap = { workspace = true, optional = true }
+pod-core = { workspace = true, optional = true }
+
+# The pager: the size of the terminal, and SIGINT ignored while a pager
+# program runs. Bindings only: musl links them static.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+clap = { workspace = true }

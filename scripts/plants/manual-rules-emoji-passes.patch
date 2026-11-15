@@ -1,0 +1,12 @@
+diff --git a/crates/pod-manual/src/rules.rs b/crates/pod-manual/src/rules.rs
+--- a/crates/pod-manual/src/rules.rs
++++ b/crates/pod-manual/src/rules.rs
+@@ -74,7 +74,7 @@
+ pub fn is_emoji(c: char) -> bool {
+     let n = u32::from(c);
+     matches!(n,
+-        0x1F000..=0x1FAFF | 0x2600..=0x27BF | 0x2B00..=0x2BFF | 0x2300..=0x23FF | 0xFE00..=0xFE0F
++        0x2600..=0x27BF | 0x2B00..=0x2BFF | 0x2300..=0x23FF | 0xFE00..=0xFE0F
+         | 0x200D | 0x20E3 | 0xE0020..=0xE007F | 0x3030 | 0x303D | 0x3297 | 0x3299)
+ }
+ 

@@ -1,0 +1,5 @@
+# pod-manual: the check of the variables does not look for each fact in the code; its test must fail.
+ENTRY=T-700
+GROUP=manual
+EXPECT='test check::tests::the_variables_are_checked_both_ways \.\.\. FAILED'
+RUN='cargo test -p pod-manual --lib -- check::tests::the_variables_are_checked_both_ways --exact'

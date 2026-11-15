@@ -18,11 +18,16 @@ required-features = ["cli"]
 # `check_report`: the check of a profile against the JSON report of
 # pod-hostprobe (its module `report`).
 report = ["pod-hostprobe/report"]
-# The binary `podlab`: clap, and the check of a report.
-cli = ["report", "dep:clap"]
+# The facts of `podlab` (its exit codes and its variables) as the facts of
+# a pod-manual model.
+manual = ["dep:pod-manual"]
+# The binary `podlab`: clap, the check of a report, and its help and manual
+# from pod-manual.
+cli = ["report", "manual", "dep:clap", "pod-manual/clap"]
 
 [dependencies]
 clap = { workspace = true, optional = true }
+pod-manual = { workspace = true, optional = true }
 
 # Linux only: on another target the library is empty.
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -36,9 +41,19 @@ linux-raw-sys = { workspace = true, features = ["errno"] }
 
 [dev-dependencies]
 pod-testkit = { workspace = true }
+# The text rules over the profiles and the code, with each feature or none.
+pod-manual = { workspace = true }
+# The JSON of `podlab man --json` in the tests of the binary.
+serde_json = { workspace = true }
 
 # The runs of a lab: a test binary with no libtest, so that it reads the
 # flag of a lab child and of a probe child before anything else.
 [[test]]
 name = "lab"
 harness = false
+
+# The binary podlab: its help, its manual and its exit codes of a usage
+# error.
+[[test]]
+name = "cli"
+required-features = ["cli"]

@@ -48,6 +48,7 @@ pod-incus = { path = "crates/pod-incus", version = "0.53.0" }
 pod-job = { path = "crates/pod-job", version = "0.53.0" }
 pod-lab = { path = "crates/pod-lab", version = "0.53.0" }
 pod-link = { path = "crates/pod-link", version = "0.53.0" }
+pod-manual = { path = "crates/pod-manual", version = "0.53.0" }
 pod-netlab = { path = "crates/pod-netlab", version = "0.53.0" }
 pod-netstack = { path = "crates/pod-netstack", version = "0.53.0" }
 pod-oci = { path = "crates/pod-oci", version = "0.53.0" }

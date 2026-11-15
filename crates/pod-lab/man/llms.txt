@@ -1,0 +1,27 @@
+# podlab
+
+> The classes of hostile hosts as profiles: list them, check one against this host, or run a command in a lab of one.
+
+podlab holds the classes of hostile hosts as profiles. A profile names the probe rows that each part refuses or allows.
+podlab check compares a profile with this host, or with a JSON report of pod-hostprobe. A part holds, fails, or cannot be observed here.
+podlab run runs a command in a lab of a profile. The lab holds each part with no root: a seccomp filter, Landlock, a tmpfs and inherited descriptors.
+The lab measures the profile from inside before the command. A part that does not hold stops the run, unless --partial is given.
+
+Run `podlab man` for the manual, `podlab man --json` for the manual as JSON,
+and `podlab COMMAND --help --json` for one command as JSON.
+llms-full.txt has the manual and the documents in one file.
+
+## Commands
+
+- `podlab list`: List each profile, its parts, and what holds each part in a lab
+- `podlab check`: Check a profile on this host with the probes of pod-hostprobe, or against a JSON report of pod-hostprobe
+- `podlab run`: Run a command in a lab of a profile. The lab checks itself before the command; a part that does not hold stops the run
+- `podlab man`: The manual: each command, profile, variable and exit code. A pager shows it on a terminal
+
+## Documents
+
+- [README.md](https://github.com/PodUtils/podcrates/blob/main/crates/pod-lab/README.md): The profiles, the check, the lab and the API of pod-lab.
+
+## Manual
+
+- [llms-full.txt](llms-full.txt): the manual and the documents.

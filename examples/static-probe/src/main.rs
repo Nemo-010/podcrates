@@ -9,6 +9,7 @@ mod devtunnel;
 mod egress;
 mod hold;
 mod link;
+mod manual;
 mod netlab;
 mod qga;
 mod relay;
@@ -136,6 +137,7 @@ fn main() {
     lines.push(egress::egress());
     lines.push(acme::acme());
     lines.push(udf::udf());
+    lines.push(manual::manual());
     let direct = pod_proxy::Dialer::new(
         pod_proxy::Settings::new("static-probe", pod_proxy::ProxyChoice::Direct),
         std::sync::Arc::new(pod_proxy::resolve::System::new()),
@@ -291,7 +293,7 @@ fn lab() -> Option<String> {
 
 #[cfg(not(target_os = "linux"))]
 fn lab() -> Option<String> {
-    Some(format!("pod-lab: {} exit codes", pod_lab::codes::EXITS.len()))
+    Some(format!("pod-lab: the exit code of a usage error is {}", pod_lab::codes::EXIT_USAGE))
 }
 
 /// pod-oci is Linux only: on another target the crate is empty. A client

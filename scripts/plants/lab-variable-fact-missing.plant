@@ -1,0 +1,5 @@
+# podlab sets TMPDIR, and its facts name another variable; the both-way test of the variables must fail.
+ENTRY=T-700
+GROUP=lab
+EXPECT='test tests::each_variable_of_the_code_is_a_fact \.\.\. FAILED'
+RUN='cargo test -p pod-lab --features cli --bin podlab -- tests::each_variable_of_the_code_is_a_fact --exact'

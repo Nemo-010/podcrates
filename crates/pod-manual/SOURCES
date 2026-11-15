@@ -1,0 +1,44 @@
+# The files of this crate that came from another repository
+# (docs/design.md, section 9). scripts/check-sources.py compares each
+# with the default branch of its repository.
+
+# podnet: the base (call C681). The writers, the pager, the typed facts,
+# the both-way test of the variables and the generator of the llms files
+# (in Rust here: llms.rs). The tables of podnet (its variables, files,
+# examples and the component inventory of inventory.rs) stay in podnet;
+# inventory.rs gives the form of a table that a program adds (facts.rs,
+# Table). Of tests/cli/manual.rs the generic tests moved (the flags of the
+# man page, the exit status, the sections); the others test the commands of
+# podnet and stay there.
+repo PodUtils/podnet 78a3911162ca79ab9559f7811b9d25ea9c64621b
+dir src/manual
+file e89f0eb50b535468a88fe718a5d44fcb922ff84d src/manual/mod.rs -> crates/pod-manual/src/select.rs crates/pod-manual/src/select/tests.rs crates/pod-manual/src/help.rs crates/pod-manual/tests/clap.rs
+file aa0a7629a6dc19dc2b0b4fc4eb6f2ed57e933f09 src/manual/model.rs -> crates/pod-manual/src/model.rs crates/pod-manual/src/clap.rs
+file b607c9b34634c0f9b7a2f67fdbb386876e97a8c1 src/manual/roff.rs -> crates/pod-manual/src/roff.rs
+file c9fbce428f026086404975fe08fb00c33c1445eb src/manual/text.rs -> crates/pod-manual/src/text.rs crates/pod-manual/src/sections.rs
+file 9e49c0c90ac4f2ceef9337b699045fc2f1f8530a src/manual/pager.rs -> crates/pod-manual/src/pager.rs
+file 54f672be06ff2f5726f1251a412d1856450bd89c src/manual/facts.rs -> crates/pod-manual/src/facts.rs crates/pod-manual/src/scan.rs crates/pod-manual/src/check.rs
+file 409bca6c78d8165f1186f50992cd6c48a945dd0b src/manual/inventory.rs -> crates/pod-manual/src/facts.rs
+file 335c2b0b81aab24dfa8219e8d9d6e80ca34b7239 scripts/gen-llms.py -> crates/pod-manual/src/llms.rs
+file 6b623b4d5a31eb6dc4f43c2ad7af5895421c5968 tests/cli/manual.rs -> crates/pod-manual/tests/clap.rs crates/pod-manual/src/roff/tests.rs
+
+# podssh: the generic part of its manual. The model of blocks that a
+# program fills from its tables (model.rs), the man(7) writer that groff
+# and mandoc render with no warning (roff.rs), the text writer (text.rs),
+# the JSON of the kind of a flag (json.rs), the reader of the variables of
+# the source (facts/tests.rs), the pager (pager.rs), the form of a flag row
+# (flags.rs: FlagRow and FlagKind) and the check of a page under groff and
+# mandoc (scripts/interop-man.sh). The facts, the notes, the examples and
+# the topics of podssh stay in podssh; data.rs gives the form of the exit
+# codes with the code of the remote command (facts.rs, Code::Payload).
+repo PodUtils/podssh cfc3ae3e096e74251aa2c15468e7cd6bf0030956
+file f26419f1bbb668531ae9b003856af2b1d04c529b crates/podssh-cli/src/man/mod.rs -> crates/pod-manual/src/select.rs crates/pod-manual/src/select/tests.rs
+file 98b33fcf5d3d20a97b24c7eb0ab1f10ef384e7ea crates/podssh-cli/src/man/model.rs -> crates/pod-manual/src/model.rs crates/pod-manual/src/sections.rs crates/pod-manual/src/check.rs
+file 743661d1f048bc60bc1cb215346d3693a7699521 crates/podssh-cli/src/man/roff.rs -> crates/pod-manual/src/roff.rs crates/pod-manual/src/roff/tests.rs
+file c91258b918ffeecb5e5b8859f0a802bd3b2692ca crates/podssh-cli/src/man/text.rs -> crates/pod-manual/src/text.rs crates/pod-manual/src/text/tests.rs
+file 7123e64e6c871b26f70fe308e6c0c697f6666475 crates/podssh-cli/src/man/json.rs -> crates/pod-manual/src/json.rs
+file ad41024161a3107e3c935dc5e1da4af32b209c68 crates/podssh-cli/src/man/data.rs -> crates/pod-manual/src/facts.rs
+file a903513acd608106e1315c9c324f4354d1de7186 crates/podssh-cli/src/man/facts/tests.rs -> crates/pod-manual/src/scan.rs crates/pod-manual/src/check.rs
+file 7f6acc0c33e10f5bc9b64f8c5d1e49daacdbaea9 crates/podssh-cli/src/pager.rs -> crates/pod-manual/src/pager.rs crates/pod-manual/src/pager/tests.rs
+file c62f4d6bc4414481db5109d612a490c53ce945b1 crates/podssh-cli/src/flags.rs -> crates/pod-manual/src/model.rs
+file a328e8d1b9962ee8b03d01e22bfeb0cbeb7b991c scripts/interop-man.sh -> scripts/check-man.sh

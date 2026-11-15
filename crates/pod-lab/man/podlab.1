@@ -1,0 +1,355 @@
+.TH PODLAB 1 "" "podlab" "podlab manual"
+.nh
+.ad l
+.SH NAME
+podlab \- The classes of hostile hosts as profiles: list them, check one
+against this host, or run a command in a lab of one
+.SH SYNOPSIS
+\fBpodlab COMMAND [OPTIONS]\fR
+.PP
+\fBOptions:\fR
+.TP
+\fB\-V\fR, \fB\-\-version\fR
+Print version.
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print the help.
+.PP
+\fBCommands:\fR
+.TP
+\fBlist\fR
+List each profile, its parts, and what holds each part in a lab
+.TP
+\fBcheck\fR
+Check a profile on this host with the probes of pod\-hostprobe, or against a
+JSON report of pod\-hostprobe
+.TP
+\fBrun\fR
+Run a command in a lab of a profile. The lab checks itself before the command;
+a part that does not hold stops the run
+.TP
+\fBman\fR
+The manual: each command, profile, variable and exit code. A pager shows it on
+a terminal
+.SH DESCRIPTION
+podlab holds the classes of hostile hosts as profiles. A profile names the
+probe rows that each part refuses or allows.
+.PP
+podlab check compares a profile with this host, or with a JSON report of
+pod\-hostprobe. A part holds, fails, or cannot be observed here.
+.PP
+podlab run runs a command in a lab of a profile. The lab holds each part with
+no root: a seccomp filter, Landlock, a tmpfs and inherited descriptors.
+.PP
+The lab measures the profile from inside before the command. A part that does
+not hold stops the run, unless \-\-partial is given.
+.SH COMMANDS
+.SS "podlab list"
+List each profile, its parts, and what holds each part in a lab.
+.PP
+Usage: \fBpodlab list [OPTIONS]\fR
+.PP
+\fBOptions:\fR
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print the help of this command.
+.PP
+\fBExamples:\fR
+.PP
+List each profile and its parts.
+.RS 4
+.nf
+$ podlab list
+.fi
+.RE
+.SS "podlab check"
+Check a profile on this host with the probes of pod\-hostprobe, or against a
+JSON report of pod\-hostprobe.
+.PP
+Usage: \fBpodlab check [OPTIONS] PROFILE\fR
+.PP
+\fBArguments:\fR
+.TP
+\fIPROFILE\fR
+The name of the profile.
+.PP
+\fBOptions:\fR
+.TP
+\fB\-\-report\fR \fIFILE\fR
+A JSON report of pod\-hostprobe to check, in place of the probes of this host.
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print the help of this command.
+.PP
+\fBExamples:\fR
+.PP
+Check the profile userns\-off on this host.
+.RS 4
+.nf
+$ podlab check userns\-off
+.fi
+.RE
+.PP
+Check a profile against a report of pod\-hostprobe.
+.RS 4
+.nf
+$ podlab check bind\-denied \-\-report report.json
+.fi
+.RE
+.SS "podlab run"
+Run a command in a lab of a profile. The lab checks itself before the command;
+a part that does not hold stops the run.
+.PP
+Usage: \fBpodlab run [OPTIONS] PROFILE CMD...\fR
+.PP
+\fBArguments:\fR
+.TP
+\fIPROFILE\fR
+The name of the profile.
+.TP
+\fICMD...\fR
+The command and its arguments.
+.PP
+\fBOptions:\fR
+.TP
+\fB\-\-partial\fR
+Run the command in the parts that hold, and report the others.
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print the help of this command.
+.PP
+\fBExamples:\fR
+.PP
+Run a command in a lab with a small /tmp.
+.RS 4
+.nf
+$ podlab run small\-tmp \-\- sh \-c 'df /tmp'
+.fi
+.RE
+.PP
+Run a command in the parts that hold, and name the others.
+.RS 4
+.nf
+$ podlab run \-\-partial nonroot\-nocaps \-\- id
+.fi
+.RE
+.SS "podlab man"
+The manual: each command, profile, variable and exit code. A pager shows it on
+a terminal.
+.PP
+Usage: \fBpodlab man [OPTIONS] [SECTION]...\fR
+.PP
+\fBArguments:\fR
+.TP
+\fI[SECTION]...\fR
+One section: a command, a topic, a table of facts.
+.PP
+\fBOptions:\fR
+.TP
+\fB\-\-no\-pager\fR
+Write the text with no pager, also on a terminal.
+.TP
+\fB\-\-roff\fR
+Write the manual as a man(7) page.
+.TP
+\fB\-\-json\fR
+Write the manual as one JSON object.
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+Print the help of this command.
+.PP
+\fBRules:\fR
+.PP
+Give only one of \-\-json, \-\-roff.
+.PP
+\fBExamples:\fR
+.PP
+Write the section of podlab check, with no pager.
+.RS 4
+.nf
+$ podlab man \-\-no\-pager check
+.fi
+.RE
+.SH "ENVIRONMENT"
+\fBThe lab:\fR
+.TP
+\fBTMPDIR\fR
+/tmp for the command, where a part puts a tmpfs on /tmp. Used by: run. podlab
+sets it and does not read it.
+.PP
+\fBThe pager:\fR
+.TP
+\fBPAGER\fR
+The pager of the manual on a terminal. An empty value or cat writes the text
+with no pager. Used by: man.
+.TP
+\fBTERM\fR
+With no PAGER, less is used only when TERM names a terminal that is not dumb.
+Used by: man.
+.TP
+\fBPATH\fR
+The directories where the probe looks for less. Used by: man.
+.TP
+\fBLINES\fR
+The lines of a screen of the built\-in pager, when the terminal size is not
+known. Used by: man.
+.TP
+\fBLESS\fR
+The options of less. When it is not set, the pager sets FRX. Used by: man.
+podlab reads it and sets it.
+.SH "PROFILES"
+Each profile, its parts, and what holds each part in a lab. podlab list prints
+the same table.
+.TP
+\fBuserns\-off\fR
+About: no user namespace for the caller. Parts: userns\-refused. Held by:
+userns\-refused: seccomp: unshare(CLONE_NEWUSER), clone(CLONE_NEWUSER),
+clone3. Source: podrunner.
+.TP
+\fBbind\-denied\fR
+About: TCP bind and connect of AF_INET and AF_INET6 give EACCES; AF_UNIX
+holds. Parts: tcp\-bind\-refused, tcp\-connect\-refused, unix\-allowed. Held
+by: tcp\-bind\-refused: Landlock: no TCP port; tcp\-connect\-refused:
+Landlock: no TCP port; unix\-allowed: the host. Source: podrunner.
+.TP
+\fBgetsockname\-denied\fR
+About: getsockname gives EOPNOTSUPP. Parts: getsockname\-refused. Held by:
+getsockname\-refused: seccomp: getsockname. Source: podrunner.
+.TP
+\fBproxy\-only\fR
+About: no direct connection out; only an HTTP proxy reaches out. Parts:
+direct\-refused, proxy\-reaches. Held by: direct\-refused: not here: the
+network labs of podnet; proxy\-reaches: not here: the network labs of podnet.
+Source: podrunner.
+.TP
+\fBsmall\-tmp\fR
+About: TMPDIR on a tmpfs of 1 GiB. Parts: tmpdir\-small. Held by:
+tmpdir\-small: tmpfs of 1073741824 bytes on /tmp. Source: podrunner.
+.TP
+\fBroot\-unreadable\fR
+About: readdir("/") gives EACCES; an open by name holds. Parts:
+root\-list\-refused, open\-by\-name. Held by: root\-list\-refused: Landlock: /
+hidden; open\-by\-name: the host. Source: podrunner.
+.TP
+\fBnonroot\-nocaps\fR
+About: a user that is not root, no capability, NoNewPrivs and a seccomp
+filter. Parts: not\-root, no\-caps, no\-new\-privs, seccomp\-filter. Held by:
+not\-root: the caller is not root; no\-caps: the caller is not root;
+no\-new\-privs: no_new_privs; seccomp\-filter: seccomp: the default deny list
+of pod\-confine. Source: podrunner.
+.TP
+\fBno\-kvm\fR
+About: no /dev/kvm. Parts: kvm\-absent. Held by: kvm\-absent: Landlock:
+/dev/kvm hidden. Source: podrunner.
+.TP
+\fBarm64\-tcg\fR
+About: an arm64 host with no KVM: each guest runs on TCG. Parts: arm64,
+kvm\-absent. Held by: arm64: not here: the machine tier of podvm; kvm\-absent:
+Landlock: /dev/kvm hidden. Source: podrunner.
+.TP
+\fBinherited\-fds\fR
+About: descriptors 3 to 9 open at the start. Parts: fds\-open. Held by:
+fds\-open: descriptors 3 to 9. Source: podrunner.
+.TP
+\fBchroot\-denied\fR
+About: chroot gives EPERM. Parts: chroot\-refused. Held by: chroot\-refused:
+seccomp: chroot. Source: podvm.
+.TP
+\fBuserns\-mount\-denied\fR
+About: a user namespace is made, and a mount in it fails
+(apparmor_restrict_unprivileged_userns). Parts: userns\-made,
+userns\-mount\-refused. Held by: userns\-made: the host;
+userns\-mount\-refused: seccomp: mount, fsopen, fsmount, move_mount,
+open_tree. Source: podvm.
+.TP
+\fBcgroup\-v1\fR
+About: the cgroup v1 hierarchy, no cgroup2. Parts: cgroup\-v1. Held by:
+cgroup\-v1: not here: the machine tier of podvm. Source: podvm.
+.TP
+\fBlandlock\-old\fR
+About: a Landlock ABI below 4 (no TCP rules); a lab gives the form with no
+Landlock. Parts: landlock\-below\-4. Held by: landlock\-below\-4: seccomp:
+landlock_create_ruleset, landlock_add_rule, landlock_restrict_self. Source:
+podvm.
+.TP
+\fBproc\-masked\fR
+About: no /proc; no row measures the form with hidepid. Parts: proc\-hidden.
+Held by: proc\-hidden: Landlock: /proc hidden. Source: podvm.
+.TP
+\fBnoexec\-tmp\fR
+About: /tmp is mounted noexec. Parts: tmp\-noexec. Held by: tmp\-noexec: tmpfs
+on /tmp, noexec. Source: podvm.
+.SH "EXIT STATUS"
+.TP
+\fB0\fR (holds)
+check: each part holds. run: the command exited 0.
+.TP
+\fB1\fR (fails)
+check: a part does not hold.
+.TP
+\fB2\fR (usage)
+A usage error of the command line.
+.TP
+\fB3\fR (unseen)
+check: no part fails, and a part cannot be observed here.
+.TP
+\fB125\fR (refused)
+run: a part of the lab does not hold. The command did not run.
+.TP
+\fB126\fR (cannot\-exec)
+run: the command did not start.
+.TP
+\fB127\fR (not\-found)
+run: the command was not found.
+.TP
+\fB128+N\fR (signal)
+run: the command ended on signal N.
+.TP
+\fBN\fR (command)
+run: the exit code of the command. Each code that no other row names.
+.SH "EXAMPLES"
+List each profile and its parts.
+.RS 4
+.nf
+$ podlab list
+.fi
+.RE
+.PP
+Check the profile userns\-off on this host.
+.RS 4
+.nf
+$ podlab check userns\-off
+.fi
+.RE
+.PP
+Check a profile against a report of pod\-hostprobe.
+.RS 4
+.nf
+$ podlab check bind\-denied \-\-report report.json
+.fi
+.RE
+.PP
+Run a command in a lab with a small /tmp.
+.RS 4
+.nf
+$ podlab run small\-tmp \-\- sh \-c 'df /tmp'
+.fi
+.RE
+.PP
+Run a command in the parts that hold, and name the others.
+.RS 4
+.nf
+$ podlab run \-\-partial nonroot\-nocaps \-\- id
+.fi
+.RE
+.PP
+Write the section of podlab check, with no pager.
+.RS 4
+.nf
+$ podlab man \-\-no\-pager check
+.fi
+.RE
+.SH "SEE ALSO"
+pod\-hostprobe: the probe rows that a profile names.
+.PP
+https://github.com/PodUtils/podcrates

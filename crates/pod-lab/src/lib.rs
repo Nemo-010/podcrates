@@ -19,7 +19,8 @@
 //! process and the probe children are new starts of that binary.
 //!
 //! The crate reads no environment variable and prints nothing. Linux only:
-//! on another target the crate is empty, except [`codes`].
+//! on another target the crate is empty, except [`codes`]. The module
+//! `manual` (feature `cli`) is the manual of `podlab`.
 #![forbid(unsafe_op_in_unsafe_fn)]
 
 pub mod codes;
@@ -32,6 +33,8 @@ mod hold;
 mod inside;
 #[cfg(target_os = "linux")]
 mod lab;
+#[cfg(all(target_os = "linux", feature = "cli"))]
+pub mod manual;
 #[cfg(target_os = "linux")]
 mod profile;
 #[cfg(target_os = "linux")]

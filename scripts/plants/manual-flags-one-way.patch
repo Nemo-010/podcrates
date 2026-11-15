@@ -1,0 +1,12 @@
+diff --git a/crates/pod-manual/src/check.rs b/crates/pod-manual/src/check.rs
+--- a/crates/pod-manual/src/check.rs
++++ b/crates/pod-manual/src/check.rs
+@@ -181,7 +181,7 @@
+                 }
+             }
+         }
+-        for pf in &p.flags {
++        for pf in p.flags.iter().take(0) {
+             if !c.flags.iter().any(|f| f.spellings().iter().any(|s| pf.spellings.contains(s))) {
+                 out.push(finding(
+                     &at,
