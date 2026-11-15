@@ -175,5 +175,6 @@ numbers. `TODO/RULES.md` gives the rules.
 | #170 | [gh action] requested: the gates of main at 98017c3 and the release v0.51.0 | closed (ci failed on a table of design.md; replaced by #171) | T-677, T-035, T-639, T-640, T-643, T-647, T-648, T-650, T-651 |
 | #171 | [gh action] requested: the gates of main at 7119770 and the release v0.51.0 | closed (ci 43704477293, adoption 43704480669, release 43706934823, publish 43706977883) | T-678, T-035, T-639, T-640, T-643, T-647, T-648, T-650, T-651 |
 | #172 | COORD-105: v0.51.0: pod-egress part 1; the fixes of podnet#572, podvm#380, podssh#253; the asks of podvm#389, #390, #393, #394 (to all) | open | T-035, T-639, T-640, T-643, T-647, T-648, T-650, T-651 |
+| #173 | [gh action] requested: ci, adoption, plants, secrets and deny on main at 2f23632 (v0.52.0) | open | T-035, T-668, T-669, T-670, T-671, T-672, T-676, T-678 |
 
 #79 to #81 are pull requests.
