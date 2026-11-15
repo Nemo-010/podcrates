@@ -8268,3 +8268,33 @@ The plan always puts the root disk on NVMe (`nvme,drive=root`). QEMU 8.2 refuses
 ```sh
 cargo test -p pod-guest --all-features
 ```
+
+# T-640: `pod-guest`: a cold boot of a Windows guest under KVM reaches no shutdown on one run of two, and a run that times out keeps no trace
+
+**Source:** PodUtils/podvm#380 (COORD-120 of podvm; PodUtils/podvm@T-1864).
+**Category:** defect
+**Milestone:** M7
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+In `kvm.yml` run 43660534832 of podvm, at podcrates `v0.48.0`, three `podvm windows run` cold boots of a provisioned Validation OS 26100.9818 image, each with a limit of 600 s: run 1 (`exit 42`) timed out ("the guest did not power off within 600s", stdout empty); run 2 (`cmd /c exit 42`, the same command file after the drop of `cmd /c`) gave code 42 in 50 s; run 3 (`echo out & exit 7`) timed out. One boot of two reaches no shutdown, and the cause is not the command. `run` keeps no serial log, no screen and no mailbox of a run that times out, so the cause is not visible.
+
+## Premise
+
+- Read: `crates/pod-guest/src/agent.rs` (`AGENT_CMD`, `SETUP_CMD`), `src/lib.rs` (`run`), `src/emulator.rs`, `src/provision.rs`, `src/fat16.rs`, `src/qmp.rs`, `tests/windows_keep_live.rs`, `.github/workflows/guest-windows.yml`, the Done sections of T-592, T-595, T-602, T-622, T-630 and T-633.
+- Each run boots a new overlay of the same provisioned image, with a new mailbox written before the spawn. So the disk state of each boot is the same, and only a race of the boot can give one result of two.
+- Not measured: Windows. This host has no KVM; the live step is the next run of `guest-windows.yml`.
+
+## Approach
+
+Read the agent for each cause of a missed command or power-off, and fix each one that is possible (calls C612, C613). Make the agent log each step on the mailbox, and make `run` say what the mailbox tells after a timeout (call C614). Make `run` keep the evidence of a run that times out in a directory of the caller: a QMP `screendump` before the stop, then the serial log, the error stream of the emulator and the mailbox (call C615). Test the agent with the walk of `AGENT_CMD` and a clock, and `run` with a stand-in emulator and a QMP stand-in. Add six cold boots of `run` to `tests/windows_keep_live.rs`.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features --lib -- agent:: evidence::
+sh scripts/plant-each.sh guest-t640-one-shutdown guest-t640-nap-does-not-wait guest-t640-screen-after-the-stop
+```

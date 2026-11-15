@@ -18,7 +18,10 @@ rules:
    A result with another token is refused.
 4. A run that times out is stopped and reported, never `Ok`. The stop says
    if the emulator was reaped (`Stop::Confirmed`) or only signalled
-   (`Stop::Attempted`).
+   (`Stop::Attempted`). The text says what the mailbox tells of the agent;
+   with `Settings::evidence`, the run keeps a screen taken before the stop,
+   the serial log, the error stream of the emulator and the mailbox, and
+   the text names their directory.
 
 Two flavours share the mailbox, the token, QMP, the per-run directory and
 the stop:
@@ -30,7 +33,9 @@ the stop:
   as an `onstart` scheduled task, writes `WQREADY.TXT` when it finds the
   mailbox, runs the command in a child `cmd /c` (stdin `NUL`; an `exit` in
   the command ends the child, not the agent), writes the result and powers
-  the guest off. With `WQKEEP.TXT` on the mailbox (`Mode::KeepAlive`) the
+  the guest off. It tries the shutdown again each second until Windows
+  takes it (300 tries), waits about one second between two probes also
+  where `ping` does not wait, and appends each step to `WQLOG.TXT`. With `WQKEEP.TXT` on the mailbox (`Mode::KeepAlive`) the
   agent keeps the guest up and polls for the next token; a last command
   with no `WQKEEP.TXT` powers the guest off. Each next command comes on a
   new mailbox medium through QMP ("The next command", below).
@@ -57,7 +62,7 @@ restored at each later run in place of a boot ("The warm start", below).
 
 | Item | What |
 | --- | --- |
-| `Settings` | `scratch_root` (the directory of the per-run directories), `scratch_prefix`, `keep` (keep each per-run directory), `marker` (the content of `WQMARK.TXT`), `oem` (the OEM name of the volume, 8 characters at most). `Settings::new(root)` gives `pod-guest-`, no keep, `pod-guest`, `PODGUEST` |
+| `Settings` | `scratch_root` (the directory of the per-run directories), `scratch_prefix`, `keep` (keep each per-run directory), `marker` (the content of `WQMARK.TXT`), `oem` (the OEM name of the volume, 8 characters at most), `evidence` (the directory where a run that times out keeps its evidence; `None`: none). `Settings::new(root)` gives `pod-guest-`, no keep, `pod-guest`, `PODGUEST`, no evidence |
 | `Plan`, `Accel`, `accel_for(Option<Profile>)` | the description of one run (emulator, accelerator, firmware, overlay, mailbox, serial log, QMP socket, memory, CPUs, more arguments); `Accel::{word, cpu}` (`kvm`/`host`, `tcg`/`max`) |
 | `Options` (`plan::options`): `nic` (`Nic::None` by default, `Nic::User(UserNet { model, forwards, restrict })`), `virtio`, `media` (`Medium { kind, path, readonly, boot }`), `vnc`, `usb_tablet`, `serial_socket`, `channels` (`Channel { name, socket }`), `hyperv`, `mailbox` (`MailboxBus::{Nvme, Usb}`, `Nvme` by default); `check()`; `MAILBOX_DRIVE` (`mbox`, the drive), `MAILBOX_ID` (`wqmbox`, the device of a USB mailbox: the `id` of QMP), `MAILBOX_USB` (`wqmboxusb`, its USB transport); `Forward::{local, spec}`, `Proto`, `NicModel`, `Virtio`, `MediumKind`, `escape`, `QGA_CHANNEL`, `HYPERV_FLAGS`, `MAX_SOCKET_PATH`, `MAX_CDROMS` | the options of a full guest of the UEFI flavour ("The options of a plan") |
 | `argv(&plan)`, `overlay_argv`, `convert_argv`, `plan::base_format` | the UEFI machine line with no program; `qemu-img create -f qcow2 -F FMT -b BASE`; `qemu-img convert -f qcow2 -O qcow2 OVERLAY OUT` (a new image with no backing file; `qemu-img commit` has no output file, PodUtils/podvm#277) |
@@ -66,9 +71,10 @@ restored at each later run in place of a boot ("The warm start", below).
 | `provision(&s, qemu_img, base, &plan, out, &ready, wait)` | one boot that waits for a ready guest (`ready::Ready::screen(deadline)`: a screen that settles; or `Sign::After(time)`: a fixed time after the spawn), types the installer into the console, waits up to `wait` for the power-off, then the convert into `out`; returns `SETUP.TXT`. No ready guest is a failure with the cause `ready::Unready`. Each failure after the spawn stops the emulator, also a refusal of the keys by QMP |
 | `ready` | `wait(&plan, &mut child, &Ready { signs, deadline, every })` (the index of the first sign that holds), `Sign::{Marker, Serial(text), Screen { settle }, After(time)}`, `Ready::screen`, `Unready::{Deadline { after, signs }, Exited { status }}` (`Timeout`, `Unavailable`), `unready(&failure)`, `Scan` (a text in a file that grows), `SETTLE`, `EVERY`, `CURSOR` (the box of a change that is no change, 32x32 pixels) ("The readiness") |
 | `scratch_dir(&s, tag)`, `scratch_of(&plan)`, `cleanup(&s, &plan)`, `RunGuard::arm(&s, &plan)` | the per-run directory `PREFIX` + pid + `-TAG`, mode 0700; the directory of the mailbox; its removal (only a directory with the prefix, not with `keep`); the removal on drop |
-| `Stop`, `Timeout { after, stop }`, `timeout_of(&failure)` | the end of a stopped emulator; the cause of a run at its limit |
+| `Stop`, `Timeout { after, stop }` (`failure`, `failure_with(more)`), `timeout_of(&failure)` | the end of a stopped emulator; the cause of a run at its limit |
+| `evidence` | `dir(root, token)` (`ROOT/timeout-TOKEN`, each character of the token that is not a letter, a digit, `-` or `_` as `_`), `seen(&fat16, token)` (what the mailbox tells of the agent: no `WQREADY.TXT`, no result, or a result and no power-off; then the last 8 lines of `WQLOG.TXT`), the file names `SCREEN`, `SERIAL`, `EMULATOR`, `MAILBOX`. A run that times out takes the screen through QMP before the stop and copies the files after it |
 | `emulator` | `run_steps(argv)` (a tool to its end; a failure names the program and its stderr), `spawn_emulator(&plan, args, stderr)` (a process group of its own), `stop_emulator`, `stop_with` (QMP `quit`, `SIGKILL` to the group, a bounded reap), `QUIT_WAIT`, `STOP_WAIT`. Inside the crate, `Running` holds a spawned emulator and stops it when it is dropped, so that `provision`, `run` and the warm restore leave no emulator after an early failure |
-| `agent` | the file names of the protocol (`MARKER`, `GO`, `CMD`, `OUT`, `ERR`, `CODE`, `SETUP`, `READY`, `KEEP`, `AGENT_NAME`, `SETUP_NAME`, `AGENT`), `READY_TEXT`, `Mode`, `ready(&fat16)` (the agent wrote `WQREADY.TXT`), `AGENT_CMD`, `SETUP_CMD`, `command_file`, `command_from_argv`, `quote`, `Code`, `parse_code`, `nonce()`, `nonce_from(&mut Entropy)` |
+| `agent` | the file names of the protocol (`MARKER`, `GO`, `CMD`, `OUT`, `ERR`, `CODE`, `SETUP`, `READY`, `KEEP`, `LOG`, `AGENT_NAME`, `SETUP_NAME`, `AGENT`), `READY_TEXT`, `Mode`, `ready(&fat16)` (the agent wrote `WQREADY.TXT`), `AGENT_CMD`, `SETUP_CMD`, `command_file`, `command_from_argv`, `quote`, `Code`, `parse_code`, `nonce()`, `nonce_from(&mut Entropy)` |
 | `dos` | `argv`, `stage(&s, ...)`, `run(&plan, batch, token, timeout)`, `batch_from_argv`, `DEFAULT_MEM_MIB`, `CPUS`, `DEFAULT_TIMEOUT_SECS`, the boot waits `TO_MENU_MS`, `TO_PROCEED_MS`, `TO_PROMPT_MS`, `MBOX_DRIVE`, `BAT` |
 | `fat16` | `Fat16` (`new`, `with_oem`, `from_image`, `put` (an 8.3 name, or a long name of up to `MAX_LONG_NAME` = 32 characters with VFAT entries and an alias `BASIS~N.EXT`), `get` (by the 8.3 name, the alias or the long name, in any case), `remove` (the file, its clusters and the long-name entries before it; `Ok(false)`: no such file), `list` (the long name where there is one), `is_mailbox`, `image`, `volume_id`, `set_volume_id`), `checksum` (of an 8.3 alias, for its long-name entries), `format`, `format_with`, `oem_bytes`, the geometry (16 MiB behind an MBR at LBA 2048, 4 KiB clusters), `LABEL`, `OEM`, `VOLUME_ID` |
 | `fetch` | `Ceiling { max_bytes, fsize }` (the ceiling of one entry), `check_declared`, `Origin` (`get(from) -> Reply`: the caller's HTTP client; `from > 0` sends `Range: bytes=FROM-`), `Reply { status, length, range, body }`, `Stream::new(reader, declared)` (an origin of one stream that does not resume), `store(&mut origin, dest, want, ceiling, tries)` (the sha256 in hex; see "The store"), `partial` (`NAME.part`), `Span`, `parse_content_range`, `Refusal` (`DeclaredTooLarge`, `OverCeiling`, `Digest`, `Size`, `Range`, `Status`, `Broken`, `Busy`; `keeps_part`), `refusal(&failure)` |
@@ -383,7 +389,13 @@ names and texts (`src/agent/tests.rs`): the order of the marker, the
 command, the result and the shutdown, the keep-alive loop over three
 tokens, the 600 tries with no mailbox, and a swap of the medium (a time
 with no marker, then a new medium with the next token; the marker is
-written in each poll). A line that the walk does not know fails the test.
+written in each poll). The walk has a clock: the 600 tries take about 600
+s with a `ping` that waits and with one that fails at once
+(`the_probes_wait_about_one_second_each_also_when_ping_fails`, plant
+`guest-t640-nap-does-not-wait`), a mailbox that comes online after 120
+tries is found with no `ping`, and refused shutdowns are tried again and
+logged (`the_agent_tries_the_shutdown_again_until_windows_takes_it`, plant
+`guest-t640-one-shutdown`). A line that the walk does not know fails the test.
 The tests with a fake emulator run `/bin/sh` and skip with a line
 `skipping, REASON` where it is missing. A stop test reads a script with
 `/bin/sh`, so that no test executes a file that a test thread just wrote
@@ -396,6 +408,13 @@ QEMU, each week and by hand (`docs/design.md`, section 9).
 `provision` with a stand-in emulator and a QMP stand-in that refuses each
 `send-key`, and checks that no emulator stays after the failure; the plant
 `guest-t622-guard-leaves-the-emulator` proves it.
+`evidence::tests::a_run_that_times_out_keeps_a_screen_from_before_the_stop_and_its_logs`
+runs `run` with a stand-in emulator and a QMP stand-in that ends at
+`quit`, as an emulator that exits, and checks the screen, the copies of
+the serial log, the error stream and the mailbox, the directory in the
+text and what the mailbox tells; the plant `guest-t640-screen-after-the-stop`
+proves it. `a_run_with_no_evidence_directory_takes_no_screen` checks that
+the default takes no screen and writes no file.
 `plan::options::tests::a_medium_that_boots_first_keeps_the_root_disk_in_the_boot_order`
 checks the boot index of the root disk with a CD-ROM and a USB medium that
 boot first, and no boot index with no such medium; the plant
@@ -442,7 +461,11 @@ drive `wqmbox` again and again, with `-compat deprecated-input=reject`, checks t
 on `PATH`.
 `tests/windows_keep_live.rs` (ignored; `guest-windows.yml` runs it by
 hand under KVM) installs Windows Server 2019 Server Core from the
-evaluation ISO with the agent, runs a first command and two next commands
+evaluation ISO with the agent, runs six cold boots of `run` on the
+installed disk (each with its own overlay, variable store, NVMe mailbox,
+command and limit of 600 s; a line `RESULT: cold boots: N of 6 reached
+their outcome`; the evidence of a run that timed out goes into the
+artifact of the job), runs a first command and two next commands
 on new media, prints the lock of the medium before each swap, checks the
 three outcomes, and prints if a write into a
 mounted USB and a mounted NVMe mailbox reached the agent.
