@@ -3739,6 +3739,7 @@ name = "static-probe"
 version = "0.48.0"
 dependencies = [
  "bytes",
+ "pod-acme",
  "pod-actions-expr",
  "pod-actions-results",
  "pod-actions-store",

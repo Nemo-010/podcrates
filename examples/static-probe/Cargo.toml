@@ -58,6 +58,7 @@ pod-tls = { workspace = true, features = ["pure", "rsa", "ech"] }
 # The TURN client turns on the codec of STUN (feature `stun`).
 pod-turn = { workspace = true, features = ["turn"] }
 pod-transit = { workspace = true }
+pod-acme = { workspace = true }
 pod-udf = { workspace = true }
 # `plain-ws` is out: it is for the tests of an embedder, and no binary turns it on.
 pod-ws = { workspace = true, features = ["ech", "serve"] }
