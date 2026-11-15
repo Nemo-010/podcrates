@@ -1,0 +1,4 @@
+HTTP/1.1 200 OK
+Connection: close
+
+[INFO] Waiting for 1 receiver(s)...

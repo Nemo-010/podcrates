@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 521 entries: 104 open, 8 partial, 6 blocked, 403 done.
+`TODO/INDEX.md` holds 522 entries: 103 open, 8 partial, 6 blocked, 405 done.
 
 ## State
 
@@ -73,8 +73,7 @@ podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
 First: the takes of `v0.49.0` (#163). Then the move of podssh's waves 3 and 4 (the ruling "The move
-of podssh", PodUtils/podssh#248): T-032, T-033;
-T-035; T-038, T-037, T-029, T-030, T-039; T-036.
+of podssh", PodUtils/podssh#248): T-035; T-038, T-037, T-029, T-030, T-039; T-036.
 Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
 
@@ -139,7 +138,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
    (`pod-netstack`).
 7. **M3, the adapters:** T-028, T-029, T-030.
 8. **M4, the roads:** T-131 (a defect of `pod-gsr` on Windows ARM64)
-   first; then T-035, T-033, T-032, T-036, T-037,
+   first; then T-035, T-036, T-037,
    T-038, T-039.
 9. **M5, the upkeep:** T-312 (a
    code fence that is not closed in the record). A "port" entry for each

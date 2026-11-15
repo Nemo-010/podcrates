@@ -1,0 +1,8 @@
+# podssh's plant t575-third-before-second, on pod-piping's copy of the file.
+# podssh T-575: the carrier tries serv00's Piping Server, the third of
+# pod-services' order, before piping.onrender.com, the second: the test of
+# the public servers' order must fail.
+ENTRY=T-032
+GROUP=piping
+EXPECT='test server::tests::the_public_servers_are_ppng_io_then_onrender_then_serv00_which_hold_bodies \.\.\. FAILED'
+RUN='cargo test --locked -p pod-piping --lib server::tests::the_public_servers_are_ppng_io_then_onrender_then_serv00_which_hold_bodies'

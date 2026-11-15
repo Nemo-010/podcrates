@@ -1,0 +1,12 @@
+diff --git a/crates/pod-opentunnel/src/provision.rs b/crates/pod-opentunnel/src/provision.rs
+--- a/crates/pod-opentunnel/src/provision.rs
++++ b/crates/pod-opentunnel/src/provision.rs
+@@ -174,7 +174,7 @@
+     /// Keep `record`; where it went, or none, which is said: each start then
+     /// makes a new tunnel.
+     fn keep(&self, record: &Record) -> Option<PathBuf> {
+-        match self.store.save(record) {
++        match Err::<PathBuf, String>(format!("planted: {} not kept", self.store.file_name())) {
+             Ok(path) => Some(path),
+             Err(why) => {
+                 (self.say)(format!(

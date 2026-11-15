@@ -2463,6 +2463,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "pod-opentunnel"
+version = "0.49.0"
+dependencies = [
+ "base64 0.23.1",
+ "p256",
+ "pod-core",
+ "pod-proxy",
+ "pod-services",
+ "pod-session",
+ "pod-testkit",
+ "pod-tls",
+ "pod-ws",
+ "rand 0.10.3",
+ "rcgen",
+ "rustls",
+ "serde_json",
+ "sha2 0.11.1",
+ "tokio",
+ "zeroize",
+]
+
+[[package]]
+name = "pod-piping"
+version = "0.49.0"
+dependencies = [
+ "bytes",
+ "h2",
+ "hmac 0.13.0",
+ "http",
+ "pod-core",
+ "pod-proxy",
+ "pod-relay",
+ "pod-services",
+ "pod-session",
+ "pod-testkit",
+ "pod-tls",
+ "pod-ws",
+ "rand 0.10.3",
+ "rustls",
+ "sha2 0.11.1",
+ "tokio",
+ "tokio-rustls",
+ "zeroize",
+]
+
+[[package]]
 name = "pod-proxy"
 version = "0.49.0"
 dependencies = [
@@ -3799,6 +3845,8 @@ dependencies = [
  "pod-netlab",
  "pod-netstack",
  "pod-oci",
+ "pod-opentunnel",
+ "pod-piping",
  "pod-proxy",
  "pod-qga",
  "pod-quic",

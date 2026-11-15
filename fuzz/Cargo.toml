@@ -45,6 +45,14 @@ pod-e2e = { path = "../crates/pod-e2e", features = ["fuzzing"] }
 pod-identity = { path = "../crates/pod-identity" }
 # The relay lists and the pools of a relay (podssh relay_list, relay_pool).
 pod-relay = { path = "../crates/pod-relay" }
+# The feature `fuzzing` gives the readers of a hello, of an answer of
+# HTTP/1.1 with no runtime and of a server's URL of the Piping Server
+# carrier.
+pod-piping = { path = "../crates/pod-piping", features = ["fuzzing"] }
+# The feature `fuzzing` gives the readers of a message of a bridge, a data
+# frame, an answer of the API, a service's URL and a node's name of the
+# OpenTunnel carrier.
+pod-opentunnel = { path = "../crates/pod-opentunnel", features = ["fuzzing"] }
 # The feature `fuzzing` gives the memfd that stands in for the memory of a
 # task.
 pod-hold = { path = "../crates/pod-hold", features = ["fuzzing"] }
@@ -243,6 +251,34 @@ bench = false
 [[bin]]
 name = "ntfy_message"
 path = "fuzz_targets/ntfy_message.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "piping_hello"
+path = "fuzz_targets/piping_hello.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "piping_answer"
+path = "fuzz_targets/piping_answer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "opentunnel_message"
+path = "fuzz_targets/opentunnel_message.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "opentunnel_answer"
+path = "fuzz_targets/opentunnel_answer.rs"
 test = false
 doc = false
 bench = false

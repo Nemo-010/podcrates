@@ -45,6 +45,10 @@ pod-netlab = { workspace = true }
 pod-netstack = { workspace = true, features = ["ipv4-fragmentation"] }
 pod-oci = { workspace = true }
 # `fuzzing` is out: it is for the fuzz targets of fuzz/, and no consumer turns it on.
+pod-opentunnel = { workspace = true }
+# `fuzzing` is out: it is for the fuzz targets of fuzz/, and no consumer turns it on.
+pod-piping = { workspace = true }
+# `fuzzing` is out: it is for the fuzz targets of fuzz/, and no consumer turns it on.
 pod-proxy = { workspace = true, features = ["blocking", "ech"] }
 pod-qga = { workspace = true }
 pod-quic = { workspace = true }

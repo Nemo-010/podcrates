@@ -1,0 +1,9 @@
+{
+  "name": "pod-piping-test-server",
+  "private": true,
+  "license": "0BSD",
+  "description": "nwtgck/piping-server, the server of ppng.io, on 127.0.0.1 for the tests of the Piping Server carrier",
+  "dependencies": {
+    "piping-server": "1.12.9"
+  }
+}

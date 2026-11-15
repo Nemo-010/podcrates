@@ -97,7 +97,7 @@ podssh-cli and podssh-iroh; run `PodUtils/podssh:scripts/interop-derp.sh` with
 **Milestone:** M4
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -116,12 +116,52 @@ The study, then the procedure of `docs/design.md`, section 8.
 
 ```sh
 cargo test -p pod-piping
+sh scripts/ci/piping-tests.sh
 sh scripts/agent/check.sh
 ```
 
 ## Start condition
 
 T-026 is done.
+
+## Done
+
+2026-11-14, commits `585197f` (the import of podssh `b9c04657`, its
+SOURCES), `b2f7293` (the adaptation), `641e834` (the tests, the plants,
+the fuzz targets, CI), `d74f7b3` (README, the static probe, the tables),
+`4192a6c` (the adoption trial, call C602). The source is in edition 2024
+already: no edition commit. The dial and the probe take the caller's
+`pod_ws::Way` (`dial::tls(way, trust)`, `probe::upgrade(relay, name, way,
+trust, limit)`); the user agent is the caller's
+(`Http::new(server, dial, user_agent)`); the lines stay a `Say` callback
+(call C60, T-212); the wire keeps its labels. Tests: `cargo test -p
+pod-piping --all-features`: 23 unit tests and 8 of the HTTP/1.1 answers
+pass; `tests/piping.rs`, 8 passed in 64 s against piping-server 1.12.9
+and piping-server-rust 0.18.0 on the loopback (`scripts/ci/piping-tests.sh`
+installs both in `ci.yml`, and fails on "did not run");
+`tests/piping_live.rs` (2, ignored) runs in `live.yml`. The plants, each
+proved by hand: `piping-t437-paths-swapped` (the test of the ends' paths
+fails, and a session through piping-server-rust fails) and
+`piping-t575-third-before-second` (the test of the order of the public
+servers fails). The fuzz targets `piping_hello` and `piping_answer` passed
+their seeds and 20,000 mutations of each seed in a scratch crate.
+
+The trial, in a scratch copy of podssh at `b9c04657` with the crates of
+this tree: cargo check of `podssh-relay` (features `piping`, `smee`,
+`filehost`, with its tests) and of `podssh-cli` (with its tests) passes;
+the lib tests of smee and filehost (53) and `tests/http_road.rs` (10) pass;
+podssh-todo check agrees after the remap of `Cargo.lock`; check-repo.py
+passes. `adoption.yml` runs `adoption/podssh/pod-piping.run` in CI.
+
+What podssh must do (PodUtils/podssh@T-684): apply
+`adoption/podssh/pod-piping.patch` at the release that holds the crate
+(the patch names the tag `v0.49.0`): `podssh_relay::piping` becomes
+`pub use pod_piping as piping`; `piping_road::http` gives
+`dial::tls(Arc::new(podssh_ws::client::way(&ProxyChoice::FromEnvironment)), trust)`
+and `podssh_ws::dial::user_agent()` to `Http::new`; `node_piping::unasked`
+gives the same way to `probe::upgrade`; the road's tests, harness, plants
+and `piping-rate.yml` leave podssh; then the lines of src/piping/ leave
+`crates/pod-piping/SOURCES` here.
 
 # T-033: `pod-opentunnel`: the OpenTunnel carrier
 
@@ -130,7 +170,7 @@ T-026 is done.
 **Milestone:** M4
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -155,6 +195,47 @@ sh scripts/agent/check.sh
 ## Start condition
 
 T-020 is done.
+
+## Done
+
+2026-11-14, commits `90d6b8a` (the import of podssh `b9c04657`, its
+SOURCES), `51d849b` (the adaptation and two fixes), `b7478b0` (the tests,
+the plants, the fuzz targets, the interop and the live run in CI),
+`d58b815` (README, the static probe, the tables, call C603), `97b451a` (the
+adoption trial). The source is in edition 2024 already: no edition commit.
+The dials take the caller's `pod_ws::Way`, the node's TLS the caller's
+provider, the API the caller's user agent, the record the caller's places,
+and `setting` the name of the caller's variable (call C603). The new fuzz
+target `opentunnel_answer` found two defects, fixed in place: an IPv6
+service on port 443 lost its brackets, and a service's host was not
+checked. Tests: `cargo test -p pod-opentunnel --all-features`: 25 unit
+tests and 1 of the fuzzing module pass; `tests/opentunnel_link.rs`, 7
+passed against the stand-in; `tests/opentunnel_interop.rs` runs in
+`opentunnel-interop.yml` against OpenTunnel's own server (it skips with no
+server here); `tests/opentunnel_live.rs` (ignored) runs in `live.yml`. The
+plants, each proved by hand: `opentunnel-t530-tunnel-not-kept` (the test
+of a second start fails), `opentunnel-ipv6-service-unbracketed` and
+`opentunnel-service-host-unchecked` (the tests of the two fixes fail). The
+fuzz targets `opentunnel_message` and `opentunnel_answer` passed their
+seeds and 20,000 mutations of each seed in a scratch crate.
+
+The trial, in a scratch copy of podssh at `b9c04657` after the patch of
+`pod-piping`, with the crates of this tree: cargo check of `podssh-relay`
+(all features, with its tests), `podssh-cli` and `podssh-iroh` (with their
+tests) passes; the lib tests of pinggy, localtunnel, hostc, bore and
+opentunnel (59) pass; podssh-cli `tests/opentunnel_road.rs` (4) and
+`tests/funnel_opentunnel.rs` (4) pass; podssh-todo check agrees after the
+remap of `Cargo.lock`. `adoption.yml` runs
+`adoption/podssh/pod-opentunnel.run` in CI.
+
+What podssh must do (PodUtils/podssh@T-684): apply
+`adoption/podssh/pod-opentunnel.patch` after the patch of `pod-piping`, at
+the release that holds the crate (the tag `v0.49.0`):
+`podssh_relay::opentunnel` becomes `pub use pod_opentunnel::*` with
+podssh's `ENV`; the calls of the CLI take podssh's way, user agent,
+provider and places (the adoption map of `crates/pod-opentunnel/README.md`);
+the road's tests, the plant t530 and the two workflows leave podssh; then
+the lines of src/opentunnel/ leave `crates/pod-opentunnel/SOURCES` here.
 
 # T-034: `pod-acme`: the ACME client
 
@@ -1187,4 +1268,31 @@ A new script scripts/ci/acme-tests.sh: fetch pinned releases of Pebble and pebbl
 
 ```sh
 cargo test -p pod-acme --all-features -- --ignored
+```
+
+# T-638: `pod-opentunnel`: the stand-in of OpenTunnel behind the feature `standin`
+
+**Source:** T-033 (a finding of its work).
+**Category:** feature
+**Milestone:** M4
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The tests of podssh's command line (`funnel_opentunnel`, `opentunnel_road`, `pinggy_stand_in`, `ssh_tunnel_http`) include the stand-in of OpenTunnel of podssh-relay by its path, so the adoption patch of `pod-opentunnel` keeps a copy of the stand-in in podssh. The stand-in of `pod-opentunnel` is private to its tests.
+
+## Premise
+
+- Read: the Done section of T-033 and calls C602, C603; `crates/pod-opentunnel/tests`; `adoption/podssh/pod-opentunnel.patch`; the feature `standin` of `crates/pod-wormhole/Cargo.toml` and `crates/pod-derp/Cargo.toml`.
+
+## Approach
+
+A module `standin` of `pod-opentunnel` behind the feature `standin` (its dependencies, such as rcgen and p256, optional), with the API that podssh's tests use; the tests of the crate take it from the crate. The README names the feature and says that no binary turns it on; `scripts/check-probe.py` lists it. The adoption patch of podssh then drops its copy.
+
+## Prove
+
+```sh
+cargo test -p pod-opentunnel --all-features
 ```

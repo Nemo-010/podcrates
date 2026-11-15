@@ -1,0 +1,54 @@
+[package]
+name = "pod-piping"
+description = "The Piping Server carrier: a POST and a GET of a Piping Server for each way of a link, over HTTP/2 or HTTP/1.1, in streamed or numbered pieces, under the resumable layer, for a way out that refuses the WebSocket upgrade; and the probe that tells that refusal from the relay's own."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+# The readers of the wire for the fuzz targets of fuzz/ (src/fuzzing.rs): a
+# hello at the door, an HTTP/1.1 answer with its body read with no runtime,
+# and a server's URL. No consumer turns it on.
+fuzzing = []
+
+[dependencies]
+# The text made safe to print, the names, the backoff, the entropy.
+pod-core = { workspace = true, features = ["async"] }
+# The trust of each connection, and its TLS handshake with the words of a
+# failure.
+pod-tls = { workspace = true }
+# The HTTP/1.1 head, the authority of a host.
+pod-proxy = { workspace = true }
+# The way out of the caller (its dialer, its TLS context, its user agent),
+# and the upgrade of the probe.
+pod-ws = { workspace = true }
+# The resumable layer under each session, and the keeper of the sessions.
+pod-session = { workspace = true }
+# The relay host that the probe asks.
+pod-relay = { workspace = true }
+# The public Piping Servers and the facts of each.
+pod-services = { workspace = true }
+tokio = { workspace = true, features = ["io-util", "net", "time", "sync", "rt", "macros"] }
+# HTTP/2 to a server that offers it by ALPN: pure Rust, which pod-ws takes
+# already.
+h2 = { workspace = true }
+http = { workspace = true }
+bytes = { workspace = true }
+rustls = { workspace = true }
+tokio-rustls = { workspace = true }
+rand = { workspace = true }
+zeroize = { workspace = true }
+# The paths and the marks of a pair: HMAC-SHA-256.
+sha2 = { workspace = true }
+hmac = { workspace = true }
+
+[dev-dependencies]
+pod-testkit = { workspace = true }
+# The way of the tests: TLS on ring.
+rustls = { workspace = true, features = ["ring"] }
+tokio = { workspace = true, features = ["io-util", "net", "time", "sync", "rt", "rt-multi-thread", "macros"] }
+# The digests of the bytes that the tests carry.
+sha2 = { workspace = true }

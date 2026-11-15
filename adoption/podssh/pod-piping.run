@@ -1,0 +1,31 @@
+# The trial of pod-piping in podssh (T-032; call C602), at podssh's main
+# b9c04657 (pod-piping.commit), where podssh froze src/piping/ for the move
+# (podssh T-684, PodUtils/podssh#248). crates/podssh-relay/src/piping/
+# becomes `pub use pod_piping as piping` (feature `piping`); smee's and
+# filehost's HTTP/1.1 take its dial, its reader, its paths and its Server.
+# podssh-cli gives the dial and the probe podssh's way out
+# (podssh_ws::client::way of the proxy of the environment) and its user
+# agent (podssh_ws::dial::user_agent). The road's tests, its harness, its
+# two plants and the workflow piping-rate.yml leave podssh; piping.yml keeps
+# the test of the commands (node_piping, with piping-server-rust). Each
+# podcrates tag moves to v0.50.0. The steps: the record with its citations,
+# the repository checks; no moved file stays; the crate in the tree; the
+# library with the features of the road and the tests of smee and filehost,
+# which take its dial; the CLI with the road, its unit tests of the road;
+# rustfmt of the crates that the patch changes; the test targets of the
+# gate; the toolchains.
+cargo run -q -p podssh-todo -- remap Cargo.lock > /dev/null
+cargo run -q -p podssh-todo -- check
+python3 scripts/check-repo.py
+test ! -e crates/podssh-relay/src/piping && test ! -e crates/podssh-relay/tests/piping.rs && test ! -e crates/podssh-relay/tests/piping_harness && test ! -e scripts/plants/t437-paths-swapped.plant
+cargo tree -q -p podssh-relay --features piping -i pod-piping | grep -q '^pod-piping v'
+cargo build -q -p podssh-relay --features piping,smee,filehost
+cargo clippy -q --all-targets -p podssh-relay --features piping,smee,filehost -- -D warnings -A clippy::collapsible_if
+cargo test -q -p podssh-relay --features piping,smee,filehost --lib -- smee filehost
+cargo test -q -p podssh-relay --features serve,plain-ws,piping --test http_road
+cargo clippy -q --all-targets -p podssh-cli -- -D warnings -A clippy::collapsible_if
+cargo test -q -p podssh-cli --lib piping
+cargo test -q -p podssh-cli --test smee_road
+cargo fmt -p podssh-relay -p podssh-cli --check
+python3 -I "$PODCRATES/scripts/check-consumer-toolchains.py"
+python3 -I "$PODCRATES/scripts/check-consumer-tests.py"

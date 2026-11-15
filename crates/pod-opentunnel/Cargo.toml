@@ -1,0 +1,49 @@
+[package]
+name = "pod-opentunnel"
+description = "The OpenTunnel carrier: a tunnel of OpenTunnel made once and kept, a bridge that carries each visitor's TLS still encrypted, the node that ends it with the tunnel's key, and the client's TLS by name on port 443, under the resumable layer, through the caller's way out."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+# The readers of the wire for the fuzz targets of fuzz/ (src/fuzzing.rs): a
+# message of the bridge, an answer of the API, a service's URL and a node's
+# name. No consumer turns it on.
+fuzzing = []
+
+[dependencies]
+# The text made safe to print, the files of the cache, the clock.
+pod-core = { workspace = true, features = ["async"] }
+# The trust of each connection, and the server side of the node's TLS.
+pod-tls = { workspace = true }
+# The HTTP/1.1 exchange of the API, the authority of a host.
+pod-proxy = { workspace = true }
+# The way out of the caller, the WebSocket of a bridge.
+pod-ws = { workspace = true }
+# The resumable layer under each session, and the keeper of the sessions.
+pod-session = { workspace = true }
+# The hosted service and its endpoint.
+pod-services = { workspace = true }
+tokio = { workspace = true, features = ["io-util", "net", "time", "sync", "rt", "macros"] }
+rustls = { workspace = true }
+serde_json = { workspace = true }
+rand = { workspace = true }
+zeroize = { workspace = true }
+
+[dev-dependencies]
+pod-testkit = { workspace = true }
+# The way of the tests and the TLS of the stand-in: ring.
+rustls = { workspace = true, features = ["ring"] }
+tokio = { workspace = true, features = ["io-util", "net", "time", "sync", "rt", "rt-multi-thread", "macros"] }
+# The stand-in's own CA and the credentials of a test's node (a P-256 key
+# and the CSR of its name), as podssh's tests made them.
+rcgen = { version = "0.14", default-features = false }
+p256 = { workspace = true, features = ["getrandom"] }
+base64 = { workspace = true }
+serde_json = { workspace = true }
+zeroize = { workspace = true }
+# The digests of the bytes that the tests carry.
+sha2 = { workspace = true }

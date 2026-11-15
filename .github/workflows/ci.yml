@@ -141,6 +141,13 @@ jobs:
       # static binary, checked by its SHA-256. A skip fails the step.
       - name: pod-wormhole against ntfy
         run: sh scripts/ci/ntfy-tests.sh
+      # The Piping Server carrier of pod-piping against nwtgck's two servers
+      # on 127.0.0.1 (T-032): piping-server 1.12.9 from the packages of
+      # scripts/ci/piping-server/package-lock.json, each by its integrity
+      # hash, and the release of piping-server-rust 0.18.0, a static binary,
+      # checked by its SHA-256. A test that did not run fails the step.
+      - name: pod-piping against nwtgck's Piping Servers
+        run: sh scripts/ci/piping-tests.sh
       # The pairing by a code against magic-wormhole's own mailbox server and
       # library on 127.0.0.1 (T-354): the packages of
       # scripts/ci/wormhole-servers.txt, each with its SHA-256, from PyPI. A

@@ -1,0 +1,27 @@
+# The files of this crate that came from another repository
+# (docs/design.md, section 9). A file line holds the git blob id at the
+# commit (`git ls-tree COMMIT -- PATH` gives it). scripts/check-sources.py
+# compares each with the default branch of its repository.
+
+repo PodUtils/podssh b9c04657bf4e283263ef34ba2462be297231cd38
+# podssh froze src/piping/ at this commit for the move (podssh T-684,
+# PodUtils/podssh#248). mod.rs is the root of the crate (lib.rs). The tests
+# of tests/piping.rs, tests/piping_live.rs and their harness come whole.
+dir crates/podssh-relay/src/piping
+file cbb9ad998a9fb8bed4bf1cc5d50c2671a0d96db6 crates/podssh-relay/src/piping/client.rs -> crates/pod-piping/src/client.rs
+file 6a5fdcdaddd6d14289d7666b44250b63bc1d37e3 crates/podssh-relay/src/piping/dial.rs -> crates/pod-piping/src/dial.rs
+file 3f7f62ab78855fb3177fe86e228cfbff5fa80265 crates/podssh-relay/src/piping/exchange.rs -> crates/pod-piping/src/exchange.rs
+file 6de5715bad0784c67d8c47c831b39e108bf36225 crates/podssh-relay/src/piping/exchange_tests.rs -> crates/pod-piping/src/exchange_tests.rs
+file 252b075fed7a293604805281f498fe8dff4583f7 crates/podssh-relay/src/piping/far.rs -> crates/pod-piping/src/far.rs
+file 993976143661a41be1b6e976299fcf5599d8b7fd crates/podssh-relay/src/piping/flow.rs -> crates/pod-piping/src/flow.rs
+file 97b399055600c8903e102bfcf79b4794faa6a92d crates/podssh-relay/src/piping/http1.rs -> crates/pod-piping/src/http1.rs
+file cf618d39c16e5757db03962257a7569608895959 crates/podssh-relay/src/piping/http1_tests.rs -> crates/pod-piping/src/http1_tests.rs
+file 8794dce46b2b9b4cbefc7d279ad151e5a8d94844 crates/podssh-relay/src/piping/http2.rs -> crates/pod-piping/src/http2.rs
+file 7ef3b1377d24d87e044aef2699633895edb01a67 crates/podssh-relay/src/piping/mod.rs -> crates/pod-piping/src/lib.rs
+file 0d936d15c05b3a37bc38cb12c60fe7c5e288b47d crates/podssh-relay/src/piping/numbered.rs -> crates/pod-piping/src/numbered.rs
+file 58fe87119d54de40a8bab2630eb5798871c3b7dd crates/podssh-relay/src/piping/paths.rs -> crates/pod-piping/src/paths.rs
+file 7007eddfd6265c2ada396e815b00ba1360647230 crates/podssh-relay/src/piping/probe.rs -> crates/pod-piping/src/probe.rs
+file 6661389f9c2842d90724d8749c54317f29c1bdaf crates/podssh-relay/src/piping/server.rs -> crates/pod-piping/src/server.rs
+file f085a97c337dc8eed45f689088cdf481d96f07de crates/podssh-relay/tests/piping.rs -> crates/pod-piping/tests/piping.rs
+file df8322e8eb01ba8d90a4349187f3339497ad7a0c crates/podssh-relay/tests/piping_harness/mod.rs -> crates/pod-piping/tests/piping_harness/mod.rs
+file a19acf0a30e08521d51e2ff684ae6c30a4783d09 crates/podssh-relay/tests/piping_live.rs -> crates/pod-piping/tests/piping_live.rs
