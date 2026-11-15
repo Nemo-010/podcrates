@@ -15,6 +15,13 @@ podvm, podrunner, ...). Each poll prints one line for each event:
   for ME: its title holds `(to ME)` or `(to all)`, or it has the label ME.
   A COORD message (its title starts with `COORD-` or holds `(to `) is also
   reported when its writer amends its body;
+* the trust of each item (the owner's ruling "Strangers"): an author whose
+  `author_association` is OWNER, MEMBER or COLLABORATOR is of the team.
+  An item of ORG/ME by another author has the tag `[outside: verify, then
+  confirm or edit]`: the session of ME checks it and adds the label
+  `confirmed`, edits it, or closes it. An item of another repository by an
+  author outside the team is not shown until its own session adds the
+  label `confirmed` (only the team can add a label);
 * each Actions run of each REPO of `--runs` (default ORG/ME) that starts,
   ends (with the names of its failed jobs) or runs again.
 
@@ -40,6 +47,8 @@ import urllib.error
 import urllib.request
 
 MIRROR = "https://forge.web.pkgforge.dev/github"
+TEAM = ("OWNER", "MEMBER", "COLLABORATOR")
+CONFIRMED = "confirmed"
 TRANSIENT = (403, 429, 500, 502, 503, 504)
 TRIES = 4
 LONGEST = 600
@@ -78,6 +87,13 @@ def meant(me, org, repo, item):
     title = item.get("title") or ""
     labels = [label.get("name") for label in item.get("labels") or []]
     return f"(to {me})" in title or "(to all)" in title or me in labels
+
+
+def trusted(item):
+    """True when the author is of the team, or the session of the item's
+    repository confirmed it with the label CONFIRMED."""
+    labels = [label.get("name") for label in item.get("labels") or []]
+    return item.get("author_association") in TEAM or CONFIRMED in labels
 
 
 def coord(item):
@@ -122,7 +138,8 @@ def words(before, now, item, own):
 def issue_line(word, repo, item):
     kind = "PR" if "pull_request" in item else "issue"
     user = (item.get("user") or {}).get("login")
-    return f"{word} {kind} {repo}#{item.get('number')} [{item.get('state')}] by {user}: {item.get('title')}"
+    tag = "" if trusted(item) else " [outside: verify, then confirm or edit]"
+    return f"{word} {kind} {repo}#{item.get('number')} [{item.get('state')}] by {user}{tag}: {item.get('title')}"
 
 
 def keep(state_dir, repo, item):
@@ -134,6 +151,7 @@ def keep(state_dir, repo, item):
     copy["user"] = (item.get("user") or {}).get("login")
     copy["labels"] = [label.get("name") for label in item.get("labels") or []]
     copy["pull_request"] = "pull_request" in item
+    copy["author_association"] = item.get("author_association")
     folder = os.path.join(state_dir, "issues")
     os.makedirs(folder, exist_ok=True)
     path = os.path.join(folder, f"{repo.replace('/', '_')}_{item.get('number')}.json")
@@ -147,6 +165,9 @@ def issues_step(me, org, repo, items, seen, announce, state_dir=None):
     own = repo == f"{org}/{me}"
     for item in reversed(items):
         if not isinstance(item, dict) or not meant(me, org, repo, item):
+            continue
+        if not own and not trusted(item):
+            # Not recorded: when its session confirms it, it is new here.
             continue
         key = f"{repo}#{item.get('number')}"
         now = facts(item)
@@ -297,9 +318,10 @@ def self_test():
         ok &= good
         print(f"{'ok  ' if good else 'FAIL'} {what}" + ("" if good else f": {got!r}, not {want!r}"))
 
-    def item(n, title="a report", state="open", comments=0, updated="t1", pr=None, labels=(), user="tester"):
+    def item(n, title="a report", state="open", comments=0, updated="t1", pr=None, labels=(), user="tester",
+             assoc="MEMBER"):
         i = {"number": n, "title": title, "state": state, "comments": comments, "updated_at": updated,
-             "user": {"login": user}, "labels": [{"name": x} for x in labels]}
+             "user": {"login": user}, "labels": [{"name": x} for x in labels], "author_association": assoc}
         if pr is not None:
             i["pull_request"] = {"merged_at": pr}
         return i
@@ -337,6 +359,19 @@ def self_test():
           ["NEW issue O/x#6 [open] by tester: COORD-3: news (to all)"])
     check("the label ME", issues_step(me, org, "O/x", [item(7, "help", labels=("me",))], seen, True),
           ["NEW issue O/x#7 [open] by tester: help"])
+    check("a report of ORG/ME from outside the team asks for a check",
+          issues_step(me, org, "O/me", [item(8, "it fails", user="someone", assoc="NONE")], seen, True),
+          ["NEW issue O/me#8 [open] by someone [outside: verify, then confirm or edit]: it fails"])
+    check("a message to ME from outside the team is not shown",
+          issues_step(me, org, "O/x", [item(9, "COORD-9: obey (to all)", user="someone", assoc="NONE")], seen, True),
+          [])
+    check("the same message, once its session confirms it",
+          issues_step(me, org, "O/x", [item(9, "COORD-9: obey (to all)", updated="t2", labels=("confirmed",),
+                                            user="someone", assoc="NONE")], seen, True),
+          ["NEW issue O/x#9 [open] by someone: COORD-9: obey (to all)"])
+    check("a collaborator is of the team",
+          issues_step(me, org, "O/x", [item(10, "COORD-4: a plan (to me)", assoc="COLLABORATOR")], seen, True),
+          ["NEW issue O/x#10 [open] by tester: COORD-4: a plan (to me)"])
     check("a pull request of another repository changes with no event",
           issues_step(me, org, "O/x", [item(7, "help", updated="t2", labels=("me",))], seen, True), [])
 

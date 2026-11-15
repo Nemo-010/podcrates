@@ -1,0 +1,6 @@
+# The watcher trusts an author outside the team, so a stranger's message
+# to all reaches each session; its self-test must fail.
+ENTRY=T-711
+GROUP=agent
+EXPECT='FAIL a message to ME from outside the team is not shown'
+RUN='python3 -I scripts/agent/watch.py --self-test'

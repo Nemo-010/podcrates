@@ -1,6 +1,6 @@
 --- a/scripts/agent/watch.py
 +++ b/scripts/agent/watch.py
-@@ -77,7 +77,7 @@
+@@ -86,7 +86,7 @@
          return True
      title = item.get("title") or ""
      labels = [label.get("name") for label in item.get("labels") or []]
@@ -8,4 +8,4 @@
 +    return f"(to {me})" in title or me in labels
  
  
- def coord(item):
+ def trusted(item):

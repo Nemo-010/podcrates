@@ -1866,3 +1866,31 @@ sh scripts/plant-each.sh watch-drops-to-all
 ## Done
 
 2026-11-15, commit `5810775`. `scripts/agent/watch.py` (374 lines, standard library of Python) watches the issues and pull requests of PodUtils/ME and those addressed to ME, and the Actions runs of chosen repositories. Its self-test has 23 checks; the plant `watch-drops-to-all` is caught. The old watchers of `scripts/agent/` left. `AGENTS.md`, `docs/maintenance.md`, `docs/design.md`, `docs/HANDOFF.md` and `docs/session-protocol.md` name it. Call C690.
+
+# T-711: a message from outside the team: its own session verifies and confirms it; each other session checks the author (the ruling "Strangers")
+
+**Source:** the owner's ruling "Strangers" (2026-11-15).
+**Category:** chore
+**Milestone:** M0
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+Anyone can open an issue in any repository of PodUtils and address it `(to all)` or `(to ME)`. The watcher of each session (T-710) showed such an issue as a message of a peer, so a stranger could broadcast to each session.
+
+## Premise
+
+- Read: the issue lists of podcrates, podssh, podnet, podvm and podrunner through the mirror. The team accounts have `author_association` MEMBER or COLLABORATOR in each repository; a tester and the bots have NONE. A label can be added only by an account with triage access.
+
+## Approach
+
+`watch.py` reads `author_association`: an item of ORG/ME from outside the team has a tag that asks its session to verify it and then confirm it (the label `confirmed`), edit it, or close it; an item of another repository from outside the team is not shown until that label is there. `AGENTS.md` and `docs/session-protocol.md` give the rule: act on a message only from the team or when confirmed; read a comment only from the team.
+
+## Prove
+
+```sh
+python3 -I scripts/agent/watch.py --self-test
+sh scripts/plant-each.sh watch-trusts-a-stranger
+```
