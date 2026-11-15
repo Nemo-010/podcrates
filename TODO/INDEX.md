@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**536 entries: 107 open, 9 partial, 6 blocked, 414 done.**
+**537 entries: 107 open, 9 partial, 6 blocked, 415 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 12 | 3 | 0 | 109 | 124 |
+| P1 | 12 | 3 | 0 | 110 | 125 |
 | P2 | 45 | 3 | 4 | 218 | 270 |
 | P3 | 50 | 3 | 2 | 85 | 140 |
-| **All** | 107 | 9 | 6 | 414 | 536 |
+| **All** | 107 | 9 | 6 | 415 | 537 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -582,4 +582,5 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-649](podvm.md) | P3 | M | M6 | feature | open | `pod-guest`: a FAT image writer with directories, long names and a size from the content (PodUtils/podvm#386) |
 | [T-650](podvm.md) | P2 | S | M7 | feature | done | `pod-qga`: `guest-get-osinfo` (PodUtils/podvm#393) |
 | [T-651](podvm.md) | P2 | S | M6 | feature | done | `pod-services`: the aarch64 netboot of Alpine 3.22.6 and the static `qemu-system-aarch64` (PodUtils/podvm#394) |
-| [T-677](upkeep.md) | P1 | S | M5 | defect | open | `plants.yml` passes its limit of 60 minutes: the plants run in shards |
+| [T-677](upkeep.md) | P1 | S | M5 | defect | done | `plants.yml` passes its limit of 60 minutes: the plants run in shards |
+| [T-678](upkeep.md) | P1 | S | M5 | defect | open | three plants of `pod-extract` no longer catch: a second guard holds their check |

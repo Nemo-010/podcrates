@@ -1833,7 +1833,7 @@ sh scripts/adoption.sh podssh pod-egress
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1856,3 +1856,42 @@ python3 scripts/check-workflows.py
 ```
 
 The run of `plants.yml` on the commit passes each shard.
+
+## Done
+
+2026-11-15, commit `98017c3`, and the fixes that its first run found in the next commit. `scripts/plant-shard.py` and the matrix of six shards in `plants.yml`. The run 43690607111 at `98017c3` ended each shard in 17 to 30 minutes (the limit is 60). Its findings: the plants `services-t552-forward-before-session` and `services-t552-shell-not-command` named a test module that moved (`forward_order`), and ran no test; the plants `extract-t581-kept-mode-not-recorded` and `extract-t605-kept-dir-mode-not-recorded` ran a test that skips as a user, and now run `scripts/ci/root-uid1000-tests.sh`; the four are caught here as root. Three other plants miss: T-678. The table of `scripts/` in `docs/design.md` names `plant-shard.py` (`check-design-paths.py`, the red step of `ci` 43690600539).
+
+# T-678: three plants of `pod-extract` no longer catch: a second guard holds their check
+
+**Source:** the run of `plants.yml` 43690607111 at `98017c3` (the first run of each shard, T-677).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The first run of each plant since the full set stopped (T-677) missed three plants of `pod-extract`, as root too:
+
+- `extract-t597-pass-only-widens` (T-597): the patch makes the permission pass between layers set only the directories that it widens; `drive::umask::the_modes_of_the_image_stay_under_a_umask_of_027` still passes. The pass after the last layer (`modes::DirModes::set`, T-598) sets the mode of each directory again.
+- `extract-t598-existing-directory-not-opened` (T-598): the patch removes the `fchmod` of a directory that exists in `apply.rs`; `drive::dirmodes::a_second_extraction_over_a_closed_tree_passes` (as root, through a worker of uid 1000) still passes.
+- `extract-t598-whiteout-parent-not-opened` (T-598): the patch removes the `open_for_write` of the parent of a whiteout in `remove.rs`; the same test still passes.
+
+A plant that defeats one guard of two proves nothing of the check.
+
+## Premise
+
+- Read: the log of shard 4 of the run; the three patches; `crates/pod-extract/src/apply.rs` (`repermission`, the `fchmod` of an existing directory), `crates/pod-extract/src/drive/umask.rs`, `crates/pod-extract/src/drive/dirmodes.rs`.
+- Measured: each of the three plants missed here as root, with `sh scripts/ci/root-uid1000-tests.sh`.
+- Not measured: which second guard holds each check.
+
+## Approach
+
+For each plant: find the second guard (apply the plant, then remove each candidate in turn until the test fails), then either make the plant defeat both (one patch, one defect: the behaviour that the entry fixed) or give the test a case that only the first guard holds. Run each with `plant-each.sh` as root.
+
+## Prove
+
+```sh
+sh scripts/plant-each.sh extract-t597-pass-only-widens extract-t598-existing-directory-not-opened extract-t598-whiteout-parent-not-opened
+```
