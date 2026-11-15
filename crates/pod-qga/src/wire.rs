@@ -194,6 +194,52 @@ impl ExecStatus {
     }
 }
 
+/// The answer of `guest-get-osinfo`. The agent leaves out each member
+/// that it does not know, so each is optional. On Windows, `name` and
+/// `version` name the edition and its release.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct OsInfo {
+    pub id: Option<String>,
+    pub name: Option<String>,
+    pub pretty_name: Option<String>,
+    pub version: Option<String>,
+    pub version_id: Option<String>,
+    pub variant: Option<String>,
+    pub variant_id: Option<String>,
+    pub kernel_release: Option<String>,
+    pub kernel_version: Option<String>,
+    pub machine: Option<String>,
+}
+
+impl OsInfo {
+    /// The facts of a `guest-get-osinfo` return. A member that is not a
+    /// text is an error.
+    pub fn from_return(ret: &Value) -> Result<OsInfo, String> {
+        if !ret.is_object() {
+            return Err("the return of the OS information is not an object".into());
+        }
+        let text = |key: &str| -> Result<Option<String>, String> {
+            match ret.get(key) {
+                None => Ok(None),
+                Some(Value::String(s)) => Ok(Some(s.clone())),
+                Some(_) => Err(format!("{key:?} of the return is not a text")),
+            }
+        };
+        Ok(OsInfo {
+            id: text("id")?,
+            name: text("name")?,
+            pretty_name: text("pretty-name")?,
+            version: text("version")?,
+            version_id: text("version-id")?,
+            variant: text("variant")?,
+            variant_id: text("variant-id")?,
+            kernel_release: text("kernel-release")?,
+            kernel_version: text("kernel-version")?,
+            machine: text("machine")?,
+        })
+    }
+}
+
 /// The bytes of one `guest-file-read`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Chunk {

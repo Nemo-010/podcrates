@@ -8466,3 +8466,35 @@ A module `fat` of `pod-guest` beside `fat16`: the layout of FAT16 or FAT32 from 
 ```sh
 cargo test -p pod-guest --all-features
 ```
+
+# T-650: `pod-qga`: `guest-get-osinfo` (PodUtils/podvm#393)
+
+**Source:** PodUtils/podvm#393 (COORD-127 of podvm; PodUtils/podvm@T-1868).
+**Category:** feature
+**Milestone:** M7
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+podvm asks for a client of the QEMU Guest Agent for a running Windows guest: the sync and `guest-ping` with a bound; `guest-exec` with the output and `guest-exec-status` to the end; the file calls in chunks; `guest-shutdown` and `guest-get-osinfo`; the channel `org.qemu.guest_agent.0` on a socket of the run. `pod-qga` (T-594, in `v0.45.0`) has each call but `guest-get-osinfo`, and `pod_guest::plan` has the channel (`QGA_CHANNEL`).
+
+## Premise
+
+- Read: PodUtils/podvm#393; `crates/pod-qga/src/client.rs`, `crates/pod-qga/src/wire.rs`, `crates/pod-guest/src/plan/options.rs`; the schema of `guest-get-osinfo` (`GuestOSInfo` of `qga/qapi-schema.json` of QEMU: each member optional).
+- Not measured: the agent of virtio-win on Windows.
+
+## Approach
+
+`wire::OsInfo` with `from_return` (each member an optional text; a member that is not a text is an error) and `Client::osinfo`. A test of the wire and a test against the stand-in agent. Tell podvm that the rest of the ask is in `v0.45.0`.
+
+## Prove
+
+```sh
+cargo test -p pod-qga --all-features
+```
+
+## Done
+
+2026-11-15, the commit of the change. `wire::OsInfo`, `Client::osinfo`, the answer of the stand-in agent; the tests `osinfo_takes_each_member_that_is_there_and_names_a_wrong_one` and `osinfo_names_the_system_of_the_guest`. `cargo test -p pod-qga --all-features` passed (28 tests); clippy of the crate is clean.

@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**533 entries: 107 open, 9 partial, 6 blocked, 411 done.**
+**534 entries: 107 open, 9 partial, 6 blocked, 412 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 12 | 3 | 0 | 108 | 123 |
-| P2 | 45 | 3 | 4 | 216 | 268 |
+| P2 | 45 | 3 | 4 | 217 | 269 |
 | P3 | 50 | 3 | 2 | 85 | 140 |
-| **All** | 107 | 9 | 6 | 411 | 533 |
+| **All** | 107 | 9 | 6 | 412 | 534 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -580,3 +580,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-647](podvm.md) | P2 | S | M6 | feature | done | `pod-services`: the host `api.ghcr.pkgforge.dev` of the static QEMU of podvm's store (PodUtils/podvm#389) |
 | [T-648](podvm.md) | P2 | S | M6 | feature | done | `pod-hostprobe`: a leg that reports a delegated cgroup2 subtree with no root (PodUtils/podvm#390) |
 | [T-649](podvm.md) | P3 | M | M6 | feature | open | `pod-guest`: a FAT image writer with directories, long names and a size from the content (PodUtils/podvm#386) |
+| [T-650](podvm.md) | P2 | S | M7 | feature | done | `pod-qga`: `guest-get-osinfo` (PodUtils/podvm#393) |

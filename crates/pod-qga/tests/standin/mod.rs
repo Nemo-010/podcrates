@@ -66,6 +66,11 @@ impl Guest {
                 Reply::Raw(b)
             }
             "guest-ping" => Reply::Return(json!({})),
+            "guest-get-osinfo" => Reply::Return(json!({
+                "id": "mswindows", "name": "Microsoft Windows", "pretty-name": "Windows Server 2019 Standard",
+                "version": "Microsoft Windows Server 2019", "version-id": "2019", "variant": "server",
+                "variant-id": "server", "kernel-release": "17763", "kernel-version": "10.0", "machine": "x86_64"
+            })),
             "guest-exec" => {
                 let pid = 4000 + self.next;
                 self.execs.insert(pid, (req["arguments"].clone(), 0));

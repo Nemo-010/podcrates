@@ -152,3 +152,17 @@ fn an_empty_path_and_a_read_of_no_byte_are_refused_before_a_request() {
     assert_eq!(c.file_read(1, 0).expect_err("no byte").class(), Class::Usage);
     assert_eq!(agent.guest.lock().unwrap().calls(), ["guest-sync-delimited"]);
 }
+
+/// `guest-get-osinfo` gives the system of the guest, each member by its
+/// name.
+#[test]
+fn osinfo_names_the_system_of_the_guest() {
+    let agent = Agent::plain("osinfo");
+    let mut c = Client::connect(agent.settings()).expect("connect");
+    let os = c.osinfo().expect("osinfo");
+    assert_eq!(os.id.as_deref(), Some("mswindows"));
+    assert_eq!(os.pretty_name.as_deref(), Some("Windows Server 2019 Standard"));
+    assert_eq!(os.version_id.as_deref(), Some("2019"));
+    assert_eq!(os.kernel_release.as_deref(), Some("17763"));
+    assert_eq!(os.machine.as_deref(), Some("x86_64"));
+}

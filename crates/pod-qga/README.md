@@ -51,6 +51,7 @@ The emulator side: `-chardev socket,path=qga.sock,server=on,wait=off,id=qga0
 | `Client::read_file(path, limit)` | open `r`, reads of `Settings::chunk` to the end, close | the bytes, at most `limit` |
 | `Client::write_file(path, data)` | open `w`, writes of `Settings::chunk`, close | `()` |
 | `Client::shutdown(Shutdown)` | `guest-shutdown` (`powerdown`, `halt`, `reboot`) | `()` |
+| `Client::osinfo()` | `guest-get-osinfo` | `OsInfo`: `id`, `name`, `pretty_name`, `version`, `version_id`, `variant`, `variant_id`, `kernel_release`, `kernel_version`, `machine`, each optional |
 | `wire::{request, answer, sync_id, exec_pid, file_handle, written, base64}`, `Answer`, `Exec`, `ExecStatus`, `Chunk`, `OpenMode`, `Shutdown`, `SENTINEL` | the JSON, as pure functions on each target | |
 | `Error` (`call`, `kind`, `class`, `agent_class`, `stage`), `ErrorKind`, `Result` | | |
 
