@@ -31,6 +31,7 @@ pod-actions-workflow = { path = "crates/pod-actions-workflow", version = "0.49.0
 pod-broker = { path = "crates/pod-broker", version = "0.49.0" }
 pod-confine = { path = "crates/pod-confine", version = "0.49.0" }
 pod-core = { path = "crates/pod-core", version = "0.49.0", default-features = false }
+pod-derp = { path = "crates/pod-derp", version = "0.49.0" }
 pod-devtunnel = { path = "crates/pod-devtunnel", version = "0.49.0" }
 pod-dns = { path = "crates/pod-dns", version = "0.49.0" }
 pod-e2e = { path = "crates/pod-e2e", version = "0.49.0" }

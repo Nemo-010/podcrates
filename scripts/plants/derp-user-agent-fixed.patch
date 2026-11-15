@@ -1,0 +1,11 @@
+--- a/crates/pod-derp/src/dial.rs
++++ b/crates/pod-derp/src/dial.rs
+@@ -68,7 +68,7 @@ pub fn request(server: &Server, key: &str, user_agent: &str) -> Vec<u8> {
+     let mut out = String::with_capacity(256);
+     out.push_str(&format!("GET {PATH} HTTP/1.1\r\n"));
+     out.push_str(&format!("Host: {host}\r\n"));
+-    out.push_str(&format!("User-Agent: {}\r\n", pod_core::text::one_line(user_agent)));
++    out.push_str(&format!("User-Agent: pod-derp {}\r\n", user_agent.len()));
+     out.push_str("Upgrade: websocket\r\n");
+     out.push_str("Connection: Upgrade\r\n");
+     out.push_str(&format!("Sec-WebSocket-Key: {key}\r\n"));

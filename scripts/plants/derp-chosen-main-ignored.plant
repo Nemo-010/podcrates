@@ -1,0 +1,6 @@
+# The choice of the servers ignores the setting of the main fleet, which the
+# consumer gives in place of PODSSH_DERP_MAIN: the test of the choice must fail.
+ENTRY=T-031
+GROUP=derp
+EXPECT='test servers::tests::the_flag_names_the_servers_in_place_of_the_fleet \.\.\. FAILED'
+RUN='cargo test --no-fail-fast -p pod-derp --all-features --lib -- servers::tests::'

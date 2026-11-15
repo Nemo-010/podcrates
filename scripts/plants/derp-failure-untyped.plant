@@ -1,0 +1,6 @@
+# A client that finds no node gives a failure of the wrong stage and class: the
+# test of the stage and the class of each failure must fail.
+ENTRY=T-031
+GROUP=derp
+EXPECT='test a_failure_of_the_road_carries_its_stage_and_class \.\.\. FAILED'
+RUN='cargo test --no-fail-fast -p pod-derp --all-features --test derp_link -- a_failure_of_the_road_carries_its_stage_and_class'

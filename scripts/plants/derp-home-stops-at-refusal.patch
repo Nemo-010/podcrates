@@ -1,0 +1,14 @@
+--- a/crates/pod-derp/src/far.rs
++++ b/crates/pod-derp/src/far.rs
+@@ -138,7 +138,10 @@ where
+         let node = Node { secret: secret.clone(), server: server.clone(), dial: dial.clone(), events, names };
+         match connect(&node).await {
+             Ok(conn) => return (Some((server.clone(), conn)), missed),
+-            Err(why) => missed.push(format!("{server} answered its probe, then its handshake failed: {why}")),
++            Err(why) => {
++                missed.push(format!("{server} answered its probe, then its handshake failed: {why}"));
++                break;
++            }
+         }
+     }
+     (None, missed)

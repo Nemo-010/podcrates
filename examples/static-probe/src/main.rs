@@ -116,7 +116,7 @@ fn main() {
     lines.push(quic());
     lines.push(netstack());
     lines.push(mutual());
-    lines.push(relay::session());
+    lines.extend([relay::session(), relay::derp()]);
     lines.push(relay::e2e());
     lines.push(relay::wg());
     lines.push(relay_client::relay());

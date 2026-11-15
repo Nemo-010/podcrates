@@ -1,0 +1,11 @@
+--- a/crates/pod-derp/src/servers.rs
++++ b/crates/pod-derp/src/servers.rs
+@@ -187,7 +187,7 @@ pub fn for_client(home: &Server, main: bool) -> Vec<Server> {
+ /// list's order, which is the order in which a node of that list moves.
+ pub fn for_client_in(home: &Server, list: &[Server]) -> Vec<Server> {
+     let mut servers = vec![home.clone()];
+-    if list.contains(home) {
++    if list.contains(home) && list.is_empty() {
+         servers.extend(list.iter().filter(|server| *server != home).cloned());
+     }
+     servers

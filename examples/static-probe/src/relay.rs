@@ -1,5 +1,5 @@
 //! The crates of the relay's sessions and of its tunnels: pod-session,
-//! pod-e2e and pod-wg.
+//! pod-derp, pod-e2e and pod-wg.
 
 use std::sync::Arc;
 
@@ -28,6 +28,29 @@ pub fn session() -> String {
         pod_session::udp::framed(b"probe").map(|f| f.len()),
         census.sessions()
     )
+}
+
+/// pod-derp: a node's key from a seed, the client's info sealed to a
+/// server's key (NaCl's box) and opened there, a ticket written and read
+/// back, and a frame of the stream: the keys, the boxes and the codecs link
+/// in.
+pub fn derp() -> String {
+    use pod_derp::{Secret, Server, Ticket, frame, key};
+    let identity = pod_identity::Identity::from_seed(&[3; 32]);
+    let (node, server) = (Secret::of_node(&identity), Secret::from_bytes([4; 32]));
+    let sealed = node.seal(&server.public(), &key::client_info_json("static-probe"), [5; frame::NONCE]);
+    let opened = server.open(&node.public(), &sealed).map_or_else(|e| e, |b| format!("{} bytes opened", b.len()));
+    let ticket = Server::parse("derp.example.org").map(|home| Ticket {
+        node: identity.public(),
+        derp: node.public(),
+        server: home,
+    });
+    let read =
+        ticket.and_then(|t| Ticket::parse(&t.to_string())).map_or_else(|e| e, |t| format!("a ticket of {}", t.server));
+    let mut decoder = frame::Decoder::new();
+    decoder.push(&frame::ping(*b"probe!!!"));
+    let frame = decoder.decode().map_or_else(|e| e.to_string(), |f| f.map_or("no frame".into(), |f| f.name().into()));
+    format!("pod-derp: {opened}, {read}, {frame}")
 }
 
 /// pod-e2e: a transport of the channel from the keys of a handover (a

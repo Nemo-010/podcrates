@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**519 entries: 105 open, 8 partial, 6 blocked, 400 done.**
+**520 entries: 105 open, 8 partial, 6 blocked, 401 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 106 | 120 |
-| P2 | 49 | 2 | 4 | 209 | 264 |
-| P3 | 45 | 3 | 2 | 83 | 133 |
-| **All** | 105 | 8 | 6 | 400 | 519 |
+| P2 | 48 | 2 | 4 | 210 | 264 |
+| P3 | 46 | 3 | 2 | 83 | 134 |
+| **All** | 105 | 8 | 6 | 401 | 520 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -77,7 +77,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-028](adapters.md) | P1 | L | M3 | feature | partial | `pod-warp`: the WARP adapter |
 | [T-029](adapters.md) | P1 | L | M3 | feature | open | `pod-cloudflare`: the edge client, the tunnel and the quick tunnels (the base of podnet) |
 | [T-030](adapters.md) | P1 | M | M3 | feature | open | `pod-cloudflare`: podssh's quick tunnels onto the edge client |
-| [T-031](roads.md) | P2 | M | M4 | feature | open | `pod-derp`: the DERP client and the DERP carrier of a node |
+| [T-031](roads.md) | P2 | M | M4 | feature | done | `pod-derp`: the DERP client and the DERP carrier of a node |
 | [T-032](roads.md) | P3 | S | M4 | feature | open | `pod-piping`: the Piping Server carrier |
 | [T-033](roads.md) | P3 | S | M4 | feature | open | `pod-opentunnel`: the OpenTunnel carrier |
 | [T-034](roads.md) | P2 | S | M4 | feature | open | `pod-acme`: the ACME client |
@@ -566,3 +566,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-633](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: the screen sign of the readiness fails on Validation OS, so the provision never types into a Windows guest |
 | [T-634](relay.md) | P1 | S | M2 | defect | done | `pod-relay`: the run of a code fails over the Nostr relays alone, though `pod_wormhole::nostr` pairs (PodUtils/podssh#247) |
 | [T-635](podvm.md) | P3 | S | M7 | feature | open | `pod-guest`: a setting of the bus of the root disk, so that a warm start runs on QEMU 8.2 |
+| [T-636](roads.md) | P3 | S | M4 | chore | open | `pod-derp`: the tests of the DERP link against Tailscale's derper on the loopback in CI |

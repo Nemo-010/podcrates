@@ -1,0 +1,11 @@
+--- a/crates/pod-derp/src/conn.rs
++++ b/crates/pod-derp/src/conn.rs
+@@ -242,7 +242,7 @@ impl Inner {
+                 };
+                 self.fail_peer(Key(key), why);
+             }
+-            Frame::Health(text) if text.is_empty() => {}
++            Frame::Health(_) => {}
+             Frame::Health(text) => {
+                 self.events.event(Event::warn(HEALTH, format!("the DERP server {} says: {text}", self.server)))
+             }

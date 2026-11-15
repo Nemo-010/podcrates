@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 519 entries: 105 open, 8 partial, 6 blocked, 400 done.
+`TODO/INDEX.md` holds 520 entries: 105 open, 8 partial, 6 blocked, 401 done.
 
 ## State
 
@@ -73,7 +73,7 @@ podvm. An entry that waits for another session stays as it is; take the
 next entry.
 
 First: the takes of `v0.49.0` (#163). Then the move of podssh's waves 3 and 4 (the ruling "The move
-of podssh", PodUtils/podssh#248): T-027, T-034, T-032, T-033, T-031;
+of podssh", PodUtils/podssh#248): T-027, T-034, T-032, T-033;
 T-035; T-038, T-037, T-029, T-030, T-039; T-036.
 Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
@@ -110,7 +110,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
       ARQ, when podnet asks), T-501 (`pod-turn` with RFC 6062), T-027,
       T-214 and T-215 (`pod-transit`, `pod-wormhole`).
    e. Then: T-029 and T-030 (`pod-cloudflare`), T-035 and T-302
-      (`pod-egress`), T-031 (`pod-derp`), T-039 (`pod-ts`), T-034
+      (`pod-egress`), T-039 (`pod-ts`), T-034
       (`pod-acme`), T-502 (a headscale harness).
    The rest of `pod-warp`: T-339 (partial: the trial patches and the
    live run), T-482, T-481, T-470, T-410, T-409; T-407 (the fuzz targets
@@ -140,7 +140,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
    (`pod-netstack`).
 7. **M3, the adapters:** T-027, T-028, T-029, T-030.
 8. **M4, the roads:** T-131 (a defect of `pod-gsr` on Windows ARM64)
-   first; then T-031, T-034, T-035, T-033, T-032, T-036, T-037,
+   first; then T-034, T-035, T-033, T-032, T-036, T-037,
    T-038, T-039.
 9. **M5, the upkeep:** T-312 (a
    code fence that is not closed in the record). A "port" entry for each

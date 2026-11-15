@@ -1,0 +1,19 @@
+--- a/crates/pod-derp/src/standin.rs
++++ b/crates/pod-derp/src/standin.rs
+@@ -182,7 +182,6 @@ impl StandIn {
+         // nothing, and the client was never cut).
+         let queue = Arc::new(Queue::default());
+         let cut = Arc::new(Notify::new());
+-        lock(&self.clients).insert(key, Client { queue: queue.clone(), cut: cut.clone() });
+         let answer = [9u8; 24];
+         let sealed = opener.encrypt(&crypto_box::Nonce::from(answer), &b"{\"version\":2}"[..]).expect("a box");
+         // Counted before the answer, as the client is registered: a client
+@@ -196,6 +195,8 @@ impl StandIn {
+             }
+             return;
+         }
++        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
++        lock(&self.clients).insert(key, Client { queue: queue.clone(), cut: cut.clone() });
+         let writing = tokio::spawn({
+             let queue = queue.clone();
+             async move {

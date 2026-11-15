@@ -1,0 +1,6 @@
+# The server's words on a connection (a health frame) go to no sink: the test
+# of the node's events must wait for the event of its kind and fail.
+ENTRY=T-031
+GROUP=derp
+EXPECT='test a_node_s_lines_are_events_of_their_kinds \.\.\. FAILED'
+RUN='cargo test --no-fail-fast -p pod-derp --all-features --test derp_link -- a_node_s_lines_are_events_of_their_kinds'

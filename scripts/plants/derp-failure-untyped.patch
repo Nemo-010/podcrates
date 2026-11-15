@@ -1,0 +1,11 @@
+--- a/crates/pod-derp/src/client.rs
++++ b/crates/pod-derp/src/client.rs
+@@ -121,7 +121,7 @@ impl Dialer {
+             }
+         }
+         let text = format!("no link to the node: {}", missed.join("; "));
+-        Err(Failure::new(Stage::Relay, Class::Unavailable, text))
++        Err(Failure::new(Stage::Session, Class::Protocol, text))
+     }
+ 
+     async fn connect(&self, at: usize) -> Result<Conn, Failure> {
