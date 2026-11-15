@@ -1,0 +1,55 @@
+# The files of this crate that came from another repository
+# (docs/design.md, section 9). A file line holds the git blob id at the
+# commit (`git ls-tree COMMIT -- PATH` gives it). scripts/check-sources.py
+# compares each with the default branch of its repository.
+
+repo PodUtils/podssh 2ffb7cd77731e24a98e93c106ca7db7c5c4bd472
+# podssh froze these roads of podssh-ws at this commit for the move
+# (PodUtils/podssh@T-684, PodUtils/podssh#248): a fix there until podssh
+# takes the crate is ported here. forwarder/carry.rs and forwarder/end.rs
+# are the shared parts of each road here (src/carry.rs, src/end.rs). The
+# other roads of the directories of podssh-ws (vless/, vmess/, trojan/,
+# shadowsocks/, eice/, iap/) join the crate in later parts of T-035.
+dir crates/podssh-ws/src/via
+dir crates/podssh-ws/src/forwarder
+dir crates/podssh-ws/src/wstunnel
+dir crates/podssh-ws/src/wisp
+dir crates/podssh-ws/src/meek
+dir crates/podssh-ws/tests/wisp_support
+file c27117e48cc1bead41565be582810c563d65eece crates/podssh-ws/src/via/mod.rs -> crates/pod-egress/src/via/mod.rs
+file 1823e77aa37ea5ab239972f21437834916acdf99 crates/podssh-ws/src/via/http1.rs -> crates/pod-egress/src/via/http1.rs
+file c8c547c57ad2d7730084f40cb4d345c889377b85 crates/podssh-ws/src/via/http2.rs -> crates/pod-egress/src/via/http2.rs
+file 1fca9f4f4ac9342ba70abf960b460f8f8963f7c4 crates/podssh-ws/src/via/tests.rs -> crates/pod-egress/src/via/tests.rs
+file 47c110325db837f7503668f56321e19c66ff1848 crates/podssh-ws/src/forwarder/mod.rs -> crates/pod-egress/src/forwarder/mod.rs
+file c15687e43202974f1daf231193a3efdc3b1ceef0 crates/podssh-ws/src/forwarder/builtin.rs -> crates/pod-egress/src/forwarder/builtin.rs
+file b092c3d9d76dae428986126617b125910e347e13 crates/podssh-ws/src/forwarder/template.rs -> crates/pod-egress/src/forwarder/template.rs
+file 73771a8a2342d39f64831f0d2de8473f7cf86fbf crates/podssh-ws/src/forwarder/carry.rs -> crates/pod-egress/src/carry.rs
+file c94bb949dc05b0a934bb57ace20e2335c3b28f27 crates/podssh-ws/src/forwarder/end.rs -> crates/pod-egress/src/end.rs
+file 683b3445e952fae83024f6721273e31593011c19 crates/podssh-ws/src/wstunnel/mod.rs -> crates/pod-egress/src/wstunnel/mod.rs
+file 6d97831fa5d18fb81450cbb0f52279339285388b crates/podssh-ws/src/wstunnel/token.rs -> crates/pod-egress/src/wstunnel/token.rs
+file 9db91f9e2db40d42fc267d27c4dae08ebabf9815 crates/podssh-ws/src/wstunnel/upgrade.rs -> crates/pod-egress/src/wstunnel/upgrade.rs
+file acaf5e908708104762fd67f1318e8af5e394a6ef crates/podssh-ws/src/wstunnel/tests.rs -> crates/pod-egress/src/wstunnel/tests.rs
+file 154b98eaa47cbb63a45db100821b24b981c1fd3f crates/podssh-ws/src/wisp/mod.rs -> crates/pod-egress/src/wisp/mod.rs
+file 177774d0fa64c5186a94f91cf716805b6eee5212 crates/podssh-ws/src/wisp/forward.rs -> crates/pod-egress/src/wisp/forward.rs
+file 0236147a613b72e86367ba12d50c9e3dbb894e6b crates/podssh-ws/src/wisp/handshake.rs -> crates/pod-egress/src/wisp/handshake.rs
+file 059765d1bd4edda35ff7107d68e67fb917829e79 crates/podssh-ws/src/wisp/mux.rs -> crates/pod-egress/src/wisp/mux.rs
+file a7799dd82a63c93a5d35be5746202f37017ffccb crates/podssh-ws/src/wisp/packet.rs -> crates/pod-egress/src/wisp/packet.rs
+file 7f111d2bff36c9d7ebb1519ba5bc91fb94898394 crates/podssh-ws/src/wisp/stream.rs -> crates/pod-egress/src/wisp/stream.rs
+file 5d48cad302329e961aafe534e6e2d1cf8097bba1 crates/podssh-ws/src/meek.rs -> crates/pod-egress/src/meek.rs
+file 8da2a480e703ba4931d0ec5f053d0ae8b00a22de crates/podssh-ws/src/meek/args.rs -> crates/pod-egress/src/meek/args.rs
+file c68bd7342a2f4126451d868f674b6f42e5b703a8 crates/podssh-ws/src/meek/carry.rs -> crates/pod-egress/src/meek/carry.rs
+file fb1934c30d65015dda6d9f34b96977d0df30de15 crates/podssh-ws/src/meek/exchange.rs -> crates/pod-egress/src/meek/exchange.rs
+file c2d235a7ae3f76a3acd74c8f79df68411f06deb6 crates/podssh-ws/src/webtunnel.rs -> crates/pod-egress/src/webtunnel.rs
+file 32da1e8f55c069138fb5388db1136dfeba0f1558 crates/podssh-ws/src/pt.rs -> crates/pod-egress/src/pt.rs
+file 8290d6f15b3617c1f7bc93964c28778a5d61818d crates/podssh-ws/src/cloudflare.rs -> crates/pod-egress/src/cloudflare.rs
+file 0ab03b9a93e8e86fdd5200862e110d0a485256b8 crates/podssh-ws/tests/via.rs -> crates/pod-egress/tests/via.rs
+file 42d36fcdc59d17ad172c8de2b2f73b7d6735c67c crates/podssh-ws/tests/forwarder.rs -> crates/pod-egress/tests/forwarder.rs
+file 3bdfbeee61731819082b8e2911d952c8f06cbf12 crates/podssh-ws/tests/live_forwarder.rs -> crates/pod-egress/tests/live_forwarder.rs
+file e70469b7ee21fa74f04e5d9db35fe770ff2b8f98 crates/podssh-ws/tests/meek.rs -> crates/pod-egress/tests/meek.rs
+file 81ad11e7d17a0f7d3b13576fc1d524ae14e0cae0 crates/podssh-ws/tests/webtunnel.rs -> crates/pod-egress/tests/webtunnel.rs
+file 6c7d6c7d655ab584f282d7e08daada721b000ae9 crates/podssh-ws/tests/wisp.rs -> crates/pod-egress/tests/wisp.rs
+file 12023d4a03f25b56ab8f67c3518b0c9abd68e3f6 crates/podssh-ws/tests/wisp_support/mod.rs -> crates/pod-egress/tests/wisp_support/mod.rs
+file 8db2275e9e59e94caf53b64f9960e5ac671ce2ee crates/podssh-ws/tests/wisp_support/reference.rs -> crates/pod-egress/tests/wisp_support/reference.rs
+file 45643f709399ab3686a799c4745f1cf02284e039 crates/podssh-ws/tests/wstunnel.rs -> crates/pod-egress/tests/wstunnel.rs
+file 5f734d4e109c1a047c5b839f0bd3e872d67b8c61 crates/podssh-ws/tests/cloudflare_access.rs -> crates/pod-egress/tests/cloudflare_access.rs
+file 7d92c5b2c7ca2ee3b143b069181337de135dc54f crates/podssh-ws/tests/common/talker.rs -> crates/pod-egress/tests/common/talker.rs

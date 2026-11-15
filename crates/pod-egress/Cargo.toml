@@ -1,0 +1,8 @@
+[package]
+name = "pod-egress"
+description = "The roads out of podssh-ws: a second proxy over TLS, the forwarders of other products, wstunnel, Wisp, meek_lite, WebTunnel and the Access client of Cloudflare."
+version.workspace = true
+edition = "2021"
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
