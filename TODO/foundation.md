@@ -1842,7 +1842,7 @@ The podswarm session starts, or a sibling asks for it (the owner's ruling
 **Milestone:** M0
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1862,3 +1862,7 @@ One file of the standard library of Python, `scripts/agent/watch.py ME`, that ea
 python3 -I scripts/agent/watch.py --self-test
 sh scripts/plant-each.sh watch-drops-to-all
 ```
+
+## Done
+
+2026-11-15, commit `5810775`. `scripts/agent/watch.py` (374 lines, standard library of Python) watches the issues and pull requests of PodUtils/ME and those addressed to ME, and the Actions runs of chosen repositories. Its self-test has 23 checks; the plant `watch-drops-to-all` is caught. The old watchers of `scripts/agent/` left. `AGENTS.md`, `docs/maintenance.md`, `docs/design.md`, `docs/HANDOFF.md` and `docs/session-protocol.md` name it. Call C690.
