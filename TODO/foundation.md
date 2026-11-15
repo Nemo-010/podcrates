@@ -1906,7 +1906,7 @@ sh scripts/plant-each.sh watch-trusts-a-stranger
 **Milestone:** M0
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1926,3 +1926,7 @@ Each poll reads the comment list of each repository (and the review comments of 
 python3 -I scripts/agent/watch.py --self-test
 sh scripts/plant-each.sh watch-misses-an-edited-comment
 ```
+
+## Done
+
+2026-11-15, commit `d8ce1be`. `watch.py` reads the comment list of each repository and the review comments of PodUtils/ME, and prints `COMMENT new` or `COMMENT edited` with the author and the first words. Its self-test has 36 checks; the plant `watch-misses-an-edited-comment` is caught, and the two plants of T-710 and T-711 still are.

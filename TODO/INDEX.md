@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**569 entries: 116 open, 9 partial, 6 blocked, 438 done.**
+**569 entries: 115 open, 9 partial, 6 blocked, 439 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 16 | 4 | 0 | 120 | 140 |
+| P1 | 15 | 4 | 0 | 121 | 140 |
 | P2 | 49 | 2 | 4 | 230 | 285 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 116 | 9 | 6 | 438 | 569 |
+| **All** | 115 | 9 | 6 | 439 | 569 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -615,4 +615,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-703](fleet.md) | P1 | M | M8 | feature | open | a mechanical check of the open issues and their comments against the record, for each project (the ruling "Issues") |
 | [T-710](foundation.md) | P1 | S | M0 | chore | done | one watcher of the organization for each session: issues, pull requests and Actions runs (the ruling "Watcher") |
 | [T-711](foundation.md) | P1 | S | M0 | chore | done | a message from outside the team: its own session verifies and confirms it; each other session checks the author (the ruling "Strangers") |
-| [T-712](foundation.md) | P1 | S | M0 | chore | open | the watcher reports each comment that is new or edited (the owner's ask) |
+| [T-712](foundation.md) | P1 | S | M0 | chore | done | the watcher reports each comment that is new or edited (the owner's ask) |
