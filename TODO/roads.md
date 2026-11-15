@@ -426,7 +426,8 @@ to C625; finding T-652.
 - The trial `adoption/podssh/pod-egress-part2.patch` (`.run`, `.commit`,
   `.needs`: after `pod-egress.patch`), on a scratch copy of podssh at
   `2ffb7cd7` with this tree: `podssh-todo check` (the moved Prove targets
-  named in a `## Correction` of T-440, T-456, T-491, T-492, T-739; each
+  named in a `## Correction` of PodUtils/podssh@T-440, PodUtils/podssh@T-456,
+  PodUtils/podssh@T-491, PodUtils/podssh@T-492 and PodUtils/podssh@T-739; each
   citation of a moved file names PodUtils/podcrates), `check-repo.py`,
   clippy and the tests of podssh-ws (all features: 114 unit tests and each
   test target), clippy of podssh-cli, the CLI's unit tests of the roads
