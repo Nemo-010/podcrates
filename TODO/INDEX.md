@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**540 entries: 109 open, 9 partial, 6 blocked, 416 done.**
+**540 entries: 108 open, 9 partial, 6 blocked, 417 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 109 | 123 |
-| P2 | 47 | 3 | 4 | 220 | 274 |
+| P2 | 46 | 3 | 4 | 221 | 274 |
 | P3 | 51 | 3 | 2 | 85 | 141 |
-| **All** | 109 | 9 | 6 | 416 | 540 |
+| **All** | 108 | 9 | 6 | 417 | 540 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -586,4 +586,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-668](upkeep.md) | P2 | S | M6 | feature | done | `pod-oci`: the token of the manifest for the parallel blob fetches of a pull (PodUtils/podvm#395) |
 | [T-669](podvm.md) | P2 | S | M6 | feature | done | `pod-enter`: a UTS namespace and a host name on the namespace rung (PodUtils/podvm#403) |
 | [T-670](podvm.md) | P2 | M | M6 | feature | open | `pod-enter`: the namespace rung through a user namespace, and its leg in `pod-hostprobe` (PodUtils/podvm#406) |
-| [T-676](podvm.md) | P2 | S | M6 | defect | open | `pod-hostprobe`: the KVM leg is a yes only for a device that runs a guest of the build's architecture (PodUtils/podvm#407) |
+| [T-676](podvm.md) | P2 | S | M6 | defect | done | `pod-hostprobe`: the KVM leg is a yes only for a device that runs a guest of the build's architecture (PodUtils/podvm#407) |

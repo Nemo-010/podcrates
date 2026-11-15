@@ -1,0 +1,6 @@
+# pod-hostprobe: the KVM leg reads ENOTTY of the architecture's question as a yes, so a device of another architecture (QEMU user mode) passes; the test of the verdict must fail (T-676).
+ENTRY=T-676
+GROUP=hostprobe
+EXPECT='test probes::kvm::tests::a_device_of_another_architecture_is_a_no_with_the_reason \.\.\. FAILED'
+RUN='cargo test -p pod-hostprobe --lib -- probes::kvm::tests::a_device_of_another_architecture_is_a_no_with_the_reason --exact'
+LIMIT=1800

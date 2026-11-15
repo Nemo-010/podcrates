@@ -8602,7 +8602,7 @@ cargo test -p pod-hostprobe --all-features
 **Milestone:** M6
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8622,3 +8622,7 @@ In an arm64 container on an x86_64 host, `podvm-aarch64 probe` says `kvm: yes`: 
 ```sh
 cargo test -p pod-hostprobe --all-features
 ```
+
+## Done
+
+2026-11-15, the commit of the change. `sys::SYS_IOCTL`, `sys::ENOTTY`; `probes/kvm.rs`: `runs_native_guest` (`KVM_GET_API_VERSION` 12, `KVM_CREATE_VM`, then `KVM_GET_SUPPORTED_CPUID` on x86_64 or `KVM_ARM_PREFERRED_TARGET` on aarch64; each descriptor closed) and `verdict`; on another architecture the open alone answers. The unit tests `the_requests_are_the_kernel_numbers` (0xAE00, 0xAE01, 0xC008AE05, 0x8020AEAF) and `a_device_of_another_architecture_is_a_no_with_the_reason`; `cargo test -p pod-hostprobe --all-features` passed, clippy clean. The plant `hostprobe-kvm-other-arch-yes` is caught. No device of KVM here: podvm's probe in an arm64 container proves the live answer.

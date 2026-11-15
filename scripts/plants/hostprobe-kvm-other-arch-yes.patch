@@ -1,0 +1,13 @@
+diff --git a/crates/pod-hostprobe/src/probes/kvm.rs b/crates/pod-hostprobe/src/probes/kvm.rs
+index c421b5bd..d88c5411 100644
+--- a/crates/pod-hostprobe/src/probes/kvm.rs
++++ b/crates/pod-hostprobe/src/probes/kvm.rs
+@@ -106,7 +106,7 @@ pub(super) fn verdict(
+     }
+     match question {
+         None | Some(Ok(_)) => Outcome::ok(),
+-        Some(Err(e)) if e == sys::E2BIG => Outcome::ok(),
++        Some(Err(e)) if e == sys::E2BIG || e == sys::ENOTTY => Outcome::ok(),
+         Some(Err(e)) if e == sys::ENOTTY || e == sys::EINVAL => {
+             no(e, format!("the device runs no guest of {} (QEMU user mode?)", std::env::consts::ARCH))
+         }
