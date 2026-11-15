@@ -456,7 +456,7 @@ async fn a_tunnel_is_a_dialer_and_a_refusal_is_a_typed_failure() {
     tokio::time::timeout(LIMIT, both).await.expect("the bytes within the limit");
     assert_eq!((banner.as_slice(), &back), (BANNER, b"a dialer!"));
     let wrong = wstunnel::Tunnel { secret: Secret::default(), ..tunnel.clone() };
-    let failure = (&wrong as &dyn pod_core::Dial).dial(&target, deadline).await.err().expect("a refusal");
+    let failure = (&wrong as &dyn pod_core::Dial).dial(&target, deadline).await.expect_err("a refusal");
     assert_eq!((failure.stage, failure.class), (pod_core::Stage::WebSocket, pod_core::Class::Refused), "{failure}");
     let words = format!("the wstunnel server ws://127.0.0.1:{port} refused the tunnel: 400 Invalid request");
     assert!(failure.text().starts_with(&words) && !failure.text().contains("s3cr3t"), "{failure}");

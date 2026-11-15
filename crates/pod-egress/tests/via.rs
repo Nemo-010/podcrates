@@ -446,7 +446,7 @@ async fn the_client_is_a_dialer_and_a_refusal_is_a_typed_failure() {
     assert_eq!((banner.as_slice(), &back), (BANNER, b"a dialer!"));
     let (forbids, _) = proxy(H1, Mode::Forbid).await;
     let refusing = client(forbids, &root, Offer::Both, true, ProxyChoice::Direct);
-    let failure = (&refusing as &dyn pod_core::Dial).dial(&target, deadline).await.err().expect("a refusal");
+    let failure = (&refusing as &dyn pod_core::Dial).dial(&target, deadline).await.expect_err("a refusal");
     assert_eq!((failure.stage, failure.class), (pod_core::Stage::Proxy, pod_core::Class::Refused), "{failure}");
     assert!(failure.text().contains(&format!("refused CONNECT 127.0.0.1:{aim}: 403")), "{failure}");
     let _ = std::fs::remove_dir_all(root.parent().unwrap());

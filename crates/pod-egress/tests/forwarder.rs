@@ -375,7 +375,7 @@ async fn a_forwarder_is_a_dialer_and_its_close_is_a_typed_failure() {
     let template = Template::parse(&format!("ws://127.0.0.1:{port}/?host={{host}}&port={{port}}")).unwrap();
     let closing = forwarder::Forwarder { template, dial: dial(&notes) };
     let smtp = pod_core::Target::new("github.com", 25);
-    let failure = (&closing as &dyn pod_core::Dial).dial(&smtp, deadline).await.err().expect("a Close");
+    let failure = (&closing as &dyn pod_core::Dial).dial(&smtp, deadline).await.expect_err("a Close");
     assert_eq!((failure.stage, failure.class), (pod_core::Stage::Origin, pod_core::Class::Unavailable), "{failure}");
     let words = format!("the forwarder ws://127.0.0.1:{port}/ closed the WebSocket before the target's bytes: 1011");
     assert!(failure.text().starts_with(&words), "{failure}");

@@ -13,7 +13,7 @@
 //!   `extract_path_prefix`); a restrictions file may match the
 //!   `Authorization` header too (`!Authorization`), which the client's
 //!   `--http-upgrade-credentials` fills with Basic;
-//! - the destination is a JWT ([`token`]) in `Sec-WebSocket-Protocol: v1,
+//! - the destination is a JWT (`token`) in `Sec-WebSocket-Protocol: v1,
 //!   authorization.bearer.JWT`, and the 101 names the subprotocol `v1`
 //!   (`wstunnel/src/tunnel/transport/websocket.rs`, `connect`;
 //!   `wstunnel/src/tunnel/server/handler_websocket.rs`);

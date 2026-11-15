@@ -329,7 +329,7 @@ adoption trial); call C601.
 **Milestone:** M4
 **Priority:** P2
 **Effort:** L
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -363,6 +363,50 @@ sh scripts/agent/check.sh
 ## Start condition
 
 T-016 is done.
+
+## Done
+
+2026-11-15, partial: part 1, the crate and seven roads. Commits `3e69fb4`
+(the import of PodUtils/podssh:crates/podssh-ws/src at `2ffb7cd7`: via/,
+forwarder/, wstunnel/, wisp/, meek.rs, meek/, webtunnel.rs, pt.rs,
+cloudflare.rs, with their tests), `e6cdb2e` (the edition), `dd2b2c0` (the
+adaptation), `640b76e` (the tests, the plants, the fuzz target), `3092df8`
+(the README, the static probe, `forwarder-live.yml`, the tables), `4f9f6bd`
+(the adoption trial); calls C616 to C620.
+
+- `crates/pod-egress`: a feature for each road (`via`, `forwarder`,
+  `wisp`, `wstunnel`, `meek`, `webtunnel`, `cloudflare`); the shared parts
+  with no feature (`carry`, `end`, `Note`, `Duplex`); each road dials
+  through the caller's `pod_ws::Way`; `via::Client`,
+  `forwarder::Forwarder`, `wisp::Road` and `wstunnel::Tunnel` are
+  `pod_core::Dial`, and their errors a `pod_core::Failure` with a stage and
+  a class (C616); a peer's words go to `pod_core::Events`; the README says
+  how a new road joins the crate.
+- `cargo test -p pod-egress --all-features`: 59 unit tests; via 6,
+  forwarder 7, wisp 10, wstunnel 6, meek 6, webtunnel 6, cloudflare_access
+  6; live_forwarder 4 ignored (`forwarder-live.yml`).
+- The plants (group `egress`), each caught by hand: `egress-wisp-credit`,
+  `egress-via-no-credential`, `egress-wstunnel-wrong-secret` (podssh's
+  t438, t439, t441), `egress-via-dial-untyped`,
+  `egress-forwarder-close-untyped`, `egress-wstunnel-refusal-untyped`,
+  `egress-wisp-blocked-untyped`. The fuzz target `wisp_packet`.
+- The trial `adoption/podssh/pod-egress.patch` (`.run`, `.commit`), on a
+  scratch copy of podssh at `2ffb7cd7` with this tree: `podssh-todo check`
+  (but the lines of `Cargo.lock`, which the run remaps first),
+  `check-repo.py`, clippy and the tests of podssh-ws (all features: 166
+  unit tests and each test target), clippy of podssh-cli and podssh-tor,
+  the CLI's unit tests of the roads (36), `forwarder_cli` (4),
+  `forwarder_public` (16), `cloudflare_cli` (1), rustfmt, the two consumer
+  checks. The tests of podssh-tor run in `adoption.yml`.
+
+What podssh must do: take `adoption/podssh/pod-egress.patch` with the tag
+that carries the crate (the patch names `v0.51.0`), and drop its own copies
+of the moved tests, plants and `forwarder-live.yml`.
+
+Left (parts 2 and 3): `vless/`, `vmess/`, `trojan/` and `shadowsocks/`
+(with podssh's `vless` interop), then `eice/` and `iap/`, each by the
+procedure of `docs/design.md`, section 8, onto the shared parts of this
+part; their trials in podssh; then the entry is done.
 
 # T-036: `pod-relay-serve`: the relay role and its mailbox
 

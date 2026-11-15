@@ -311,7 +311,7 @@ async fn a_wisp_road_is_a_dialer_and_a_blocked_target_is_a_typed_failure() {
     tokio::time::timeout(LIMIT, both).await.expect("the bytes within the limit");
     assert_eq!(&back, b"a dialer!");
     let blocked = pod_core::Target::new("close-48.test", 22);
-    let failure = dialer.dial(&blocked, deadline).await.err().expect("a CLOSE");
+    let failure = dialer.dial(&blocked, deadline).await.expect_err("a CLOSE");
     assert_eq!((failure.stage, failure.class), (pod_core::Stage::Origin, pod_core::Class::Policy), "{failure}");
     assert!(failure.text().contains("closed the stream: 0x48"), "{failure}");
 }
