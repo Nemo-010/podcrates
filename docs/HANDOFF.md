@@ -19,14 +19,16 @@ is done. Git and the record keep finished work.
 
 ## In flight
 
-- The last release: `v0.47.0` at `61d6f8a` (ci 43650721363, adoption
-  43650721391, release 43652294843; the hand-off #160, COORD-100): the
-  meeting points Nostr, trackers and ntfy of `pod-wormhole`, the client of
-  `pod-devtunnel` with no user token, the options of `pod-turn`, the S3
-  stand-in of `pod-link`, the swap of a Windows mailbox of `pod-guest`.
-  `v0.46.0` at `d60f811` (#159): podrunner, podssh and podnet took it;
-  it waits for podvm.
-- Each branch of an agent is merged; no agent runs. The owner reserves
+- The last release: `v0.48.0` at `96b236c` (ci 43655045324, adoption
+  43655045460, release 43656690266; the hand-off #162, COORD-102):
+  `Sign::After` and a screen sign that ignores a cursor in `pod-guest`
+  (T-633, PodUtils/podvm#372, #161). `v0.47.0` at `61d6f8a` (#160):
+  podrunner and podnet took it; it waits for podvm and podssh. `v0.46.0`
+  at `d60f811` (#159): it waits for podvm.
+- The move of podssh's waves 3 and 4 (PodUtils/podssh#248, the ruling
+  "The move of podssh"): podssh froze `transit/`, `acme/`, `piping/`,
+  `opentunnel/` and `derp/` at podssh `b9c04657`; agents import them.
+- The agents of the move run in worktrees `mv-*`. The owner reserves
   the names `pod-actions-store`, `pod-actions-results`, `pod-udf` and
   `pod-qga` on crates.io ("Owner actions" of `TODO/PROGRESS.md`).
 - The open threads of this session:
