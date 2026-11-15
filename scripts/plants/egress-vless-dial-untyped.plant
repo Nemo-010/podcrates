@@ -1,0 +1,6 @@
+# A VLESS server's end before its answer (its refusal of the ID) is a fault
+# of the protocol, not a refusal: the test of the road as a dialer must fail.
+ENTRY=T-035
+GROUP=egress
+EXPECT='test a_vless_road_is_a_dialer_and_a_wrong_id_is_a_typed_failure \.\.\. FAILED'
+RUN='cargo test -p pod-egress --all-features --test vless -- a_vless_road_is_a_dialer_and_a_wrong_id_is_a_typed_failure'

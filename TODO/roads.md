@@ -403,10 +403,45 @@ What podssh must do: take `adoption/podssh/pod-egress.patch` with the tag
 that carries the crate (the patch names `v0.51.0`), and drop its own copies
 of the moved tests, plants and `forwarder-live.yml`.
 
-Left (parts 2 and 3): `vless/`, `vmess/`, `trojan/` and `shadowsocks/`
-(with podssh's `vless` interop), then `eice/` and `iap/`, each by the
-procedure of `docs/design.md`, section 8, onto the shared parts of this
-part; their trials in podssh; then the entry is done.
+2026-11-15, partial: part 2, four roads more. Commits `70cfa91` (the
+import of PodUtils/podssh:crates/podssh-ws/src at `2ffb7cd7`: vless/,
+vmess/, trojan/, shadowsocks/, with their tests), `196eba4` (the edition),
+`1dcd1fe` (the adaptation), `f407c2a` (the plants, `vmess-interop.yml`),
+`8d71a4c` (the README, the tables, the calls), and the trial; calls C621
+to C625; finding T-652.
+
+- `crates/pod-egress`: the features `vless`, `vmess`, `trojan`,
+  `shadowsocks`; each `Dial` holds the caller's way and trust;
+  `vless::Road`, `vmess::Road`, `trojan::Road`, `shadowsocks::Road` are
+  `pod_core::Dial`, and each error a `pod_core::Failure` (C621, C622); the
+  user agent and the proxy of a silence are the way's (C623); md5 and
+  blake3 (pure) join the workspace (C624).
+- `cargo test -p pod-egress --all-features`: 112 unit tests; vless 9,
+  trojan 5, shadowsocks 10, shadowsocks_2022 5, vmess 3 (against Xray-core
+  v26.10.21 here, by `POD_EGRESS_XRAY_TEST_BIN`; `vmess-interop.yml` runs
+  it each day); the tests of part 1 as before.
+- The plants (group `egress`), each caught by hand:
+  `egress-vless-refusal-unsaid` (podssh's t440), `egress-vless-dial-untyped`,
+  `egress-trojan-dial-untyped`, `egress-shadowsocks-dial-untyped`.
+- The trial `adoption/podssh/pod-egress-part2.patch` (`.run`, `.commit`,
+  `.needs`: after `pod-egress.patch`), on a scratch copy of podssh at
+  `2ffb7cd7` with this tree: `podssh-todo check` (the moved Prove targets
+  named in a `## Correction` of PodUtils/podssh@T-440, PodUtils/podssh@T-456,
+  PodUtils/podssh@T-491, PodUtils/podssh@T-492 and PodUtils/podssh@T-739; each
+  citation of a moved file names PodUtils/podcrates), `check-repo.py`,
+  clippy and the tests of podssh-ws (all features: 114 unit tests and each
+  test target), clippy of podssh-cli, the CLI's unit tests of the roads
+  (127), `one_road` (3), `shadowsocks_cli` (2), `proxy_lists` (9), rustfmt,
+  the two consumer checks.
+
+What podssh must do: take `adoption/podssh/pod-egress-part2.patch` after
+`pod-egress.patch` with the tag that carries part 2 (the patch names
+`v0.52.0`), and drop its own copies of the moved tests, the plant t440 and
+`vmess-interop.yml`.
+
+Left (part 3): `eice/` and `iap/`, by the procedure of `docs/design.md`,
+section 8, onto the shared parts; their trial in podssh; then the entry is
+done.
 
 # T-036: `pod-relay-serve`: the relay role and its mailbox
 
@@ -1366,4 +1401,31 @@ A requirements file with the hash of each package (`uv pip compile --generate-ha
 
 ```sh
 python3 scripts/check-workflows.py
+```
+
+# T-652: `pod-egress`: the stage of a failed TLS or upgrade on the roads of VLESS, VMess and Trojan
+
+**Source:** T-035 (a finding of its work, part 2; call C622).
+**Category:** feature
+**Milestone:** M4
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`VlessError::Carry`, `VmessError::Carry` and `TrojanError::Carry` hold one text for a failed TLS handshake, a failed WebSocket upgrade and a failed stream of HTTP/2, as podssh had them. Their class is `WebSocket`/`Unavailable` for each: a certificate that is not trusted (`Tls`/`Refused`), a clock that is wrong and a cut of the network have the class of a server that went away. `ws::failed` reads the `pod_ws::ConnectError` and drops its stage and class.
+
+## Premise
+
+- Read: `crates/pod-egress/src/vless/ws.rs` (`failed`), `crates/pod-egress/src/trojan/ws.rs`, `crates/pod-egress/src/vmess/ws.rs`, `crates/pod-egress/src/vless/xhttp.rs` (`tls`); `pod_ws::ConnectError::stage_and_class`; call C622.
+
+## Approach
+
+A variant `Connect(pod_ws::ConnectError)` in each of the three errors for a failure of TCP, TLS or the upgrade, with the stage and the class of the `ConnectError`, and the same words in `line`; XHTTP's own TLS gives a `ConnectError::Tls` with the kind of the cut. `Carry` stays for the failures of HTTP/2 and of the pump. A test of each road: a server whose certificate is not trusted fails with `Tls`.
+
+## Prove
+
+```sh
+cargo test -p pod-egress --all-features --test vless --test trojan
 ```

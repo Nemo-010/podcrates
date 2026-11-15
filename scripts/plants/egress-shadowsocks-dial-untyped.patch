@@ -1,0 +1,13 @@
+diff --git a/crates/pod-egress/src/shadowsocks/open.rs b/crates/pod-egress/src/shadowsocks/open.rs
+index 8be317f4..9a7f5332 100644
+--- a/crates/pod-egress/src/shadowsocks/open.rs
++++ b/crates/pod-egress/src/shadowsocks/open.rs
+@@ -100,7 +100,7 @@ impl OpenError {
+             OpenError::Dial(e) => e.stage_and_class(),
+             OpenError::WebSocket(_) => (Stage::WebSocket, Class::Unavailable),
+             OpenError::Send(_) | OpenError::Cut(_) => (Stage::Relay, Class::Unavailable),
+-            OpenError::Silent { ended: None, .. } => (Stage::Relay, Class::Timeout),
++            OpenError::Silent { ended: None, .. } => (Stage::Relay, Class::Unavailable),
+             OpenError::Silent { ended: Some(_), .. } => (Stage::Relay, Class::Refused),
+             OpenError::Chunk(_) => (Stage::Relay, Class::Protocol),
+         }
