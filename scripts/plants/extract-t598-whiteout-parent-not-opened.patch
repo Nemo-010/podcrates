@@ -1,10 +1,24 @@
+diff --git a/crates/pod-extract/src/lib.rs b/crates/pod-extract/src/lib.rs
+index a1a0fff7..86ec27a0 100644
+--- a/crates/pod-extract/src/lib.rs
++++ b/crates/pod-extract/src/lib.rs
+@@ -189,7 +189,7 @@ pub fn extract(settings: &Settings, image: &str, layers: &[Layer], place: &Place
+     let root = safety::Dir::open(&rootfs)?;
+     // A tree of an earlier extraction can hold the closed directories of
+     // its image (0555, 0311).
+-    let opened = modes::open_tree(&root)?;
++    let opened = 0;
+     let mut side = sidecar::Sidecar::create(&place.sidecar).map_err(error::io)?;
+     let ids = apply::Ids::current();
+ 
 diff --git a/crates/pod-extract/src/remove.rs b/crates/pod-extract/src/remove.rs
+index 0857cbf9..7f0c6bba 100644
 --- a/crates/pod-extract/src/remove.rs
 +++ b/crates/pod-extract/src/remove.rs
-@@ -85,7 +85,6 @@
-                     continue;
-                 };
-                 // A tree of an earlier extraction can have closed directories.
+@@ -88,7 +88,6 @@ pub fn apply(root: &Dir, ops: &[Op]) -> Result<u64> {
+                 // A tree of an earlier extraction can have closed
+                 // directories, when the caller did not run
+                 // `modes::open_tree` first (call C646).
 -                open_for_write(parent.fd());
                  if remove_at(parent.fd(), &last)? {
                      removed += 1;

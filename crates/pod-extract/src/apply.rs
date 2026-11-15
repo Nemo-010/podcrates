@@ -243,7 +243,9 @@ fn make_dir(parent: &Dir, name: &str, mode: u32) -> Result<()> {
     }
     // A directory of an earlier layer, or of an earlier extraction whose
     // last pass closed it (0555): it gets the owner bits, or the entries
-    // below it cannot be written. Through a descriptor with `O_NOFOLLOW`:
+    // below it cannot be written. `crate::extract` opened each one before
+    // the first layer (`modes::open_tree`); this guards a caller of the
+    // public steps (call C646). Through a descriptor with `O_NOFOLLOW`:
     // a mode change by the name follows a symlink out of the tree.
     let flags = sys::O_RDONLY | sys::O_DIRECTORY | sys::O_NOFOLLOW | sys::O_CLOEXEC;
     match sys::openat(parent.fd(), &n, flags, 0) {

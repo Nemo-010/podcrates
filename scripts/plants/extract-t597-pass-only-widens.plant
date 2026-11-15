@@ -1,6 +1,7 @@
 # The permission pass sets only the directories that it widens, so the
-# umask cuts the mode of a directory and a later layer does not set it
-# again (T-597).
+# umask cuts the mode of a directory in the tree between two layers
+# (T-597). The pass after the last layer sets the mode again, so the test
+# checks the tree between two layers (T-678).
 ENTRY=T-597
 GROUP=extract
 EXPECT='the umask changed the mode of d:'
