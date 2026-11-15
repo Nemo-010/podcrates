@@ -1,0 +1,6 @@
+# pod-enter: the namespace rung skips the UTS namespace and sethostname, so the payload sees the host's name; the live test of the name, as root with a static busybox, must fail (T-669).
+ENTRY=T-669
+GROUP=confine
+EXPECT='test the_payload_sees_the_name_of_the_plan_and_the_host_keeps_its_own \.\.\. FAILED'
+RUN='sh scripts/ci/root-enter-confine-tests.sh'
+LIMIT=1800
