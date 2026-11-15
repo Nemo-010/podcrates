@@ -1,11 +1,13 @@
---- a/crates/pod-enter/src/launch.rs
-+++ b/crates/pod-enter/src/launch.rs
-@@ -361,7 +361,7 @@
- /// close-on-exec copy above each such number (the original closes).
- fn clear_of_passes(plan: &Plan, fd: i64) -> Result<i64> {
-     let targets = || plan.fds.pass.iter().map(|&(child_fd, _)| child_fd);
--    if !targets().any(|t| t == fd) {
-+    if true || !targets().any(|t| t == fd) {
+diff --git a/crates/pod-enter/src/pass_clear.rs b/crates/pod-enter/src/pass_clear.rs
+index 7d5f0f76..a557b669 100644
+--- a/crates/pod-enter/src/pass_clear.rs
++++ b/crates/pod-enter/src/pass_clear.rs
+@@ -52,7 +52,7 @@ pub(crate) fn keep(plan: &Plan, fd: i64, what: &str, moved: &mut Moved) -> Resul
+ /// `fd` of the entry itself, or a close-on-exec copy above each passed
+ /// number; the original closes.
+ pub(crate) fn clear_of_passes(plan: &Plan, fd: i64) -> Result<i64> {
+-    if !passed(plan, fd) {
++    if true || !passed(plan, fd) {
          return Ok(fd);
      }
-     let above = targets().max().unwrap_or(0) + 1;
+     let moved = sys::fcntl(fd, sys::F_DUPFD_CLOEXEC, above(plan) as u64);
