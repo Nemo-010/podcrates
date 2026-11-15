@@ -350,7 +350,10 @@ def main(argv):
         # A margin of 10 min: the search index lags behind a change.
         start = time.time() - 600
         since = state.get("since") if isinstance(state.get("since"), str) else stamp(time.time() - 30 * 86400)
-        pages = 1 if isinstance(state.get("since"), str) else 5
+        # The first search records 30 days and prints nothing, also over
+        # a state of an older watcher that knew fewer items.
+        first = not isinstance(state.get("since"), str)
+        pages, speak = (5, False) if first else (1, announce)
         answered, found = 0, []
         for kind in ("issue", "pr"):
             got = search(org, kind, since, pages)
@@ -361,11 +364,11 @@ def main(argv):
         for repo in sorted({(i.get("repository_url") or "").split("/repos/")[-1] for i in found}):
             items = [i for i in found if (i.get("repository_url") or "").endswith(f"/repos/{repo}")]
             before = {k: dict(v) for k, v in state["issues"].items() if k.startswith(f"{repo}#")}
-            for text in issues_step(me, org, repo, items, state["issues"], announce, state_dir):
+            for text in issues_step(me, org, repo, items, state["issues"], speak, state_dir):
                 print(text, flush=True)
             changed += [(repo, i) for i in items if f"{repo}#{i.get('number')}" in state["issues"]
                         and before.get(f"{repo}#{i.get('number')}") != state["issues"][f"{repo}#{i.get('number')}"]]
-        for repo, item in changed if announce else []:
+        for repo, item in changed if speak else []:
             if not item.get("comments") and not ("pull_request" in item and repo == f"{org}/{me}"):
                 continue
             lists = [f"repos/{repo}/issues/{item['number']}/comments?since={since}&per_page=100"]
@@ -382,7 +385,9 @@ def main(argv):
             doc = get(f"repos/{repo}/actions/runs?per_page=30")
             if isinstance(doc, dict):
                 answered += 1
-                for text in runs_step(repo, doc.get("workflow_runs", []), state["runs"], announce):
+                # The first read of a repository records its runs and prints nothing.
+                known = any(k.startswith(f"{repo} ") for k in state["runs"])
+                for text in runs_step(repo, doc.get("workflow_runs", []), state["runs"], announce and known):
                     print(text, flush=True)
         if answered and said:
             print("WATCH: the mirror answers again", flush=True)
