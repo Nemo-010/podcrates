@@ -1,0 +1,8 @@
+[package]
+name = "pod-transit"
+description = "The transit road: a pair's byte stream through a magic-wormhole transit relay."
+version.workspace = true
+edition = "2021"
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
