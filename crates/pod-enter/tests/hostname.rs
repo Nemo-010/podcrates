@@ -103,7 +103,11 @@ fn a_plan_with_no_name_keeps_the_host_name() {
     let dir = RootDir::open(root.to_str().unwrap()).unwrap();
     let host = fs::read_to_string("/proc/sys/kernel/hostname").unwrap();
     let script = format!("test \"$(uname -n)\" = {}", host.trim());
-    let code = run_namespace(&dir, &plan(&script, None), &mut std::io::sink()).unwrap();
-    assert_eq!(code, 0);
+    match run_namespace(&dir, &plan(&script, None), &mut std::io::sink()) {
+        Ok(code) => assert_eq!(code, 0),
+        // A user with no namespace and no chroot (a runner with no root):
+        // the root script runs this test as root, where a skip fails.
+        Err(e) => pod_testkit::host::skip_line(&format!("no rung with a chroot here: {e}")),
+    }
     let _ = fs::remove_dir_all(&root);
 }
