@@ -8594,3 +8594,31 @@ The maps and the paths built before the fork; in the child, the user namespace f
 cargo test -p pod-enter --all-features
 cargo test -p pod-hostprobe --all-features
 ```
+
+# T-676: `pod-hostprobe`: the KVM leg is a yes only for a device that runs a guest of the build's architecture (PodUtils/podvm#407)
+
+**Source:** PodUtils/podvm#407 (COORD-133 of podvm; PodUtils/podvm#401, PodUtils/podvm@T-1907).
+**Category:** defect
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+In an arm64 container on an x86_64 host, `podvm-aarch64 probe` says `kvm: yes`: QEMU user mode passes the open of `/dev/kvm` and its ioctls to the x86_64 kernel, which runs no aarch64 guest. The machine tier then chooses KVM and fails at the start of the guest. The ask: after the open, `KVM_CREATE_VM` (type 0), then an ioctl that only the KVM of the build's architecture answers (aarch64: `KVM_ARM_PREFERRED_TARGET` on the VM descriptor; x86_64: `KVM_GET_SUPPORTED_CPUID` on the system descriptor, where `E2BIG` also means yes); a no, with the reason "the device runs no guest of ARCH (QEMU user mode?)", where it fails with `ENOTTY` or `EINVAL`; both descriptors closed.
+
+## Premise
+
+- Read: PodUtils/podvm#407; `crates/pod-hostprobe/src/probes/machine.rs` (the leg opened `/dev/kvm` and closed it); the ioctl numbers of `include/uapi/linux/kvm.h`.
+- Not measured: a device of KVM (this session has no `/dev/kvm`); an arm64 container on an x86_64 host. podvm's probe there proves it.
+
+## Approach
+
+`SYS_IOCTL` in `sys`; `probes/kvm.rs`: `KVM_GET_API_VERSION` (12), `KVM_CREATE_VM`, the question of the architecture, each descriptor closed; a pure function from the three answers to the verdict, with unit tests of each answer and of the request numbers; on another architecture the open alone answers, as before. A plant.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features
+```

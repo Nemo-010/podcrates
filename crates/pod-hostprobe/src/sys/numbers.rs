@@ -36,6 +36,7 @@ impl Errno {
             e::EACCES => "EACCES",
             e::EFAULT => "EFAULT",
             e::EBUSY => "EBUSY",
+            e::ENOTTY => "ENOTTY",
             e::EEXIST => "EEXIST",
             e::EXDEV => "EXDEV",
             e::ENODEV => "ENODEV",
@@ -73,6 +74,8 @@ pub const EIO: Errno = errno(e::EIO);
 /// does not know.
 pub const E2BIG: Errno = errno(e::E2BIG);
 pub const EBADF: Errno = errno(e::EBADF);
+/// `ENOTTY`: a device that does not know an ioctl.
+pub const ENOTTY: Errno = errno(e::ENOTTY);
 pub const EACCES: Errno = errno(e::EACCES);
 pub const EEXIST: Errno = errno(e::EEXIST);
 /// `EXDEV`, cross-device link: the number the (d,i) guard reports under,

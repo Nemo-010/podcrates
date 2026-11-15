@@ -155,6 +155,7 @@ pub const SYS_STATFS: i64 = nr!(statfs, __NR_statfs);
 pub const SYS_STATFS64: i64 = nr!(statfs64, __NR_statfs64);
 pub const SYS_FLOCK: i64 = nr!(flock, __NR_flock);
 pub const SYS_FCNTL: i64 = nr!(fcntl, __NR_fcntl);
+pub const SYS_IOCTL: i64 = nr!(ioctl, __NR_ioctl);
 pub const SYS_PIVOT_ROOT: i64 = nr!(pivot_root, __NR_pivot_root);
 pub const SYS_PRCTL: i64 = nr!(prctl, __NR_prctl);
 pub const SYS_CHROOT: i64 = nr!(chroot, __NR_chroot);

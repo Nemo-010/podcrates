@@ -423,6 +423,7 @@ use attribution::*;
 
 mod machine;
 use machine::*;
+mod kvm;
 
 #[cfg(test)]
 mod tests;

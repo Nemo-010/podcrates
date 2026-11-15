@@ -66,7 +66,16 @@ pub(super) fn m_kvm() -> Outcome {
     // OPENED, not stat-ed. A node that exists and answers EACCES on open is
     // not acceleration. Absence is the answer too, so ENOENT is a
     // denial rather than a missing precondition, like `stat(/dev/ptmx)`.
-    open_probe("/dev/kvm", sys::O_RDWR | sys::O_CLOEXEC)
+    // An open device must also run a guest of this build's architecture:
+    // QEMU user mode passes the device of another one through (`kvm`).
+    match sys::open(&c("/dev/kvm"), sys::O_RDWR | sys::O_CLOEXEC, 0) {
+        Ok(fd) => {
+            let out = super::kvm::runs_native_guest(fd);
+            let _ = sys::close(fd);
+            out
+        }
+        Err(e) => Outcome::denied(e),
+    }
 }
 
 pub(super) fn m_fsize() -> Outcome {
