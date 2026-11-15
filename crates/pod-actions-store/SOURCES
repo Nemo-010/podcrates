@@ -4,6 +4,8 @@
 # compares each with the default branch of its repository.
 
 repo PodUtils/podrunner 9dbefd17ce7cd2269e40f1875f993738e3019971
+# podrunner took the crate at 5096a3be with v0.45.0 (its T-118 and T-119).
+taken 5096a3be75667ef50e69ce7653154fd14b85a147
 # T-613: de6850e gives Forge::is_local (a local reference goes to the
 # store, not to the lock); afa619d gives Git::proxy and Git::command (the
 # protocol of the base only, no submodule). Its fetch through an egress
