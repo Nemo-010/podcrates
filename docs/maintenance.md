@@ -184,6 +184,13 @@ A push of a session whose account has no GitHub Actions starts no run:
 then ask for `ci.yml`, `adoption.yml`, `plants.yml`, `secrets.yml` and
 `deny.yml` of the pushed commit in the same way (each takes a dispatch).
 
+A block that dispatches `release.yml` runs it on the head of `main`: push
+nothing to `main` from the open of the request until the tag exists, not
+even the line of the request in `TODO/github.txt` (`record-issues.yml` is
+red for that time, and the mapping follows the tag). A push between the
+gates and the release gives `release.yml` a head with no run of `ci`, and
+the release fails.
+
 When the dispatch fails, open a new issue titled exactly
 `[gh action] requested`: one line of why, and one `sh` block with each
 `gh` command in full (`-R` and each flag), `set -e` first. The owner's

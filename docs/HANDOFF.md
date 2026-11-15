@@ -15,7 +15,9 @@ is done. Git and the record keep finished work.
    a `[gh action] requested` issue (`docs/maintenance.md`, "A run of a
    workflow"). The block of a request starts with a test that `main` is at
    its commit: push nothing to `main` between the open of a request and
-   the start of its runs; keep the record of it on a local branch. Read the
+   the start of its runs; keep the record of it on a local branch. For a
+   request that releases, push nothing until the tag exists (the dispatch of
+   `release.yml` takes the head of `main`). Read the
    answer of #177 (the checks of `main` at `3ee1988`: T-686, T-687, T-684).
 3. The next tag carries T-686, T-687 (PodUtils/podssh#262) and T-688
    (PodUtils/podvm#414), and tells podssh that `node-trojan-149-28-130-108` left `pod-services` (T-684).
