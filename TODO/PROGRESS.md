@@ -5,12 +5,13 @@
 ## State
 
 - `docs/HANDOFF.md` has what is in flight and what waits.
-- Last release: `v0.56.0` at `93bf133` (`docs/releases/v0.56.0.md`; ci
-  43768619364, adoption 43768622461; the request #195): T-723 (the kind
-  `reference`, PodUtils/podvm#435). Before it: `v0.55.0` at `e3c3e1d`
-  (T-703, T-701; the hand-off #194).
-- In release: `v0.57.0` (`docs/releases/v0.57.0.md`): T-724 (the build of
-  `pod-todo` in `issue-sync.yml`, PodUtils/podvm#437).
+- Last release: `v0.57.0` at `0d6421c` (`docs/releases/v0.57.0.md`; ci
+  43773301549 after one red run of T-731, adoption 43771488468, release
+  43775650432; the request #197): T-724 (the build of `pod-todo` in
+  `issue-sync.yml`, PodUtils/podvm#437). Before it: `v0.56.0` at `93bf133`
+  (T-723), `v0.55.0` at `e3c3e1d` (T-703, T-701; the hand-off #194).
+- On `main` for the next tag: T-725 (the gaps of `pod-manual`,
+  PodUtils/podnet#589).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.56.0` (`0363272`, PodUtils/podssh#277): it runs the one
