@@ -1839,6 +1839,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "pod-egress"
+version = "0.50.0"
+dependencies = [
+ "pod-core",
+ "pod-proxy",
+ "pod-tls",
+ "pod-ws",
+ "rustls",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "pod-enter"
 version = "0.50.0"
 dependencies = [
@@ -2229,6 +2243,7 @@ dependencies = [
  "pod-devtunnel",
  "pod-dns",
  "pod-e2e",
+ "pod-egress",
  "pod-enter",
  "pod-extract",
  "pod-gsr",

@@ -1,0 +1,14 @@
+diff --git a/crates/pod-egress/src/via/mod.rs b/crates/pod-egress/src/via/mod.rs
+index ed5f4db..ea2f4a4 100644
+--- a/crates/pod-egress/src/via/mod.rs
++++ b/crates/pod-egress/src/via/mod.rs
+@@ -424,7 +424,8 @@ impl pod_core::Dial for Client {
+             crate::road::left(deadline, target)?;
+             let opened = tokio::time::timeout_at(deadline, self.open(&target.host(), target.port()))
+                 .await
+-                .map_err(|_| crate::road::late(target, &self.via.shown()))??;
++                .map_err(|_| crate::road::late(target, &self.via.shown()))?
++                .map_err(|e| Failure::new(Stage::Connect, pod_core::Class::Unavailable, e.to_string()))?;
+             Ok(Connected::new(Box::new(opened.stream)))
+         })
+     }

@@ -1,0 +1,6 @@
+# A Wisp server's CLOSE of a blocked target (0x48) is an origin that is not
+# available, not a policy: the test of the Wisp road as a dialer must fail.
+ENTRY=T-035
+GROUP=egress
+EXPECT='test a_wisp_road_is_a_dialer_and_a_blocked_target_is_a_typed_failure \.\.\. FAILED'
+RUN='cargo test -p pod-egress --all-features --test wisp -- a_wisp_road_is_a_dialer_and_a_blocked_target_is_a_typed_failure'

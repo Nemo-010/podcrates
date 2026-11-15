@@ -1,0 +1,6 @@
+# A wstunnel server's 400 is a fault of the protocol, not a refusal: the
+# test of the tunnel as a dialer must fail.
+ENTRY=T-035
+GROUP=egress
+EXPECT='test a_tunnel_is_a_dialer_and_a_refusal_is_a_typed_failure \.\.\. FAILED'
+RUN='cargo test -p pod-egress --all-features --test wstunnel -- a_tunnel_is_a_dialer_and_a_refusal_is_a_typed_failure'

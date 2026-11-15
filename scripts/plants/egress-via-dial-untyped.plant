@@ -1,0 +1,7 @@
+# The dialer of the second proxy drops the stage and the class of a
+# refusal: each failure is one of the connection, unavailable. The test of
+# the dialer, which reads a 403 as the proxy's refusal, must fail.
+ENTRY=T-035
+GROUP=egress
+EXPECT='test the_client_is_a_dialer_and_a_refusal_is_a_typed_failure \.\.\. FAILED'
+RUN='cargo test -p pod-egress --all-features --test via -- the_client_is_a_dialer_and_a_refusal_is_a_typed_failure'

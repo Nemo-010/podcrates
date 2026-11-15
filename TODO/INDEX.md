@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**525 entries: 104 open, 8 partial, 6 blocked, 407 done.**
+**526 entries: 104 open, 9 partial, 6 blocked, 407 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 107 | 121 |
-| P2 | 46 | 2 | 4 | 213 | 265 |
-| P3 | 47 | 3 | 2 | 85 | 137 |
-| **All** | 104 | 8 | 6 | 407 | 525 |
+| P2 | 45 | 3 | 4 | 213 | 265 |
+| P3 | 48 | 3 | 2 | 85 | 138 |
+| **All** | 104 | 9 | 6 | 407 | 526 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -81,7 +81,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-032](roads.md) | P3 | S | M4 | feature | done | `pod-piping`: the Piping Server carrier |
 | [T-033](roads.md) | P3 | S | M4 | feature | done | `pod-opentunnel`: the OpenTunnel carrier |
 | [T-034](roads.md) | P2 | S | M4 | feature | done | `pod-acme`: the ACME client |
-| [T-035](roads.md) | P2 | L | M4 | feature | open | `pod-egress`: the other roads out (via, VLESS, wstunnel, Wisp, Shadowsocks and more) |
+| [T-035](roads.md) | P2 | L | M4 | feature | partial | `pod-egress`: the other roads out (via, VLESS, wstunnel, Wisp, Shadowsocks and more) |
 | [T-036](roads.md) | P2 | L | M4 | feature | open | `pod-relay-serve`: the relay role and its mailbox |
 | [T-037](roads.md) | P2 | M | M4 | feature | open | `pod-iroh`: the iroh road |
 | [T-038](roads.md) | P3 | S | M4 | feature | open | `pod-tor`: the Tor road through arti |
@@ -572,3 +572,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-639](relay.md) | P2 | S | M2 | defect | done | `pod-link`: a closed half of a split session can end the listener with "the carrier of the link ended" in place of the lost half |
 | [T-640](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: a cold boot of a Windows guest under KVM reaches no shutdown on one run of two, and a run that times out keeps no trace |
 | [T-641](podvm.md) | P3 | S | M7 | defect | open | `pod-guest`: the installer tries its shutdown again, and `dos::run` keeps the evidence of a run that times out |
+| [T-642](roads.md) | P3 | S | M4 | chore | open | `pod-egress`: the Python packages of `forwarder-live.yml` by a hashed lock |

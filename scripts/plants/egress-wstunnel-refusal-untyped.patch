@@ -1,0 +1,13 @@
+diff --git a/crates/pod-egress/src/wstunnel/mod.rs b/crates/pod-egress/src/wstunnel/mod.rs
+index aa30de4..7cdf830 100644
+--- a/crates/pod-egress/src/wstunnel/mod.rs
++++ b/crates/pod-egress/src/wstunnel/mod.rs
+@@ -299,7 +299,7 @@ impl WstunnelError {
+         match self {
+             WstunnelError::Target(_) => (Stage::Connect, Class::Usage),
+             WstunnelError::Connect(e) => e.stage_and_class(),
+-            WstunnelError::Refused { .. } => (Stage::WebSocket, Class::Refused),
++            WstunnelError::Refused { .. } => (Stage::WebSocket, Class::Protocol),
+             WstunnelError::NotWstunnel(_) => (Stage::WebSocket, Class::Protocol),
+         }
+     }

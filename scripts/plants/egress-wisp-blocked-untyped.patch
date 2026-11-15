@@ -1,0 +1,12 @@
+diff --git a/crates/pod-egress/src/wisp/mod.rs b/crates/pod-egress/src/wisp/mod.rs
+index 9e0d1ec..06c8796 100644
+--- a/crates/pod-egress/src/wisp/mod.rs
++++ b/crates/pod-egress/src/wisp/mod.rs
+@@ -124,7 +124,6 @@ impl WispError {
+             WispError::Connect(e) => e.stage_and_class(),
+             WispError::Opening(_) => (Stage::WebSocket, Class::Protocol),
+             WispError::Refused(_) => (Stage::Origin, Class::Refused),
+-            WispError::Closed(r) if *r == Reason::BLOCKED => (Stage::Origin, Class::Policy),
+             WispError::Closed(_) => (Stage::Origin, Class::Unavailable),
+             WispError::Gone { .. } | WispError::Failed(_) => (Stage::WebSocket, Class::Unavailable),
+         }

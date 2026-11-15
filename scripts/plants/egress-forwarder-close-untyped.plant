@@ -1,0 +1,7 @@
+# A forwarder's Close before the target's bytes is a fault of the protocol
+# of the WebSocket, not the origin's: the test of the forwarder as a dialer
+# must fail.
+ENTRY=T-035
+GROUP=egress
+EXPECT='test a_forwarder_is_a_dialer_and_its_close_is_a_typed_failure \.\.\. FAILED'
+RUN='cargo test -p pod-egress --all-features --test forwarder -- a_forwarder_is_a_dialer_and_its_close_is_a_typed_failure'

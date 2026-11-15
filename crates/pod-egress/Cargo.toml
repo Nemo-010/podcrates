@@ -1,0 +1,116 @@
+[package]
+name = "pod-egress"
+description = "The roads out that are not the relay: a second proxy over TLS, the WebSocket forwarders of other products, Wisp, wstunnel, Tor's meek_lite and WebTunnel, and the Access client of Cloudflare; each road that takes its target from the client is a dialer, through the caller's way out."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = []
+# A second forward proxy over TLS, by HTTP/1.1's or HTTP/2's CONNECT.
+via = ["dep:h2", "dep:http", "dep:bytes", "dep:base64", "dep:zeroize", "dep:tokio-rustls", "dep:rustls-pki-types"]
+# The WebSocket forwarders of other products, the built-in ones of
+# pod-services among them; a template wisp+wss:// takes the Wisp road.
+forwarder = ["wisp", "dep:pod-services"]
+# Many TCP streams over one WebSocket, by the Wisp protocol.
+wisp = []
+# A server of erebe/wstunnel: the token is a JWT signed with HMAC-SHA-256.
+wstunnel = ["dep:base64", "dep:zeroize", "dep:hmac", "dep:sha2"]
+# Tor's meek_lite: the session id is a part of SHA-256.
+meek = ["dep:sha2"]
+# Tor's WebTunnel: the pin of the certificates is a chain of SHA-256.
+webtunnel = ["dep:base64", "dep:sha2", "dep:tokio-rustls"]
+# The road of `cloudflared access tcp`.
+cloudflare = ["dep:zeroize"]
+# A plain WebSocket over TCP to the loopback, for the tests of the Access
+# client (cloudflare::connect_loopback). No binary turns it on.
+plain-ws = ["pod-ws/plain-ws"]
+# The readers of the wire for the fuzz targets of fuzz/ (src/fuzzing.rs):
+# the packets of a Wisp server. No consumer turns it on.
+fuzzing = ["wisp"]
+
+[dependencies]
+# The dialer, the failure and its stage and class, the events, the
+# entropy, the text made safe to print, the check of a host name.
+pod-core = { workspace = true, features = ["async"] }
+# The way out of the caller (its dialer, its TLS context, its user agent),
+# the WebSocket of each road: the frames, the upgrade, the session.
+pod-ws = { workspace = true }
+# The dial's error, the HTTP/1.1 heads, the authority of a host, the
+# schemes of a 407.
+pod-proxy = { workspace = true }
+# The trust of each TLS connection, the configuration of each trust and the
+# words of a failed handshake.
+pod-tls = { workspace = true }
+# The built-in forwarders: the services of the kind `forwarder`.
+pod-services = { workspace = true, optional = true }
+tokio = { workspace = true, features = ["io-util", "net", "time", "sync", "rt", "macros"] }
+rustls = { workspace = true }
+tracing = { workspace = true }
+# The answer of a forwarder and the claims of a wstunnel token are JSON.
+serde_json = { workspace = true }
+tokio-rustls = { workspace = true, optional = true }
+rustls-pki-types = { workspace = true, optional = true }
+# HTTP/2's CONNECT of via: h2 and its types, pure Rust, which pod-ws takes
+# already.
+h2 = { workspace = true, optional = true }
+http = { workspace = true, optional = true }
+bytes = { workspace = true, optional = true }
+base64 = { workspace = true, optional = true }
+zeroize = { workspace = true, optional = true }
+hmac = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+
+[dev-dependencies]
+pod-testkit = { workspace = true }
+tokio = { workspace = true, features = ["io-util", "net", "time", "sync", "rt", "rt-multi-thread", "macros", "test-util"] }
+# The way of the tests: TLS on ring.
+rustls = { workspace = true, features = ["ring"] }
+tokio-rustls = { workspace = true }
+rustls-pki-types = { workspace = true }
+# The certificates of the tests (pod-tls tests/common/cert_for_test.rs),
+# minted in pure Rust.
+p256 = { workspace = true }
+# The digests of the bytes that the tests carry, and the token of a
+# stand-in wstunnel server.
+sha2 = { workspace = true }
+hmac = { workspace = true }
+base64 = { workspace = true }
+zeroize = { workspace = true }
+bytes = { workspace = true }
+h2 = { workspace = true }
+http = { workspace = true }
+
+[[test]]
+name = "via"
+required-features = ["via"]
+
+[[test]]
+name = "forwarder"
+required-features = ["forwarder"]
+
+[[test]]
+name = "live_forwarder"
+required-features = ["forwarder"]
+
+[[test]]
+name = "wisp"
+required-features = ["forwarder"]
+
+[[test]]
+name = "wstunnel"
+required-features = ["wstunnel"]
+
+[[test]]
+name = "meek"
+required-features = ["meek"]
+
+[[test]]
+name = "webtunnel"
+required-features = ["webtunnel"]
+
+[[test]]
+name = "cloudflare_access"
+required-features = ["cloudflare", "plain-ws"]
