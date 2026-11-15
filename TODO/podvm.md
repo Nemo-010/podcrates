@@ -8700,3 +8700,32 @@ cargo test -p pod-hostprobe --all-features
 ## Done
 
 2026-11-15, the commit of the change. `sys::SYS_IOCTL`, `sys::ENOTTY`; `probes/kvm.rs`: `runs_native_guest` (`KVM_GET_API_VERSION` 12, `KVM_CREATE_VM`, then `KVM_GET_SUPPORTED_CPUID` on x86_64 or `KVM_ARM_PREFERRED_TARGET` on aarch64; each descriptor closed) and `verdict`; on another architecture the open alone answers. The unit tests `the_requests_are_the_kernel_numbers` (0xAE00, 0xAE01, 0xC008AE05, 0x8020AEAF) and `a_device_of_another_architecture_is_a_no_with_the_reason`; `cargo test -p pod-hostprobe --all-features` passed, clippy clean. The plant `hostprobe-kvm-other-arch-yes` is caught. No device of KVM here: podvm's probe in an arm64 container proves the live answer.
+
+# T-688: `pod-enter`: the device nodes of the host on the namespace rung through a user namespace (PodUtils/podvm#414)
+
+**Source:** PodUtils/podvm#414 (COORD-135 of podvm; PodUtils/podvm@T-1912, PodUtils/podvm@T-1909).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+In a user namespace `mknod` is refused, so the fixups of `pod-rootfs` leave regular files at `/dev/null`, `/dev/zero`, `/dev/random` and `/dev/urandom`; a `/dev/urandom` there ends after 1 MiB (`FILLED_BYTES`). podvm measured it in its own foreground entry through a user namespace (its QA row `run.urandom.ns`): `head -c 2000000 /dev/urandom | wc -c` gave 1048576. podvm's foreground entry binds the four nodes of the host onto the tree itself; for `run -d` and `create` it has no mount namespace of its own before pod-enter's. The ask: on the namespace rung through a user namespace (steps 23 to 26), after the private remount of `/` and before the chroot, bind the host's character devices `/dev/null`, `/dev/zero`, `/dev/full`, `/dev/random`, `/dev/urandom` and `/dev/tty` onto the image's, each where the image has a regular file or nothing at that path (an empty file made as the mount point), never over a link or a directory; a refused bind writes one line, as the optional mounts do (`ns_optional`), and the rung goes on.
+
+## Premise
+
+- Read: PodUtils/podvm#414; `crates/pod-enter/src/ns_optional.rs`, `ns_proc_bind.rs` (T-672: a bind of the host's proc in the same form), `launch.rs`, `ns_user.rs`.
+- Not measured here: the rung as a user with no capabilities (the tests of T-670 run as uid 65534).
+
+## Approach
+
+The paths and the checks of the image (regular file, missing, link, directory) before the fork, through the descriptor of the root, with `O_NOFOLLOW`; in the child, in the user-namespace form only, after the private remount: an empty file as the mount point where the path is missing, then a bind of each host device (`MS_BIND`, no `MS_REC`), then a remount with `nosuid` and `noexec`; a refused step writes one line and the rung goes on. Unit tests of the choice of each path; a live test as uid 65534 (`head -c 2000000 /dev/urandom | wc -c` gives 2000000, `/dev/null` is a character device); a plant for each guard (no bind over a link).
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+sh scripts/ci/userns-tests.sh
+```
