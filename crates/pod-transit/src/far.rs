@@ -18,13 +18,13 @@ use podssh_ws::{ProxyChoice, Trust};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::Instant;
 
-use super::link::Link;
-use super::meet::{meet, Missed, Part};
-use super::token::{Keys, Side};
 use super::Say;
+use super::link::Link;
+use super::meet::{Missed, Part, meet};
+use super::token::{Keys, Side};
 use crate::session::keep::Keeper;
 use crate::session::record::Role;
-use crate::session::{far, OsEntropy, Settings};
+use crate::session::{OsEntropy, Settings, far};
 
 /// How often the sessions whose links are lost are checked for their
 /// deadline.

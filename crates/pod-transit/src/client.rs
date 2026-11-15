@@ -14,11 +14,11 @@ use rand::RngExt;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::time::Instant;
 
+use super::Say;
 use super::far::dial;
 use super::link::Link;
-use super::meet::{meet, Missed, Part};
+use super::meet::{Missed, Part, meet};
 use super::token::{Keys, Side};
-use super::Say;
 use crate::session::client::{self, Outcome};
 use crate::session::resume::{self, Next, Note};
 use crate::session::secret::NoRandom;

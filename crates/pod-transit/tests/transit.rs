@@ -21,9 +21,9 @@ use std::time::Duration;
 
 use podssh_relay::session::keep::Keeper;
 use podssh_relay::session::resume::{self, Next, Note};
-use podssh_relay::session::{client, far as layer_far, Ask, OsEntropy, Role, Settings};
-use podssh_relay::transit::meet::{meet, Missed, Part};
-use podssh_relay::transit::{self, far, Dialer, Keys, Link, Node, Side};
+use podssh_relay::session::{Ask, OsEntropy, Role, Settings, client, far as layer_far};
+use podssh_relay::transit::meet::{Missed, Part, meet};
+use podssh_relay::transit::{self, Dialer, Keys, Link, Node, Side, far};
 use podssh_ws::url::WsUrl;
 use podssh_ws::{ProxyChoice, Trust};
 use sha2::{Digest, Sha256};

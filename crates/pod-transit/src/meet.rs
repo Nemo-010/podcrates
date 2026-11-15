@@ -17,10 +17,10 @@ use std::fmt;
 use std::time::Duration;
 
 use podssh_ws::session::close_code_and_reason;
-use podssh_ws::{frame, RelaySession, SessionError};
+use podssh_ws::{RelaySession, SessionError, frame};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::token::{line, Keys, Side, PROOF_BYTES};
+use super::token::{Keys, PROOF_BYTES, Side, line};
 use crate::session::secret::Entropy;
 
 /// The version of podssh's words after `ok`.
@@ -117,7 +117,7 @@ where
         "ok" => {}
         "bad handshake" => return Err(Missed::Refused("the relay did not take the line (bad handshake)".into())),
         "impatient" => {
-            return Err(Missed::Refused("the relay took bytes before its ok for a fault (impatient)".into()))
+            return Err(Missed::Refused("the relay took bytes before its ok for a fault (impatient)".into()));
         }
         other => {
             let shown: String = podssh_ws::text::one_line(other).chars().take(60).collect();
