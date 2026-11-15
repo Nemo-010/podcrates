@@ -13,11 +13,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
-use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 use super::*;
 use crate::frame::{self as wsf, Frame, Role};
-use crate::iap::{session, upgrade, Target};
+use crate::iap::{Target, session, upgrade};
 
 const TOKEN: &str = "TEST-TOKEN-NOT-A-CREDENTIAL";
 const SHORT: Duration = Duration::from_secs(5);

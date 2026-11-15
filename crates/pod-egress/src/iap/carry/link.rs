@@ -10,13 +10,13 @@ use std::time::Duration;
 
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use super::super::close::{fate, Fate};
+use super::super::Resume;
+use super::super::close::{Fate, fate};
 use super::super::flow::Flow;
 use super::super::frame::{self, Message};
-use super::super::Resume;
-use super::{lock, Dial, Ended, Line, Say, RECONNECTS, RECONNECT_WAIT};
+use super::{Dial, Ended, Line, RECONNECT_WAIT, RECONNECTS, Say, lock};
 use crate::frame as ws;
-use crate::session::{close_code_and_reason, RelaySession};
+use crate::session::{RelaySession, close_code_and_reason};
 
 /// The first message of a link that counts: the connect's success, or a
 /// reconnect's.
@@ -56,7 +56,7 @@ where
                 Ok(Message::ReconnectSuccessAck(n)) if !connect => return Ok(First::Took(n)),
                 Ok(Message::Unknown(_) | Message::LongClose { .. }) => {}
                 Ok(other) => {
-                    return Err(Unopened::Fault(format!("IAP sent {} before the session opened", what(&other))))
+                    return Err(Unopened::Fault(format!("IAP sent {} before the session opened", what(&other))));
                 }
                 Err(e) => return Err(Unopened::Fault(e.to_string())),
             }

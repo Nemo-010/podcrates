@@ -17,15 +17,15 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, DuplexStream, ReadHalf, WriteHalf};
-use tokio::sync::{watch, Notify};
+use tokio::sync::{Notify, watch};
 
-use super::close::{self, fate, Fate};
-use super::flow::Flow;
-use super::frame::{self, Message, MAX_DATA};
 use super::Resume;
+use super::close::{self, Fate, fate};
+use super::flow::Flow;
+use super::frame::{self, MAX_DATA, Message};
 use crate::frame as ws;
-use crate::session::{close_code_and_reason, RelaySession};
-use link::{first, take_up, what, words, First, Unopened};
+use crate::session::{RelaySession, close_code_and_reason};
+use link::{First, Unopened, first, take_up, what, words};
 
 mod link;
 
