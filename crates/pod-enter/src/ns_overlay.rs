@@ -176,7 +176,7 @@ pub(crate) fn overlay_step(step: &'static str) -> &'static str {
     if Some(step) == ns_setup_step(10) { "verifying the chroot landed on the overlay" } else { step }
 }
 
-/// Enter `root` in a mount namespace and exec: [`spawn_namespace`] for a
+/// Enter `root` in a mount namespace and exec: [`crate::spawn_namespace`] for a
 /// tree (with its fallback to chroot), the overlay root for an overlay.
 ///
 /// The overlay root needs the `/tmp` of the image as a directory, as the
