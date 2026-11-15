@@ -3670,6 +3670,7 @@ dependencies = [
  "pod-netlab",
  "pod-netstack",
  "pod-oci",
+ "pod-opentunnel",
  "pod-piping",
  "pod-proxy",
  "pod-qga",
