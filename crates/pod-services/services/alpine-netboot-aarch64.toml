@@ -1,0 +1,48 @@
+# The netboot files of Alpine Linux for aarch64: the kernel of podvm's arm64
+# guest of the machine tier (qemu-system-aarch64 -M virt under TCG on an
+# x86_64 host). The pins are the files of the release 3.22.6, as for the
+# x86_64 guest (alpine-netboot). The NIC modules follow when podvm asks.
+id = "alpine-netboot-aarch64"
+kind = "guest-image"
+party = "Alpine Linux"
+about = "The netboot kernel and modules of Alpine Linux 3.22 for aarch64"
+
+[[endpoint]]
+name = "archive"
+scheme = "https"
+host = "dl-cdn.alpinelinux.org"
+port = 443
+path = "/alpine/v3.22/releases/aarch64/alpine-netboot-3.22.6-aarch64.tar.gz"
+source = { ruling = "PodUtils/podvm#394 (COORD-128 of podvm, its T-1890, experiment 456)", read = 2026-11-15, note = "its members boot/vmlinuz-virt and boot/modloop-virt have the SHA-256 of the facts" }
+
+[[fact]]
+name = "release"
+value = "3.22.6"
+source = { ruling = "PodUtils/podvm#394: the release of the x86_64 pin of alpine-netboot", read = 2026-11-15 }
+
+[[fact]]
+name = "vmlinuz-virt-sha256"
+value = "dd37c4460f933ec909ff022c34944ff7e1a5300aff99750e3bdc02cd4074c332"
+source = { measured = "sha256sum of boot/vmlinuz-virt (9,630,208 bytes) of alpine-netboot-3.22.6-aarch64.tar.gz", read = 2026-11-15, note = "PodUtils/podvm#394 has the same" }
+
+[[fact]]
+name = "modloop-virt-sha256"
+value = "da142869626ec9d4543ab46482af10b5ff2c8c1c2e01068ddf32360316a06218"
+source = { measured = "sha256sum of boot/modloop-virt (16,347,136 bytes) of alpine-netboot-3.22.6-aarch64.tar.gz", read = 2026-11-15, note = "PodUtils/podvm#394 has the same" }
+
+[[fact]]
+name = "archive-sha256"
+value = "0a39889547d6fb1b0dc124f4baceadd08fef7a72708d5c92774a207f2bc41728"
+source = { measured = "sha256sum of alpine-netboot-3.22.6-aarch64.tar.gz", read = 2026-11-15, note = "PodUtils/podvm#394 has the same" }
+
+[[fact]]
+name = "archive-bytes"
+value = 341396208
+unit = "bytes"
+source = { measured = "the length of alpine-netboot-3.22.6-aarch64.tar.gz", read = 2026-11-15, note = "PodUtils/podvm#394 has the same" }
+
+[[watch]]
+kind = "http-sha256"
+endpoint = "archive"
+fact = "archive-sha256"
+length = "archive-bytes"

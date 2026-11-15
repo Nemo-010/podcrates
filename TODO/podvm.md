@@ -8498,3 +8498,36 @@ cargo test -p pod-qga --all-features
 ## Done
 
 2026-11-15, the commit of the change. `wire::OsInfo`, `Client::osinfo`, the answer of the stand-in agent; the tests `osinfo_takes_each_member_that_is_there_and_names_a_wrong_one` and `osinfo_names_the_system_of_the_guest`. `cargo test -p pod-qga --all-features` passed (28 tests); clippy of the crate is clean.
+
+# T-651: `pod-services`: the aarch64 netboot of Alpine 3.22.6 and the static `qemu-system-aarch64` (PodUtils/podvm#394)
+
+**Source:** PodUtils/podvm#394 (COORD-128 of podvm; PodUtils/podvm@T-1890, PodUtils/podrunner#102).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+podvm boots a linux/arm64 guest of the machine tier on an x86_64 host (`qemu-system-aarch64 -M virt` under TCG). The kernel of the x86_64 guest comes from `alpine-netboot`; the arm64 guest has no pin, so podvm reads `PODVM_MACHINE_KERNEL_ARM64` until a tag has one. The ask: a service of the same shape for `alpine-netboot-3.22.6-aarch64.tar.gz` (341 396 208 bytes, sha256 `0a39889547d6fb1b0dc124f4baceadd08fef7a72708d5c92774a207f2bc41728`; `boot/vmlinuz-virt` `dd37c4460f933ec909ff022c34944ff7e1a5300aff99750e3bdc02cd4074c332`; `boot/modloop-virt` `da142869626ec9d4543ab46482af10b5ff2c8c1c2e01068ddf32360316a06218`). The NIC modules can follow. A smaller item: the static `qemu-system-aarch64` 9.2.0 of pkgforge (46 519 280 bytes, sha256 `1ed86579cf74ecbe4d118b098d96d3e127beebde048b3d8e5bc907781403531b`) for podvm's store.
+
+## Premise
+
+- Read: PodUtils/podvm#394; `crates/pod-services/services/alpine-netboot.toml`, `crates/pod-services/services/pkgforge-qemu.toml`.
+- Measured: each size and sum of the ask, from this session.
+- Not measured: the release of the kernel in `boot/initramfs-virt` (this session has no `cpio`); the NIC modules.
+
+## Approach
+
+A service `alpine-netboot-aarch64` (kind `guest-image`) with the archive, its sums and an `http-sha256` watch; the endpoint `qemu-system-aarch64` of `pkgforge-qemu` with its sums and a watch. A test of the pins.
+
+## Prove
+
+```sh
+cargo test -p pod-services --all-features
+```
+
+## Done
+
+2026-11-15, the commit of the change. `crates/pod-services/services/alpine-netboot-aarch64.toml` (the archive, `release`, `vmlinuz-virt-sha256`, `modloop-virt-sha256`, `archive-sha256`, `archive-bytes`, a watch) and the endpoint `qemu-system-aarch64` of `pkgforge-qemu` (its sha256, its length, a watch). Each size and sum of the ask, measured here, is the same. The test `the_aarch64_netboot_holds_the_pins_of_podvm` and the row of `qemu-system-aarch64` in `the_static_qemu_holds_the_pins_of_podvm`; `cargo test -p pod-services --all-features` and `cargo test -p pod-services-watch --all-features` passed. The release of the kernel and the NIC modules wait for podvm's ask.

@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 534 entries: 106 open, 9 partial, 6 blocked, 413 done.
+`TODO/INDEX.md` holds 535 entries: 106 open, 9 partial, 6 blocked, 414 done.
 
 ## State
 
@@ -10,8 +10,8 @@
   #164, COORD-104): step 1 of the move of podssh.
 - In release: `v0.51.0` (`docs/releases/v0.51.0.md`): part 1 of
   `pod-egress` (T-035), T-639 (PodUtils/podnet#572), T-640
-  (PodUtils/podvm#380), T-643 (PodUtils/podssh#253), T-647, T-648, T-650
-  (PodUtils/podvm#389, #390, #393).
+  (PodUtils/podvm#380), T-643 (PodUtils/podssh#253), T-647, T-648, T-650, T-651
+  (PodUtils/podvm#389, #390, #393, #394).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.49.0` (`a99de1d`, PodUtils/podssh#252); step 1 of the move

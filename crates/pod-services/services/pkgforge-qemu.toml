@@ -1,6 +1,7 @@
 # The static QEMU 9.2.0 of pkgforge's bincache (the package ppkg.qemu).
 # podvm's store fetches qemu-system-x86_64 and qemu-img on a host with no
-# QEMU and checks the size and the sha256 of each before it uses a byte
+# QEMU (and qemu-system-aarch64 for an arm64 guest, PodUtils/podvm#394)
+# and checks the size and the sha256 of each before it uses a byte
 # (PodUtils/podvm#389, its T-1875). The endpoint answers a GET with the
 # file (a redirect is allowed).
 id = "pkgforge-qemu"
@@ -15,6 +16,14 @@ host = "api.ghcr.pkgforge.dev"
 port = 443
 path = "/pkgforge/bincache/qemu/ppkg/qemu-system-x86_64?tag=9.2.0-x86_64-linux&download=qemu-system-x86_64"
 source = { ruling = "PodUtils/podvm crates/podvm-windows/src/tools.rs PKGFORGE and bin!, at 25024cb3", read = 2026-11-15 }
+
+[[endpoint]]
+name = "qemu-system-aarch64"
+scheme = "https"
+host = "api.ghcr.pkgforge.dev"
+port = 443
+path = "/pkgforge/bincache/qemu/ppkg/qemu-system-aarch64?tag=9.2.0-x86_64-linux&download=qemu-system-aarch64"
+source = { ruling = "PodUtils/podvm#394 (COORD-128 of podvm): the emulator of an arm64 guest on an x86_64 host", read = 2026-11-15 }
 
 [[endpoint]]
 name = "qemu-img"
@@ -41,6 +50,17 @@ unit = "bytes"
 source = { measured = "the length of the file at the endpoint qemu-system-x86-64", read = 2026-11-15, note = "the pin of podvm tools.rs at 25024cb3 is the same" }
 
 [[fact]]
+name = "qemu-system-aarch64-sha256"
+value = "1ed86579cf74ecbe4d118b098d96d3e127beebde048b3d8e5bc907781403531b"
+source = { measured = "the SHA-256 of the file at the endpoint qemu-system-aarch64", read = 2026-11-15, note = "PodUtils/podvm#394 has the same" }
+
+[[fact]]
+name = "qemu-system-aarch64-bytes"
+value = 46519280
+unit = "bytes"
+source = { measured = "the length of the file at the endpoint qemu-system-aarch64", read = 2026-11-15, note = "PodUtils/podvm#394 has the same" }
+
+[[fact]]
 name = "qemu-img-sha256"
 value = "7311a2598164b3055097f8f0484c1bbb0cd92463889fd8108c2f40fcc9f597c6"
 source = { measured = "the SHA-256 of the file at the endpoint qemu-img", read = 2026-11-15, note = "the pin of podvm tools.rs at 25024cb3 is the same" }
@@ -56,6 +76,12 @@ kind = "http-sha256"
 endpoint = "qemu-system-x86-64"
 fact = "qemu-system-x86-64-sha256"
 length = "qemu-system-x86-64-bytes"
+
+[[watch]]
+kind = "http-sha256"
+endpoint = "qemu-system-aarch64"
+fact = "qemu-system-aarch64-sha256"
+length = "qemu-system-aarch64-bytes"
 
 [[watch]]
 kind = "http-sha256"
