@@ -9,7 +9,8 @@
   43760037975, adoption 43760041298, release 43761945030; the hand-off
   #188, COORD-113): `pod-lab` part 1 (T-692), `pod-manual` part 1
   (T-700), the watcher (T-710 to T-712).
-- In release (the next tag): T-703 (the sync of the issues).
+- In release: `v0.55.0` (`docs/releases/v0.55.0.md`): T-703 (the sync of
+  the issues), T-701 (the host classes of podssh and podnet).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.51.0` (`3f6a9fe`, PodUtils/podssh#260): part 1 of
