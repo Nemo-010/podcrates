@@ -1,0 +1,11 @@
+--- a/scripts/agent/watch.py
++++ b/scripts/agent/watch.py
+@@ -212,7 +212,7 @@
+         stamp = c.get("updated_at") or ""
+         before = seen.get(key)
+         seen[key] = stamp
+-        if before == stamp:
++        if before is not None:
+             continue
+         word = "new" if before is None and stamp == (c.get("created_at") or stamp) else "edited"
+         if announce:

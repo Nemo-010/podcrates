@@ -1898,3 +1898,31 @@ sh scripts/plant-each.sh watch-trusts-a-stranger
 ## Done
 
 2026-11-15, commit `b682088`. `watch.py` reads `author_association`; its self-test has 27 checks, and the plant `watch-trusts-a-stranger` is caught. `AGENTS.md` (section 9) and `docs/session-protocol.md` (step 3) give the rule. Call C691.
+
+# T-712: the watcher reports each comment that is new or edited (the owner's ask)
+
+**Source:** the owner, 2026-11-15: "ensure the watcher scripts also notice amended/edited comments".
+**Category:** chore
+**Milestone:** M0
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`watch.py` (T-710) saw a new comment only by the comment count of its issue. An edit of a comment changes no count, so an edited comment went unseen, and a session acted on the old words. The review comments of a pull request were not read at all.
+
+## Premise
+
+- Read: GitHub's comment list of a repository (`/issues/comments` and `/pulls/comments`, sorted by `updated_at`) gives each comment's `created_at`, `updated_at`, `author_association` and the URL of its item.
+
+## Approach
+
+Each poll reads the comment list of each repository (and the review comments of the pull requests of ORG/ME), sorted by update. A comment is `new` when its key is new and it was not edited, else `edited` when its `updated_at` moved. A line names the item, the comment, the author and the first words. The trust rule of T-711 holds: on ORG/ME a comment from outside the team has the tag; on another repository it is not shown, nor a comment on an item that is not for ME. The first poll after an upgrade records the comments and prints nothing. The item line no longer says COMMENTED.
+
+## Prove
+
+```sh
+python3 -I scripts/agent/watch.py --self-test
+sh scripts/plant-each.sh watch-misses-an-edited-comment
+```

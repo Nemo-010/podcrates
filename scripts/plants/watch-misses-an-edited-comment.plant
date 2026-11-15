@@ -1,0 +1,6 @@
+# The watcher reports a comment only once, so an edit of a comment goes
+# unseen; its self-test must fail.
+ENTRY=T-712
+GROUP=agent
+EXPECT='FAIL an edited comment'
+RUN='python3 -I scripts/agent/watch.py --self-test'

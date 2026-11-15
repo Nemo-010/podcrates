@@ -34,7 +34,9 @@ watches them.
    repository (new, commented, closed, reopened, merged, and a pull request
    that changes); each issue and pull request of another repository of
    PodUtils whose title holds `(to ME)` or `(to all)`, or that has the
-   label `ME` (and a COORD message that its writer amends); each Actions
+   label `ME` (and a COORD message that its writer amends); each comment
+   of such an item that is new or edited, with its author and its first
+   words (a comment can change the plan of a message); each Actions
    run of this repository that starts, ends (with its failed jobs) or runs
    again (`--runs OWNER/REPO` for other repositories). When a run ends,
    read it and act; do not wait for a comment. It keeps a copy of each

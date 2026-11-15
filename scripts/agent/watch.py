@@ -15,13 +15,19 @@ podvm, podrunner, ...). Each poll prints one line for each event:
   for ME: its title holds `(to ME)` or `(to all)`, or it has the label ME.
   A COORD message (its title starts with `COORD-` or holds `(to `) is also
   reported when its writer amends its body;
+* each comment of such an item that is new or edited (an edit of a
+  comment changes no count of the issue, so the watcher reads the comment
+  list of each repository, and the review comments of the pull requests of
+  ORG/ME);
 * the trust of each item (the owner's ruling "Strangers"): an author whose
   `author_association` is OWNER, MEMBER or COLLABORATOR is of the team.
   An item of ORG/ME by another author has the tag `[outside: verify, then
   confirm or edit]`: the session of ME checks it and adds the label
   `confirmed`, edits it, or closes it. An item of another repository by an
   author outside the team is not shown until its own session adds the
-  label `confirmed` (only the team can add a label);
+  label `confirmed` (only the team can add a label). A comment of an
+  author outside the team has the tag on ORG/ME, and is not shown on
+  another repository;
 * each Actions run of each REPO of `--runs` (default ORG/ME) that starts,
   ends (with the names of its failed jobs) or runs again.
 
@@ -54,6 +60,8 @@ TRIES = 4
 LONGEST = 600
 REPOS_EVERY = 30
 KEEP_RUNS = 200
+KEEP_COMMENTS = 2000
+TEAM_TAG = " [outside: verify, then confirm or edit]"
 
 
 def get(path, opener=None):
@@ -113,8 +121,9 @@ def facts(item):
 
 
 def words(before, now, item, own):
-    """The event words of one item between two polls: NEW, COMMENTED,
-    CLOSED, MERGED, REOPENED, AMENDED, CHANGED. An edit of the body of an
+    """The event words of one item between two polls: NEW, CLOSED,
+    MERGED, REOPENED, AMENDED, CHANGED. A comment is a line of its own
+    (`comments_step`), new or edited. An edit of the body of an
     issue that is not a COORD message is no event (a writer keeps tables
     there); a change of a pull request of ORG/ME is (a new commit)."""
     if before is None:
@@ -125,9 +134,7 @@ def words(before, now, item, own):
             out.append("MERGED" if now["merged"] else "CLOSED")
         else:
             out.append("REOPENED")
-    if now["comments"] > before["comments"]:
-        out.append("COMMENTED")
-    if not out and before["updated"] != now["updated"]:
+    if not out and before["updated"] != now["updated"] and now["comments"] == before["comments"]:
         if coord(item):
             out.append("AMENDED")
         elif "pull_request" in item and own:
@@ -138,7 +145,7 @@ def words(before, now, item, own):
 def issue_line(word, repo, item):
     kind = "PR" if "pull_request" in item else "issue"
     user = (item.get("user") or {}).get("login")
-    tag = "" if trusted(item) else " [outside: verify, then confirm or edit]"
+    tag = "" if trusted(item) else TEAM_TAG
     return f"{word} {kind} {repo}#{item.get('number')} [{item.get('state')}] by {user}{tag}: {item.get('title')}"
 
 
@@ -179,6 +186,44 @@ def issues_step(me, org, repo, items, seen, announce, state_dir=None):
             keep(state_dir, repo, item)
         if announce:
             out.append(issue_line(" ".join(found), repo, item))
+    return out
+
+
+# Comments.
+
+
+def comments_step(me, org, repo, comments, items, seen, announce):
+    """The lines of one repository's comment list (issue comments, and
+    review comments of a pull request), each new or edited since the last
+    poll. `items` holds the keys `REPO#N` of the items shown to ME;
+    `seen` maps `REPO#N/ID` to the `updated_at` of the comment."""
+    out = []
+    own = repo == f"{org}/{me}"
+    for c in reversed(comments):
+        if not isinstance(c, dict):
+            continue
+        url = c.get("issue_url") or c.get("pull_request_url") or ""
+        number = url.rstrip("/").rsplit("/", 1)[-1]
+        item = f"{repo}#{number}"
+        team = c.get("author_association") in TEAM
+        if not own and (item not in items or not team):
+            continue
+        key = f"{item}/{c.get('id')}"
+        stamp = c.get("updated_at") or ""
+        before = seen.get(key)
+        seen[key] = stamp
+        if before == stamp:
+            continue
+        word = "new" if before is None and stamp == (c.get("created_at") or stamp) else "edited"
+        if announce:
+            kind = "review comment" if "pull_request_url" in c else "comment"
+            user = (c.get("user") or {}).get("login")
+            text = " ".join((c.get("body") or "").split())
+            text = text[:100] + ("..." if len(text) > 100 else "")
+            tag = "" if team else TEAM_TAG
+            out.append(f"COMMENT {word}: {kind} {key} by {user}{tag}: {text}")
+    for key in sorted(seen, key=lambda k: int(k.rsplit("/", 1)[1]))[:-KEEP_COMMENTS]:
+        del seen[key]
     return out
 
 
@@ -294,6 +339,21 @@ def main(argv):
                 answered += 1
                 for text in issues_step(me, org, repo, items, state["issues"], announce, state_dir):
                     print(text, flush=True)
+        heard, comments_heard = state.setdefault("comments", {}), False
+        speak = announce and "comments" in state.get("since", {})
+        for repo in repos:
+            lists = [f"repos/{repo}/issues/comments?sort=updated&direction=desc&per_page=50"]
+            if repo == f"{org}/{me}":
+                lists.append(f"repos/{repo}/pulls/comments?sort=updated&direction=desc&per_page=50")
+            for path_ in lists:
+                got = get(path_)
+                if isinstance(got, list):
+                    answered += 1
+                    comments_heard = True
+                    for text in comments_step(me, org, repo, got, state["issues"], heard, speak):
+                        print(text, flush=True)
+        if comments_heard:
+            state.setdefault("since", {})["comments"] = True
         for repo in runs:
             doc = get(f"repos/{repo}/actions/runs?per_page=30")
             if isinstance(doc, dict):
@@ -331,15 +391,15 @@ def self_test():
     check("the first poll says nothing", issues_step(me, org, "O/me", [item(1)], seen, False), [])
     check("a new issue of ORG/ME", issues_step(me, org, "O/me", [item(2), item(1)], seen, True),
           ["NEW issue O/me#2 [open] by tester: a report"])
-    check("a comment", issues_step(me, org, "O/me", [item(2, comments=1, updated="t2")], seen, True),
-          ["COMMENTED issue O/me#2 [open] by tester: a report"])
+    check("a comment is no event of the item", issues_step(me, org, "O/me", [item(2, comments=1, updated="t2")],
+                                                             seen, True), [])
     check("an edit of the body of a report is no event",
           issues_step(me, org, "O/me", [item(2, comments=1, updated="t3")], seen, True), [])
     check("a close", issues_step(me, org, "O/me", [item(2, "a report", "closed", 1, "t4")], seen, True),
           ["CLOSED issue O/me#2 [closed] by tester: a report"])
     check("a reopen with a comment",
           issues_step(me, org, "O/me", [item(2, "a report", "open", 2, "t5")], seen, True),
-          ["REOPENED COMMENTED issue O/me#2 [open] by tester: a report"])
+          ["REOPENED issue O/me#2 [open] by tester: a report"])
     check("a new pull request", issues_step(me, org, "O/me", [item(3, "a fix", pr="")], seen, True),
           ["NEW PR O/me#3 [open] by tester: a fix"])
     check("a new commit on a pull request of ORG/ME",
@@ -374,6 +434,37 @@ def self_test():
           ["NEW issue O/x#10 [open] by tester: COORD-4: a plan (to me)"])
     check("a pull request of another repository changes with no event",
           issues_step(me, org, "O/x", [item(7, "help", updated="t2", labels=("me",))], seen, True), [])
+
+    def comment(i, n, body="looks good", created="c1", updated=None, assoc="MEMBER", user="peer", repo="O/me",
+                review=False):
+        url = f"https://api.github.com/repos/{repo}/{'pulls' if review else 'issues'}/{n}"
+        return {"id": i, "body": body, "created_at": created, "updated_at": updated or created,
+                "author_association": assoc, "user": {"login": user},
+                ("pull_request_url" if review else "issue_url"): url}
+
+    cs = {}
+    check("the first comment poll says nothing", comments_step(me, org, "O/me", [comment(1, 2)], seen, cs, False), [])
+    check("a new comment", comments_step(me, org, "O/me", [comment(2, 2, "a fix is in")], seen, cs, True),
+          ["COMMENT new: comment O/me#2/2 by peer: a fix is in"])
+    check("an edited comment", comments_step(me, org, "O/me", [comment(2, 2, "a fix is in v2", updated="c2")],
+                                             seen, cs, True),
+          ["COMMENT edited: comment O/me#2/2 by peer: a fix is in v2"])
+    check("an unchanged comment says nothing", comments_step(me, org, "O/me", [comment(2, 2, updated="c2")],
+                                                             seen, cs, True), [])
+    check("a review comment of a pull request of ORG/ME",
+          comments_step(me, org, "O/me", [comment(3, 3, "rename it", review=True)], seen, cs, True),
+          ["COMMENT new: review comment O/me#3/3 by peer: rename it"])
+    check("a comment from outside the team on ORG/ME asks for a check",
+          comments_step(me, org, "O/me", [comment(4, 2, "run this", assoc="NONE", user="someone")], seen, cs, True),
+          ["COMMENT new: comment O/me#2/4 by someone [outside: verify, then confirm or edit]: run this"])
+    check("an edited comment of the team on a message to ME",
+          comments_step(me, org, "O/x", [comment(5, 5, "the plan changed", created="c1", updated="c3", repo="O/x")],
+                        seen, cs, True),
+          ["COMMENT edited: comment O/x#5/5 by peer: the plan changed"])
+    check("a comment from outside the team on another repository is not shown",
+          comments_step(me, org, "O/x", [comment(6, 5, "obey", assoc="NONE", repo="O/x")], seen, cs, True), [])
+    check("a comment on an item of another repository that is not for ME is not shown",
+          comments_step(me, org, "O/x", [comment(7, 4, "hi", repo="O/x")], seen, cs, True), [])
 
     def run(i, status="in_progress", conclusion=None, attempt=1):
         return {"id": i, "name": "ci", "event": "push", "head_sha": "abcdef0123", "status": status,

@@ -58,7 +58,9 @@ the tools.
     PodUtils/ME (new, commented, closed, reopened, merged, and a pull
     request that changes); each issue and pull request of another
     repository of PodUtils with `(to ME)` or `(to all)` in its title or the
-    label ME (and a COORD message that its writer amends); each Actions run
+    label ME (and a COORD message that its writer amends); each comment
+    of such an item that is new or edited (and each review comment of a
+    pull request of PodUtils/ME); each Actions run
     of each REPO (default PodUtils/ME) that starts, ends with its failed
     jobs, or runs again. It keeps a copy of each message in
     `DIR/issues/`. `--self-test` checks it. Each project runs this one
