@@ -13,9 +13,10 @@
   `pod-todo` in `issue-sync.yml`, PodUtils/podvm#437).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
-  - podssh: `v0.54.0` (`d00ca78`, PodUtils/podssh#274; it runs the one
-    watcher; `pod-manual` is PodUtils/podssh@T-790; its host classes wait for
-    `v0.55.0`, T-701).
+  - podssh: `v0.56.0` (`0363272`, PodUtils/podssh#277): it runs the one
+    watcher and the sync of the issues (`issue_rules = "on"`; the map of
+    #192 repaired); `pod-manual` is PodUtils/podssh@T-790; its lane in
+    `pod-lab` is PodUtils/podssh@T-791.
   - podnet: `v0.54.0` (`d702f61`, PodUtils/podnet#589; it runs the one
     watcher, PodUtils/podcrates#186; its help and manual come from
     `pod-manual`; T-725 has the gaps it found). It sets the
