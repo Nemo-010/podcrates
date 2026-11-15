@@ -1,0 +1,6 @@
+# pod-enter: the root descriptor stays on the number of a passed descriptor, where the child puts that descriptor first; the test of the move must fail (T-691).
+ENTRY=T-691
+GROUP=enter
+EXPECT='test pass_clear::tests::a_root_on_a_passed_number_moves_above_each_passed_number \.\.\. FAILED'
+RUN='cargo test -p pod-enter --all-features --lib -- pass_clear::tests::a_root_on_a_passed_number_moves_above_each_passed_number --exact'
+LIMIT=1800

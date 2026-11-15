@@ -8743,7 +8743,7 @@ sh scripts/ci/userns-tests.sh
 **Milestone:** M6
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8762,3 +8762,7 @@ A module `pass_clear`: `keep` gives the descriptor of the caller, or a close-on-
 ```sh
 cargo test -p pod-enter --all-features --lib pass_clear
 ```
+
+## Done
+
+2026-11-15, the commits of the change. `crates/pod-enter/src/pass_clear.rs`: `keep` moves the root and the memfd of the caller above each passed number (`F_DUPFD_CLOEXEC`) and `Moved` closes the copies in the parent after the fork; the child uses the copies (`fchdir`, the check of the chroot, `execveat`); a failed move names the number and the kind of its file (`fstat`). `clear_of_passes` of the readiness pipe moved there; `launch.rs` is 481 lines. The tests of `pass_clear::tests` (3) pass; the plant `enter-root-on-a-passed-number` is caught.
