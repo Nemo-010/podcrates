@@ -31,7 +31,7 @@ mod wormhole;
 pub use actions::{actions_expr, actions_workflow};
 pub use devtunnel::devtunnel_connect_info;
 pub use e2e::{e2e_frame, e2e_handover, e2e_proof, e2e_record};
-pub use egress::wisp_packet;
+pub use egress::{iap_message, wisp_packet};
 #[cfg(test)]
 pub(crate) use link::run_kcp;
 pub use opentunnel::{opentunnel_answer, opentunnel_message};

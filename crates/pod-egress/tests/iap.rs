@@ -96,7 +96,9 @@ async fn serve<S: AsyncRead + AsyncWrite + Unpin>(mut s: S, mode: Mode, seen: Se
     let head = String::from_utf8_lossy(&head).into_owned();
     seen.lock().unwrap().push(head.clone());
     if let Mode::Refuse = mode {
-        let body = format!("denied: {}", head.replace("\r\n", " "));
+        // The token first: a refusal keeps its first 200 characters.
+        let line = head.lines().next().unwrap_or_default();
+        let body = format!("denied: {} for {line}", header(&head, "Authorization").unwrap_or_default());
         let answer = format!("HTTP/1.1 403 Forbidden\r\nContent-Length: {}\r\n\r\n{body}", body.len());
         let _ = s.write_all(answer.as_bytes()).await;
         return;
@@ -239,7 +241,7 @@ async fn an_iap_refusal_of_the_account_is_a_typed_failure() {
     let not = carry::open(dial(way::aimed(port).0, trust), quiet()).await.err().expect("no session");
     assert_eq!(seen.lock().unwrap().len(), 1, "the stand-in saw the upgrade");
     let NotOpen::Dial(ConnectError::Refused { status: 403, body }) = &not else { panic!("{not}") };
-    assert!(body.starts_with("denied: GET /v4/connect?"), "{body}");
+    assert!(body.starts_with("denied: Bearer <not shown> for GET /v4/connect?"), "{body}");
     assert!(!body.contains("TEST-TOKEN"), "the token was shown: {body}");
     let failure = Failure::from(not);
     assert_eq!((failure.stage, failure.class), (Stage::WebSocket, Class::Refused), "{failure}");

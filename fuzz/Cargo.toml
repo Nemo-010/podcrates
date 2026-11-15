@@ -53,8 +53,8 @@ pod-piping = { path = "../crates/pod-piping", features = ["fuzzing"] }
 # frame, an answer of the API, a service's URL and a node's name of the
 # OpenTunnel carrier.
 pod-opentunnel = { path = "../crates/pod-opentunnel", features = ["fuzzing"] }
-# The feature `fuzzing` gives the reader of a packet of a Wisp server and
-# the answer to its INFO.
+# The feature `fuzzing` gives the reader of a packet of a Wisp server, the
+# answer to its INFO, and the reader of a message of IAP's relay.
 pod-egress = { path = "../crates/pod-egress", features = ["fuzzing"] }
 # The feature `fuzzing` gives the memfd that stands in for the memory of a
 # task.
@@ -275,6 +275,13 @@ bench = false
 [[bin]]
 name = "wisp_packet"
 path = "fuzz_targets/wisp_packet.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "iap_message"
+path = "fuzz_targets/iap_message.rs"
 test = false
 doc = false
 bench = false

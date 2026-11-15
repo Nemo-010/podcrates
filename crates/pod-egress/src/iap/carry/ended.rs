@@ -40,7 +40,7 @@ impl<E: fmt::Display> fmt::Display for NotOpen<E> {
         match self {
             NotOpen::Dial(e) => write!(f, "{e}"),
             NotOpen::Closed { code, reason } => {
-                write!(f, "IAP closed the link before the session: {}", words(*code, reason))
+                write!(f, "no session: {}", words(*code, reason))
             }
             NotOpen::Silent(wait) => {
                 write!(f, "IAP sent no connect success within {} s of the upgrade", wait.as_secs())
@@ -99,7 +99,7 @@ impl fmt::Display for Ended {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Ended::Normal => f.write_str("the session ended"),
-            Ended::Closed { code, reason } => write!(f, "IAP ended the session: {}", words(*code, reason)),
+            Ended::Closed { code, reason } => write!(f, "the session ended: {}", words(*code, reason)),
             Ended::Lost(why) => write!(f, "the link to IAP was lost, and {why}"),
             Ended::Fault(why) => f.write_str(why),
         }
