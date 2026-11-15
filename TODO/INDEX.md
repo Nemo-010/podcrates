@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**566 entries: 115 open, 9 partial, 6 blocked, 436 done.**
+**567 entries: 116 open, 9 partial, 6 blocked, 436 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 15 | 4 | 0 | 118 | 137 |
+| P1 | 16 | 4 | 0 | 118 | 138 |
 | P2 | 49 | 2 | 4 | 230 | 285 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 115 | 9 | 6 | 436 | 566 |
+| **All** | 116 | 9 | 6 | 436 | 567 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -613,3 +613,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-701](fleet.md) | P1 | M | M8 | feature | open | `pod-lab`: the host classes of podssh and podnet as profiles, with the lane of each project (PodUtils/podssh#268, PodUtils/podnet#585) |
 | [T-702](fleet.md) | P1 | M | M8 | feature | open | one POSIX installer for each project, hermetic, idempotent and fast, run in the labs (the ruling "Installer") |
 | [T-703](fleet.md) | P1 | M | M8 | feature | open | a mechanical check of the open issues and their comments against the record, for each project (the ruling "Issues") |
+| [T-710](foundation.md) | P1 | S | M0 | chore | open | one watcher of the organization for each session: issues, pull requests and Actions runs (the ruling "Watcher") |

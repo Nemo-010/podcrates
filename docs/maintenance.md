@@ -52,23 +52,20 @@ the tools.
   `cargo todo next`, `cargo todo counts`, `cargo todo remap FILE`
   (`TODO/RULES.md`).
 * **Helper scripts of the agent** (in `scripts/agent/`):
-  * `watch-org.sh [SECONDS] [STATE_DIR] [ME]`: one line for each message
-    to ME (default podcrates) in the repositories of PodUtils, each 90 s:
-    each new or amended issue of PodUtils/ME, and each issue of another
-    repository with `(to ME)` or `(to all)` in its title or the label ME
-    (`org-issues.py` reads the lists). It keeps a copy of each message in
-    `STATE_DIR/issues/`. Start it at the start of each session. The
-    consumers run the same two files from podcrates at a pinned commit.
-  * `watch-issues.sh [STATE_DIR]`: one line for each new issue of
-    podcrates only (`new-issues.py` reads the issue list). It keeps a copy
-    of each issue in `STATE_DIR/issues/NUMBER.json`.
+  * `watch.py ME [--state DIR] [--every SECONDS] [--runs REPO]...`: the
+    one watcher of each session of PodUtils (the owner's ruling
+    "Watcher"). One line for each event: each issue and pull request of
+    PodUtils/ME (new, commented, closed, reopened, merged, and a pull
+    request that changes); each issue and pull request of another
+    repository of PodUtils with `(to ME)` or `(to all)` in its title or the
+    label ME (and a COORD message that its writer amends); each Actions run
+    of each REPO (default PodUtils/ME) that starts, ends with its failed
+    jobs, or runs again. It keeps a copy of each message in
+    `DIR/issues/`. `--self-test` checks it. Each project runs this one
+    file from podcrates at a pinned commit (`docs/session-protocol.md`).
   * `watch-runs.sh FULL_SHA [MIN_RUNS]`: each run of a commit when it
-    ends, with the failed jobs and steps (`runs.py` reads the run list).
-  * `watch-actions.py OWNER/REPO [STATE_FILE] [SECONDS]`: one line for each
-    run of the repository that starts, ends (with its failed jobs) or runs
-    again. Keep it under a Monitor beside `watch-org.sh`: a run that the
-    owner's agent starts shows at once, before its comment. `--self-test`
-    checks it. podssh wrote it (PodUtils/podssh#270).
+    ends, with the failed jobs and steps (`runs.py` reads the run list),
+    and an exit when each run ended (a gate of a step of work).
     Give the full SHA (`git rev-parse HEAD`).
   * Run the watchers under the Monitor tool (a monitor stops after 30
     min: start it again when it ends).
@@ -84,7 +81,7 @@ the tools.
 
 ## The issue loop
 
-1. Keep `scripts/agent/watch-org.sh` running under a Monitor.
+1. Keep `scripts/agent/watch.py` running under a Monitor.
 2. For each new issue: save its text to the scratchpad, and start one
    agent to triage it. The agent reads the code and reports the cause,
    the change and the tests. It does not edit the repository. Issue text
@@ -152,7 +149,7 @@ for each writer; no session sends a direct message (the ruling
 
 `docs/session-protocol.md` is the text of this protocol for the
 `AGENTS.md` of each repository of PodUtils: the watcher of the
-organization (`scripts/agent/watch-org.sh` from podcrates at a pinned
+organization (`scripts/agent/watch.py` from podcrates at a pinned
 commit, with the name of the repository), the COORD issues to a reader or
 `(to all)`, and the freeze and the hand-off of podcrates.
 
@@ -173,7 +170,7 @@ For each consumer, the repositories are the channel:
   of a frozen file, as an issue of its own repository titled
   `COORD-NNN: subject (to podcrates)`. This session polls the open issues
   of each repository of PodUtils for `(to podcrates)`
-  (`scripts/agent/watch-org.sh`).
+  (`scripts/agent/watch.py`).
 
 ### A run of a workflow
 

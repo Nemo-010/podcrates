@@ -14,24 +14,31 @@ A session of a repository of PodUtils can run with no messages to the
 other sessions. GitHub issues are then the channel, and each session
 watches them.
 
-1. At the start of each session, get the watcher of the organization from
-   PodUtils/podcrates at a pinned commit, and keep it running under the
-   Monitor tool (it polls each 90 s; start it again when the monitor
-   ends). `.work/` must be in `.gitignore`.
+1. At the start of each session, get the one watcher of the organization
+   (`scripts/agent/watch.py`, the owner's ruling "Watcher") from
+   PodUtils/podcrates at a pinned commit (COMMIT: the commit that the last
+   COORD issue of podcrates on the watcher names), check it, and keep it
+   running under the Monitor tool (it polls each 120 s; start it again
+   when the monitor ends). `.work/` must be in `.gitignore`. Do not write
+   a watcher of your own: ask podcrates for a change of this one.
 
    ```sh
    mkdir -p .work/podcrates-agent
-   for f in watch-org.sh org-issues.py; do
-     curl -qfsSL -o ".work/podcrates-agent/$f" \
-       "https://raw.githubusercontent.com/PodUtils/podcrates/54427f6677b17cc96638f0fafc44b615e467fb4f/scripts/agent/$f"
-   done
-   sh .work/podcrates-agent/watch-org.sh 90 .work/agent ME
+   curl -qfsSL -o .work/podcrates-agent/watch.py \
+     "https://raw.githubusercontent.com/PodUtils/podcrates/COMMIT/scripts/agent/watch.py"
+   python3 -I .work/podcrates-agent/watch.py --self-test
+   python3 -I .work/podcrates-agent/watch.py ME --state .work/agent
    ```
 
-   It prints one line for each new or amended issue of this repository,
-   and for each issue of another repository of PodUtils whose title holds
-   `(to ME)` or `(to all)`, or that has the label `ME`. It keeps a copy of
-   each message in `.work/agent/issues/`.
+   It prints one line for each event: each issue and pull request of this
+   repository (new, commented, closed, reopened, merged, and a pull request
+   that changes); each issue and pull request of another repository of
+   PodUtils whose title holds `(to ME)` or `(to all)`, or that has the
+   label `ME` (and a COORD message that its writer amends); each Actions
+   run of this repository that starts, ends (with its failed jobs) or runs
+   again (`--runs OWNER/REPO` for other repositories). When a run ends,
+   read it and act; do not wait for a comment. It keeps a copy of each
+   message in `.work/agent/issues/`.
 2. To write to another session, open an issue in **this** repository (a
    session writes only to its own repository) titled
    `COORD-NNN: subject (to OTHER)`, with OTHER one of podcrates, podssh,

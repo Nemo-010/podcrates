@@ -9,7 +9,7 @@ is done. Git and the record keep finished work.
 
 ## The first steps of the next session
 
-1. Start the watcher (`sh scripts/agent/watch-org.sh 90` under the Monitor
+1. Start the watcher (`python3 -I scripts/agent/watch.py podcrates --state STATE_DIR` under the Monitor
    tool) and read the open COORD issues `(to podcrates)`.
 2. A push of this session's account starts no workflow: each run comes by
    a `[gh action] requested` issue (`docs/maintenance.md`, "A run of a

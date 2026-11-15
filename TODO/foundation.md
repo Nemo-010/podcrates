@@ -849,6 +849,10 @@ sh -n scripts/agent/watch-org.sh
 With the CRLF stand-in, the watcher records the messages of podcrates and
 podvm.
 
+## Correction
+
+2026-11-15: scripts/agent/watch-org.sh and scripts/agent/org-issues.py left; the one watcher of the organization is `scripts/agent/watch.py` (T-710). It lists the repositories in Python, with no shell and no `tr`.
+
 ## Done
 
 2026-11-06, commit `54427f6`. With a stand-in of `python3` that ends each
@@ -1830,3 +1834,31 @@ schema `log.v1`.
 
 The podswarm session starts, or a sibling asks for it (the owner's ruling
 "podswarm", 2026-11-13).
+
+# T-710: one watcher of the organization for each session: issues, pull requests and Actions runs (the ruling "Watcher")
+
+**Source:** the owner's ruling "Watcher" (2026-11-15); PodUtils/podssh#270 (COORD-083 of podssh, its watcher of runs).
+**Category:** chore
+**Milestone:** M0
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+Each project of PodUtils wrote its own wrapper to watch GitHub: podcrates had `watch-org.sh` with `org-issues.py` (issues to a reader) and `watch-issues.sh` with `new-issues.py` (the issues of podcrates); podssh wrote `watch-runs.py` (the Actions runs of a repository, PodUtils/podssh#270). None saw a pull request, and a run that the owner's agent started was seen only by its comment. The owner's ruling "Watcher" (2026-11-15) asks for one shared watcher of the organization: issues, pull requests and Actions runs, the ones addressed to a project and the ones of its own repository.
+
+## Premise
+
+- Read: `scripts/agent/runs.py`, `scripts/agent/watch-runs.sh`; podssh's `watch-runs.py` at `cc0caa2`.
+
+## Approach
+
+One file of the standard library of Python, `scripts/agent/watch.py ME`, that each project runs from podcrates at a pinned commit (`docs/session-protocol.md`): each issue and pull request of the project's own repository (new, commented, closed, reopened, merged, a pull request that changes); each issue and pull request of another repository addressed to the project (`(to ME)`, `(to all)`, the label ME; a COORD message that is amended); each Actions run of chosen repositories (started, ended with the failed jobs, run again; podssh's logic). Remove the old watchers. A COORD issue to all gives the commit.
+
+## Prove
+
+```sh
+python3 -I scripts/agent/watch.py --self-test
+sh scripts/plant-each.sh watch-drops-to-all
+```
