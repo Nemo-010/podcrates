@@ -45,6 +45,8 @@ pub const TARGETS: &[(&str, Target)] = &[
     ("nostr_message", targets::nostr_message),
     ("tracker_message", targets::tracker_message),
     ("ntfy_message", targets::ntfy_message),
+    ("piping_hello", targets::piping_hello),
+    ("piping_answer", targets::piping_answer),
     ("session_record", targets::session_record),
     ("session_handover", targets::session_handover),
     ("udp_frame", targets::udp_frame),

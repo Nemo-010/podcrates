@@ -1,26 +1,25 @@
-//! The Piping Server road against `https://ppng.io` (T-437), live and short,
-//! as the operator's ruling Q65 allows: a node and a client in this process,
-//! through the proxy of the environment, with a key of this run's so that
-//! no other run meets these paths; a session of the resumable layer carries
-//! 64 KiB each way through a node in front of an echo. `PODSSH_PIPING` names
-//! another server.
+//! The Piping Server carrier against `https://ppng.io`, live and short: a
+//! node and a client in this process, through the proxy of the environment,
+//! with a key of this run's so that no other run meets these paths; a
+//! session of the resumable layer carries 64 KiB each way through a node in
+//! front of an echo. `POD_PIPING_SERVER` names another server.
 //!
-//! The rates (T-625): three sessions through each public server, 4 MiB each
-//! way at once, the streamed form through `ppng.io` and the numbered pieces
-//! through the server that holds a body to its end, as podssh uses each; a
-//! session's open is timed apart, by one byte echoed first. Short (Q65, Q88).
+//! The rates: three sessions through each public server, 4 MiB each way at
+//! once, the streamed form through `ppng.io` and the numbered pieces through
+//! the server that holds a body to its end, as a consumer uses each; a
+//! session's open is timed apart, by one byte echoed first. Short.
 //!
-//!     cargo test -p podssh-relay --features piping --test piping_live -- --ignored --nocapture
-
-#![cfg(feature = "piping")]
+//!     cargo test -p pod-piping --test piping_live -- --ignored --nocapture
 
 use std::sync::Arc;
 use std::time::Duration;
 
-use podssh_relay::piping::{self as road, dial, Dialer, Http, Node, Secret, Server};
-use podssh_relay::session::keep::Keeper;
-use podssh_relay::session::{Entropy, OsEntropy, Settings};
-use podssh_ws::{ProxyChoice, Trust};
+use pod_piping::{self as road, Dialer, Http, Node, Secret, Server, dial};
+use pod_proxy::{Dialer as TcpDialer, Environment, ProxyChoice};
+use pod_session::keep::Keeper;
+use pod_session::{Entropy, OsEntropy, Settings};
+use pod_tls::Trust;
+use pod_ws::Way;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
 
@@ -30,6 +29,19 @@ const LIMIT: Duration = Duration::from_secs(120);
 const RATE_SIZE: usize = 4 * 1024 * 1024;
 /// A run of the rates: 4 MiB at the archive's 0.12 MiB/s, and its open.
 const RATE_LIMIT: Duration = Duration::from_secs(240);
+/// The user agent of each request.
+const AGENT: &str = "pod-piping/test";
+
+/// The way out of the environment: its proxy, the system's resolver, TLS on
+/// ring.
+fn way() -> Arc<Way> {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    let tls = pod_tls::Context::new(provider, pod_tls::Settings::new(pod_tls::Words::new("pod-piping")));
+    let proxy = ProxyChoice::FromEnvironment(Environment::read(&|name| std::env::var_os(name)));
+    let resolver = Arc::new(pod_proxy::resolve::System::new());
+    let dial = TcpDialer::new(pod_proxy::Settings::new("pod-piping", proxy), resolver);
+    Arc::new(Way::new(Arc::new(tls), Arc::new(dial), AGENT))
+}
 
 async fn echo() -> Result<DuplexStream, String> {
     let (ours, theirs) = tokio::io::duplex(256 * 1024);
@@ -42,17 +54,18 @@ async fn echo() -> Result<DuplexStream, String> {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-#[ignore = "live: ppng.io, or the server of PODSSH_PIPING, through the proxy of the environment"]
+#[ignore = "live: ppng.io, or the server of POD_PIPING_SERVER, through the proxy of the environment"]
 async fn a_session_through_ppng_io_carries_64_kib_each_way() {
-    let server = match std::env::var("PODSSH_PIPING").ok().filter(|v| v.starts_with("https://")) {
-        Some(url) => Server::parse(&url).expect("PODSSH_PIPING names a server"),
+    let server = match std::env::var("POD_PIPING_SERVER").ok().filter(|v| v.starts_with("https://")) {
+        Some(url) => Server::parse(&url).expect("POD_PIPING_SERVER names a server"),
         None => Server::default(),
     };
     eprintln!("server: {server}");
     let mut key = [0u8; 32];
     OsEntropy.fill(&mut key).expect("random bytes");
     let secret = || Secret::from_bytes(key);
-    let http = || Http::new(server.clone(), dial::tls(Trust::Default, ProxyChoice::FromEnvironment));
+    let way = way();
+    let http = || Http::new(server.clone(), dial::tls(way.clone(), Trust::Default), AGENT);
     let say = |who: &'static str| -> road::Say { Arc::new(move |line: String| eprintln!("{who}: {line}")) };
     let settings = Settings { features: road::FEATURES, ..Settings::default() };
     let node = Node { secret: Arc::new(secret()), http: Arc::new(http()), fallbacks: Vec::new(), say: say("node") };
@@ -87,7 +100,8 @@ async fn rate_run(server: &Server) -> Result<(f64, f64, bool), String> {
     let mut key = [0u8; 32];
     OsEntropy.fill(&mut key).expect("random bytes");
     let secret = || Secret::from_bytes(key);
-    let http = || Http::new(server.clone(), dial::tls(Trust::Default, ProxyChoice::FromEnvironment));
+    let way = way();
+    let http = || Http::new(server.clone(), dial::tls(way.clone(), Trust::Default), AGENT);
     let say = |who: &'static str| -> road::Say { Arc::new(move |line: String| eprintln!("{who}: {line}")) };
     let settings = Settings { features: road::FEATURES, ..Settings::default() };
     let node = Node { secret: Arc::new(secret()), http: Arc::new(http()), fallbacks: Vec::new(), say: say("node") };

@@ -1,8 +1,8 @@
 //! What the tests of the Piping Server road run against: nwtgck's own
 //! servers, started on the loopback by the command that a variable names
-//! (`PODSSH_TEST_PIPING_JS` for nwtgck/piping-server, as `npm install -g
+//! (`POD_PIPING_TEST_JS` for nwtgck/piping-server, as `npm install -g
 //! piping-server@1.12.9` gives it, the server of `ppng.io`;
-//! `PODSSH_TEST_PIPING_RUST` for nwtgck/piping-server-rust's binary); a dial
+//! `POD_PIPING_TEST_RUST` for nwtgck/piping-server-rust's binary); a dial
 //! of the loopback in place of TLS; and a stand-in of a proxy that ends TLS,
 //! as a cloud container's does: it refuses each request that asks for an
 //! upgrade, and holds each request's body until its end.
@@ -15,9 +15,9 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use podssh_relay::piping::dial::{BoxIo, Dial, Dialing, Proto};
-use podssh_relay::piping::http1::{Framing, Reader};
-use podssh_relay::piping::Server;
+use pod_piping::Server;
+use pod_piping::dial::{BoxIo, Dial, Dialing, Proto};
+use pod_piping::http1::{Framing, Reader};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::task::AbortHandle;
@@ -37,8 +37,8 @@ pub enum Kind {
 impl Kind {
     fn variable(self) -> &'static str {
         match self {
-            Kind::Js => "PODSSH_TEST_PIPING_JS",
-            Kind::Rust => "PODSSH_TEST_PIPING_RUST",
+            Kind::Js => "POD_PIPING_TEST_JS",
+            Kind::Rust => "POD_PIPING_TEST_RUST",
         }
     }
 }

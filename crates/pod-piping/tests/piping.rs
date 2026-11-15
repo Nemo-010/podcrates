@@ -1,4 +1,4 @@
-//! The Piping Server road (T-437) against nwtgck's own servers on the
+//! The Piping Server carrier against nwtgck's own servers on the
 //! loopback (`piping_harness`): a session of the resumable layer carries
 //! 1 MiB each way through a node in front of an echo, with equal digests,
 //! over HTTP/1.1 through nwtgck/piping-server (the server of `ppng.io`),
@@ -7,14 +7,12 @@
 //! end, where the streamed form does not flow. A client of another pair
 //! finds no node at its door. With two servers, the first down and the
 //! second holding bodies, the node and the client meet at the second, in
-//! numbered pieces (T-497). The refusal of an upgrade by the stand-in is
+//! numbered pieces. The refusal of an upgrade by the stand-in is
 //! told from the relay's own word. A test whose server is not here says
 //! why it did not run.
 //!
-//!     PODSSH_TEST_PIPING_JS=piping-server PODSSH_TEST_PIPING_RUST=/path/piping-server \
-//!         cargo test -p podssh-relay --features piping --test piping
-
-#![cfg(feature = "piping")]
+//!     POD_PIPING_TEST_JS=piping-server POD_PIPING_TEST_RUST=/path/piping-server \
+//!         cargo test -p pod-piping --test piping
 
 mod piping_harness;
 
@@ -22,13 +20,13 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use piping_harness::{Holding, Kind, REFUSAL};
-use podssh_relay::piping::client::DOOR_LIMIT;
-use podssh_relay::piping::dial::{Dial, Proto};
-use podssh_relay::piping::probe::upgrade_refused;
-use podssh_relay::piping::{self as road, Dialer, Http, Node, Secret};
-use podssh_relay::session::keep::Keeper;
-use podssh_relay::session::resume::Note;
-use podssh_relay::session::Settings;
+use pod_piping::client::DOOR_LIMIT;
+use pod_piping::dial::{Dial, Proto};
+use pod_piping::probe::upgrade_refused;
+use pod_piping::{self as road, Dialer, Http, Node, Secret};
+use pod_session::Settings;
+use pod_session::keep::Keeper;
+use pod_session::resume::Note;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
 
@@ -36,6 +34,8 @@ const MIB: usize = 1 << 20;
 const LIMIT: Duration = Duration::from_secs(180);
 /// The replay buffers that a node keeps, at most, as a node of the CLI does.
 const BUDGET: usize = 64 << 20;
+/// The user agent of each request.
+const AGENT: &str = "pod-piping/test";
 
 fn say(who: &'static str) -> road::Say {
     Arc::new(move |line: String| eprintln!("{who}: {line}"))
@@ -80,7 +80,7 @@ async fn one_mib_each_way(dial: Dial) -> Arc<Dialer> {
 /// node waits at the first that answers, and the client meets it there.
 async fn one_mib_each_way_through(dials: Vec<Dial>) -> Arc<Dialer> {
     let settings = Settings { features: road::FEATURES, ..Settings::default() };
-    let http = |dial: &Dial| Http::new(piping_harness::server(), dial.clone());
+    let http = |dial: &Dial| Http::new(piping_harness::server(), dial.clone(), AGENT);
     let fallbacks = dials[1..].iter().map(|dial| Arc::new(http(dial))).collect();
     let node = Node { secret: Arc::new(secret()), http: Arc::new(http(&dials[0])), fallbacks, say: say("node") };
     let keeper = Arc::new(Keeper::new(settings.resume_deadline));
@@ -132,6 +132,7 @@ fn server_of(kind: Kind) -> Option<piping_harness::Running> {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_session_carries_1_mib_each_way_through_nwtgck_s_piping_server() {
+    pod_testkit::need_loopback!();
     let Some(server) = server_of(Kind::Js) else { return };
     let dialer = one_mib_each_way(piping_harness::dial(server.port, Proto::H1)).await;
     assert_eq!(dialer.proto(), Some(Proto::H1));
@@ -140,6 +141,7 @@ async fn a_session_carries_1_mib_each_way_through_nwtgck_s_piping_server() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_session_carries_1_mib_each_way_over_http_2_through_piping_server_rust() {
+    pod_testkit::need_loopback!();
     let Some(server) = server_of(Kind::Rust) else { return };
     let dialer = one_mib_each_way(piping_harness::dial(server.port, Proto::H2)).await;
     assert_eq!(dialer.proto(), Some(Proto::H2));
@@ -148,6 +150,7 @@ async fn a_session_carries_1_mib_each_way_over_http_2_through_piping_server_rust
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_session_carries_1_mib_each_way_over_http_1_1_through_piping_server_rust() {
+    pod_testkit::need_loopback!();
     let Some(server) = server_of(Kind::Rust) else { return };
     let dialer = one_mib_each_way(piping_harness::dial(server.port, Proto::H1)).await;
     assert!(!dialer.numbered());
@@ -155,6 +158,7 @@ async fn a_session_carries_1_mib_each_way_over_http_1_1_through_piping_server_ru
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn numbered_pieces_carry_1_mib_each_way_where_a_proxy_holds_each_body_to_its_end() {
+    pod_testkit::need_loopback!();
     let Some(server) = server_of(Kind::Js) else { return };
     let holding = Holding::start(server.port).await;
     let dialer = one_mib_each_way(piping_harness::dial(holding.port, Proto::H1)).await;
@@ -163,6 +167,7 @@ async fn numbered_pieces_carry_1_mib_each_way_where_a_proxy_holds_each_body_to_i
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_node_and_the_client_meet_at_the_second_server_when_the_first_is_down() {
+    pod_testkit::need_loopback!();
     for kind in [Kind::Js, Kind::Rust] {
         let Some(server) = server_of(kind) else { continue };
         // The first server: a port of the loopback where nothing listens.
@@ -177,11 +182,12 @@ async fn the_node_and_the_client_meet_at_the_second_server_when_the_first_is_dow
     }
 }
 
-/// The third server of the order (T-575): the first two down, the node
+/// The third server of the order: the first two down, the node
 /// and the client meet at the third, which holds each body, as serv00's
 /// does.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_node_and_the_client_meet_at_the_third_server_when_the_first_two_are_down() {
+    pod_testkit::need_loopback!();
     let Some(server) = server_of(Kind::Js) else { return };
     let down = || std::net::TcpListener::bind("127.0.0.1:0").and_then(|l| l.local_addr()).expect("a port").port();
     let holding = Holding::start(server.port).await;
@@ -197,19 +203,20 @@ async fn the_node_and_the_client_meet_at_the_third_server_when_the_first_two_are
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_client_of_another_pair_finds_no_node_at_its_door() {
+    pod_testkit::need_loopback!();
     let Some(server) = server_of(Kind::Js) else { return };
     let dial = piping_harness::dial(server.port, Proto::H1);
     let settings = Settings { features: road::FEATURES, ..Settings::default() };
     let node = Node {
         secret: Arc::new(secret()),
-        http: Arc::new(Http::new(piping_harness::server(), dial.clone())),
+        http: Arc::new(Http::new(piping_harness::server(), dial.clone(), AGENT)),
         fallbacks: Vec::new(),
         say: say("node"),
     };
     let keeper = Arc::new(Keeper::new(settings.resume_deadline));
     let serving = tokio::spawn(road::far::serve_kept(node, settings, BUDGET, echo, keeper));
     let stranger = Secret::of_pair("test-pair", "another connect token of another pair");
-    let dialer = Dialer::new(stranger, Http::new(piping_harness::server(), dial), say("stranger"));
+    let dialer = Dialer::new(stranger, Http::new(piping_harness::server(), dial, AGENT), say("stranger"));
     let failed = tokio::time::timeout(LIMIT, dialer.link()).await.expect("in time").err().expect("no link");
     assert!(failed.contains("no node took the hello"), "{failed}");
     assert!(failed.contains(&format!("{} s", DOOR_LIMIT.as_secs())), "{failed}");
@@ -218,17 +225,18 @@ async fn a_client_of_another_pair_finds_no_node_at_its_door() {
 
 #[tokio::test]
 async fn a_proxy_s_refusal_of_the_upgrade_is_told_from_the_relay_s_own_word() {
+    pod_testkit::need_loopback!();
     // The stand-in refuses the upgrade before it would reach any server.
     let holding = Holding::start(1).await;
     let tcp = tokio::net::TcpStream::connect(("127.0.0.1", holding.port)).await.expect("the stand-in");
-    let key = podssh_ws::handshake::generate_key().expect("a key");
+    let key = pod_ws::handshake::generate_key().expect("a key");
     let request = format!(
         "GET /v1/node/abc HTTP/1.1\r\nHost: relay.test\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\
          Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n"
     );
-    let refused = podssh_ws::client::upgrade_with(tcp, request.as_bytes(), &key).await.expect_err("refused");
+    let refused = pod_ws::client::upgrade_with(tcp, request.as_bytes(), &key).await.expect_err("refused");
     assert!(
-        matches!(&refused, podssh_ws::client::ConnectError::Refused { status: 403, body } if body.contains(REFUSAL)),
+        matches!(&refused, pod_ws::client::ConnectError::Refused { status: 403, body } if body.contains(REFUSAL)),
         "{refused}"
     );
     assert!(upgrade_refused(&refused), "a proxy's page is the way's refusal, the road's cue");

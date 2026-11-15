@@ -1976,6 +1976,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "pod-piping"
+version = "0.48.0"
+dependencies = [
+ "bytes",
+ "h2",
+ "hmac 0.13.0",
+ "http",
+ "pod-core",
+ "pod-proxy",
+ "pod-relay",
+ "pod-services",
+ "pod-session",
+ "pod-tls",
+ "pod-ws",
+ "rand",
+ "rustls",
+ "sha2 0.11.1",
+ "tokio",
+ "tokio-rustls",
+ "zeroize",
+]
+
+[[package]]
 name = "pod-proxy"
 version = "0.48.0"
 dependencies = [
@@ -2199,6 +2222,7 @@ dependencies = [
  "pod-link",
  "pod-netlab",
  "pod-oci",
+ "pod-piping",
  "pod-proxy",
  "pod-qga",
  "pod-quic",
