@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**555 entries: 108 open, 9 partial, 6 blocked, 432 done.**
+**555 entries: 107 open, 9 partial, 6 blocked, 433 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 118 | 132 |
-| P2 | 46 | 3 | 4 | 226 | 279 |
+| P2 | 45 | 3 | 4 | 227 | 279 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 108 | 9 | 6 | 432 | 555 |
+| **All** | 107 | 9 | 6 | 433 | 555 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -601,4 +601,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-685](upkeep.md) | P2 | S | M1 | defect | done | `services.yml` at `98017c3`: both RDAP servers answer 403 for the `.xyz` names to the runner |
 | [T-686](relay.md) | P1 | S | M2 | defect | done | `pod-relay`: a new link of the resumable layer rides the pooled HTTP/2 connection of the silent link it replaces (PodUtils/podssh#262) |
 | [T-687](relay.md) | P2 | S | M2 | defect | done | `pod-ws`: a silent connection of the HTTP/2 pool takes the first link of each new session until its TCP fails |
-| [T-688](podvm.md) | P2 | S | M6 | feature | open | `pod-enter`: the device nodes of the host on the namespace rung through a user namespace (PodUtils/podvm#414) |
+| [T-688](podvm.md) | P2 | S | M6 | feature | done | `pod-enter`: the device nodes of the host on the namespace rung through a user namespace (PodUtils/podvm#414) |

@@ -8708,7 +8708,7 @@ cargo test -p pod-hostprobe --all-features
 **Milestone:** M6
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8729,3 +8729,7 @@ The paths and the checks of the image (regular file, missing, link, directory) b
 cargo test -p pod-enter --all-features
 sh scripts/ci/userns-tests.sh
 ```
+
+## Done
+
+2026-11-15, commit 8b562b46; the plants in commit 022f3fe9. `pod-enter`: the module `ns_dev_bind`. With the user namespace of the rung (`ns_user::spawn_own`), the entry reads, before the fork, the kind of each of `DEVICES` (`/dev/null`, `/dev/zero`, `/dev/full`, `/dev/random`, `/dev/urandom`, `/dev/tty`) through the descriptor of the root with `O_NOFOLLOW` (`kind_of`, `choose`): a regular file, a missing path or a character device of the image takes the bind (C668); a link, a directory, another kind or an unreadable path takes one line; the host's node must be a character device. An image with no `/dev` directory, or a link there, takes one line (C670). In the child, after the optional mounts (`ns_optional::mount_each`) and before the chroot: an empty file as the mount point where the path is missing (`O_CREAT | O_EXCL | O_NOFOLLOW` through the descriptor of the image's `/dev`), the bind of the host's node (`MS_BIND`) onto `/proc/self/fd/N` of an `O_PATH | O_NOFOLLOW` descriptor that is a regular file or a character device (C669), then a remount with `MS_NOSUID | MS_NOEXEC` and no `MS_NODEV` (`MS_RDONLY` where the host's node is on a read-only mount); a refused remount removes the bind. Each refused step writes one line to the payload's standard error and the rung goes on (`NS_DEV_POINT_STEP` 30, `NS_DEV_BIND_STEP` 31, `NS_DEV_REMOUNT_STEP` 32 in `ns_setup_step`). The rung as root binds nothing. Tests: 8 unit tests of `ns_dev_bind` (also as uid 65534); `tests/userns.rs` (`a_caller_with_no_capabilities_gets_the_devices_of_the_host`) as uid 65534 with no capabilities (kernel 6.18), with an image `/dev` of regular files (`/dev/urandom` and `/dev/random` of 1 MiB), a missing `/dev/full` and `/dev/tty`, and a link at `/dev/zero`: `head -c 2000000 /dev/urandom | wc -c` and the same of `/dev/random` give 2000000, `/dev/null` and `/dev/tty` are character devices, a write to `/dev/full` fails with `ENOSPC`, `/proc/self/mountinfo` shows the bind of `/dev/urandom` with `nosuid` and `noexec` and no `nodev`, `/dev/zero` stays a link, and one line names it. With no bind the test failed (exit 3: the read of `/dev/urandom` ended at the file). The plants `enter-userns-dev-bind-over-link` (exit 7) and `enter-userns-dev-no-remount` (exit 8) are caught. `cargo test -p pod-enter --all-features` (207 unit tests) and `sh scripts/ci/userns-tests.sh` passed. Not measured: a host with no `/proc` or with `/dev` mounted `nodev` (each device then gives one line).
