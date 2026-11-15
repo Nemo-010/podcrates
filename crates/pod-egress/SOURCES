@@ -53,3 +53,54 @@ file 8db2275e9e59e94caf53b64f9960e5ac671ce2ee crates/podssh-ws/tests/wisp_suppor
 file 45643f709399ab3686a799c4745f1cf02284e039 crates/podssh-ws/tests/wstunnel.rs -> crates/pod-egress/tests/wstunnel.rs
 file 5f734d4e109c1a047c5b839f0bd3e872d67b8c61 crates/podssh-ws/tests/cloudflare_access.rs -> crates/pod-egress/tests/cloudflare_access.rs
 file 7d92c5b2c7ca2ee3b143b069181337de135dc54f crates/podssh-ws/tests/common/talker.rs -> crates/pod-egress/tests/common/talker.rs
+
+# Part 2 of T-035: VLESS, VMess's AEAD form, Trojan and Shadowsocks (the
+# AEAD form and SIP022).
+dir crates/podssh-ws/src/vless
+dir crates/podssh-ws/src/vmess
+dir crates/podssh-ws/src/trojan
+dir crates/podssh-ws/src/shadowsocks
+dir crates/podssh-ws/tests/vless_support
+dir crates/podssh-ws/tests/trojan_support
+file 75a9eb83e9f775bb6e8d5d1c3a42ef40a1209d00 crates/podssh-ws/src/shadowsocks/carry.rs -> crates/pod-egress/src/shadowsocks/carry.rs
+file 386a7ec16a0949177beb1514b27b21740c3b1602 crates/podssh-ws/src/shadowsocks/codec.rs -> crates/pod-egress/src/shadowsocks/codec.rs
+file 7f87259f7c88ba04b65ce06de79659e079682608 crates/podssh-ws/src/shadowsocks/key.rs -> crates/pod-egress/src/shadowsocks/key.rs
+file 619754cf5f731680a6da44fb7eb86c2a33f5f8be crates/podssh-ws/src/shadowsocks/list.rs -> crates/pod-egress/src/shadowsocks/list.rs
+file 902dda5dc3ca6bf797c78c72819001235ac2faee crates/podssh-ws/src/shadowsocks/mod.rs -> crates/pod-egress/src/shadowsocks/mod.rs
+file 73f96bb3ddd42f3dcf9c387242c66b42b351e2b7 crates/podssh-ws/src/shadowsocks/open.rs -> crates/pod-egress/src/shadowsocks/open.rs
+file daf529712a98833047d036439d1b2c14e398df7f crates/podssh-ws/src/shadowsocks/sip022.rs -> crates/pod-egress/src/shadowsocks/sip022.rs
+file 189fb18d9dfd8ffc2fdd08dd3697a980f8f96792 crates/podssh-ws/src/shadowsocks/uri.rs -> crates/pod-egress/src/shadowsocks/uri.rs
+file 7a219b791da5d3e4756b8fdb57d429ef9d292226 crates/podssh-ws/src/shadowsocks/ws.rs -> crates/pod-egress/src/shadowsocks/ws.rs
+file 4aa7c698bd981be7d322c97ed80ae601f276754c crates/podssh-ws/src/shadowsocks/yaml.rs -> crates/pod-egress/src/shadowsocks/yaml.rs
+file 2547fde445c132d1b7e631397a63db340826f6a9 crates/podssh-ws/src/trojan/answer.rs -> crates/pod-egress/src/trojan/answer.rs
+file 4b41a98a4dbc9a40bc2160f31f77b6a3a226a242 crates/podssh-ws/src/trojan/link.rs -> crates/pod-egress/src/trojan/link.rs
+file e9e33d14cdd69efcc4a82c9c4ed0a7e72b7575dc crates/podssh-ws/src/trojan/link_tests.rs -> crates/pod-egress/src/trojan/link_tests.rs
+file 842617a30584ae46a47adf5a00ec85e91903f60e crates/podssh-ws/src/trojan/mod.rs -> crates/pod-egress/src/trojan/mod.rs
+file 5d4e3b3a5b8d17f56bccefa0349471c9f0a8d5da crates/podssh-ws/src/trojan/request.rs -> crates/pod-egress/src/trojan/request.rs
+file 4f23e79ab21c271fb5b253f69d87890a632b7d3f crates/podssh-ws/src/trojan/ws.rs -> crates/pod-egress/src/trojan/ws.rs
+file fc2e20c31eb1eed2715caebf83d457bdbd268068 crates/podssh-ws/src/vless/extra.rs -> crates/pod-egress/src/vless/extra.rs
+file 6c6af78712ad20bfcb8e6143427b095ba01940df crates/podssh-ws/src/vless/h1.rs -> crates/pod-egress/src/vless/h1.rs
+file 7df329c1b2154736cebfedc26c006087831dfe82 crates/podssh-ws/src/vless/h1_modes.rs -> crates/pod-egress/src/vless/h1_modes.rs
+file 8d5abfcd7cf6831938e2edf1ddb150351db81726 crates/podssh-ws/src/vless/header.rs -> crates/pod-egress/src/vless/header.rs
+file a1ef3248ee1fd1dfdb3bd33432036a67326c378e crates/podssh-ws/src/vless/link.rs -> crates/pod-egress/src/vless/link.rs
+file b816f0c25e1598904d1cfe32320c6d479efc8b5f crates/podssh-ws/src/vless/mod.rs -> crates/pod-egress/src/vless/mod.rs
+file fcc06d814cae465404bb09056ca84270f8eb82de crates/podssh-ws/src/vless/packet.rs -> crates/pod-egress/src/vless/packet.rs
+file d3f6284fe755611ebe478b116982db68093d85f2 crates/podssh-ws/src/vless/split.rs -> crates/pod-egress/src/vless/split.rs
+file 75f5e390585906ce88e3f16384d994be0a26a66d crates/podssh-ws/src/vless/ws.rs -> crates/pod-egress/src/vless/ws.rs
+file 9ea97eb3d593b5b852b8898e2b88efafee35ff8e crates/podssh-ws/src/vless/xhttp.rs -> crates/pod-egress/src/vless/xhttp.rs
+file 16a75fd0d93b023a19e09807d47242e52b3f1676 crates/podssh-ws/src/vmess/body.rs -> crates/pod-egress/src/vmess/body.rs
+file b918c846b4095ac42b438802e09bc68a3c22a5ce crates/podssh-ws/src/vmess/header.rs -> crates/pod-egress/src/vmess/header.rs
+file b9c7c5291189d30c54cc89cfe732f26197f44ae8 crates/podssh-ws/src/vmess/header_tests.rs -> crates/pod-egress/src/vmess/header_tests.rs
+file 500fe3239dd81b3f0d0589bc12ff6d1fbfab6f3c crates/podssh-ws/src/vmess/kdf.rs -> crates/pod-egress/src/vmess/kdf.rs
+file b18ec5d34828a33a3b198eadde4debddadfd0db7 crates/podssh-ws/src/vmess/link.rs -> crates/pod-egress/src/vmess/link.rs
+file aeecd7eb8ca64f22e678801a0bf241347f197d42 crates/podssh-ws/src/vmess/mod.rs -> crates/pod-egress/src/vmess/mod.rs
+file beb9bae9c11d95f6edf49ade3ebcad3f86c8de7b crates/podssh-ws/src/vmess/ws.rs -> crates/pod-egress/src/vmess/ws.rs
+file 442c8c63b18beb804362ff1069972ab9698b9607 crates/podssh-ws/tests/shadowsocks.rs -> crates/pod-egress/tests/shadowsocks.rs
+file 6eb1ae2b28ce9501f420d1463477024ab9bd6f8b crates/podssh-ws/tests/shadowsocks_2022.rs -> crates/pod-egress/tests/shadowsocks_2022.rs
+file d120dc2764c5364f6bd101cb592c8be459473f8e crates/podssh-ws/tests/trojan.rs -> crates/pod-egress/tests/trojan.rs
+file 3bf35e23f50589360e684c0e664b06cf32e5f50e crates/podssh-ws/tests/trojan_support/mod.rs -> crates/pod-egress/tests/trojan_support/mod.rs
+file 7469a80f1ee4ae06388aeac60ffe95f7066f6930 crates/podssh-ws/tests/vless.rs -> crates/pod-egress/tests/vless.rs
+file 59e468285f3c26acdf992c092e783a8a0ced2681 crates/podssh-ws/tests/vless_support/mod.rs -> crates/pod-egress/tests/vless_support/mod.rs
+file 6c5e909ea592754af2a4fcc4ea1e8f2aff9f163c crates/podssh-ws/tests/vless_support/xhttp.rs -> crates/pod-egress/tests/vless_support/xhttp.rs
+file 8b61d463acd74d804bbf4d5e98f3c14f2500fb41 crates/podssh-ws/tests/vless_support/xhttp1.rs -> crates/pod-egress/tests/vless_support/xhttp1.rs
+file 22f9e1e30243827dfe2c3925e136688dcfe87033 crates/podssh-ws/tests/vmess.rs -> crates/pod-egress/tests/vmess.rs
