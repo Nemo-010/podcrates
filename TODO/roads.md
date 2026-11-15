@@ -115,7 +115,7 @@ and `piping-rate.yml` leave podssh; then the lines of src/piping/ leave
 **Milestone:** M4
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -140,6 +140,47 @@ sh scripts/agent/check.sh
 ## Start condition
 
 T-020 is done.
+
+## Done
+
+2026-11-14, commits `90d6b8a` (the import of podssh `b9c04657`, its
+SOURCES), `51d849b` (the adaptation and two fixes), `b7478b0` (the tests,
+the plants, the fuzz targets, the interop and the live run in CI),
+`d58b815` (README, the static probe, the tables, call C603), `97b451a` (the
+adoption trial). The source is in edition 2024 already: no edition commit.
+The dials take the caller's `pod_ws::Way`, the node's TLS the caller's
+provider, the API the caller's user agent, the record the caller's places,
+and `setting` the name of the caller's variable (call C603). The new fuzz
+target `opentunnel_answer` found two defects, fixed in place: an IPv6
+service on port 443 lost its brackets, and a service's host was not
+checked. Tests: `cargo test -p pod-opentunnel --all-features`: 25 unit
+tests and 1 of the fuzzing module pass; `tests/opentunnel_link.rs`, 7
+passed against the stand-in; `tests/opentunnel_interop.rs` runs in
+`opentunnel-interop.yml` against OpenTunnel's own server (it skips with no
+server here); `tests/opentunnel_live.rs` (ignored) runs in `live.yml`. The
+plants, each proved by hand: `opentunnel-t530-tunnel-not-kept` (the test
+of a second start fails), `opentunnel-ipv6-service-unbracketed` and
+`opentunnel-service-host-unchecked` (the tests of the two fixes fail). The
+fuzz targets `opentunnel_message` and `opentunnel_answer` passed their
+seeds and 20,000 mutations of each seed in a scratch crate.
+
+The trial, in a scratch copy of podssh at `b9c04657` after the patch of
+`pod-piping`, with the crates of this tree: cargo check of `podssh-relay`
+(all features, with its tests), `podssh-cli` and `podssh-iroh` (with their
+tests) passes; the lib tests of pinggy, localtunnel, hostc, bore and
+opentunnel (59) pass; podssh-cli `tests/opentunnel_road.rs` (4) and
+`tests/funnel_opentunnel.rs` (4) pass; podssh-todo check agrees after the
+remap of `Cargo.lock`. `adoption.yml` runs
+`adoption/podssh/pod-opentunnel.run` in CI.
+
+What podssh must do (PodUtils/podssh@T-684): apply
+`adoption/podssh/pod-opentunnel.patch` after the patch of `pod-piping`, at
+the release that holds the crate (the tag `v0.49.0`):
+`podssh_relay::opentunnel` becomes `pub use pod_opentunnel::*` with
+podssh's `ENV`; the calls of the CLI take podssh's way, user agent,
+provider and places (the adoption map of `crates/pod-opentunnel/README.md`);
+the road's tests, the plant t530 and the two workflows leave podssh; then
+the lines of src/opentunnel/ leave `crates/pod-opentunnel/SOURCES` here.
 
 # T-034: `pod-acme`: the ACME client
 

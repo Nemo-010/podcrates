@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**517 entries: 106 open, 8 partial, 6 blocked, 397 done.**
+**517 entries: 105 open, 8 partial, 6 blocked, 398 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 3 | 0 | 105 | 119 |
 | P2 | 50 | 2 | 4 | 208 | 264 |
-| P3 | 45 | 3 | 2 | 82 | 132 |
-| **All** | 106 | 8 | 6 | 397 | 517 |
+| P3 | 44 | 3 | 2 | 83 | 132 |
+| **All** | 105 | 8 | 6 | 398 | 517 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -79,7 +79,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-030](adapters.md) | P1 | M | M3 | feature | open | `pod-cloudflare`: podssh's quick tunnels onto the edge client |
 | [T-031](roads.md) | P2 | M | M4 | feature | open | `pod-derp`: the DERP client and the DERP carrier of a node |
 | [T-032](roads.md) | P3 | S | M4 | feature | done | `pod-piping`: the Piping Server carrier |
-| [T-033](roads.md) | P3 | S | M4 | feature | open | `pod-opentunnel`: the OpenTunnel carrier |
+| [T-033](roads.md) | P3 | S | M4 | feature | done | `pod-opentunnel`: the OpenTunnel carrier |
 | [T-034](roads.md) | P2 | S | M4 | feature | open | `pod-acme`: the ACME client |
 | [T-035](roads.md) | P2 | L | M4 | feature | open | `pod-egress`: the other roads out (via, VLESS, wstunnel, Wisp, Shadowsocks and more) |
 | [T-036](roads.md) | P2 | L | M4 | feature | open | `pod-relay-serve`: the relay role and its mailbox |
