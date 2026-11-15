@@ -1,0 +1,12 @@
+diff --git a/crates/pod-wormhole/src/nostr/relay.rs b/crates/pod-wormhole/src/nostr/relay.rs
+index da1e5dc..06c224a 100644
+--- a/crates/pod-wormhole/src/nostr/relay.rs
++++ b/crates/pod-wormhole/src/nostr/relay.rs
+@@ -253,6 +253,7 @@ impl Relay {
+     /// lost when the connection ends.
+     pub async fn close(&mut self) {
+         let deadline = Instant::now() + self.answer_limit;
++        self.pending.clear();
+         while !self.pending.is_empty() {
+             let Ok(Ok(said)) = tokio::time::timeout_at(deadline, self.read_said()).await else { break };
+             // A refusal ends nothing now: its event is answered.

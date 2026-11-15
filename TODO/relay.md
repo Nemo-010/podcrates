@@ -7706,3 +7706,113 @@ turns it on), the API, the tests and the row of PodUtils/podnet@T-279;
 `link-s3-standin-runs-after-drop` and `link-s3-standin-escape-panics`,
 each caught by hand; `sh scripts/plant-each.sh --apply`: 0 stale. podnet
 can remove tests/link_s3_standin/mod.rs (the hand-off).
+
+# T-634: `pod-relay`: the run of a code fails over the Nostr relays alone, though `pod_wormhole::nostr` pairs (PodUtils/podssh#247)
+
+**Source:** PodUtils/podssh#247 (COORD-070 of podssh), a defect of T-550.
+**Category:** defect
+**Milestone:** M2
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+podssh with `v0.47.0`: `pod_relay::code::run::give` and `run::take` with
+one mailbox that nobody serves and `Ends::relays` filled from
+`pod_services::of_kind("nostr-relay")` fail, with each relay alone
+(`relay.primal.net`, `offchain.pub`) and with both. The taker says "the
+other end said nothing for 60 s" with `Waits::default()`. From the same
+container, `nostr::opened` and `nostr::joined` pair directly at both
+relays, the live test `two_ends_meet_at_each_public_nostr_relay` passes,
+and the same run over `Ends::ntfy` alone or `Ends::trackers` alone
+pairs. podssh leaves `Ends::relays` empty until a tag fixes the run
+(PodUtils/podssh@T-545). The stand-in relay of `pair_code.rs` pairs where
+the public relays fail.
+
+## Premise
+
+- Read: `crates/pod-relay/src/code/run.rs`,
+  `crates/pod-wormhole/src/nostr.rs`, `crates/pod-wormhole/src/nostr/relay.rs`,
+  `crates/pod-wormhole/src/wormhole.rs`, `crates/pod-wormhole/tests/nostr.rs`,
+  `crates/pod-wormhole/tests/harness/nostr.rs`, `crates/pod-wormhole/tests/live.rs`,
+  `crates/pod-relay/tests/pair_code.rs`. podssh's reproduction
+  (crates/podssh-relay/tests/pair_meet_live.rs of podssh) is not on its
+  `main` branch: not read.
+- Measured from a cloud session through its HTTPS proxy, with each message
+  of the relay connection printed: at `relay.primal.net` the key, both
+  versions, the offer and the answer go through. The giver sends its last
+  word (phase `1`), then at once `CLOSE` and the Close of the WebSocket.
+  The relay sends no `OK` for that event, and the taker never gets it: the
+  taker fails after a step. The giver's run succeeds. The live test of
+  `pod-wormhole` passes because no end closes right after its last
+  message.
+- The stand-in takes each message of a connection before it reads the
+  next, so it passes the last word of an end that closes at once. Not
+  measured: whether the relay or the proxy drops the event.
+
+## Approach
+
+1. `nostr::Relay` keeps the ids of its events that the relay did not
+   answer (`OK`). `close` reads the relay until each one has its answer,
+   within the answer limit, and then sends `CLOSE` (call C595).
+2. The stand-in takes each message `LAG` (20 ms) after it came, and drops
+   the messages of a connection that ended before then, as a public relay
+   does (call C596). The run of `pair_code.rs` over the stand-in relay then
+   fails on the old code with the symptom of podssh.
+3. A test in `tests/nostr.rs`: the last word of an end that closes at once
+   reaches the other end. Two plants. A live test of the run at each public
+   relay after a dead mailbox in `pair_code_live.rs` (call C597).
+
+## Prove
+
+```sh
+cargo test -p pod-wormhole --features standin --test nostr
+cargo test -p pod-relay --all-features --test pair_code
+cargo test -p pod-relay --all-features --test pair_code_live -- --ignored --nocapture nostr
+```
+
+## Done
+
+2026-11-14, commit `6db015a`. Calls C595 to C597.
+
+- The cause: the giver sent its last word and closed at once (`CLOSE`, then
+  the Close of the WebSocket). The public relay sent no `OK` for that event
+  and did not pass it on, so the taker waited a step for it. The live test
+  of `pod-wormhole` closes no end right after its last message, and the
+  stand-in took each message of a connection before it read the next.
+- `pod_wormhole::nostr::Relay::close` reads the relay until it answered
+  each event of this end, within the answer limit, then sends `CLOSE`;
+  `nostr::relay::UNANSWERED_MOST` (64). The stand-in of
+  `crates/pod-wormhole/tests/harness/nostr.rs` takes each message `LAG`
+  (20 ms) after it came and drops the messages of a connection that ended
+  before then.
+- Tests: `cargo test -p pod-wormhole --features standin --test nostr`: 8
+  passed (1 new:
+  `the_last_word_of_an_end_that_closes_at_once_reaches_the_other_end`), 30
+  runs in a loop with no failure; on the old code the new test fails
+  ("the other end said nothing for 1 s"). `cargo test -p pod-relay
+  --all-features --test pair_code`: 16 passed; on the old code
+  `where_no_mailbox_answers_the_ends_meet_at_a_nostr_relay_before_a_broker`
+  fails ("the taker: the other end said nothing for 20 s"), the symptom of
+  podssh. `cargo test -p pod-wormhole -p pod-relay --all-features`: each
+  passes.
+- Live, from a cloud session through its HTTPS proxy: the new
+  `two_ends_pair_through_each_public_nostr_relay_after_a_dead_mailbox` of
+  `crates/pod-relay/tests/pair_code_live.rs` failed before the fix
+  (`relay.primal.net`: "the other end said nothing for 60 s"); after it,
+  `relay.primal.net` pairs in 3.2 s and `offchain.pub` in 1.9 s. The
+  mailboxes of `pair_code_live` and `two_ends_meet_at_each_public_nostr_relay`
+  of `pod-wormhole` pass. The run at the one public MQTT broker
+  (`public.cloud.shiftr.io`) after a dead mailbox pairs in 3.0 s, so the
+  brokers do not have the defect.
+- Plants `wormhole-nostr-close-unanswered` and
+  `relay-code-nostr-last-word-lost`, each caught by hand (15 of 15 runs of
+  the first); the patch of `wormhole-nostr-refusal-ignored` follows the
+  new `heed`, caught by hand; `wormhole-nostr-no-resend`,
+  `wormhole-nostr-tag-constant`, `wormhole-nostr-signature-unchecked` and
+  `relay-code-nostr-after-brokers` still caught on the new stand-in.
+  `sh scripts/plant-each.sh --apply`: 0 stale.
+- The READMEs of `pod-wormhole` and `pod-relay` give the close, the
+  stand-in, the tests and the plants; their counts of plants (25) and of
+  ignored tests (21) are corrected.

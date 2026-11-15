@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**518 entries: 105 open, 8 partial, 6 blocked, 399 done.**
+**519 entries: 105 open, 8 partial, 6 blocked, 400 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 3 | 0 | 105 | 119 |
+| P1 | 11 | 3 | 0 | 106 | 120 |
 | P2 | 49 | 2 | 4 | 209 | 264 |
 | P3 | 45 | 3 | 2 | 83 | 133 |
-| **All** | 105 | 8 | 6 | 399 | 518 |
+| **All** | 105 | 8 | 6 | 400 | 519 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -564,4 +564,5 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-631](transport.md) | P3 | M | M1 | chore | done | `pod-turn`: the check of a MESSAGE-INTEGRITY-SHA256 answer against a server of another party |
 | [T-632](podvm.md) | P3 | S | M7 | chore | done | `pod-guest`: the QMP commands of the mailbox name the drive by `id`, not by the deprecated `device` |
 | [T-633](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: the screen sign of the readiness fails on Validation OS, so the provision never types into a Windows guest |
+| [T-634](relay.md) | P1 | S | M2 | defect | done | `pod-relay`: the run of a code fails over the Nostr relays alone, though `pod_wormhole::nostr` pairs (PodUtils/podssh#247) |
 | [T-635](podvm.md) | P3 | S | M7 | feature | open | `pod-guest`: a setting of the bus of the root disk, so that a warm start runs on QEMU 8.2 |

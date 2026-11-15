@@ -1,9 +1,9 @@
 diff --git a/crates/pod-wormhole/src/nostr/relay.rs b/crates/pod-wormhole/src/nostr/relay.rs
-index 6f22030..f9cfbff 100644
+index da1e5dc..1dfb245 100644
 --- a/crates/pod-wormhole/src/nostr/relay.rs
 +++ b/crates/pod-wormhole/src/nostr/relay.rs
-@@ -252,9 +252,7 @@ impl Relay {
-     async fn heed(&mut self, said: Said) -> Result<Option<Message>, Failed> {
+@@ -278,9 +278,7 @@ impl Relay {
+         }
          match said {
              Said::Event { sub, event } if sub == self.sub => self.take(&event).await,
 -            Said::Ok { accepted: false, message, .. } if !harmless(&message) => {

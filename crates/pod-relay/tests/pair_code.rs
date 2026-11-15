@@ -14,8 +14,12 @@
 //! looks at the brokers (call C115). The Nostr relays come between the
 //! mailboxes and the brokers (T-550, podssh's ruling Q77), after an event
 //! of their own; planted (`relay-code-nostr-after-brokers`): the brokers
-//! first. The WebTorrent trackers come between the relays and the brokers
-//! (T-551), after an event of their own; planted
+//! first. The stand-in relay drops an event of a connection that ended
+//! before it took the event, as a public relay does: the giver's last word
+//! reaches the taker all the same (T-634); planted
+//! (`relay-code-nostr-last-word-lost`): the giver closes at once. The
+//! WebTorrent trackers come between the relays and the brokers (T-551),
+//! after an event of their own; planted
 //! (`relay-code-trackers-after-brokers`): the brokers first. The ntfy
 //! servers come between the mailboxes and the relays (T-554), after an
 //! event of their own; planted (`relay-code-ntfy-after-relays`): the relays

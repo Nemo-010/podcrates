@@ -1,0 +1,7 @@
+# An end at a Nostr relay closes before the relay answered its events: the
+# stand-in, as a public relay, drops the last word of a connection that
+# ended; the test of the last word of an end that closes at once must fail.
+ENTRY=T-634
+GROUP=wormhole
+EXPECT='test the_last_word_of_an_end_that_closes_at_once_reaches_the_other_end \.\.\. FAILED'
+RUN='cargo test -p pod-wormhole --features standin --test nostr -- the_last_word_of_an_end_that_closes_at_once_reaches_the_other_end --exact'
