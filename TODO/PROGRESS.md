@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 579 entries: 119 open, 11 partial, 6 blocked, 443 done.
+`TODO/INDEX.md` holds 580 entries: 119 open, 11 partial, 6 blocked, 444 done.
 
 ## State
 
@@ -19,7 +19,7 @@
     `pod-lab` is PodUtils/podssh@T-791.
   - podnet: `v0.54.0` (`d702f61`, PodUtils/podnet#589; it runs the one
     watcher, PodUtils/podcrates#186; its help and manual come from
-    `pod-manual`; T-725 has the gaps it found). It sets the
+    `pod-manual`; T-725 fixed the gaps it found, for the next tag). It sets the
     profile of `kcp` with its take of the udp carrier (#139, T-526).
   - podvm: `v0.52.0` (`d27cf271`, PodUtils/podvm#413).
   - podrunner: `v0.52.0` (`45bd964`, PodUtils/podrunner#169).

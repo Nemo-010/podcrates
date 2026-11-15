@@ -119,7 +119,7 @@ fn block_end(text: &str, open: usize) -> Option<usize> {
 
 /// The functions whose first argument is the name of a variable: Rust's
 /// `std::env` and `Command`, clap's builder (`.env("X")`), and C.
-const CALLS: &[&str] =
+pub const CALLS: &[&str] =
     &["var", "var_os", "set_var", "remove_var", "env", "env_remove", "getenv", "secure_getenv", "setenv", "unsetenv"];
 
 /// The suffixes of the name of a constant that holds the names of
@@ -127,7 +127,7 @@ const CALLS: &[&str] =
 /// `const PROXY_VARIABLES: &[&str] = &["HTTPS_PROXY", "https_proxy"];`.
 /// A program names so each variable that it reads by a name that is not a
 /// literal of a call.
-const LISTS: &[&str] = &["_VARIABLE", "_VARIABLES"];
+pub const LISTS: &[&str] = &["_VARIABLE", "_VARIABLES"];
 
 /// The name of the function that `before` calls: `std::env::var(` gives
 /// `var`. A macro (`env!(`, `option_env!(`) gives none.

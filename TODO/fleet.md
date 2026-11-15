@@ -3616,7 +3616,7 @@ python3 scripts/check-workflows.py
 **Milestone:** M8
 **Priority:** P1
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -3643,5 +3643,102 @@ Fix each in the crate, with a test that fails before the fix and a plant: the re
 
 ```sh
 cargo test -p pod-manual -p pod-lab --all-features
-sh scripts/check-man.sh
+python3 -I scripts/check-strings.py --self-test
+sh scripts/plant-each.sh --group manual
+```
+
+## Done
+
+2026-11-15, commits ab5653eb, 22fcebcc, 50a53e9d and the next one
+(local branch `manual2`); calls C713 to C716.
+
+- `clap::read` fills `Flag::env` and the new `Arg::env` from clap's
+  `env` (C713). A rule names a positional argument by its value name,
+  and `check::model` takes a flag or an argument; a rule with a hidden
+  argument is left out. Tests: `tests/clap.rs`
+  `the_reader_gives_the_variable_of_each_flag`,
+  `a_rule_with_a_positional_argument_passes_the_check_of_the_model`;
+  `check::tests::a_rule_may_name_an_argument`.
+- `Command::groups` (`Group`) and `Command::lead` (C715): the help, the
+  text and the man page show "Start here" and a table for each group
+  before the arguments and the options; `check::model` requires each
+  command under it in one group. `podlab --help` takes three groups and
+  three lead lines; `man/podlab.1` is written again. Tests:
+  `check::tests::the_groups_name_each_command_once`,
+  `the_help_shows_the_lead_and_each_group`, and the help test of
+  `podlab`.
+- `scan::variables_read` reads only the calls of `scan::CALLS`, clap's
+  `env = "X"` and the constants of `scan::LISTS` (C714); `check::variables`
+  counts the variable of each flag and argument of the model as a read of
+  the parser. podnet's seven exempt words of a form of a variable are no
+  read (`scan::tests::a_word_of_the_form_of_a_variable_is_no_read`).
+- `scripts/check-man.sh`: the plant is a flag of a generated name; a
+  spelling counts as a word of its own. On podnet's release binary at
+  `aa8bae2`: the old script failed its plant (`--add-door`); the new one
+  passes, 248 flag spellings. A copy with a vacuous check fails its plant.
+- `scripts/check-strings.py` (C716): podnet's release binary at `aa8bae2`
+  (`cargo build --release`, 6 min): 97 faults before, 0 after; 64 with no
+  data of `pod-services`. `--self-test`: 14 cases (CI, lint job).
+- `podlab` for `x86_64-unknown-linux-musl` (cargo zigbuild,
+  `SOURCE_DATE_EPOCH`): `check-static.sh`, `check-strings.py` (and
+  `--plant`: exit 1) and `check-man.sh` pass; `podlab man --no-pager`: 353
+  lines.
+- Tests: `pod-manual` 59 unit tests and 9 of `tests/clap.rs`; `pod-lab`
+  25, 6 of the binary (1 ignored), 4 of `tests/cli.rs`. Plants: 11 new
+  (group `manual`; `plants.yml` installs groff and mandoc); `plant-each.sh
+  --group manual`: 19 caught; the three plants of the manual in group
+  `lab`: 3 caught.
+- Breaking changes of the API: `check::model` takes a rule that names an
+  argument; `scan::variables_read` finds no quoted word outside a call;
+  `check::variables` reads the variables of the model; new fields
+  `Command::groups`, `Command::lead`, `Arg::env` (a struct literal with no
+  `..Default::default()` fails to build); the feature `clap` turns on
+  `clap/env`. The JSON schema stays 1.
+- What podnet can drop after the tag: `fill_env` and the filter of the
+  rules in `src/manual/mod.rs`; the words `pod_proxy`, `F_GETFL`,
+  `F_SETFL`, `SO_ORIGINAL_DST`, `AF_INET`, `AF_INET6` and `SHA2_256` of
+  `EXEMPT` (`TARGET` and `RUST_LOG` stay); and, when it answers `--help`
+  from the model,
+  `HELP_GROUPS`, `START_HERE`, the help template and the test E1 of
+  `src/cli/help.rs`. `check-strings.py` needs no list of podnet: give
+  `--data` the `services/` of the tag of the binary.
+- Finding: T-726 (clap gives no getter of `requires`: the reader gives
+  no `Rule::Needs`).
+
+# T-726: `pod-manual`: the reader of clap gives no `Rule::Needs` (clap's `requires`)
+
+**Source:** T-725 (the read of podnet's glue for PodUtils/podnet#589).
+**Category:** defect
+**Milestone:** M8
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`pod_manual::clap::read` gives the rules `OneOf` (a group) and `Excludes`
+(a conflict) of a clap tree, but no `Needs`: clap 4.6 has no public getter
+of `Arg::requires`. podnet has about 20 flags with `requires` (for
+example `--auth-user` needs `--auth-password-file`); its manual and help
+do not name these rules.
+
+## Premise
+
+- Read: `clap_builder` 4.6.7 `src/builder/arg.rs` (no `get_requires`),
+  podnet `src/cli/opts.rs`, `src/cli/cmd/warp/args.rs` at `aa8bae2`.
+- Not measured: the count of the rules of `requires` in podnet.
+
+## Approach
+
+Find each rule by the parser itself: for each flag of a command, parse
+the path of the command with the flag alone (and a value, and the
+required arguments), and read the arguments that a `MissingRequiredArgument`
+error names that the flag added; each gives `Rule::Needs`. A test plants a
+`requires` in the sample tree and finds its rule; `check::model` and the
+writers already take `Needs`.
+
+## Prove
+
+```sh
+cargo test -p pod-manual --all-features --test clap
 ```

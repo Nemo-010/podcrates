@@ -28,7 +28,7 @@ the code, the parser and the files of the repository fails a test.
 | `pager::{Tty, PagerEnv, choose, show, page, variables, SOURCE}` | the pager, and its variables as facts |
 | `rules::{faults, char_faults, work_ids, sentences, words, Kind, Fault}` | the text rules |
 | `check::{texts, generated, variables, exit_codes, flags, model, assert_none, Finding}` | the checks that a program calls from its tests |
-| `scan::{rust_sources, non_test, variables_read, exit_constants, src}` | the reader of the source of a program for `check::variables` and `check::exit_codes`: only the calls that read or set a variable |
+| `scan::{rust_sources, non_test, variables_read, exit_constants, src, CALLS, LISTS}` | the reader of the source of a program for `check::variables` and `check::exit_codes`: only the calls that read or set a variable |
 | `error::fault(option, what, fix)`, `error::check` | `OPTION: what is wrong; fix: what to do`, and its rules |
 
 ## The pager
