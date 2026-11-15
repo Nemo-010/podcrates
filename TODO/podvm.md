@@ -8319,6 +8319,8 @@ sh scripts/plant-each.sh guest-t640-one-shutdown guest-t640-nap-does-not-wait gu
 
 The live step: `tests/windows_keep_live.rs` runs six cold boots of `run` on the installed Server 2019 disk, each with its own overlay, variable store, NVMe mailbox, command and limit of 600 s, prints `RESULT: cold boots: N of 6 reached their outcome`, and fails at its end when one did not; `guest-windows.yml` uploads the evidence of each job. The image of the test has the agent of this commit, so the step proves the fix and does not run the agent of `v0.48.0`. The parent dispatches it after the merge.
 
+The live step ran: `guest-windows.yml` run 43683270673 at `1368e49` (by a dispatch, #165) passed, with "RESULT: cold boots: 6 of 6 reached their outcome". The warm start was not run (QEMU 8.2 cannot save the NVMe root disk, T-629), and the two controls of the mounted mailbox gave "no", as before.
+
 # T-641: `pod-guest`: the installer tries its shutdown again, and `dos::run` keeps the evidence of a run that times out
 
 **Source:** T-640 (a finding of its work).
