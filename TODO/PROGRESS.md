@@ -15,7 +15,8 @@
   hand-off issue):
   - podssh: `v0.51.0` (`3f6a9fe`, PodUtils/podssh#260): part 1 of
     `pod-egress`; parts 2 and 3 wait for `v0.52.0`.
-  - podnet: `v0.52.0` (`c0ab946`, PodUtils/podnet#580). It sets the
+  - podnet: `v0.53.0` (`f2690c5`, PodUtils/podnet#587; it runs the one
+    watcher, PodUtils/podcrates#186). It sets the
     profile of `kcp` with its take of the udp carrier (#139, T-526).
   - podvm: `v0.52.0` (`d27cf271`, PodUtils/podvm#413).
   - podrunner: `v0.52.0` (`45bd964`, PodUtils/podrunner#169).
