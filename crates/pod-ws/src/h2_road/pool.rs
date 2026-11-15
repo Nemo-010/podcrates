@@ -7,11 +7,14 @@
 //! together share it; each host is made apart, so that the race between
 //! relay hosts waits for none. A connection whose sessions ended closes
 //! after [`IDLE`], and one that ended goes. A host that took HTTP/1.1 at the
-//! cost of a connection is remembered for [`REMEMBERED`].
+//! cost of a connection is remembered for [`REMEMBERED`]. Each connection
+//! has a serial number, higher for each new one of the pool: a link that
+//! replaces another takes only a connection newer than each that its
+//! session rode ([`super::Links`]).
 
 use std::future::Future;
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -102,6 +105,9 @@ async fn idle(open: Arc<AtomicUsize>) {
 pub(super) struct Conn {
     sender: SendRequest<Bytes>,
     peer: Option<SocketAddr>,
+    /// Its number in the pool: higher for each new connection; 0 until the
+    /// pool keeps it.
+    serial: u64,
     /// Its sessions now, and the most at once.
     open: Arc<AtomicUsize>,
     most: usize,
@@ -119,7 +125,7 @@ impl Conn {
         let task = driven.task.abort_handle();
         let most = most.clamp(1, STREAMS);
         let used = Arc::new(AtomicBool::new(false));
-        Conn { sender, peer, open: driven.open, most, used, retired: driven.retired, task }
+        Conn { sender, peer, serial: 0, open: driven.open, most, used, retired: driven.retired, task }
     }
 
     pub(super) fn sender(&self) -> SendRequest<Bytes> {
@@ -129,6 +135,11 @@ impl Conn {
     /// The address of its TCP: the relay's, or the proxy's.
     pub(super) fn peer(&self) -> Option<SocketAddr> {
         self.peer
+    }
+
+    /// Its number in the pool.
+    pub(super) fn serial(&self) -> u64 {
+        self.serial
     }
 
     /// No session more on it, as it went away; the sessions on it go on.
@@ -187,6 +198,8 @@ struct State {
 /// session; a new one starts with nothing.
 pub struct Pool {
     kept: Mutex<Vec<Arc<Host>>>,
+    /// The serial number of the newest connection.
+    made: AtomicU64,
 }
 
 impl std::fmt::Debug for Pool {
@@ -205,7 +218,7 @@ impl Pool {
     /// A pool with no connection; `const`, so that a binary keeps one in a
     /// `static`.
     pub const fn new() -> Pool {
-        Pool { kept: Mutex::new(Vec::new()) }
+        Pool { kept: Mutex::new(Vec::new()), made: AtomicU64::new(0) }
     }
 
     fn lock(&self) -> MutexGuard<'_, Vec<Arc<Host>>> {
@@ -242,9 +255,10 @@ pub(super) enum Got {
 }
 
 impl Pool {
-    /// A place for a session of `config`: on a connection kept, else on a new
-    /// one; or why the session takes HTTP/1.1.
-    pub(super) async fn place(&self, config: &WsClientConfig) -> Result<Got, ConnectError> {
+    /// A place for a session of `config`: on a connection kept whose serial
+    /// number is above `after`, else on a new one; or why the session takes
+    /// HTTP/1.1.
+    pub(super) async fn place(&self, config: &WsClientConfig, after: u64) -> Result<Got, ConnectError> {
         let host = self.host(Key::of(config));
         let mut state = host.state.lock().await;
         let remembered = state.lacks.as_ref().filter(|(_, at)| at.elapsed() < REMEMBERED).map(|(why, _)| why.clone());
@@ -253,12 +267,13 @@ impl Pool {
         }
         state.lacks = None;
         state.conns.retain(|c| !c.retired());
-        if let Some(conn) = state.conns.iter().find(|c| c.room()) {
+        if let Some(conn) = state.conns.iter().find(|c| c.serial > after && c.room()) {
             let (place, shared) = conn.take();
             return Ok(Got::Place { conn: conn.clone(), place, shared });
         }
         match dial::dial(config).await? {
-            Dialed::H2(conn) => {
+            Dialed::H2(mut conn) => {
+                conn.serial = self.made.fetch_add(1, Ordering::SeqCst) + 1;
                 let (place, shared) = conn.take();
                 state.conns.push(conn.clone());
                 Ok(Got::Place { conn, place, shared })

@@ -34,7 +34,9 @@ const WHO: &str = "the relay";
 
 /// How the links of a session reach their host.
 enum Way {
-    /// TLS, through the way of the context, by the forward opener.
+    /// TLS, through the way of the context, by the forward opener; the
+    /// context is the session's own, so that a new link takes no HTTP/2
+    /// connection that a link of the session rode.
     Tls(Box<Context>, Trust),
     /// Plain `ws://` to a relay role on the loopback, with this token, for
     /// tests: a token over plain TCP never leaves the host
@@ -43,7 +45,8 @@ enum Way {
     PlainLoopback(String),
 }
 
-/// The links of one session to one host.
+/// The links of one session to one host. A dialer serves one session: its
+/// context records the connections of HTTP/2 that the session's links rode.
 pub struct Dialer {
     /// The one host, as a list that the user named: the opener tries it
     /// alone.
@@ -128,7 +131,7 @@ impl Dialer {
     /// The links of a session to `host:port` through `relay`, over TLS with
     /// `trust`; `Err` for a target that no path can name.
     pub fn new(ctx: &Context, relay: Relay, host: &str, port: u16, trust: Trust) -> Result<Dialer, String> {
-        Dialer::with(relay, host, port, Way::Tls(Box::new(ctx.clone()), trust))
+        Dialer::with(relay, host, port, Way::Tls(Box::new(ctx.clone().for_one_session()), trust))
     }
 
     /// The links of a session to `host:port` at the host that holds them,

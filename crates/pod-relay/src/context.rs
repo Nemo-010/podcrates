@@ -46,6 +46,10 @@ pub struct Context {
     /// Where the lines for the user go.
     pub events: Arc<dyn Events>,
     shared: Arc<Shared>,
+    /// The links of one session of the resumable layer, where the context
+    /// is that session's: each new link takes a connection of HTTP/2 that
+    /// no link of the session rode.
+    links: Option<Arc<pod_ws::h2_road::Links>>,
 }
 
 /// The state that the sessions of a run share.
@@ -79,6 +83,7 @@ impl Context {
             settings: Arc::new(Settings::default()),
             events: Arc::new(NoEvents),
             shared: Arc::default(),
+            links: None,
         }
     }
 
@@ -125,6 +130,20 @@ impl Context {
     /// The pool of HTTP/2 connections of the run, each host's apart.
     pub fn h2_pool(&self) -> &pod_ws::h2_road::Pool {
         &self.shared.h2
+    }
+
+    /// The same context for the links of one session of the resumable
+    /// layer: a link that replaces another rides no connection of HTTP/2
+    /// that a link of the session rode, as that connection may be the
+    /// silent one.
+    pub(crate) fn for_one_session(mut self) -> Context {
+        self.links = Some(Arc::default());
+        self
+    }
+
+    /// The links of the session of this context, if it is one session's.
+    pub(crate) fn links(&self) -> Option<&pod_ws::h2_road::Links> {
+        self.links.as_deref()
     }
 
     /// What the HTTP road's one-POST form learned of each host in the run

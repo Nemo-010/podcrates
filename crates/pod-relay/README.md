@@ -214,6 +214,21 @@ after 2 s with no mark on the stream; the plants
 `relay-t560-no-h2-offer`, `relay-t560-reset-is-an-end` and
 `relay-t560-http1-not-asked-again`.
 
+## The links of the resumable layer over HTTP/2
+
+Each `forward_layer::Dialer` holds its own `Context` for one session
+(T-686, PodUtils/podssh#262, call C666). The first link of the session
+takes a place on a connection of HTTP/2 that the pool keeps, as each
+session does. Each next link (a spare beside a silent link, a resume
+after a loss, a move) takes only a connection that is newer than each
+connection that a link of the session rode: a new one, or one that
+another session opened after it. A connection that went silent holds a
+new stream as it holds the old one, until its TCP recovers.
+`tests/layer_h2_spare.rs` holds each byte of the first TCP connection
+through a stand-in proxy: the spare opens a second TCP connection, and
+the session resumes within 3 s and the scaled work; the plant
+`relay-t686-spare-on-pooled-connection`.
+
 ## Features
 
 | Feature | What |
