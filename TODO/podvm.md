@@ -8276,7 +8276,7 @@ cargo test -p pod-guest --all-features
 **Milestone:** M7
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8298,3 +8298,11 @@ Read the agent for each cause of a missed command or power-off, and fix each one
 cargo test -p pod-guest --all-features --lib -- agent:: evidence::
 sh scripts/plant-each.sh guest-t640-one-shutdown guest-t640-nap-does-not-wait guest-t640-screen-after-the-stop
 ```
+
+## Done
+
+2026-11-14, commit 381b18c; the plants and this record in the next commit. The causes of the ask, read in the agent (call C612): possible are a shutdown that Windows refuses early in the boot (the agent ended after one refusal) and a `ping` that does not wait (the 600 tries of the probe then end in a few seconds, before a slow mailbox disk comes online); not possible are another drive letter (the scan covers D to Z), a task that does not start (`onstart` as `SYSTEM`, the same overlay of the provisioned image at each boot), a shutdown that an update blocks, and the cache of C543 (a cold boot writes the mailbox before the spawn). Fixed: the agent tries `shutdown` again each second for at most 300 tries (C612), waits for two changes of the second of `%TIME%` when `ping` fails (C613), and appends each step to `WQLOG.TXT` (`agent::LOG`, C614). `run` says what the mailbox tells after a timeout and after a power-off with no result (`evidence::seen`). New: `Settings::evidence` (`None` by default) and the module `evidence` (`dir`, `seen`, `SCREEN`, `SERIAL`, `EMULATOR`, `MAILBOX`); a run that times out takes a QMP `screendump` before the stop and copies the serial log, the error stream of the emulator and the mailbox into `DIR/timeout-TOKEN`, and its text names the directory (C615); `Timeout::failure_with`.
+
+`cargo test -p pod-guest --all-features`: 175 unit tests passed, 1 ignored (new: `agent::tests::the_probes_wait_about_one_second_each_also_when_ping_fails`, `agent::tests::a_mailbox_that_comes_online_late_is_found_with_no_ping`, `agent::tests::the_agent_tries_the_shutdown_again_until_windows_takes_it`, `evidence::tests::a_run_that_times_out_keeps_a_screen_from_before_the_stop_and_its_logs`, `evidence::tests::a_run_with_no_evidence_directory_takes_no_screen`, `evidence::tests::the_mailbox_tells_what_the_agent_did`, `evidence::tests::the_directory_of_a_token_is_one_safe_name`); 20 runs of the tests of `agent` and `evidence` in a loop. The walk of the agent has a clock, `call`, and each new line. Plants, each caught by hand: `guest-t640-one-shutdown`, `guest-t640-nap-does-not-wait`, `guest-t640-screen-after-the-stop`; `guest-agent-keep-alive-shuts-down` and `guest-agent-idle-ends-without-the-medium` of T-592 and T-602 are written again for the new agent text and caught. `plant-each.sh --apply`: 0 stale.
+
+The live step: `tests/windows_keep_live.rs` runs six cold boots of `run` on the installed Server 2019 disk, each with its own overlay, variable store, NVMe mailbox, command and limit of 600 s, prints `RESULT: cold boots: N of 6 reached their outcome`, and fails at its end when one did not; `guest-windows.yml` uploads the evidence of each job. The image of the test has the agent of this commit, so the step proves the fix and does not run the agent of `v0.48.0`. The parent dispatches it after the merge.

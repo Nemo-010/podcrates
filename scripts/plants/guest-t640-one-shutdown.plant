@@ -1,0 +1,8 @@
+# The agent ends after one refused shutdown, so a guest that Windows does
+# not let power off early in its boot stays up to the limit of the host
+# (T-640, PodUtils/podvm#380). The walk of refused shutdowns must fail.
+ENTRY=T-640
+GROUP=guest
+EXPECT='test agent::tests::the_agent_tries_the_shutdown_again_until_windows_takes_it \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- agent::tests::the_agent_tries_the_shutdown_again_until_windows_takes_it'
+LIMIT=1800

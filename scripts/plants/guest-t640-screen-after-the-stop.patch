@@ -1,0 +1,14 @@
+diff --git a/crates/pod-guest/src/lib.rs b/crates/pod-guest/src/lib.rs
+index d7eacd6..fdde654 100644
+--- a/crates/pod-guest/src/lib.rs
++++ b/crates/pod-guest/src/lib.rs
+@@ -405,8 +405,8 @@ pub fn run(s: &Settings, plan: &Plan, request: &Request) -> Result<Outcome> {
+         }
+     };
+     if !exited {
+-        let shot = evidence::screen(s, plan, &request.token);
+         let stop = running.stop();
++        let shot = evidence::screen(s, plan, &request.token);
+         let more = evidence::after_stop(s, plan, &request.token, log.as_deref(), shot);
+         return Err(Timeout { after: request.timeout, stop }.failure_with(&more));
+     }

@@ -1,0 +1,9 @@
+# The wait of the agent is only `ping`: a `ping` that fails does not wait,
+# and the 600 tries of the probe end in seconds, before a slow mailbox disk
+# comes online (T-640, PodUtils/podvm#380). The walk with a failed `ping`
+# must fail.
+ENTRY=T-640
+GROUP=guest
+EXPECT='test agent::tests::the_probes_wait_about_one_second_each_also_when_ping_fails \.\.\. FAILED'
+RUN='cargo test -p pod-guest --all-features --lib -- agent::tests::the_probes_wait_about_one_second_each_also_when_ping_fails'
+LIMIT=1800

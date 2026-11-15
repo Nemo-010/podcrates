@@ -1,0 +1,13 @@
+diff --git a/crates/pod-guest/src/agent.rs b/crates/pod-guest/src/agent.rs
+index 4178e98..79c37ff 100644
+--- a/crates/pod-guest/src/agent.rs
++++ b/crates/pod-guest/src/agent.rs
+@@ -149,7 +149,7 @@ set WQTRIES=0
+ goto probe
+ :nap
+ ping -n 2 127.0.0.1 >nul 2>&1
+-if not errorlevel 1 goto :eof
++goto :eof
+ call :tick
+ call :tick
+ goto :eof
