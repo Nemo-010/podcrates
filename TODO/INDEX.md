@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**583 entries: 120 open, 11 partial, 6 blocked, 446 done.**
+**585 entries: 121 open, 12 partial, 6 blocked, 446 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 12 | 6 | 0 | 128 | 146 |
-| P2 | 57 | 2 | 4 | 230 | 293 |
+| P1 | 11 | 7 | 0 | 128 | 146 |
+| P2 | 59 | 2 | 4 | 230 | 295 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 120 | 11 | 6 | 446 | 583 |
+| **All** | 121 | 12 | 6 | 446 | 585 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -611,7 +611,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-696](fleet.md) | P2 | S | M8 | feature | open | `pod-lab`: `bind-denied` refuses UDP bind and connect of AF_INET and AF_INET6 |
 | [T-700](fleet.md) | P1 | L | M8 | feature | partial | `pod-manual`: one crate for the help and the manual of each command line of PodUtils (PodUtils/podnet#584) |
 | [T-701](fleet.md) | P1 | M | M8 | feature | done | `pod-lab`: the host classes of podssh and podnet as profiles, with the lane of each project (PodUtils/podssh#268, PodUtils/podnet#585) |
-| [T-702](fleet.md) | P1 | M | M8 | feature | open | one POSIX installer for each project, hermetic, idempotent and fast, run in the labs (the ruling "Installer") |
+| [T-702](fleet.md) | P1 | M | M8 | feature | partial | one POSIX installer for each project, hermetic, idempotent and fast, run in the labs (the ruling "Installer") |
 | [T-703](fleet.md) | P1 | M | M8 | feature | partial | a mechanical check of the open issues and their comments against the record, for each project (the ruling "Issues") |
 | [T-704](fleet.md) | P2 | S | M8 | feature | open | `podlab`: the usage errors of clap in the form of `pod_manual::error::fault` |
 | [T-705](fleet.md) | P2 | S | M8 | feature | open | `check-strings.py`: the strings of Mach-O and PE binaries |
@@ -622,6 +622,8 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-714](fleet.md) | P2 | S | M8 | feature | open | `pod-hostprobe`: the rows of the socket classes of podssh and podnet (bind alone, listen, UDP, raw and packet sockets, the loopback) |
 | [T-715](fleet.md) | P2 | S | M8 | feature | open | `pod-hostprobe`: the rows of the file classes of podssh (absent paths, the terminal, the lines of the ids, `HOME`, read-only mounts) |
 | [T-716](fleet.md) | P2 | M | M8 | feature | open | `pod-lab`: the labs and the probe rows of the network classes of podssh and podnet (podnet's hand-off) |
+| [T-717](fleet.md) | P2 | S | M8 | feature | open | the installer core: a signature of the release assets, checked where `cosign` is there |
+| [T-718](fleet.md) | P2 | S | M8 | feature | open | the installer core: the test on macOS and Windows |
 | [T-723](fleet.md) | P1 | S | M8 | feature | done | `pod-todo`: a kind `reference` for an issue that holds no work (PodUtils/podvm#435) |
 | [T-724](fleet.md) | P1 | S | M8 | defect | done | `issue-sync.yml` builds `pod-todo` under the caller's `.cargo/config.toml` (PodUtils/podvm#437) |
 | [T-725](fleet.md) | P1 | M | M8 | defect | done | `pod-manual`: four gaps that podnet's take found, and false positives of `check-man.sh` and `check-strings.py` (PodUtils/podnet#589) |

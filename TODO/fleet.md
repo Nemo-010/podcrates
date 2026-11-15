@@ -3219,7 +3219,7 @@ cargo test -p pod-lab --all-features
 **Milestone:** M8
 **Priority:** P1
 **Effort:** M
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -3247,7 +3247,154 @@ The needs of the projects, for the core:
 ## Prove
 
 ```sh
-sh scripts/check-installer.sh
+sh scripts/install/test.sh
+python3 -I scripts/install/pins.py check scripts/install/podlab.sh
+sh scripts/plant-each.sh --group install
+```
+
+## Done
+
+2026-11-15, partial: the core, the installer of `podlab`, the pins, the
+release assets of `podlab` and the test are in (commits `12cede3e` and
+`e14a2744`; calls C706 to C712). Each project's take and the hand-off are
+left.
+
+- The core (`scripts/install/core.sh`, POSIX `sh`, 494 lines): the target
+  triple (musl on Linux, both Macs, also under Rosetta, the `.exe` of
+  Windows under a POSIX shell; `uname -m` under QEMU user mode); the first
+  downloader that a probe finds (`curl -q`, `wget --no-config`, `python3`,
+  `busybox wget` with a warning); the proxy of the environment
+  (`HTTPS_PROXY` to `https_proxy`, `NO_PROXY` to `no_proxy`; the output
+  shows no credential); the first SHA-256 tool that a probe finds; the
+  prefix (`--prefix`, `$XDG_BIN_HOME`, `~/.local/bin`), its write and exec
+  check with the reason (`noexec` from `/proc/self/mounts`); the free
+  space against the sizes of the pins, with the knob `--prefix`; a
+  temporary name in the prefix, the pin, a run of `--version`, then `mv`;
+  a second run that downloads nothing and says so; INT, TERM and HUP stop
+  the child and remove the temporary files; the next run removes the
+  files of a run cut by KILL; `--version`, `--dry-run`, `--offline FILE`
+  (`.tar.gz` or a directory), `--add-path FILE`; the hooks `inst_files`,
+  `inst_version_ok`, `inst_setup`, `inst_selfcheck`.
+- `scripts/install/podlab.sh`: the installer of `podlab`; its self-check
+  is `podlab list`. `scripts/install/pins.py`: `sums`, `stamp` (the core
+  inline and the pins: version, targets, SHA-256 and size of each file),
+  `check` (the tree copy holds no pins), `bundle` (a tar.gz with the
+  same bytes for the same input).
+- `release.yml`: each run (the dry run too) builds `podlab` static for
+  x86_64 and aarch64 musl with `SOURCE_DATE_EPOCH` (the versions of zig
+  from `ci.yml`), checks it (`check-static.sh`, `check-strings.py`),
+  stamps `podlab-install.sh`, makes `podlab-VERSION.tar.gz` and
+  `SHA256SUMS`, installs from the bundle twice; a release attaches each
+  file. `ci.yml`: the job `install` (`test.sh --strict`, with `dash`,
+  `busybox-static` and `shellcheck`, and the sysctl of the user
+  namespaces), in the needs of `all`.
+- `sh scripts/install/test.sh`: 30 checks passed here, in about 5 s (the
+  real `podlab` as the asset; `busybox` 1.35 on `PATH`): the pins; a first
+  run; a second run with no download; a dry run; a replaced file; a file
+  that does not run; a corrupt file; a run cut by KILL, TERM, INT and HUP;
+  the offline bundle; no free space; `curl`, `wget`, `python3` and
+  `busybox`, each also through a proxy with a credential (not in argv, a
+  file or the output); `--add-path`; `dash`, `bash --posix`,
+  `busybox sh` and `sh`; `podlab run` of `small-tmp`, `noexec-tmp`,
+  `noexec-home` (the default prefix refused: noexec), `inherited-fds`,
+  `no-proc`, `no-passwd-entry` and `ro-etc-ssl`, as root. Not here:
+  `shellcheck` (the job `install` runs it); the labs as a user with no
+  root (the job `install`).
+- Plants (group `install`): `install-second-run-downloads-again`,
+  `install-corrupt-file-installs`, `install-cut-run-leaves-a-half-file`,
+  each caught.
+- Found and fixed in the work: `scripts/check-size.py` read `.rs` files
+  only; it now reads `.sh` and `.py` files too (`AGENTS.md`: each source
+  file), with a case of its self-test.
+- Docs: `docs/install.md`, `docs/session-protocol.md` (item 6),
+  `docs/design.md` (the paths and the workflows).
+
+Left: the first run of the job `install` and of the dry run of
+`release.yml` on GitHub; then a COORD issue `(to all)` that names the tag
+of the core; then the take of podrunner, podnet, podssh and podvm (each
+its own installer on the core, its setup, its self-check and its
+lanes); T-717 (the signature of the assets) and T-718 (the test on macOS
+and Windows).
+
+# T-717: the installer core: a signature of the release assets, checked where `cosign` is there
+
+**Source:** T-702 (the needs of podnet: the cosign signature of `SHA256SUMS`).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The installer core (T-702) checks each file against the pins that the
+release writes into the installer. The installer itself comes over the
+network with no check: a user who takes `podlab-install.sh` from a mirror
+trusts that mirror. podnet's installer checks the cosign signature of
+`SHA256SUMS` where `cosign` is there, with the identity of `release.yml`
+at the tag.
+
+## Premise
+
+- Read: PodUtils/podnet:scripts/install.sh (`verify_signature`),
+  `.github/workflows/release.yml`, `scripts/install/core.sh`.
+- Not measured: a keyless signature of `sigstore` in a run of
+  `release.yml` (it needs `id-token: write`).
+
+## Approach
+
+`release.yml` signs `SHA256SUMS` (which lists the installer, the bundle
+and each binary) keyless with cosign, and attaches the bundle of the
+signature. The core gets a step: where `cosign` is there and the run is
+not offline, it downloads `SHA256SUMS` and its signature, checks the
+identity `https://github.com/REPO/.github/workflows/release.yml@refs/tags/vVERSION`,
+and checks each pin against `SHA256SUMS`. `docs/install.md` gives the
+command for a check of the installer by hand. A plant: a changed
+`SHA256SUMS` that the check must refuse.
+
+## Prove
+
+```sh
+sh scripts/install/test.sh
+```
+
+# T-718: the installer core: the test on macOS and Windows
+
+**Source:** T-702 (the needs of podssh: the target triple of each host, the quarantine of macOS).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The installer core (T-702) has the paths of macOS (`aarch64-apple-darwin`
+also under Rosetta, the quarantine attribute) and of Windows under a POSIX
+shell (`.exe`, `MINGW*`, `MSYS*`, `CYGWIN*`), but its test runs on Linux
+only. `df -Pk`, the `noexec` reason, `kill -0` and the signals behave in
+another way on these hosts, and podssh and podnet release binaries for
+them.
+
+## Premise
+
+- Read: `scripts/install/core.sh`, `scripts/install/test.sh`,
+  `.github/workflows/nightly.yml`.
+- Not measured: the test under `/bin/sh` of macOS (bash 3.2 in POSIX
+  mode) and under Git Bash of a Windows runner.
+
+## Approach
+
+A job of `nightly.yml` runs `sh scripts/install/test.sh` on `macos-15` and
+on `windows-2025` (Git Bash), with fake assets for the triple of the host
+(the cases that need `podlab run` and `setsid` skip there, by name). The
+test learns the triple of the host from the core, so the fixture names
+`podlab-aarch64-apple-darwin` or `podlab-x86_64-pc-windows-msvc.exe`.
+
+## Prove
+
+```sh
+sh scripts/install/test.sh
 ```
 
 # T-703: a mechanical check of the open issues and their comments against the record, for each project (the ruling "Issues")
