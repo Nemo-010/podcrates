@@ -9,6 +9,8 @@
   43768619364, adoption 43768622461; the request #195): T-723 (the kind
   `reference`, PodUtils/podvm#435). Before it: `v0.55.0` at `e3c3e1d`
   (T-703, T-701; the hand-off #194).
+- In release: `v0.57.0` (`docs/releases/v0.57.0.md`): T-724 (the build of
+  `pod-todo` in `issue-sync.yml`, PodUtils/podvm#437).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.54.0` (`d00ca78`, PodUtils/podssh#274; it runs the one
