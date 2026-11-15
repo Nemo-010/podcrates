@@ -6685,6 +6685,10 @@ T-542 gives `CarrierErrorKind::KeyRefused` to the end whose key the peer refused
 cargo test -p pod-link --all-features
 ```
 
+## Correction
+
+2026-11-15: the run of `plants.yml` 43716332294 at `3ee1988` (#177), shard 0, missed the plant `link-arq-vectored-first-only` of this entry: "exit 0, and the output has no match of: right: KeyRefused". The test `the_dialer_refuses_a_listener_of_another_key_and_names_it` of `tests/dns.rs` passed with the plant applied on the runner; the sharded runs of `98017c3` and `7119770` caught it. The check depends on a timing of the runner: the entry stays open with this as its first step (the test must fail with the plant on each run).
+
 ## Done
 
 2026-11-14, commit 3305394. The listener of each carrier that pins keys
@@ -6705,7 +6709,6 @@ checks the listener; each fails on the old code and passed 20 runs of
 ("right: KeyRefused"), `link-ws-key-refused-skipped` and
 `ws-serve-tls-failure-unreported` ("the refusal in time"): each fails
 its test.
-
 
 # T-558: `pod-hold`: the rule of raw sockets leaves `AF_PACKET` open
 

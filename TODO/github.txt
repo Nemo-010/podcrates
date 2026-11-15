@@ -181,4 +181,4 @@
 174 issue closed
 175 issue closed
 176 issue closed
-177 issue open
+177 issue closed

@@ -2184,3 +2184,31 @@ cargo test -p pod-services-watch --all-features
 ## Done
 
 2026-11-15, no change of code. The rerun of `services.yml` with `kind=rdap` (run 43715625889, #175) passed: the RDAP servers answered the records of `gosunuts.xyz`, `openbare.xyz` and `opentunnel.xyz`. The 403 of the scheduled run 43699230156 was a refusal of the address of that runner, which a later run does not meet; the watch stays as it is. A second 403 on a scheduled run reopens this entry with a second source of RDAP.
+
+# T-689: the plant `enter-userns-proc-no-remount` misses where the host's `/proc` has `nosuid`, `nodev` and `noexec` already
+
+**Source:** the run of `plants.yml` 43716332294 at `3ee1988` (#177), shard 4.
+**Category:** defect
+**Milestone:** M5
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The plant `enter-userns-proc-no-remount` (T-672) leaves out the remount of the bind of the host's `/proc` that adds `nosuid`, `nodev` and `noexec` (step 29). On a runner of GitHub, `scripts/ci/userns-tests.sh` passed with the plant applied: "MISSED enter-userns-proc-no-remount (T-672): exit 0, and the output has no match of: left: Ok\(9\)". The host's `/proc` there has the three flags already, and a bind keeps them, so the test reads them with no remount. Here the plant is caught. The check of the test depends on the host.
+
+## Premise
+
+- Read: the log of shard 4 of the run; `scripts/plants/enter-userns-proc-no-remount.plant`; `crates/pod-enter/src/ns_proc_bind.rs`; the test of T-672 in `crates/pod-enter/tests/userns.rs`.
+- Not measured: the flags of `/proc` on the runner (an inference from the result).
+
+## Approach
+
+Make the check independent of the host: the test reads the mount flags that the remount itself set (for example the per-mount flags of the bind in `/proc/self/mountinfo` against those of the host's proc, or a host proc that the test mounts with no flags in a mount namespace of its own before the run), or the plant attacks the remount in a way that a host with the flags also shows (the remount refused, which removes the bind: the test sees no `/proc`). Run the plant here and on a runner.
+
+## Prove
+
+```sh
+sh scripts/plant-each.sh enter-userns-proc-no-remount
+```
