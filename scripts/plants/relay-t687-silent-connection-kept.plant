@@ -1,0 +1,7 @@
+# A connection of HTTP/2 that answers neither a CONNECT nor a PING stays in
+# the pool: the CONNECT's second try takes it again, and a new session
+# beside a silent connection does not open in time.
+ENTRY=T-687
+GROUP=relay
+EXPECT='test a_new_session_beside_a_silent_connection_of_http2_takes_a_new_one \.\.\. FAILED'
+RUN='cargo test -p pod-relay --all-features --test layer_h2_spare -- a_new_session_beside_a_silent_connection_of_http2_takes_a_new_one --exact'

@@ -7,8 +7,10 @@
 //! together share it; each host is made apart, so that the race between
 //! relay hosts waits for none. A connection whose sessions ended closes
 //! after [`IDLE`], and one that ended goes. A host that took HTTP/1.1 at the
-//! cost of a connection is remembered for [`REMEMBERED`]. Each connection
-//! has a serial number, higher for each new one of the pool: a link that
+//! cost of a connection is remembered for [`REMEMBERED`]. A connection
+//! that gives no answer to a CONNECT within [`super::ANSWER_WAIT`] and then
+//! none to a PING is retired, as is one whose CONNECT timed out: a new
+//! session then takes another. Each connection has a serial number, higher for each new one of the pool: a link that
 //! replaces another takes only a connection newer than each that its
 //! session rode ([`super::Links`]).
 
@@ -25,7 +27,7 @@ use tokio::time::Instant;
 use pod_tls::Trust;
 
 use super::dial::{self, Dialed};
-use super::{Fallback, IDLE, REMEMBERED, STREAMS};
+use super::{Fallback, IDLE, PING_WAIT, REMEMBERED, STREAMS};
 use crate::client::{ConnectError, RelayStream, WsClientConfig};
 
 /// The most hosts kept: a run names a few.
@@ -100,6 +102,12 @@ async fn idle(open: Arc<AtomicUsize>) {
     }
 }
 
+/// The PING of a connection, and the round trip of its first.
+pub(super) struct Pinged {
+    pub(super) ping: h2::PingPong,
+    pub(super) rtt: Duration,
+}
+
 /// One connection of the road, whose SETTINGS offered extended CONNECT.
 #[derive(Clone)]
 pub(super) struct Conn {
@@ -113,19 +121,40 @@ pub(super) struct Conn {
     most: usize,
     /// Whether a session took it before.
     used: Arc<AtomicBool>,
-    /// No session more: it ended, idled out, or went away.
+    /// No session more: it ended, idled out, went away or went silent.
     retired: Arc<AtomicBool>,
     task: tokio::task::AbortHandle,
+    /// Its PING: HTTP/2 sends one at a time.
+    ping: Arc<tokio::sync::Mutex<h2::PingPong>>,
+    /// The round trip of its first PING.
+    rtt: Duration,
 }
 
 impl Conn {
     /// The connection of `sender`, at `peer`, which `driven` drives, for
-    /// `most` sessions at once.
-    pub(super) fn of(sender: SendRequest<Bytes>, peer: Option<SocketAddr>, most: usize, driven: Driven) -> Conn {
+    /// `most` sessions at once, with its PING.
+    pub(super) fn of(
+        sender: SendRequest<Bytes>,
+        peer: Option<SocketAddr>,
+        most: usize,
+        driven: Driven,
+        pinged: Pinged,
+    ) -> Conn {
         let task = driven.task.abort_handle();
         let most = most.clamp(1, STREAMS);
         let used = Arc::new(AtomicBool::new(false));
-        Conn { sender, peer, serial: 0, open: driven.open, most, used, retired: driven.retired, task }
+        let ping = Arc::new(tokio::sync::Mutex::new(pinged.ping));
+        let (open, retired) = (driven.open, driven.retired);
+        Conn { sender, peer, serial: 0, open, most, used, retired, task, ping, rtt: pinged.rtt }
+    }
+
+    /// Whether it answers a PING within `limit` and the larger of
+    /// [`PING_WAIT`] and four round trips of its first PING. A silent
+    /// connection keeps its TCP open and answers nothing.
+    pub(super) async fn answers(&self, limit: Duration) -> bool {
+        let bound = PING_WAIT.max(self.rtt * 4).min(limit);
+        let ping = async { self.ping.lock().await.ping(h2::Ping::opaque()).await.is_ok() };
+        tokio::time::timeout(bound, ping).await.unwrap_or(false)
     }
 
     pub(super) fn sender(&self) -> SendRequest<Bytes> {

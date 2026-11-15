@@ -5,7 +5,9 @@
 //! holds each byte of its first connection once the test says so, with no
 //! word to either end, as a cut of the client's leg does. The spare link
 //! must take a new TCP connection, as the held one would hold its CONNECT
-//! too, and the session must resume on it soon after the spare's wait.
+//! too, and the session must resume on it soon after the spare's wait. The
+//! first link of a new session must also leave the held connection, after
+//! the waits of its CONNECT's answer and of a PING.
 
 #[allow(dead_code)]
 mod cert {
@@ -210,5 +212,45 @@ async fn a_spare_beside_a_silent_connection_of_http2_takes_a_new_one() {
     assert_eq!(accepts.load(Ordering::SeqCst), 2, "the spare opened a second connection; notes {notes:?}");
     assert!(notes.iter().any(|n| matches!(n, Note::Spare { .. })), "a spare opened: {notes:?}");
     assert!(notes.iter().any(|n| matches!(n, Note::Resumed { .. })), "the spare took the session: {notes:?}");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+/// The first session's TCP connection goes silent: a new session to the
+/// same host first asks for a place on it, gets no answer to its CONNECT
+/// nor to a PING, and opens a second TCP connection, on which it works;
+/// the held connection would hold the CONNECT for the whole timeout.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_new_session_beside_a_silent_connection_of_http2_takes_a_new_one() {
+    pod_testkit::need_loopback!();
+    let (role_port, root) = role("new").await;
+    let dir = root.parent().unwrap().to_path_buf();
+    let (port, accepts, held) = proxy(role_port).await;
+    let ctx = context();
+    let relay = Relay { host: NAME.into(), port };
+    let one = Dialer::new(&ctx, relay.clone(), "target.test", 22, Trust::File(root.clone())).unwrap();
+    let first = tokio::time::timeout(LIMIT, one.link(&mut |_| {})).await.expect("the first link in time");
+    let first = first.unwrap_or_else(|missed| panic!("the first link: {:?}", missed.lines("target.test:22")));
+    let _kept = client::start(first, Ask::New, Settings::default(), &mut OsEntropy).await.expect("the first session");
+    assert_eq!(accepts.load(Ordering::SeqCst), 1, "the first session opened one connection");
+    held.store(true, Ordering::SeqCst);
+    let cut = Instant::now();
+    // The waits of the CONNECT's answer and of the PING are the timers
+    // under test; the work after them (TCP, TLS, HTTP/2, the session)
+    // scales on an emulator.
+    let bound =
+        pod_ws::h2_road::ANSWER_WAIT + pod_ws::h2_road::PING_WAIT + pod_testkit::host::scaled(Duration::from_secs(4));
+    let two = Dialer::new(&ctx, relay, "target.test", 22, Trust::File(root)).unwrap();
+    let second = async {
+        let link = two.link(&mut |_| {}).await.map_err(|missed| format!("{:?}", missed.lines("target.test:22")))?;
+        let session = client::start(link, Ask::New, Settings::default(), &mut OsEntropy).await;
+        session.map_err(|e| format!("the session: {e:?}"))
+    };
+    let second = tokio::time::timeout(bound, second).await;
+    let second = second.unwrap_or_else(|_| panic!("no second session within {:?}", cut.elapsed()));
+    let second = second.unwrap_or_else(|why| panic!("the second session after {:?}: {why}", cut.elapsed()));
+    assert_eq!(accepts.load(Ordering::SeqCst), 2, "the second session opened a second connection");
+    let (mut app, theirs) = tokio::io::duplex(PIPE);
+    tokio::spawn(async move { carry(&two, second, theirs, |_| {}).await });
+    round(&mut app, b"on the new connection", bound).await.expect("an echo on the second session");
     let _ = std::fs::remove_dir_all(dir);
 }

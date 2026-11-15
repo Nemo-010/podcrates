@@ -12,10 +12,11 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use h2::client::SendRequest;
+use tokio::time::Instant;
 
 use pod_tls::Trust;
 
-use super::pool::{self, Conn, Driven};
+use super::pool::{self, Conn, Driven, Pinged};
 use super::{CONNECTION_WINDOW, Fallback, H2, HTTP1, STREAM_WINDOW, STREAMS};
 use crate::client::{ConnectError, RelayStream, WsClientConfig};
 use crate::way::Way;
@@ -38,7 +39,7 @@ pub(super) async fn dial(config: &WsClientConfig) -> Result<Dialed, ConnectError
     if tls.get_ref().1.alpn_protocol() != Some(H2) {
         return Ok(Dialed::Http1(Box::new(tls), peer));
     }
-    let (sender, driven) = match settled(tls, config.timeout).await {
+    let (sender, driven, ping) = match settled(tls, config.timeout).await {
         Ok(settled) => settled,
         Err(why) => return Ok(Dialed::Lacks(Fallback::Carried(why))),
     };
@@ -50,7 +51,7 @@ pub(super) async fn dial(config: &WsClientConfig) -> Result<Dialed, ConnectError
         return Ok(Dialed::Lacks(Fallback::NotOffered));
     }
     let most = sender.current_max_send_streams().clamp(1, STREAMS);
-    Ok(Dialed::H2(Conn::of(sender, peer, most, driven)))
+    Ok(Dialed::H2(Conn::of(sender, peer, most, driven, ping)))
 }
 
 /// TCP to `host:port` through `way`, and TLS for `server_name` with the
@@ -72,8 +73,9 @@ async fn open(
 }
 
 /// HTTP/2's handshake on `tls`, its connection driven in a task, and its
-/// SETTINGS read; `Err` once the connection is closed again.
-async fn settled(tls: RelayStream, limit: Duration) -> Result<(SendRequest<Bytes>, Driven), String> {
+/// SETTINGS read; and its PING with the round trip of the first. `Err` once
+/// the connection is closed again.
+async fn settled(tls: RelayStream, limit: Duration) -> Result<(SendRequest<Bytes>, Driven, Pinged), String> {
     let mut builder = h2::client::Builder::new();
     builder.initial_window_size(STREAM_WINDOW).initial_connection_window_size(CONNECTION_WINDOW).enable_push(false);
     let (sender, mut connection) = match tokio::time::timeout(limit, builder.handshake::<_, Bytes>(tls)).await {
@@ -89,8 +91,10 @@ async fn settled(tls: RelayStream, limit: Duration) -> Result<(SendRequest<Bytes
         driven.close().await;
         return Err("HTTP/2 gave no PING to send".into());
     };
+    let sent = Instant::now();
+    // The round trip of this PING bounds the wait for a later one.
     match tokio::time::timeout(limit, ping.ping(h2::Ping::opaque())).await {
-        Ok(Ok(_)) => Ok((sender, driven)),
+        Ok(Ok(_)) => Ok((sender, driven, Pinged { ping, rtt: sent.elapsed() })),
         Ok(Err(e)) => {
             driven.close().await;
             Err(format!("HTTP/2's PING: {e}"))
@@ -152,7 +156,7 @@ pub async fn probe(
     if alpn.as_deref().map(str::as_bytes) != Some(H2) {
         return Ok(Offered { alpn, extended: None, streams: None });
     }
-    let (sender, driven) = settled(tls, limit).await.map_err(ConnectError::Http)?;
+    let (sender, driven, _) = settled(tls, limit).await.map_err(ConnectError::Http)?;
     let offered = Offered {
         alpn,
         extended: Some(sender.is_extended_connect_protocol_enabled()),

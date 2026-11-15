@@ -7979,7 +7979,7 @@ cargo test -p pod-session --all-features
 **Milestone:** M2
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7999,3 +7999,7 @@ A CONNECT whose answer did not come within a bound well under the timeout (for e
 ```sh
 cargo test -p pod-ws --all-features
 ```
+
+## Done
+
+2026-11-15, the commit of the fix. The cause: `open_on` waited for the answer of a CONNECT for the whole `WsClientConfig::timeout` and gave `Carry::Answer(Timeout)`, which `connect_link` returned with no retire, so the next new session got the same silent connection from `Pool::place`. The fix (call C667): a CONNECT with no answer within `h2_road::ANSWER_WAIT` (2 s) sends a PING on its connection (`Conn::answers`, the `h2::PingPong` of `dial::settled` kept in `Conn` with the round trip of its first PING). No answer within the larger of `PING_WAIT` (2 s) and four such round trips gives `Carry::Connection`: `connect_link` retires the connection and goes once to a new one. A connection that answers its PING keeps the CONNECT to the timeout and stays shared (podssh T-321); a CONNECT that then times out retires its connection. `crates/pod-relay/tests/layer_h2_spare.rs`, `a_new_session_beside_a_silent_connection_of_http2_takes_a_new_one`: a first session over HTTP/2 through the stand-in proxy, whose connection the proxy then holds; a second `Dialer` of the same context opens a session on a second TCP connection and echoes within `ANSWER_WAIT + PING_WAIT` and 4 s of scaled work. With the fix: about 4.2 s. Without the PING (the CONNECT waits the whole timeout): `no second session within 8.0 s`. The plant `relay-t687-silent-connection-kept` (no retire on `Carry::Connection`): the second try takes the silent connection again, then HTTP/1.1, which the stand-in does not take; caught. `cargo test -p pod-ws --all-features` and `cargo test -p pod-relay --all-features` passed.
