@@ -9,7 +9,7 @@ then follows the procedure of `docs/design.md`, section 8.
 **Milestone:** M4
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -24,16 +24,71 @@ podssh links two keys through the public DERP servers of Tailscale.
 
 The study, then the procedure of `docs/design.md`, section 8.
 
+## Decision
+
+The calls C606 to C609 (`docs/decisions.md`): a connection fails with a
+`pod_core::Failure`, a parse of the user's text with its words; the
+stand-in DERP server is the feature `standin`; the consumer's names are
+`Names`, its lines `pod_core::Events`, and the label of a node's key and
+the magic of a link stay; podssh keeps glue in `src/derp.rs`.
+
 ## Prove
 
 ```sh
-cargo test -p pod-derp
+cargo test -p pod-derp --all-features
+sh scripts/plant-each.sh --group derp
 sh scripts/agent/check.sh
 ```
 
 ## Start condition
 
 T-020 is done.
+
+## Done
+
+2026-11-14. The move of podssh's DERP road (PodUtils/podssh@T-684, Q101;
+PodUtils/podssh#248), from podssh `b9c04657`:
+
+- `75d6251`: the import of `PodUtils/podssh:crates/podssh-relay/src/derp/` and its tests
+  with no change, with `crates/pod-derp/SOURCES` (19 files). The source is
+  in edition 2024: no edition commit; the review of section 8, step 2, is
+  in the next commit.
+- `2757b4f`: the adaptation: the caller's `pod_ws::Way` and
+  `pod_proxy::Client` in place of podssh's `ProxyChoice`; no variable
+  read (`servers::chosen`, `fleet_with`, `for_client(home, main)`);
+  `Names`; events in place of `Say` (`conn::HEALTH`, `far::{ONLINE,
+  ENDED, UNREACHABLE, RETRY, MOVED}`); the keeper's `Tell` given to
+  `far::serve`; typed failures; `pod_core::backoff`; conn.rs split; the
+  stand-in as `pod_derp::standin`. Two new tests:
+  `a_node_s_lines_are_events_of_their_kinds`,
+  `a_failure_of_the_road_carries_its_stage_and_class`.
+- `48317ed`: 9 plants (group `derp`), each proven by hand: caught
+  (`derp-t449-registered-late` of podssh, `derp-no-resend`,
+  `derp-for-client-alone`, `derp-home-stops-at-refusal`,
+  `derp-user-agent-fixed`, `derp-app-name-raw`,
+  `derp-chosen-main-ignored`, `derp-health-unsaid`,
+  `derp-failure-untyped`); `plant-each.sh --apply`: 0 stale. `live.yml`
+  runs `derp_live` and `derp_main_live` by hand (the measures
+  `derp-tailcat`, `derp-main`).
+- `7f8e93b`: the README, the static probe, the trial patch of podssh and
+  the calls.
+
+`cargo test -p pod-derp --all-features`: 32 unit tests, 8 of `derp_link`
+(3 ignored: the interop against derper), 1 of `derp_main_live` (1 live,
+ignored), `derp_live` (1 live, ignored); clippy with `-D warnings`,
+rustdoc with `-D warnings`, rustfmt: clean.
+
+The trial (`adoption/podssh/pod-derp.patch`, `.commit`, `.run`) was
+checked on a scratch copy of podssh at `b9c04657`: cargo check of the
+changed crates, clippy, rustfmt, `podssh-todo check` and `check-repo.py`
+pass; `adoption.yml` runs its tests. What podssh must do: apply the patch
+at its take of the tag that holds pod-derp (`v0.49.0`): delete
+`PodUtils/podssh:crates/podssh-relay/src/derp/`, its tests and stand-in,
+`derp-main-live.yml` and the plant `t449-derp-registered-late`; keep the
+glue `src/derp.rs`; take the stand-in through the feature `standin` in
+podssh-cli and podssh-iroh; run `PodUtils/podssh:scripts/interop-derp.sh` with
+`PODCRATES` set to a checkout of podcrates; and then leave the lines of
+`crates/pod-derp/SOURCES` to its take (a `taken` line).
 
 # T-032: `pod-piping`: the Piping Server carrier
 

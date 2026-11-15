@@ -16,7 +16,7 @@ or at another server of the fleet. The end-to-end channel above the layer
 The source is podssh's `crates/podssh-relay/src/derp/` with its tests
 `derp_link.rs`, `derp_live.rs`, `derp_main_live.rs` and the stand-in
 `derp_stand_in/`, at `b9c04657` (podssh froze them there for the move:
-its T-684, Q101). It is pure Rust: NaCl's `crypto_box` of RustCrypto.
+PodUtils/podssh@T-684, Q101). It is pure Rust: NaCl's `crypto_box` of RustCrypto.
 
 ## API
 
@@ -84,8 +84,9 @@ state.
 - [x] Each unit test, `derp_link`, `derp_live` and `derp_main_live` with
   their names; the plant of podssh T-449.
 - [ ] The interop of `derp_link`'s ignored tests against Tailscale's derper
-  (podssh `scripts/interop-derp.sh`, by hand on a host with Podman): no
-  workflow of podcrates runs it yet.
+  (`PodUtils/podssh:scripts/interop-derp.sh`, by hand on a host with
+  Podman, with `PODCRATES` set to a checkout of podcrates): no workflow of
+  podcrates runs it (call C609).
 
 ## Adoption map
 
