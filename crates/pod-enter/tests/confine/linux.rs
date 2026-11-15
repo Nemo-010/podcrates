@@ -229,11 +229,12 @@ fn a_passed_descriptor_takes_the_place_of_no_pipe() {
     let e = run(&mut p, 2, |p| spawn_userland(&root, p, &m, argv, "userland", None, &mut std::io::sink()));
     let e = e.expect_err("the payload seemed to start");
     assert!(e.contains("setrlimit(RLIMIT_NOFILE): EPERM"), "{e}");
-    // A descriptor onto the number of the root is refused before the fork.
+    // A descriptor onto the number of the root: the root moves clear of it
+    // (T-691), and the child gets to the limit, which still refuses.
     p.fds.pass = vec![(root.fd(), 0)];
     let e = spawn_userland(&root, &p, &m, vec!["/bin/true".into()], "userland", None, &mut std::io::sink());
-    let e = e.expect_err("a passed descriptor took the number of the root").to_string();
-    assert!(e.contains("the number of the root file system"), "{e}");
+    let e = e.expect_err("the payload seemed to start").to_string();
+    assert!(e.contains("setrlimit(RLIMIT_NOFILE): EPERM"), "{e}");
     let _ = std::fs::remove_dir_all(d);
 }
 
