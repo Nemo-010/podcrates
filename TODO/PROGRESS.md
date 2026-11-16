@@ -10,8 +10,8 @@
   43775650432; the request #197): T-724 (the build of `pod-todo` in
   `issue-sync.yml`, PodUtils/podvm#437). Before it: `v0.56.0` at `93bf133`
   (T-723), `v0.55.0` at `e3c3e1d` (T-703, T-701; the hand-off #194).
-- On `main` for the next tag: T-725 (the gaps of `pod-manual`,
-  PodUtils/podnet#589).
+- In release: `v0.58.0` (`docs/releases/v0.58.0.md`): T-725, T-737, T-731,
+  T-702 part 1.
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.56.0` (`0363272`, PodUtils/podssh#277): it runs the one
