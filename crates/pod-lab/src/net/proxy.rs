@@ -3,14 +3,18 @@
 //! HTTP). After a 200, the proxy is the server of the target itself: the
 //! lab has no route out. With a way out, a `CONNECT` to a name that is not
 //! of the lab goes to the real network after the rules of the class
-//! (`relay`).
+//! (`relay`). A `CONNECT` to a name of the lab at a served port goes to the
+//! server of the command on the loopback (`local`); in a class with a list
+//! of names, so does a ClientHello with a listed name.
 
 use std::io::{Read, Write};
 use std::net::{IpAddr, TcpStream};
 use std::sync::Arc;
 use std::time::Duration;
 
+use super::local::{self, Local};
 use super::out::WayOut;
+use super::relay::Upstream;
 use super::tls::Cas;
 use super::wire::{first_line, header, peek_record, read_head, reset, server_name, target};
 use super::{Ca, Net, Proxy, credential, is_lab_name};
@@ -50,8 +54,10 @@ pub fn tls(cas: &Cas, tcp: TcpStream, name: &str, ca: Ca, refuse: bool) {
 
 /// The stand-in server on one connection: a TLS handshake where the first
 /// record is one, else plain HTTP. `name` is the name of the target where
-/// the client gives none.
-pub fn server(cas: &Cas, net: &Net, tcp: TcpStream, name: Option<&str>, ca: Ca, refuse: bool) {
+/// the client gives none. In a class with a list of names, a ClientHello
+/// with a listed name goes to the first served port, where the command
+/// listens there; else the stand-in answers it.
+pub fn server(cas: &Cas, net: &Net, tcp: TcpStream, name: Option<&str>, ca: Ca, refuse: bool, served: &Local) {
     let _ = tcp.set_read_timeout(Some(WAIT));
     let record = match peek_record(&tcp) {
         Ok(r) => r,
@@ -69,6 +75,15 @@ pub fn server(cas: &Cas, net: &Net, tcp: TcpStream, name: Option<&str>, ca: Ca, 
         reset(tcp);
         return;
     }
+    // The peek leaves the ClientHello in the stream for the server of the
+    // command. Before the command starts, no listener is there, and the
+    // check of the lab gets the stand-in.
+    if net.sni.is_some()
+        && let Some(up) = served.ports.first().and_then(|&p| local::dial(p).ok())
+    {
+        super::relay::splice(tcp, up);
+        return;
+    }
     // A ClientHello with no name: the leaf of the address that it reached.
     let local = tcp.local_addr().map(|a| a.ip().to_canonical().to_string()).unwrap_or_default();
     let name = given.as_deref().or(name).unwrap_or(&local).to_string();
@@ -76,7 +91,7 @@ pub fn server(cas: &Cas, net: &Net, tcp: TcpStream, name: Option<&str>, ca: Ca, 
 }
 
 /// The stand-in proxy on one connection.
-pub fn proxy(cas: &Cas, net: &Net, rules: &Proxy, mut tcp: TcpStream, out: Option<&WayOut>) {
+pub fn proxy(cas: &Cas, net: &Net, rules: &Proxy, mut tcp: TcpStream, out: Option<&WayOut>, served: &Local) {
     let _ = tcp.set_read_timeout(Some(WAIT));
     let Ok(head) = read_head(&mut tcp) else { return };
     if rules.auth && header(&head, "proxy-authorization") != Some(credential().as_str()) {
@@ -113,14 +128,19 @@ pub fn proxy(cas: &Cas, net: &Net, rules: &Proxy, mut tcp: TcpStream, out: Optio
         answer(&mut tcp, "504 Gateway Timeout", "");
         return;
     }
-    if let Some(out) = out.filter(|_| !is_lab_name(&host) && !rules.silent.contains(&port)) {
-        super::relay::outside(cas, rules, tcp, out, &host, port);
+    let silent = rules.silent.contains(&port);
+    if !silent && served.serves(port) && is_lab_name(&host) {
+        super::relay::connect(cas, rules, tcp, Upstream::Local(served), &host, port);
+        return;
+    }
+    if let Some(out) = out.filter(|_| !is_lab_name(&host) && !silent) {
+        super::relay::connect(cas, rules, tcp, Upstream::Out(out), &host, port);
         return;
     }
     if tcp.write_all(b"HTTP/1.1 200 Connection established\r\n\r\n").is_err() {
         return;
     }
-    if rules.silent.contains(&port) {
+    if silent {
         // Read each byte, and send none.
         let mut sink = [0u8; 4096];
         while matches!(tcp.read(&mut sink), Ok(n) if n > 0) {}
@@ -133,14 +153,25 @@ pub fn proxy(cas: &Cas, net: &Net, rules: &Proxy, mut tcp: TcpStream, out: Optio
         }
         return;
     }
-    server(cas, net, tcp, Some(&host), Ca::Server, false);
+    server(cas, net, tcp, Some(&host), Ca::Server, false, served);
 }
 
 /// The work of one accepted connection, in a thread of its own.
-pub fn spawn(cas: &Arc<Cas>, net: &'static Net, tcp: TcpStream, is_proxy: bool, out: Option<&'static WayOut>) {
+pub fn spawn(cas: &Arc<Cas>, net: &'static Net, tcp: TcpStream, is_proxy: bool, ends: Ends) {
     let cas = Arc::clone(cas);
     let _ = std::thread::Builder::new().spawn(move || match (&net.proxy, is_proxy) {
-        (Some(rules), true) => proxy(&cas, net, rules, tcp, out),
-        _ => server(&cas, net, tcp, None, Ca::Server, false),
+        (Some(rules), true) => proxy(&cas, net, rules, tcp, ends.out, ends.served),
+        _ => server(&cas, net, tcp, None, Ca::Server, false, ends.served),
     });
 }
+
+/// The ends of the stand-ins past the lab: the way out, and the servers of
+/// the command.
+#[derive(Clone, Copy)]
+pub struct Ends {
+    pub out: Option<&'static WayOut>,
+    pub served: &'static Local,
+}
+
+#[cfg(test)]
+mod tests;

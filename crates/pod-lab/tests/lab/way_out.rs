@@ -23,10 +23,10 @@ pub const CASE: &str = "--way-out-case";
 const FILTER_ANSWERED: i32 = 86;
 
 /// A P-256 key of the test, for rcgen.
-struct Key(SigningKey, Vec<u8>);
+pub struct Key(pub SigningKey, Vec<u8>);
 
 impl Key {
-    fn new() -> Key {
+    pub fn new() -> Key {
         let mut scalar = [0u8; 32];
         pod_hostprobe::sys::getrandom(&mut scalar).expect("random bytes");
         let k = SigningKey::from_slice(&scalar).expect("a P-256 scalar");
@@ -51,7 +51,7 @@ impl rcgen::SigningKey for Key {
     }
 }
 
-fn pem(der: &[u8]) -> String {
+pub fn pem(der: &[u8]) -> String {
     use base64::Engine as _;
     let text = base64::engine::general_purpose::STANDARD.encode(der);
     let lines: Vec<&str> = text.as_bytes().chunks(64).map(|l| std::str::from_utf8(l).unwrap()).collect();

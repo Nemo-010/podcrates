@@ -82,3 +82,23 @@ fn the_targets_of_the_rows_that_send_a_packet_out() {
     let text = stdout(&o);
     assert!(text.contains("Settings::network is not set"), "{text}");
 }
+
+/// A served port of the stand-ins, `--serve` in a lab with no network,
+/// `--serve-ca` with no `--serve` and a file of roots that does not read
+/// are usage errors: the lab does not start.
+#[test]
+fn a_served_port_and_its_roots_are_checked_before_the_lab() {
+    let missing = std::env::temp_dir().join(format!("pod-lab-cli-no-roots-{}.pem", std::process::id()));
+    let missing = missing.to_str().expect("a UTF-8 path");
+    for args in [
+        &["run", "--serve", "443", "proxy-only", "--", "true"][..],
+        &["run", "--serve", "3128", "proxy-only", "--", "true"][..],
+        &["run", "--serve", "0", "proxy-only", "--", "true"][..],
+        &["run", "--serve", "9443", "small-tmp", "--", "true"][..],
+        &["run", "--serve-ca", missing, "proxy-only", "--", "true"][..],
+        &["run", "--serve", "9443", "--serve-ca", missing, "proxy-only", "--", "true"][..],
+    ] {
+        let o = podlab(args);
+        assert_eq!(o.status.code(), Some(2), "{args:?}: {}", String::from_utf8_lossy(&o.stderr));
+    }
+}

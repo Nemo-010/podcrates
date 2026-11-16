@@ -77,6 +77,17 @@ mod cli {
             /// proxy or its credential.
             #[arg(long)]
             way_out: bool,
+            /// After the rules of the class, send a CONNECT to a name of the
+            /// lab at this port to the command on 127.0.0.1. In a class with
+            /// a list of TLS names, a ClientHello with a listed name goes to
+            /// the first such port. Give it once for each port.
+            #[arg(long, value_name = "PORT", value_parser = served_port)]
+            serve: Vec<u16>,
+            /// A PEM file of the roots that check the TLS server of the
+            /// command, where the proxy of the class terminates TLS for the
+            /// name. With no file, such a CONNECT gets 502.
+            #[arg(long, value_name = "FILE", requires = "serve")]
+            serve_ca: Option<std::path::PathBuf>,
             /// The name of the profile.
             profile: String,
             /// The command and its arguments.
@@ -145,6 +156,14 @@ mod cli {
             return Err("the name is not a host name".to_string());
         }
         Ok((name.to_string(), port))
+    }
+
+    /// A port of `--serve`: a number, not 0 and not a port of the
+    /// stand-ins.
+    fn served_port(text: &str) -> Result<u16, String> {
+        let port = text.parse::<u16>().map_err(|_| "the port is not a number from 1 to 65535".to_string())?;
+        pod_lab::net::check_served_ports(&[port])?;
+        Ok(port)
     }
 
     /// The manual of this binary, as the name of `argv[0]` shows it.
@@ -229,7 +248,7 @@ mod cli {
                 print(&v);
                 code(&v)
             }
-            Cmd::Run { partial, allow_connect, way_out, profile: name, cmd } => {
+            Cmd::Run { partial, allow_connect, way_out, serve, serve_ca, profile: name, cmd } => {
                 let p = match profile(&settings, &name) {
                     Ok(p) => p,
                     Err(c) => return c,
@@ -242,7 +261,15 @@ mod cli {
                     // The environment of podlab holds the proxy of the host.
                     pod_lab::net::not_dumpable();
                 }
-                let opts = Options { partial, stdout: None, allow_connect, way_out };
+                if !serve.is_empty() && !p.parts.iter().any(|x| matches!(x.hold, pod_lab::Hold::LabNet(_))) {
+                    eprintln!("podlab: --serve needs a network lab; {name} has none");
+                    return EXIT_USAGE;
+                }
+                if let Some(Err(e)) = serve_ca.as_deref().map(pod_lab::net::check_served_roots) {
+                    eprintln!("podlab: --serve-ca: {e}");
+                    return EXIT_USAGE;
+                }
+                let opts = Options { partial, stdout: None, allow_connect, way_out, serve, serve_ca };
                 match pod_lab::run(&settings, p, &cmd, opts) {
                     Ok(ran) => {
                         for part in ran.verdict.parts.iter().filter(|x| x.state != State::Holds) {

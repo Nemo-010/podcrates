@@ -102,10 +102,10 @@ fn the_help_of_each_command_comes_from_the_model() {
 }
 
 /// The rules of the manual are the rules of the parser: podlab's parser has
-/// one conflict and the three `requires` of the targets of `check`
-/// (its required arguments, the argument after `--` and the port of
-/// `--allow-connect` are no needs), and a `requires` added to it is in the
-/// manual.
+/// one conflict, the three `requires` of the targets of `check` and the
+/// `requires` of `--serve-ca` (its required arguments, the argument after
+/// `--` and the port of `--allow-connect` are no needs), and a `requires`
+/// added to it is in the manual.
 #[test]
 fn the_rules_of_the_manual_are_the_rules_of_the_parser() {
     use pod_manual::Rule;
@@ -122,6 +122,7 @@ fn the_rules_of_the_manual_are_the_rules_of_the_parser() {
             needs("--network-other"),
             needs("--network-literal"),
             needs("--network-closed"),
+            ("run".to_string(), Rule::Needs { flag: "--serve-ca".into(), value: None, needs: vec!["--serve".into()] }),
             ("man".to_string(), conflict.clone())
         ]
     );
@@ -134,6 +135,7 @@ fn the_rules_of_the_manual_are_the_rules_of_the_parser() {
         check("--network-other"),
         check("--network-literal"),
         check("--network-closed"),
+        ("run".to_string(), needs("--serve-ca", "--serve")),
         ("run".to_string(), needs("--allow-connect", "--partial")),
         ("man".to_string(), conflict),
         ("man".to_string(), needs("SECTION", "--no-pager")),

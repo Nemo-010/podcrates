@@ -23,6 +23,14 @@ to see the class; a name of the real network gets the answer of the
 class for a name that is not on its list. The lab of a real way out is
 T-746 and T-747.
 
+A command that needs its own server (a relay, an SSH server) runs it on
+`127.0.0.1:PORT` of the lab and gives `--serve PORT`: the stand-in proxy
+sends a `CONNECT` to a name of the lab at that port to the server, with
+the rules of the class (`README.md`, "The servers of the command"). Point
+the client at `listed.test:PORT` to see the class act on the bytes; give
+`--serve-ca FILE` with the CA of the server where the class terminates
+TLS.
+
 The sources: PodUtils/podssh#268 (podssh), PodUtils/podnet#585 (podnet),
 PodUtils/podrunner#180 (podrunner) and PodUtils/podvm#424 (podvm).
 

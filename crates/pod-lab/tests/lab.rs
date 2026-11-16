@@ -7,7 +7,8 @@
 //! Where uid 65534 cannot reach this binary, the test says so. The classes
 //! of podssh and podnet are in `lab/hosts.rs`, the network classes in
 //! `lab/net.rs`, the way out of a network lab in `lab/way_out.rs`, the
-//! answer of a lab whose filter cannot hold in `lab/filter.rs`. A case
+//! served ports of a network lab in `lab/serve.rs`, the answer of a lab
+//! whose filter cannot hold in `lab/filter.rs`. A case
 //! that the host cannot give says `skipping` with the reason; `scripts/ci/userns-tests.sh`
 //! fails on that line. No libtest (`harness = false`): the binary reads the
 //! flag of a lab process, of a probe child and of a payload first, and has
@@ -44,6 +45,14 @@ mod way_out_payload;
 #[cfg(target_os = "linux")]
 #[path = "lab/way_out.rs"]
 mod way_out;
+
+#[cfg(target_os = "linux")]
+#[path = "lab/serve_payload.rs"]
+mod serve_payload;
+
+#[cfg(target_os = "linux")]
+#[path = "lab/serve.rs"]
+mod serve;
 
 #[cfg(target_os = "linux")]
 mod cases {
@@ -138,7 +147,7 @@ mod cases {
             settings,
             profile,
             cmd,
-            Options { partial, stdout: Some(w.into()), allow_connect, way_out: false },
+            Options { partial, stdout: Some(w.into()), allow_connect, ..Options::default() },
         );
         let mut text = String::new();
         r.read_to_string(&mut text).expect("the output of the payload");
