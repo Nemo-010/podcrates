@@ -4750,3 +4750,48 @@ install passes; with the core of `HEAD~1` it fails with "is not
 podlab-install.sh of the signed SHA256SUMS" (as podnet saw). Plant
 `install-tree-copy-compared`. Here: `sh scripts/install/test.sh --case sig`
 (5 passed), `shellcheck scripts/install/*.sh` (0 findings).
+
+# T-792: `pod-lab`: with a way out, the certificate file of the lab holds the roots that the host trusts for its way out (PodUtils/podssh#285)
+
+**Source:** PodUtils/podssh#285 (COORD-093 of podssh, its take of `v0.62.0`).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+podssh: "The way out passes this cloud host's own proxy, which re-signs
+TLS. The lab's `SSL_CERT_FILE` holds only the lab's CA, so podssh needed
+the host's CA added inside the lab. A lab that adds the CA of the host's
+way out where it re-signs would remove that step for each project." With
+`podlab run --way-out`, a `CONNECT` that the class splices reaches a real
+server (or the host's proxy that re-signs); the command checks it with
+`SSL_CERT_FILE` of the lab, which holds the CAs of the lab alone
+(`crates/pod-lab/src/net/standin.rs`, `write_cert_file`).
+
+## Premise
+
+- Read: PodUtils/podssh#285; `write_cert_file`; `host_roots` in
+  `crates/pod-lab/src/net/out.rs` (the roots of the host for the classes
+  that re-terminate: the file of `SSL_CERT_FILE`, else the system bundle).
+- Not measured: a host proxy that re-signs, here.
+
+## Approach
+
+With a way out, the lab process reads the certificates that the host
+trusts for its way out before it enters its namespaces (the file of
+`SSL_CERT_FILE` of the host where it is set, else the system bundle, as
+`host_roots`), and `write_cert_file` adds them after the CAs of the lab.
+With no way out the file holds the CAs of the lab alone, as now. The
+manual and the README of `podlab run --way-out` say so. A test of the way
+out: a server of the test with a leaf of a CA of the test, the host's
+`SSL_CERT_FILE` names that CA, and the command in `proxy-only` checks the
+server through the way out with the lab's `SSL_CERT_FILE` alone.
+
+## Prove
+
+```sh
+cargo test -p pod-lab --all-features --test lab
+```
