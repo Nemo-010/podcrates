@@ -1,0 +1,13 @@
+diff --git a/crates/pod-enter/src/ns_user.rs b/crates/pod-enter/src/ns_user.rs
+index d901af8..677c62b 100644
+--- a/crates/pod-enter/src/ns_user.rs
++++ b/crates/pod-enter/src/ns_user.rs
+@@ -155,7 +155,7 @@ pub(crate) fn nested_ids(
+     let Some(ids) = ids.filter(|_| euid == 0) else { return Ok(None) };
+     match uid_map() {
+         Ok(map) if pod_hostprobe::userns::is_initial_map(&map) => Ok(None),
+-        Ok(_) => Ok(Some(ids)),
++        Ok(_) => Ok(None),
+         Err(e) => Err(Error::runtime(
+             Class::Unavailable,
+             format!(

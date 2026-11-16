@@ -1,0 +1,6 @@
+# pod-enter: the entry takes the map of a user namespace that is not the initial one as the map of the host, so a caller that is uid 0 of its own user namespace runs a payload with 1001:1001 as 0; the live test as uid 0 of a user namespace must fail at its check of the uid (T-787).
+ENTRY=T-787
+GROUP=enter
+EXPECT='left: Ok\(61\)'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

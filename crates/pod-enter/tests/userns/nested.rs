@@ -44,14 +44,14 @@ pub fn root_of_a_user_namespace(root: &Path) {
     let dir = RootDir::open(root.to_str().unwrap()).unwrap();
     let (u, g) = IDS;
     let script = format!(
-        "test \"$(id -u)\" = {u} || exit 21; test \"$(id -g)\" = {g} || exit 22; \
-         test \"$(stat -c %u:%g /{})\" = {u}:{g} || exit 23; \
-         grep -Eq '^CapEff:[[:space:]]+0+$' /proc/self/status || exit 24; \
-         grep -Eq '^CapPrm:[[:space:]]+0+$' /proc/self/status || exit 25; \
-         read a b c < /proc/self/uid_map; test \"$a $b $c\" = \"{u} 0 1\" || exit 26; \
-         read a b c < /proc/self/gid_map; test \"$a $b $c\" = \"{g} 0 1\" || exit 27; \
-         touch /tmp/new && test \"$(stat -c %u /tmp/new)\" = {u} || exit 28; \
-         test \"$(uname -n)\" = {NAME} || exit 29; test -e /tmp/of-the-image && exit 30; exit 0",
+        "test \"$(id -u)\" = {u} || exit 61; test \"$(id -g)\" = {g} || exit 62; \
+         test \"$(stat -c %u:%g /{})\" = {u}:{g} || exit 63; \
+         grep -Eq '^CapEff:[[:space:]]+0+$' /proc/self/status || exit 64; \
+         grep -Eq '^CapPrm:[[:space:]]+0+$' /proc/self/status || exit 65; \
+         read a b c < /proc/self/uid_map; test \"$a $b $c\" = \"{u} 0 1\" || exit 66; \
+         read a b c < /proc/self/gid_map; test \"$a $b $c\" = \"{g} 0 1\" || exit 67; \
+         touch /tmp/new && test \"$(stat -c %u /tmp/new)\" = {u} || exit 68; \
+         test \"$(uname -n)\" = {NAME} || exit 69; test -e /tmp/of-the-image && exit 70; exit 0",
         ids::OF_THE_CALLER
     );
     let mut err = Vec::new();
@@ -63,15 +63,15 @@ pub fn root_of_a_user_namespace(root: &Path) {
 
     // No ids: the payload is 0 of the namespace of the caller, with its
     // capabilities, as before.
-    let script = "test \"$(id -u)\" = 0 || exit 31; read a b c < /proc/self/uid_map; test \"$a\" = 0 || exit 32; \
-         grep -Eq '^CapEff:[[:space:]]+0+$' /proc/self/status && exit 33; exit 0";
+    let script = "test \"$(id -u)\" = 0 || exit 71; read a b c < /proc/self/uid_map; test \"$a\" = 0 || exit 72; \
+         grep -Eq '^CapEff:[[:space:]]+0+$' /proc/self/status && exit 73; exit 0";
     let mut err = Vec::new();
     let code = run_namespace(&dir, &with_ids(script, None), &mut err);
     assert_eq!(code.map_err(|e| e.to_string()), Ok(0), "the payload with no ids: {}", String::from_utf8_lossy(&err));
 
     // The chroot rung: the same ids. The image has no proc there.
     let script = format!(
-        "test \"$(id -u)\" = {u} || exit 41; test \"$(stat -c %u:%g /{})\" = {u}:{g} || exit 42",
+        "test \"$(id -u)\" = {u} || exit 74; test \"$(stat -c %u:%g /{})\" = {u}:{g} || exit 75",
         ids::OF_THE_CALLER
     );
     let mut err = Vec::new();
@@ -98,7 +98,7 @@ fn joined(dir: &RootDir) {
     }
     let pidfd = sys::pidfd_open(run.pid).unwrap();
     let script = format!(
-        "test \"$(id -u)\" = {} || exit 51; grep -Eq '^CapEff:[[:space:]]+0+$' /proc/self/status || exit 52",
+        "test \"$(id -u)\" = {} || exit 76; grep -Eq '^CapEff:[[:space:]]+0+$' /proc/self/status || exit 77",
         IDS.0
     );
     let mut joined = Vec::new();
