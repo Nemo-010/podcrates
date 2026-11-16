@@ -1,0 +1,6 @@
+# The check of the served ports takes 443, the port of the stand-in TLS
+# server; the test must fail.
+ENTRY=T-759
+GROUP=lab
+EXPECT='test net::local::tests::a_served_port_is_no_port_of_the_stand_ins \.\.\. FAILED'
+RUN='cargo test -p pod-lab --all-features --lib -- net::local::tests::a_served_port_is_no_port_of_the_stand_ins --exact'

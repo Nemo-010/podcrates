@@ -1,0 +1,6 @@
+# A splice keeps the read time limit of the handshake, so an idle stream
+# ends; the test must fail.
+ENTRY=T-759
+GROUP=lab
+EXPECT='test net::relay::tests::a_splice_keeps_an_idle_stream \.\.\. FAILED'
+RUN='cargo test -p pod-lab --all-features --lib -- net::relay::tests::a_splice_keeps_an_idle_stream --exact'

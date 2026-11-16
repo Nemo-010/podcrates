@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/net/local.rs b/crates/pod-lab/src/net/local.rs
+index 2f3f188..4f2b3a2 100644
+--- a/crates/pod-lab/src/net/local.rs
++++ b/crates/pod-lab/src/net/local.rs
+@@ -35,7 +35,7 @@ pub fn check_ports(ports: &[u16]) -> Result<(), String> {
+         if p == 0 {
+             return Err("the served port 0 is not a port of a listener".to_string());
+         }
+-        if p == PROXY_PORT || p == TLS_PORT {
++        if p == PROXY_PORT {
+             return Err(format!("the served port {p} is a port of the stand-ins of the lab"));
+         }
+     }

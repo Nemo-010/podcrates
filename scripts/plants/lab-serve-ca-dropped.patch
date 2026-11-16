@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/lab.rs b/crates/pod-lab/src/lab.rs
+index 5beb5c8..75cfecd 100644
+--- a/crates/pod-lab/src/lab.rs
++++ b/crates/pod-lab/src/lab.rs
+@@ -237,7 +237,7 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
+         _ => fail("no word of a way out"),
+     };
+     let Ok(serve): Result<Vec<u16>, _> = ports(4) else { fail("no list of served ports") };
+-    let serve_ca = args.get(5).filter(|a| !a.is_empty()).map(PathBuf::from);
++    let serve_ca = args.get(5).filter(|a| !a.is_empty()).map(PathBuf::from).filter(|_| false);
+     let Ok(given) = text(6).parse::<i64>() else { fail("no descriptor of the verdict") };
+     if text(7) != "--" || args.len() < 9 {
+         fail("no command");

@@ -1,0 +1,7 @@
+# The lab process drops the served ports of its arguments; the case of
+# proxy-only with a served port must fail.
+ENTRY=T-759
+GROUP=lab
+EXPECT='proxy-only with a served port: payload serve-open'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

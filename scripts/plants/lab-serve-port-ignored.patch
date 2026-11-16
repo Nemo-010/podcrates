@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/net/proxy.rs b/crates/pod-lab/src/net/proxy.rs
+index a94d6b5..ec6bf44 100644
+--- a/crates/pod-lab/src/net/proxy.rs
++++ b/crates/pod-lab/src/net/proxy.rs
+@@ -129,7 +129,7 @@ pub fn proxy(cas: &Cas, net: &Net, rules: &Proxy, mut tcp: TcpStream, out: Optio
+         return;
+     }
+     let silent = rules.silent.contains(&port);
+-    if !silent && served.serves(port) && is_lab_name(&host) {
++    if !silent && false && served.serves(port) && is_lab_name(&host) {
+         super::relay::connect(cas, rules, tcp, Upstream::Local(served), &host, port);
+         return;
+     }

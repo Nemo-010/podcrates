@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/net/relay.rs b/crates/pod-lab/src/net/relay.rs
+index 0a57102..72842eb 100644
+--- a/crates/pod-lab/src/net/relay.rs
++++ b/crates/pod-lab/src/net/relay.rs
+@@ -87,7 +87,7 @@ pub fn connect(cas: &Cas, rules: &Proxy, mut tcp: TcpStream, to: Upstream, host:
+ /// session can be idle for a long time.
+ pub fn splice(a: TcpStream, b: TcpStream) {
+     for s in [&a, &b] {
+-        let _ = s.set_read_timeout(None);
++        let _ = s;
+     }
+     let (Ok(a2), Ok(b2)) = (a.try_clone(), b.try_clone()) else { return };
+     let one = std::thread::Builder::new().spawn(move || {
