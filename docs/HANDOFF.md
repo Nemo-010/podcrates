@@ -15,21 +15,20 @@ is done. Git and the record keep finished work.
    `v0.63.0` on #211 (podrunner) and of `v0.62.0` on #210 (podrunner).
    A macOS arm64 job of `ci.yml` can wait with no runner and be cancelled
    ("not acquired by Runner"): run the failed jobs again; it is no defect.
-2. Record each take of `v0.64.0` on COORD-124 (#214): amend its body,
-   and close it when each consumer took its part. Then the next tag: it
-   holds T-808 and the trial of `pod-iroh` (T-810), which the hand-off
-   names as `v0.65.0`.
+2. Record each take of `v0.64.0` on COORD-124 (#214) and of `v0.65.0`
+   on COORD-125: amend the body, and close it when each consumer took its
+   part. `v0.65.0` holds T-806, T-805, T-801, T-797, T-807, T-808 and the
+   trial of `pod-iroh` (T-810).
 3. Read the scheduled nightly: T-789 (armv7) and T-766 (riscv64) are the
    jobs that stayed red; a new red job needs an entry.
 4. T-767 (PodUtils/podssh#283, P1, partial): the seventh failure shows
    that the node's reader of the target stopped before the stall, with
    no byte in flight. Wait for podssh's next stall with the lines
    `session.resume` and `session.stall` (from `v0.64.0`), then find the
-   cause; T-768 beside it. Ask 3 is answered on COORD-124 (#214).
-5. Then the work order of `TODO/PROGRESS.md`: first the asks of the
-   consumers (T-806, P1: a PID namespace of the rung of `pod-enter`), then
-   the move of podssh (T-029, T-030,
-   T-039, T-036), then T-526.
+   cause; T-768 beside it.
+5. Then the work order of `TODO/PROGRESS.md`: T-378 (`pod-devtunnel`,
+   part 2), then the move of podssh (T-029, T-030, T-039, T-036), then
+   T-526.
 
 ## The rules that cost the most time
 
@@ -53,6 +52,13 @@ is done. Git and the record keep finished work.
   run it.
 - Clean the changed crates before a fast clippy: a cached clippy hid a
   warning.
+- A new field of a struct that a consumer builds with all its fields, or
+  a new variant of an enum that a consumer matches with no wildcard,
+  breaks each adoption trial of that consumer (T-805: run 43964945347).
+  Read the consumers' code (a shallow clone in the scratchpad) before a
+  change of a public type, and add new items beside the old ones.
+- A command that pushes at its end must push only when each check before
+  it passed (`set -e`), never after a check that failed.
 - The disk is small: a full `cargo test --workspace` with the
   incremental cache fills it after a few runs. Remove `target/debug`,
   `target/plant-build` and old scratch trees when a build fails with "No
