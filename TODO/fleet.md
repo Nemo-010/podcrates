@@ -4085,7 +4085,7 @@ sh scripts/plant-each.sh --group manual
 **Milestone:** M8
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -4115,6 +4115,50 @@ writers already take `Needs`.
 ```sh
 cargo test -p pod-manual --all-features --test clap
 ```
+
+## Done
+
+2026-11-16, commits bf4adf45, 490c93f8, f810430f (local branch
+`fix750`); call C737.
+
+- clap 4.6.7 (`Cargo.lock`, the newest in the registry here) has no
+  public getter of the requirements of an argument: `Arg` has no
+  `get_requires`, `Command` has `get_arg_conflicts_with` alone, and
+  `ArgGroup` has no getter of `requires`. A newer clap was not read (no
+  network).
+- `clap::read` finds each rule by the parser (`src/clap/needs.rs`): a copy
+  of the tree with no `env`, no required argument or group, no
+  `arg_required_else_help` and no `subcommand_required`; each shown
+  argument is given alone after the path of its command (a positional
+  after a value of each positional before it, `last` after `--`), with
+  each shown possible value, else the first two of `needs::SAMPLES` that
+  its parser takes; the arguments that clap's `MissingRequiredArgument`
+  names and the base parse does not are its needs. A need of each value
+  is `Rule::Needs`; a need of one possible value is `Rule::Needs` with
+  `value` (`requires_if`). A need that another need gives is left out; a
+  need of a group (no single argument) or of a hidden argument is left
+  out. The feature `clap` turns on `clap/error-context` and `clap/usage`.
+- `Rule::Needs` has the new field `value` (`Option<String>`; the JSON
+  leaves it out when it is empty, schema 1); the sentence is
+  `--mode tls needs --cert.`.
+- Tests: `tests/clap.rs` `the_reader_gives_each_rule_of_requires` (a
+  chain of two needs, `requires_if` on a possible value, a parser of
+  addresses, a required positional and one after it, a group and a hidden
+  flag left out, a needed flag whose `env` is `PATH`, a command with
+  `arg_required_else_help`; the text and the JSON),
+  `a_tree_with_no_requires_gives_no_needs`; podlab
+  `the_rules_of_the_manual_are_the_rules_of_the_parser` (podlab's parser
+  gives its one conflict and no need; a `requires` on `--allow-connect`
+  and on the positional `SECTION` gives its rule). `man/podlab.1` does not
+  change. Plants (group `manual`): `manual-clap-needs-dropped`,
+  `-env-kept`, `-required-kept`, `-help-kept`, `-followed-through`,
+  `-value-ignored`; `plant-each.sh --group manual`: 25 caught.
+- For the release notes: `pod_manual::clap::read` gives clap's `requires`
+  and `requires_if` (on a possible value) as `Rule::Needs`; the help, the
+  text and the man page name them ("--user needs --password-file.").
+  Breaking: `Rule::Needs` has the new field `value` (a pattern or a
+  struct literal names it, or `..`). podnet can read its about 20 rules of
+  `requires` in its manual with no glue.
 
 # T-737: `podlab run --allow-connect PORT`: the way out to a proxy in `bind-denied` (PodUtils/podssh#278)
 
