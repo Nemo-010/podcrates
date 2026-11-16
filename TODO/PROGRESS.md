@@ -9,7 +9,8 @@
   43782163204, adoption 43782166425, release 43784336026; the hand-off
   #200, COORD-116): T-725, T-737, T-731, T-702 part 1; `podlab` and its
   installer are assets of the release.
-- On `main` for the next tag: T-736, T-732 (tests).
+- In release: `v0.59.0` (`docs/releases/v0.59.0.md`): T-738, T-742, T-743,
+  T-744, T-736, T-732.
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.56.0` (`0363272`, PodUtils/podssh#277): it runs the one
