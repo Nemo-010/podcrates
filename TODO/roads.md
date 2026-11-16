@@ -549,6 +549,20 @@ when UDP is refused.
   `tls-aws-lc-rs`; the patched iroh-relay of `PodUtils/podssh:vendor/iroh-relay`.
 - aws-lc-sys is not proven on i686, arm, loongarch64 and powerpc64le musl
   (`docs/design.md`, section 7).
+- Read (2026-11-16, podssh at `0370b0b`): the crate podssh-iroh is 5,854
+  lines with its tests. It takes from `podssh-relay` the session of the
+  layer (`session::{client, keep::Keeper, Settings, resume, race, record,
+  budget}`: `pod-session` here), `derp` (`pod-derp`), `identity`
+  (`pod-identity`) and parts of `pinggy` (`Pin::of_spki`, which is
+  `pod_tls::mutual::Pin` here; `Address::parse`, `urls::is_name`, which
+  podcrates does not have); from `podssh-ws` the dial, the TLS, the names
+  and the resolver (`pod-proxy`, `pod-tls`, `pod-ws`, `pod-dns`).
+- Read: podssh builds iroh 1.4.1 with its own copy of `iroh-relay` 1.4.1
+  (its directory vendor/iroh-relay, `[patch.crates-io]` of its root `Cargo.toml`): a
+  patch that dials a relay through a `socks5://` or `socks5h://` proxy, which
+  iroh-relay does not do; `tests/proxy_env.rs` of the crate proves it. Here
+  the fork goes to vendor/iroh-relay with its own licence, and the
+  `[patch.crates-io]` of the root applies to the whole workspace.
 
 ## Approach
 
