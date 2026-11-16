@@ -1,0 +1,8 @@
+# The core compares a copy with no pins of its own with the installer of the
+# release, so the copy of a project's tree stops on a host with cosign. The
+# test must fail.
+ENTRY=T-773
+GROUP=install
+EXPECT='FAIL: the first run \(sh\)'
+RUN='sh scripts/install/test.sh --case sig'
+LIMIT=300
