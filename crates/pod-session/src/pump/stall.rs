@@ -176,8 +176,9 @@ mod tests {
         assert!(run!(16).await.is_err());
         assert!(lock(&lines.0).is_empty());
         assert!(run!(30).await.is_err());
-        assert_eq!(lock(&lines.0).len(), 1, "{:?}", lock(&lines.0));
-        assert!(lock(&lines.0)[0].starts_with("session 0187db18: the reader of the target waits for room for 20 s"));
+        let got = lock(&lines.0).clone();
+        assert_eq!(got.len(), 1, "{got:?}");
+        assert!(got[0].starts_with("session 0187db18: the reader of the target waits for room for 20 s"), "{got:?}");
         waits.up(UpWait::Target);
         assert!(run!(30).await.is_err());
         waits.up(UpWait::Writer);
