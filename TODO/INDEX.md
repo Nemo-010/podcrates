@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**637 entries: 124 open, 14 partial, 6 blocked, 493 done.**
+**638 entries: 125 open, 14 partial, 6 blocked, 493 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 145 | 164 |
-| P2 | 57 | 3 | 4 | 254 | 318 |
+| P2 | 58 | 3 | 4 | 254 | 319 |
 | P3 | 56 | 3 | 2 | 92 | 153 |
-| **All** | 124 | 14 | 6 | 493 | 637 |
+| **All** | 125 | 14 | 6 | 493 | 638 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -684,3 +684,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-802](relay.md) | P2 | M | M2 | feature | open | `pod-turn`: a NAT probe (the mapping, the filtering and the port of RFC 5780) on the caller's datagrams (GitHub #212) |
 | [T-803](relay.md) | P3 | M | M2 | feature | open | `pod-link`: an adaptive parity datagram for the ARQ, off on a clean link (GitHub #213) |
 | [T-804](podvm.md) | P1 | S | M5 | defect | done | `pod-qga` has no `LICENSE` beside its manifest; a check of each crate that cargo packs (PodUtils/podvm#456) |
+| [T-805](relay.md) | P2 | S | M2 | feature | open | `pod-relay`: a node that gets `409` for its own lost socket gives up on that route sooner than `rejoin`, and says so (PodUtils/podnet#604) |

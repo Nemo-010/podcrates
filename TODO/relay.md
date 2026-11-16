@@ -9070,3 +9070,53 @@ cargo test -p pod-link --all-features --test arq_machine
 ## Start condition
 
 T-515 is done.
+
+# T-805: `pod-relay`: a node that gets `409` for its own lost socket gives up on that route sooner than `rejoin`, and says so (PodUtils/podnet#604)
+
+**Source:** PodUtils/podnet#604 (COORD-098 of podnet, PodUtils/podnet@T-406, ask 2).
+**Category:** feature
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+podnet's live run 43912914825: the link of a node of
+`pod_relay::reverse::node` ended with a reset and no Close; from then on,
+each new connect of the node got `409` ("the relay still holds the node's
+lost socket") for at least 150 s, and an operator's SSH reached the relay
+and stopped in the key exchange, sent to the lost socket. The node
+connects again until `Settings::rejoin` (600 s, `RESUME_DEADLINE`) after
+the loss (`crates/pod-relay/src/reverse/node.rs`, the arm of `409`), with
+one line for each answer. podnet asks: after some time of `409` for its
+lost socket, shorter than `rejoin`, ask for a new pair, or say so in one
+line, so that an operator does not wait on a dead route.
+
+## Premise
+
+- Read: PodUtils/podnet#604; `reverse/node.rs` (the loop of the connects,
+  the `409` at the first registration and after a loss), `reverse/serve.rs`
+  (`Settings::rejoin`, the bound of a first `409`).
+- Read: ask 1 of the issue (the relay server drops the socket of a node at
+  once after a reset or a failed write) is for the relay role, which is
+  podssh's until `pod-relay-serve` (T-036): its premise has it.
+- Not measured: how long the relay of the pool holds a socket after a
+  reset.
+
+## Approach
+
+A setting `Settings::lost_hold` (default 60 s): when the relay answers
+`409` for the node's own lost socket for longer than it, the node says one
+line (the route is held by a socket that the relay did not drop; the
+operator's connections reach that socket) and ends its run with a typed
+failure that the caller can act on (a new pair, another relay of the
+pool); `rejoin` stays the bound of the session's resume. A test: a
+stand-in relay that answers `409` after a reset; the node ends at
+`lost_hold` with its line, not at `rejoin`.
+
+## Prove
+
+```sh
+cargo test -p pod-relay --all-features --lib reverse::node
+```

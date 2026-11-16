@@ -502,6 +502,12 @@ server.
   `serve/mailbox/`); `serve/` is the most changed module of podssh (100
   file changes in 50 commits).
 
+- PodUtils/podnet#604 (COORD-098, ask 1): the relay of the pool held the
+  socket of a node for minutes after a reset, and answered `409` to each
+  new connect of the node; the role must drop the socket of a node at once
+  after a reset or a failed write. The import takes the fix, or makes it
+  (T-805 is the node's side).
+
 ## Approach
 
 The study, then the procedure of `docs/design.md`, section 8. podssh's tests
