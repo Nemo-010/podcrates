@@ -13,10 +13,12 @@
   T-743, T-744, T-736, T-732.
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
-  - podssh: `v0.56.0` (`0363272`, PodUtils/podssh#277): it runs the one
-    watcher and the sync of the issues (`issue_rules = "on"`; the map of
-    #192 repaired); `pod-manual` is PodUtils/podssh@T-790; its lane in
-    `pod-lab` is PodUtils/podssh@T-791.
+  - podssh: `v0.58.0` (`043f32c`, PodUtils/podssh#279): it runs the one
+    watcher and the sync of the issues; its lane passes in the ten labs
+    that hold its classes (`podssh doctor`, `release-short.sh`, `ssh`, `cp`
+    of 200 MiB), with the release asset of `podlab`; `pod-manual` is
+    PodUtils/podssh@T-790; its installer on the core is
+    PodUtils/podssh@T-793.
   - podnet: `v0.58.0` (`dd903e3`, PodUtils/podnet#597): its help and manual
     come from `pod-manual` with no workaround of T-725; it runs the one
     watcher and the sync of the issues; its installer on
