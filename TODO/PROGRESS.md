@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 620 entries: 127 open, 14 partial, 6 blocked, 473 done.
+`TODO/INDEX.md` holds 622 entries: 129 open, 14 partial, 6 blocked, 473 done.
 
 ## State
 
@@ -144,7 +144,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
 8. **M4, the roads:** T-131 (a defect of `pod-gsr` on Windows ARM64)
    first; then T-036, T-037,
    T-038, T-039.
-9. **M5, the upkeep:** T-780 (a test that reads the pipes of its child
+9. **M5, the upkeep:** T-788 and T-789 (the nightly at `f309b07`), T-766, T-780 (a test that reads the pipes of its child
    after the child ends), T-781 (the findings of the study of zmux for the
    consumers), T-779; T-312 (a
    code fence that is not closed in the record). A "port" entry for each

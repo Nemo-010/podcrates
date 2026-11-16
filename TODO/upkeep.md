@@ -2703,3 +2703,90 @@ python3 -I scripts/check-github-numbers.py
 ```
 
 Each of the three issues is in `TODO/issues.md` with its state.
+
+# T-788: The nightly at `f309b07` is red on ppc64le: a test of `pod-enter`'s `pass_clear` reads a closed number that another test thread can take
+
+**Source:** nightly run 43829527325, job 133171228001 (`cross (powerpc64le-unknown-linux-musl, ppc64le)`).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`crates/pod-enter/src/pass_clear/tests.rs`,
+`a_root_on_a_passed_number_moves_above_each_passed_number`: "the copy
+stayed open". The test drops `Moved` and then checks with `fstatat` that
+the number of the copy is closed. Another thread of the test binary can
+open a descriptor between the close and the check, and take the same
+number. T-739 fixed the same class in
+`the_kind_names_a_directory_and_a_pipe` (it reads a closed number over
+900).
+
+## Premise
+
+- Read: the log of the job (the panic at `pass_clear/tests.rs:44`); the
+  test.
+- Not measured: the failure on x86_64; the test passed in each full run
+  here.
+
+## Approach
+
+The test checks the close of the copy by an identity that a reuse cannot
+fake: it keeps the device and inode of the copy before the drop (or opens
+the copy as a file with a mark), and after the drop it checks that the
+number is closed or holds another file. The other tests of the module that
+check a closed number get the same form.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features --lib -- pass_clear
+```
+
+# T-789: The nightly at `f309b07` is red on armv7: two tests of the MQTT board of `pod-wormhole` against the stand-in
+
+**Source:** nightly run 43829527325, job 133171228262 (`cross (armv7-unknown-linux-musleabihf, arm)`).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`crates/pod-wormhole/tests/board.rs`, on armv7 under qemu-user, with no
+Mosquitto ("did not run: no Mosquitto here"), against the stand-in:
+
+- `a_board_puts_takes_and_clears_a_note`: "the stand-in keeps no note
+  after the clear" fails: the stand-in still holds a retained note after
+  the clear of the board.
+- `a_bad_topic_or_payload_is_refused_before_a_connection`: the put of a
+  payload of `PAYLOAD_MOST` (64000 bytes) to a broker that does not answer
+  is not `Failed::Unreachable`.
+
+Both pass on each other target of the run. The earlier nightly at
+`1739b5f` stopped other binaries of armv7 before this one.
+
+## Premise
+
+- Read: the log of the job (the panics at `board.rs:55` and `board.rs:94`).
+- Not measured: the tests under qemu-user for armv7; the order of the
+  clear and the check in the stand-in; what the put of `PAYLOAD_MOST`
+  gives there.
+
+## Approach
+
+Run the test binary under qemu-user for armv7 (`scripts/binfmt.sh`), and
+print what the put gives and what the stand-in holds after the clear. A
+cause in the crate (a size or a time limit of 32 bits, an order of the
+retained message and the clear) gets its fix; a cause in the stand-in or
+the test (a check before the stand-in read the clear) gets a wait for the
+event, not a fixed sleep.
+
+## Prove
+
+```sh
+cargo test -p pod-wormhole --all-features --test board
+```
