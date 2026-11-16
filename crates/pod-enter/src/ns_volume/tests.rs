@@ -197,7 +197,9 @@ fn a_working_directory_in_a_volume_resolves_in_the_volume() {
     assert!(check_workdir(&root, &p, None).is_ok());
     p.working_dir = "/work/v/none".to_string();
     let e = check_workdir(&root, &p, None).err().unwrap().to_string();
-    assert!(e.contains(&format!("in the volume {}:/work/v", host.display())), "{e}");
+    // A long host path is shortened in the text (a long TMPDIR): the test
+    // reads the volume by its guest side.
+    assert!(e.contains("in the volume ") && e.contains(":/work/v is not a directory in the volume"), "{e}");
     p.volumes.clear();
     p.working_dir = "/work/v/sub".to_string();
     let e = check_workdir(&root, &p, None).err().unwrap().to_string();
