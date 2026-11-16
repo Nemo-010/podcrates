@@ -211,6 +211,14 @@ pub trait GuestRoot {
         false
     }
 
+    /// True where the guest view shows nothing at `parts` though the host
+    /// path of [`GuestRoot::host_of`] can hold an entry: a whiteout of the
+    /// upper layer of an overlay, or an entry of the lower layer under an
+    /// opaque directory. The walk reads it as a missing path.
+    fn hidden(&self, _parts: &[String]) -> bool {
+        false
+    }
+
     /// The volume that serves the guest path, as `HOST:GUEST`, for a
     /// refusal that names it. `None` where the root file system serves
     /// the path.
@@ -333,7 +341,13 @@ pub(crate) fn walk_in<G: GuestRoot + ?Sized>(root: &G, guest: &str) -> Result<(P
         let mut probe = out.clone();
         probe.push(p.clone());
         let (disk, mount) = root.host_of(&probe);
-        let read = if mount { std::fs::metadata(&disk) } else { std::fs::symlink_metadata(&disk) };
+        let read = if root.hidden(&probe) {
+            Err(std::io::ErrorKind::NotFound.into())
+        } else if mount {
+            std::fs::metadata(&disk)
+        } else {
+            std::fs::symlink_metadata(&disk)
+        };
         let md = match read {
             Ok(m) => m,
             Err(_) if root.above_mount(&probe) => {

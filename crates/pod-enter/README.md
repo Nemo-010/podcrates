@@ -118,7 +118,17 @@ The entries:
   not take) is `Error::Overlay { step, errno }`, which names `overlay`,
   before the payload starts: there is no fallback to chroot, which would
   run the payload on the lower directory. `Root::Tree` is
-  `spawn_namespace`.
+  `spawn_namespace`. With `Upper::Dir`, the checks before the fork (the
+  working directory, and the path of each rule of the confinement) read
+  the upper directory over the lower one, as overlayfs shows them
+  (`ns_upper`, the rules of `pod-rootfs`): an entry of the upper layer
+  hides the same name of the lower one, a whiteout (a character device
+  0:0) removes it, and a directory with `trusted.overlay.opaque` or
+  `user.overlay.opaque` set to `y` hides the lower one; a volume hides
+  both layers. So `-w` or a rule on a path that only the upper directory
+  holds passes, and a path that it removes is a refusal by name before
+  the fork. A join of an overlay run reads the same view.
+  `Upper::Tmpfs` starts empty: the checks read the lower layer.
 * The joined entry (`spawn_joined`, for an exec): `setns` on the pidfd of
   a running payload of the namespace rung joins its mount namespace, then
   the chroot by path and the check of the rung. Where the payload is in a
@@ -155,7 +165,9 @@ compiles the spec before the banner and the fork: on each rung with a
 chroot (the chroot sequence, the namespace rung, the ladder) the paths are
 guest paths, and each opens under the root descriptor with
 `RESOLVE_IN_ROOT`, as the payload sees it after the chroot; on the entry
-with no chroot they are host paths. Where the plan has volumes, each path
+with no chroot they are host paths. On an overlay root with an upper
+directory, each path resolves in the upper layer over the image (see the
+overlay root above). Where the plan has volumes, each path
 resolves through them (`pod_confine::Spec::compile_by` with the walk of
 `userland::Maps::of_binds`, as for the working directory): a path at or
 under the guest path of a volume opens in its host side, and each other
@@ -379,15 +391,25 @@ directory of the host side alone under a write rule, reads a volume under
 a rule on a directory that the child makes above it, and gets `EACCES` in
 a volume that no rule names and for a write outside the rules; a rule on
 a path in no volume and not in the image is refused by name before the
-banner. `scripts/ci/userns-tests.sh` runs it
+banner. On an overlay root with an upper directory on that tmpfs (T-750,
+`tests/userns/upper.rs`), `-w` and a write rule on a directory that only
+the upper directory holds pass (the write lands in it, and a write
+outside the rules fails), a working directory and a rule on a path that
+a whiteout of the upper directory removes are refused by name before the
+banner, a volume over a directory of the upper directory wins for `-w`
+and a rule, and a joined exec takes `-w` of the upper directory.
+`scripts/ci/userns-tests.sh` runs it
 in CI and fails on a skip. The plants `enter-userns-not-tried`,
 `enter-userns-no-maps`, `enter-userns-banner-twice`,
 `enter-userns-dev-bind-over-link`, `enter-userns-dev-no-remount`,
 `enter-volume-skipped`, `enter-volume-ro-writable`,
 `enter-volume-flags-dropped`, `enter-volume-through-a-link`,
 `enter-confine-volume-in-the-image`,
-`enter-confine-volume-missing-accepted` and
-`enter-confine-volume-descriptors-kept` prove it.
+`enter-confine-volume-missing-accepted`,
+`enter-confine-volume-descriptors-kept`, `enter-upper-workdir-in-the-lower`,
+`enter-upper-rule-in-the-lower`, `enter-upper-hidden-read`,
+`enter-upper-volume-under-the-layers`, `enter-upper-join-in-the-lower`,
+`enter-upper-whiteout-read` and `enter-upper-opaque-read` prove it.
 `tests/overlay_root.rs` is podvm's acceptance test of the overlay root
 (PodUtils/podvm#323) with an upper directory of the caller: the writes
 are in the upper layer, the image is the same byte for byte, and a file

@@ -259,18 +259,23 @@ pub(crate) fn failure(plan: &Plan, step: u8, e: Errno, at: u8) -> Option<Error> 
 }
 
 /// Check the working directory before the fork, on a rung with a chroot: a
-/// directory of the image, or of the host side of a volume that serves it.
-pub(crate) fn check_workdir(root: &RootDir, plan: &Plan) -> Result<()> {
+/// directory of the image, of the upper directory of an overlay root over
+/// it (`upper`, [`crate::ns_upper`]), or of the host side of a volume that
+/// serves it.
+pub(crate) fn check_workdir(root: &RootDir, plan: &Plan, upper: Option<&str>) -> Result<()> {
     let refuse = |kind, label: Option<String>| {
-        let context = format!("in the image's rootfs {:?}", root.path);
+        let mut context = format!("in the image's rootfs {:?}", root.path);
+        if let Some(u) = upper {
+            context.push_str(&format!(" under the upper layer {u:?}"));
+        }
         crate::entry::refuse_workdir(&plan.working_dir, &context, kind, label.as_deref())
     };
-    if plan.volumes.is_empty() {
+    if plan.volumes.is_empty() && upper.is_none() {
         return crate::entry::workdir_kind(root.path.as_str(), &plan.working_dir).map_err(|k| refuse(k, None));
     }
-    let maps = crate::userland::Maps::of_binds(&root.path, &plan.volumes);
-    let label = || crate::abi::GuestRoot::volume_label(&maps, &plan.working_dir);
-    crate::entry::workdir_kind(&maps, &plan.working_dir).map_err(|k| refuse(k, label()))
+    let view = crate::ns_upper::View::new(root, plan, upper);
+    let label = || crate::abi::GuestRoot::volume_label(&view, &plan.working_dir);
+    crate::entry::workdir_kind(&view, &plan.working_dir).map_err(|k| refuse(k, label()))
 }
 
 #[cfg(test)]

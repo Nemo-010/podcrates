@@ -143,15 +143,18 @@ pub(crate) fn spawn_with(
     // the wrong directory with exit 0. A NUL byte failed at the `CBuf`
     // above. With no chroot the check is the resolution through the table.
     // A directory in a volume resolves in the host side of the volume.
+    // On an overlay root with an upper directory, the upper layer shows
+    // over the image (`ns_upper`).
+    let upper = ns.as_ref().and_then(NsEntry::upper);
     let workdir_host = match userland {
         Some(maps) => crate::userland::userland_workdir(root, maps, &plan.working_dir)?,
-        None => crate::ns_volume::check_workdir(root, plan).map(|()| None)?,
+        None => crate::ns_volume::check_workdir(root, plan, upper).map(|()| None)?,
     };
 
     // The confinement of the payload, compiled before the banner and the
     // fork: the child opens the paths of its rules and applies it
     // ([`crate::confine`]).
-    let mut confined = crate::confine::compile(plan, chroot.then_some(root))?;
+    let mut confined = crate::confine::compile(plan, chroot.then_some(root), upper)?;
     // The child puts each passed descriptor onto its number first: the
     // root descriptor and the memfd move clear of each such number.
     let mut moved = crate::pass_clear::Moved::default();
@@ -209,7 +212,7 @@ pub(crate) fn spawn_with(
             }
             // The join comes before the passed descriptors, so a pass onto
             // the number of the pidfd cannot replace it.
-            if let Some(NsEntry::Join(j)) = ns
+            if let Some(NsEntry::Join(j, _)) = ns
                 && let Err((step, e)) = j.enter()
             {
                 report(step, e);

@@ -46,11 +46,20 @@ pub enum Root<'a> {
     Overlay { lower: &'a RootDir, upper: Upper<'a> },
 }
 
-impl Root<'_> {
+impl<'a> Root<'a> {
     /// The held directory: the tree, or the lower layer.
     pub fn dir(&self) -> &RootDir {
         match self {
             Root::Tree(d) | Root::Overlay { lower: d, .. } => d,
+        }
+    }
+
+    /// The upper directory of the caller, where the root is an overlay
+    /// with one.
+    pub(crate) fn upper_dir(&self) -> Option<&'a str> {
+        match *self {
+            Root::Overlay { upper: Upper::Dir { upper, .. }, .. } => Some(upper),
+            _ => None,
         }
     }
 }
@@ -101,6 +110,8 @@ pub(crate) struct OverlayMount {
     staging: Option<Staging>,
     fstype: CBuf,
     options: CBuf,
+    /// The upper directory of the caller (`Upper::Dir`).
+    upper: Option<String>,
 }
 
 impl OverlayMount {
@@ -139,7 +150,13 @@ impl OverlayMount {
                 options.len()
             )));
         }
-        Ok(OverlayMount { staging, fstype: cbuf("overlay")?, options: cbuf(&options)? })
+        let upper = staging.is_none().then_some(upper_path);
+        Ok(OverlayMount { staging, fstype: cbuf("overlay")?, options: cbuf(&options)?, upper })
+    }
+
+    /// The upper directory of the caller, where the upper layer is one.
+    pub(crate) fn upper_dir(&self) -> Option<&str> {
+        self.upper.as_deref()
     }
 }
 

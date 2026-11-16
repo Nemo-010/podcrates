@@ -66,6 +66,7 @@ mod ns_join;
 mod ns_optional;
 mod ns_overlay;
 mod ns_proc_bind;
+mod ns_upper;
 mod ns_user;
 mod ns_volume;
 mod pass_clear;

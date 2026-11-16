@@ -194,13 +194,13 @@ fn a_working_directory_in_a_volume_resolves_in_the_volume() {
     let root = RootDir::open(image.to_str().unwrap()).unwrap();
     let mut p = plan(vec![vol(host.to_str().unwrap(), "/work/v", false)]);
     p.working_dir = "/work/v/sub".to_string();
-    assert!(check_workdir(&root, &p).is_ok());
+    assert!(check_workdir(&root, &p, None).is_ok());
     p.working_dir = "/work/v/none".to_string();
-    let e = check_workdir(&root, &p).err().unwrap().to_string();
+    let e = check_workdir(&root, &p, None).err().unwrap().to_string();
     assert!(e.contains(&format!("in the volume {}:/work/v", host.display())), "{e}");
     p.volumes.clear();
     p.working_dir = "/work/v/sub".to_string();
-    let e = check_workdir(&root, &p).err().unwrap().to_string();
+    let e = check_workdir(&root, &p, None).err().unwrap().to_string();
     assert!(e.contains("is not a directory in the image"), "{e}");
     let _ = fs::remove_dir_all(&d);
 }

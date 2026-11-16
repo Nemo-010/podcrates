@@ -9,7 +9,7 @@ use pod_confine::{Compiled, Refusal};
 use pod_hostprobe::sys::{self, CBuf, Errno};
 
 use crate::abi::{GuestRoot, ResolveKind};
-use crate::userland::Maps;
+use crate::ns_upper::View;
 use crate::{Error, Plan, Result, RootDir, errno_class};
 
 /// The step byte of a refusal of `pod_confine::apply` or of
@@ -21,9 +21,11 @@ pub(crate) const STEP: u8 = 15;
 /// `root` is the root file system of a rung with a chroot: the paths of
 /// the spec are guest paths, and each resolves under the root descriptor
 /// as the kernel resolves it after the chroot (`RESOLVE_IN_ROOT`). `None`
-/// is the entry with no chroot: host paths. Where the plan has volumes,
-/// each path resolves through them ([`open_through`]): a path in a volume
-/// is a path of its host side, as the child binds it.
+/// is the entry with no chroot: host paths. Where the plan has volumes, or
+/// the root is an overlay with the upper directory `upper`, each path
+/// resolves through them ([`open_through`], [`View`]): a path in a volume
+/// is a path of its host side, as the child binds it, and each other path
+/// is the entry that the upper layer shows over the lower one.
 ///
 /// A host with no Landlock, or a path that does not exist, is a refusal
 /// by name here, before the banner and the fork. Then the descriptors of
@@ -33,13 +35,13 @@ pub(crate) const STEP: u8 = 15;
 /// not cover the tmpfs that the namespace rung mounts on `/tmp`. No
 /// descriptor of a rule crosses the fork, so a passed descriptor takes the
 /// number of no rule.
-pub(crate) fn compile(plan: &Plan, root: Option<&RootDir>) -> Result<Option<Compiled>> {
+pub(crate) fn compile(plan: &Plan, root: Option<&RootDir>, upper: Option<&str>) -> Result<Option<Compiled>> {
     let Some(spec) = &plan.confine else { return Ok(None) };
     let abi = pod_confine::check()?;
     let mut compiled = match root {
-        Some(r) if !plan.volumes.is_empty() => {
-            let maps = Maps::of_binds(&r.path, &plan.volumes);
-            spec.compile_by(abi, |path| open_through(&maps, r, path))?
+        Some(r) if !plan.volumes.is_empty() || upper.is_some() => {
+            let view = View::new(r, plan, upper);
+            spec.compile_by(abi, |path| open_through(&view, r, path))?
         }
         Some(r) => spec.compile_in(abi, r.fd())?,
         None => spec.compile(abi)?,
@@ -49,24 +51,25 @@ pub(crate) fn compile(plan: &Plan, root: Option<&RootDir>) -> Result<Option<Comp
 }
 
 /// The `O_PATH` descriptor of the guest path `guest` of a rule, through
-/// the volumes of a plan (`maps`, [`Maps::of_binds`]): a path at or under
-/// the guest path of a volume opens in its host side, each other path in
-/// the image. The walk is the walk of the working directory: a link of
+/// the volumes of a plan and the upper layer of an overlay root (`view`):
+/// a path at or under the guest path of a volume opens in its host side,
+/// each other path in the layer that shows it (the image where there is no
+/// upper layer); a path that the upper layer removes is missing. The walk is the walk of the working directory: a link of
 /// the image resolves in the guest view, and a link to a volume lands in
 /// the volume. Where the image does not hold a directory above
 /// the guest path of a volume, the child makes it: the compile gets the
 /// root of the image, a directory, for its check of the type, and the
 /// child opens the made directory. A path in neither the image nor a
 /// volume gives `ENOENT`, which the compile refuses by name.
-fn open_through(maps: &Maps, root: &RootDir, guest: &str) -> std::result::Result<i64, Errno> {
-    let (host, parts) = crate::abi::walk_in(maps, guest).map_err(|k| match k {
+pub(crate) fn open_through<G: GuestRoot>(view: &G, root: &RootDir, guest: &str) -> std::result::Result<i64, Errno> {
+    let (host, parts) = crate::abi::walk_in(view, guest).map_err(|k| match k {
         ResolveKind::Absent => sys::ENOENT,
         ResolveKind::Loop => sys::ELOOP,
         ResolveKind::Escapes => sys::EXDEV,
     })?;
     let path = CBuf::from_bytes(host.as_os_str().as_bytes()).ok_or(sys::EINVAL)?;
     match sys::open(&path, sys::O_PATH | sys::O_CLOEXEC, 0) {
-        Err(e) if e == sys::ENOENT && maps.above_mount(&parts) => sys::fcntl(root.fd(), sys::F_DUPFD_CLOEXEC, 0),
+        Err(e) if e == sys::ENOENT && view.above_mount(&parts) => sys::fcntl(root.fd(), sys::F_DUPFD_CLOEXEC, 0),
         r => r,
     }
 }

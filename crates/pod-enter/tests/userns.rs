@@ -7,7 +7,9 @@
 //! The device nodes of the host replace the regular files of the image
 //! (T-688). The volumes of a plan are bound as root and as the caller with
 //! no capabilities (T-738, `userns/volumes.rs`), and a rule of the
-//! confinement on a volume holds on the volume (T-739).
+//! confinement on a volume holds on the volume (T-739). On an overlay root
+//! with an upper directory, the checks before the fork read the upper
+//! layer over the image (T-750, `userns/upper.rs`).
 //!
 //! As root, the test makes the image and starts its own binary again as
 //! uid and gid 65534 with no groups (`pod_testkit::nobody`). The test of
@@ -36,6 +38,8 @@ use pod_hostprobe::sys;
 use pod_testkit::host::skip_line;
 use pod_testkit::nobody;
 
+#[path = "userns/upper.rs"]
+mod upper;
 #[path = "userns/volumes.rs"]
 mod volumes;
 
@@ -168,6 +172,11 @@ fn the_namespace_rung_binds_the_volumes_of_a_plan() {
 #[test]
 fn a_rule_of_the_confinement_holds_on_a_volume() {
     volumes::as_root_and_nobody("a_rule_of_the_confinement_holds_on_a_volume", volumes::confined);
+}
+
+#[test]
+fn the_checks_read_the_upper_layer_of_an_overlay_root() {
+    volumes::as_root_and_nobody("the_checks_read_the_upper_layer_of_an_overlay_root", upper::layered);
 }
 
 #[test]

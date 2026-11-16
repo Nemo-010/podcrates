@@ -153,15 +153,25 @@ pub struct NsMount {
 #[derive(Clone, Copy)]
 pub(crate) enum NsEntry<'a> {
     Own(&'a NsMount),
-    Join(crate::ns_join::Join),
+    /// The join, and the upper directory of the overlay root of the run.
+    Join(crate::ns_join::Join, Option<&'a str>),
 }
 
-impl NsEntry<'_> {
+impl<'a> NsEntry<'a> {
     /// Is the root an overlay: the landing check then asks for one.
     pub(crate) fn overlay(&self) -> bool {
         match self {
             NsEntry::Own(m) => m.overlay.is_some(),
-            NsEntry::Join(j) => j.overlay,
+            NsEntry::Join(j, _) => j.overlay,
+        }
+    }
+
+    /// The upper directory of the caller of an overlay root
+    /// (`Upper::Dir`): the checks before the fork read it over the image.
+    pub(crate) fn upper(&self) -> Option<&'a str> {
+        match *self {
+            NsEntry::Own(m) => m.overlay.as_ref().and_then(|o| o.upper_dir()),
+            NsEntry::Join(_, upper) => upper,
         }
     }
 }
@@ -393,7 +403,7 @@ pub fn spawn_joined(root: &RootDir, plan: &Plan, pidfd: i64, err: &mut dyn Write
 /// enters an overlay root of its own ([`crate::spawn_namespace_root`]), which
 /// never falls back to chroot.
 pub fn spawn_joined_root(root: Root<'_>, plan: &Plan, pidfd: i64, err: &mut dyn Write) -> Result<Child> {
-    let join = NsEntry::Join(crate::ns_join::Join::of(pidfd, matches!(root, Root::Overlay { .. })));
+    let join = NsEntry::Join(crate::ns_join::Join::of(pidfd, matches!(root, Root::Overlay { .. })), root.upper_dir());
     match spawn_with(root.dir(), plan, Rung::Namespace.word(), None, None, None, Some(join), true, err) {
         Err(Error::NsSetup { step, errno }) => {
             let cause = format!("{step} ({} ({}))", errno.name(), errno.0);
