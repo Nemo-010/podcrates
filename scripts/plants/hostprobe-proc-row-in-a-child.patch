@@ -1,0 +1,13 @@
+diff --git a/crates/pod-hostprobe/src/probes.rs b/crates/pod-hostprobe/src/probes.rs
+index 6a070778..7d92e4d5 100644
+--- a/crates/pod-hostprobe/src/probes.rs
++++ b/crates/pod-hostprobe/src/probes.rs
+@@ -217,7 +217,7 @@ pub static PROBES: &[Probe] = &[
+     // The file classes of podssh. A row of a fact gives `ok` and its value
+     // in its reason (`KEY VALUE` items, `verdict::Outcome::value`).
+     census("stat(/dev/pts)", p_stat_pts),
+-    Probe { name: "readlink(/proc/self/exe)", group: Group::Census, kind: Kind::Here { body: p_readlink_exe } },
++    Probe { name: "readlink(/proc/self/exe)", group: Group::Census, kind: Kind::Child { ns_flags: 0, body: p_readlink_exe } },
+     census("tty_nr of /proc/self/stat", p_tty_nr),
+     census("open(/dev/tty, O_NONBLOCK)+poll", p_tty_poll),
+     census("line of getuid() in /etc/passwd", p_uid_line),

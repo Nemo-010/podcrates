@@ -1,0 +1,13 @@
+diff --git a/crates/pod-hostprobe/src/probes/network.rs b/crates/pod-hostprobe/src/probes/network.rs
+index 31acf9df..3e83ab64 100644
+--- a/crates/pod-hostprobe/src/probes/network.rs
++++ b/crates/pod-hostprobe/src/probes/network.rs
+@@ -39,7 +39,7 @@ pub fn proxy_items(name: &str, value: &str) -> String {
+         Some((_, p)) if !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()) => p,
+         _ => "none",
+     };
+-    items(&[("set", "1"), ("variable", name), ("scheme", &scheme), ("credential", credential), ("port", port)])
++    items(&[("set", "1"), ("variable", name), ("scheme", &scheme), ("credential", credential), ("port", port), ("host", host)])
+ }
+ 
+ pub(super) fn p_proxy_variable() -> Outcome {

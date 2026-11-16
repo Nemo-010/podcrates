@@ -1,0 +1,13 @@
+diff --git a/crates/pod-hostprobe/src/probes/sockets.rs b/crates/pod-hostprobe/src/probes/sockets.rs
+index 8c3c2f10..8e853881 100644
+--- a/crates/pod-hostprobe/src/probes/sockets.rs
++++ b/crates/pod-hostprobe/src/probes/sockets.rs
+@@ -58,7 +58,7 @@ pub(super) fn p_listen_after_bind() -> Outcome {
+         Err(e) => return precondition("socket(AF_INET, SOCK_STREAM)", e),
+     };
+     let r = match bind_loopback(fd) {
+-        Ok(_) => Outcome::from(sys::listen(fd, 1)),
++        Ok(r) => Outcome::from(Ok(r)),
+         Err(e) => precondition("bind(127.0.0.1:0)", e),
+     };
+     let _ = sys::close(fd);

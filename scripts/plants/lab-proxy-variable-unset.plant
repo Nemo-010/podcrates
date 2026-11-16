@@ -1,6 +1,6 @@
-# The lab of proxy-only gives the command no HTTPS_PROXY; the payload
-# must fail.
+# The lab of proxy-only sets no HTTPS_PROXY; its row in the lab must see
+# it, and the run must refuse.
 ENTRY=T-716
 GROUP=lab
-EXPECT='no HTTPS_PROXY'
+EXPECT='the lab proxy-only does not hold: proxy-variable'
 RUN='sh scripts/ci/userns-tests.sh'

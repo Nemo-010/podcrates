@@ -1,0 +1,6 @@
+# The field tty_nr is read one field early (the session); the test of the
+# parser must fail.
+ENTRY=T-715
+GROUP=hostprobe
+EXPECT='test probes::files::tests::the_field_tty_nr_follows_the_name_in_parentheses \.\.\. FAILED'
+RUN='cargo test -p pod-hostprobe --all-features --lib -- probes::files::tests::the_field_tty_nr_follows_the_name_in_parentheses --exact'

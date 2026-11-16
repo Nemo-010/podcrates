@@ -1,0 +1,16 @@
+diff --git a/crates/pod-hostprobe/src/probes/sockets.rs b/crates/pod-hostprobe/src/probes/sockets.rs
+index 8c3c2f10..20286119 100644
+--- a/crates/pod-hostprobe/src/probes/sockets.rs
++++ b/crates/pod-hostprobe/src/probes/sockets.rs
+@@ -156,10 +156,7 @@ pub(super) fn p_connect_loopback() -> Outcome {
+     match connect_loopback(1) {
+         Err(o) => o,
+         Ok(Answer::Listener) => Outcome::ok_with("a listener took the connect"),
+-        Ok(Answer::Reset) => {
+-            let e = sys::ECONNREFUSED;
+-            Outcome::ok_with(format!("{} ({}): the loopback answers, and no listener has port 1", e.name(), e.0))
+-        }
++        Ok(Answer::Reset) => Outcome::denied(sys::ECONNREFUSED),
+         Ok(Answer::Refused(e)) => Outcome::denied(e),
+         Ok(Answer::Silent) => {
+             Outcome::skip(None, format!("no answer in {CONNECT_WAIT_MS} ms: a filter drops the packets"))

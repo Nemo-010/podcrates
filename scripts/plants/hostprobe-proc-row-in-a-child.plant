@@ -1,0 +1,6 @@
+# The row of /proc/self/exe runs in a probe child, which a host with no
+# /proc cannot start; the test of the kinds of the rows must fail.
+ENTRY=T-715
+GROUP=hostprobe
+EXPECT='test probes::tests::the_rows_of_the_host_classes_are_census_rows \.\.\. FAILED'
+RUN='cargo test -p pod-hostprobe --all-features --lib -- probes::tests::the_rows_of_the_host_classes_are_census_rows --exact'

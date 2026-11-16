@@ -1,0 +1,7 @@
+# The row of a listen after a bind gives the answer of the bind, so the
+# listen that the lab of listen-denied refuses reads as allowed; the run of
+# that lab must refuse.
+ENTRY=T-714
+GROUP=hostprobe
+EXPECT='listen-denied: the lab listen-denied does not hold'
+RUN='cargo test -p pod-lab --all-features --test lab'

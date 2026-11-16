@@ -1,0 +1,6 @@
+# The connect to the loopback reads a reset (ECONNREFUSED) as a denial; the
+# test of the rows of this host must fail.
+ENTRY=T-714
+GROUP=hostprobe
+EXPECT='verdict: Denied, errno: Some\(Errno\(111\)\)'
+RUN='cargo test -p pod-hostprobe --all-features --test host_rows'

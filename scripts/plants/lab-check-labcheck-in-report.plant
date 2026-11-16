@@ -1,0 +1,6 @@
+# A check of a report counts the check of the lab, so the part is unseen;
+# the test must fail.
+ENTRY=T-745
+GROUP=lab
+EXPECT='test check::rows::a_lab_check_counts_in_a_lab_alone \.\.\. FAILED'
+RUN='cargo test -p pod-lab --all-features --lib -- check::rows::a_lab_check_counts_in_a_lab_alone --exact'

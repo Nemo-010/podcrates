@@ -1,0 +1,6 @@
+# A row that does not show the class fails the part, so a host with a
+# default route and a filter fails direct-refused; the test must fail.
+ENTRY=T-745
+GROUP=lab
+EXPECT='test check::rows::proxy_only_sees_the_routes_and_the_variable_and_leaves_out_the_lab_check \.\.\. FAILED'
+RUN='cargo test -p pod-lab --all-features --lib -- check::rows::proxy_only_sees_the_routes_and_the_variable_and_leaves_out_the_lab_check --exact'

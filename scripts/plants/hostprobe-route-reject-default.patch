@@ -1,0 +1,12 @@
+diff --git a/crates/pod-hostprobe/src/probes/network.rs b/crates/pod-hostprobe/src/probes/network.rs
+index 31acf9df..9309ccbc 100644
+--- a/crates/pod-hostprobe/src/probes/network.rs
++++ b/crates/pod-hostprobe/src/probes/network.rs
+@@ -127,7 +127,6 @@ pub fn default_v6(text: &str) -> bool {
+         f.first().is_some_and(|d| d.len() == 32 && d.bytes().all(|b| b == b'0'))
+             && f.get(1) == Some(&"00")
+             && flags & RTF_UP != 0
+-            && flags & RTF_REJECT == 0
+     })
+ }
+ 

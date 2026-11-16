@@ -1,0 +1,6 @@
+# The unreachable entry of a namespace with no IPv6 route reads as a
+# default route; the test of the routes must fail.
+ENTRY=T-745
+GROUP=hostprobe
+EXPECT='test probes::network::tests::a_default_route_of_ipv6_is_up_and_no_reject_route \.\.\. FAILED'
+RUN='cargo test -p pod-hostprobe --all-features --lib -- probes::network::tests::a_default_route_of_ipv6_is_up_and_no_reject_route --exact'

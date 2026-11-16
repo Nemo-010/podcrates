@@ -1,0 +1,6 @@
+# The row of the proxy variable writes the host of the proxy into a report;
+# the test of the items must fail.
+ENTRY=T-745
+GROUP=hostprobe
+EXPECT='test probes::network::tests::the_items_of_a_proxy_name_no_host_and_no_credential \.\.\. FAILED'
+RUN='cargo test -p pod-hostprobe --all-features --lib -- probes::network::tests::the_items_of_a_proxy_name_no_host_and_no_credential --exact'
