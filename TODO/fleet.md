@@ -4654,7 +4654,7 @@ uid 65534: each case ok).
 **Milestone:** M8
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -4689,3 +4689,26 @@ refused.
 ```sh
 sh scripts/install/test.sh --case sig
 ```
+
+## Done
+
+2026-11-16. podnet's tree copy (read through `forge.web.pkgforge.dev`,
+PodUtils/podnet:scripts/install.sh at its `main`) keeps its block of pins
+empty, checks the signature itself, and sets `INST_VERSION` and the pin of
+its asset at run time (`podnet_pins`) before `inst_main`; only the compare
+of the installer itself then stops it. The core keeps the pins of the plan
+as they are and records at load, before any code of the project runs,
+whether the file holds its own pins (`inst_stamped` in
+`scripts/install/core.sh`, from `INST_VERSION` of the block of pins, which
+comes before the core). `inst_signature` (`scripts/install/core-net.sh`)
+does not compare a copy with no pins of its own with `NAME-install.sh` of
+`SHA256SUMS`, and says so in one line; a stamped installer keeps the
+compare. A copy with no pins and no project code that sets them still
+stops at the check of `INST_VERSION`. Test: the case `sig` of
+`scripts/install/test.sh` runs such a copy (the block of pins empty, the
+stamped values set before `inst_main`) with the stand-in of cosign: the
+signature is ok, the line says that the installer is not compared, and the
+install passes; with the core of `HEAD~1` it fails with "is not
+podlab-install.sh of the signed SHA256SUMS" (as podnet saw). Plant
+`install-tree-copy-compared`. Here: `sh scripts/install/test.sh --case sig`
+(5 passed), `shellcheck scripts/install/*.sh` (0 findings).

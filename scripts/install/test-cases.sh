@@ -164,6 +164,22 @@ END
     done
     ok "sig: a changed SHA256SUMS, a pin that it does not hold, no bundle and a changed installer are refused"
 
+    # A copy with no pins of its own, which sets them at run time before
+    # inst_main (as the copy of podnet's tree does from the signed
+    # SHA256SUMS), is no asset of the release: it is not compared (T-773).
+    awk -v pins="$work/sig/pins.txt" '
+        /^# BEGIN PINS/ { print; inpins = 1; next }
+        /^# END PINS/ { print "INST_VERSION=\"\""; print "INST_TARGETS=\"\""; print; inpins = 0; close(pins); next }
+        inpins { print > pins; next }
+        /^inst_main / { while ((getline l < pins) > 0) print l }
+        { print }' "$installer" > "$work/sig/tree-install.sh"
+    xpath=$work/cosign inst=$work/sig/tree-install.sh
+    first sh "$work/p-sig-tree" || fail "a copy with no pins of its own, with cosign"
+    reset
+    expect 'the signature of SHA256SUMS: ok' "a copy with no pins of its own"
+    expect 'this installer holds no pins of its own: it is not compared' "a copy with no pins of its own"
+    ok "sig: a copy with no pins of its own takes them at run time, and is not compared with the installer of the release"
+
     # No cosign on PATH: one note, and the pins check each file.
     s=$(gets 'get /good/SHA256SUMS$')
     first sh "$work/p-sig-none" || fail "the run with no cosign"

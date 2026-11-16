@@ -12,6 +12,13 @@
 # prefix, its SHA-256 must agree with its pin, it must run, and then an
 # atomic move puts it in place. A second run downloads no file that agrees.
 
+# A stamped installer holds its version in the block of pins, which comes
+# before the core. A copy that takes its pins at run time (a copy of the
+# tree of a project, from the signed SHA256SUMS) holds none, and is no
+# asset of a release.
+# shellcheck disable=SC2034 # core-net.sh reads it.
+inst_stamped=${INST_VERSION:+1}
+
 inst_tag() { printf '%s-install' "$INST_NAME"; }
 inst_say() { printf '%s: %s\n' "$(inst_tag)" "$*"; }
 inst_warn() { printf '%s: warning: %s\n' "$(inst_tag)" "$*" >&2; }

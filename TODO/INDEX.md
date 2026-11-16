@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**623 entries: 129 open, 14 partial, 6 blocked, 474 done.**
+**623 entries: 128 open, 14 partial, 6 blocked, 475 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 139 | 158 |
-| P2 | 61 | 3 | 4 | 246 | 314 |
+| P2 | 60 | 3 | 4 | 247 | 314 |
 | P3 | 57 | 3 | 2 | 87 | 149 |
-| **All** | 129 | 14 | 6 | 474 | 623 |
+| **All** | 128 | 14 | 6 | 475 | 623 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -656,7 +656,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-766](upkeep.md) | P2 | S | M5 | defect | open | The nightly at `1739b5f` is red on riscv64: two time limits of tests that the emulation of QEMU outruns |
 | [T-767](relay.md) | P1 | M | M2 | defect | partial | `pod-session`: a resume that the client calls done, after which the session never moves (PodUtils/podssh#283) |
 | [T-768](relay.md) | P2 | S | M2 | defect | open | `pod-session`: a spare waits 20 s, not 1 s to 3 s, when the client's writer is held by a full link |
-| [T-773](fleet.md) | P2 | S | M8 | defect | open | the installer core: a tree copy with no pins stops on a host with cosign (PodUtils/podnet#597) |
+| [T-773](fleet.md) | P2 | S | M8 | defect | done | the installer core: a tree copy with no pins stops on a host with cosign (PodUtils/podnet#597) |
 | [T-774](relay.md) | P2 | S | M2 | docs | open | `pod-link`: a normative document of the wire, with the order of the checks and the rule of the timers, held to the code by a test |
 | [T-775](relay.md) | P2 | S | M2 | chore | open | `pod-link`: a table of frames in bytes with the result of each, read by one test |
 | [T-776](relay.md) | P2 | M | M2 | chore | open | `pod-link`: scripted cases of a link on a paused clock, and the table of the classes of defects |
