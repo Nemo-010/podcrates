@@ -93,11 +93,15 @@ everything must be statically compiled." (the owner, 2026-11-05)
 * `.claude/settings.json` allows all tools in `acceptEdits` mode. Do not
   ask for permission for routine commands.
 * Use shell tools (`git`, `curl`, `cargo`) before MCP tools.
-* For search, research and read-only queries (this includes the GitHub
-  REST API), use the services that <https://web.pkgforge.dev/llms.txt>
-  lists. For example:
+* Web access (the owner, 2026-11-16): for each web or git search, fetch
+  and read-only query (this includes the GitHub REST API, a raw file and a
+  web search), use the services that <https://web.pkgforge.dev/llms.txt>
+  lists first: `forge.` (GitHub, GitLab, Codeberg, GHCR), `search.`,
+  `read.`, `fetch.`. Use the web tools of the harness, `gh api` or
+  `api.github.com` only when the service fails. For example:
   `curl -qfsS "https://forge.web.pkgforge.dev/github/repos/PodUtils/podcrates/issues?n=$RANDOM"`.
   Add a changing query parameter: the mirror keeps answers in a cache.
+  Give this rule to each subagent in its brief.
 * For writes to GitHub (a comment, the close of an issue, the dispatch of
   a workflow), use the MCP tools of GitHub.
 * To read a consumer, read its repository on GitHub or a local clone. Do

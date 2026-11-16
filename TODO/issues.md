@@ -211,5 +211,6 @@ kinds and the rules.
 | #204 | coord | COORD-118: v0.59.0: the volumes of pod-enter (podvm#440), podnet's two defects (podnet#592), the chroot row (podrunner#191) (to all) | open | T-738, T-739, T-742, T-743, T-744 |
 | #205 | request | [gh action] requested: the gates of main at 725b729 and the release v0.60.0 | closed | T-716, T-714, T-715, T-745, T-726, T-750 |
 | #206 | coord | COORD-119: v0.60.0: the network labs of pod-lab, 20 host-class rows of pod-hostprobe, clap's requires in pod-manual, the overlay upper layer of pod-enter (to all) | open | T-716, T-714, T-715, T-745, T-726, T-750 |
+| #207 | coord | COORD-120: the owner's ruling "Web access": use the services of web.pkgforge.dev first for each web or git search and read (to all) | open | none |
 
 #79 to #81 are pull requests.
