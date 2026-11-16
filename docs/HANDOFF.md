@@ -12,7 +12,7 @@ is done. Git and the record keep finished work.
 1. Start the watcher under the Monitor tool and keep it running:
    `python3 -I scripts/agent/watch.py podcrates --state STATE_DIR --every 120`.
    Read the open COORD issues `(to podcrates)`; record each take of
-   `v0.62.0` on #210.
+   `v0.63.0` on #211 (and of `v0.62.0` on #210: podrunner).
 2. Read the scheduled nightly at `b6b1f47`: T-788 (ppc64le), T-789
    (armv7) and T-766 (riscv64) are the jobs that stayed red; a new red
    job needs an entry.
