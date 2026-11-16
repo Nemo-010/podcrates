@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**618 entries: 127 open, 13 partial, 6 blocked, 472 done.**
+**619 entries: 127 open, 13 partial, 6 blocked, 473 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 13 | 7 | 0 | 138 | 158 |
+| P1 | 12 | 7 | 0 | 139 | 158 |
 | P2 | 58 | 3 | 4 | 245 | 310 |
-| P3 | 56 | 3 | 2 | 87 | 148 |
-| **All** | 127 | 13 | 6 | 472 | 618 |
+| P3 | 57 | 3 | 2 | 87 | 149 |
+| **All** | 127 | 13 | 6 | 473 | 619 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -664,4 +664,5 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-779](upkeep.md) | P3 | S | M5 | chore | open | `pod-identity`: one stack of curve25519 and of SHA-2: take `ed25519-dalek` 3 |
 | [T-780](upkeep.md) | P2 | S | M5 | defect | open | A test reads the pipes of its child only after the child ends: a child that writes more than a pipe holds stops (`pod-term` calibration) |
 | [T-781](upkeep.md) | P2 | S | M5 | chore | open | The findings of the study of zmux for the tests of podssh, podnet and podvm, by COORD issues |
-| [T-786](podvm.md) | P1 | S | M6 | feature | open | `pod-enter`: the ids inside the user namespace of the namespace rung, so that a payload runs as the user of its image (PodUtils/podvm#447) |
+| [T-786](podvm.md) | P1 | S | M6 | feature | done | `pod-enter`: the ids inside the user namespace of the namespace rung, so that a payload runs as the user of its image (PodUtils/podvm#447) |
+| [T-787](podvm.md) | P3 | S | M6 | feature | open | `pod-enter`: the ids of the plan for a caller that makes the namespace rung with no user namespace (root) |

@@ -9090,7 +9090,7 @@ that carries it, `v0.61.0`.
 **Milestone:** M6
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -9130,3 +9130,70 @@ no capability; the default stays 0.
 cargo test -p pod-enter --all-features
 sh scripts/ci/userns-tests.sh
 ```
+
+## Done
+
+2026-11-16, commit 518ce97. `Plan::userns_ids: Option<(u32, u32)>`
+(`None` is 0): on the namespace rung through a user namespace of its own
+the maps are `<uid> <caller-uid> 1` and `<gid> <caller-gid> 1`
+(`pod_hostprobe::userns::map_line(inside, id)`, `Maps::with_inside`,
+`Maps::of_caller_inside`); the probe legs keep `Maps::of_caller`, the map
+to 0. `u32::MAX` is refused before the fork. Checked for uid 0: the child
+sets no ids and calls no `setuid`; the mounts, the device binds, the
+volumes, the UTS namespace and the check of the working directory run
+with the capabilities of the namespace, the same for each id inside; the
+chown of the root of an overlay sets the caller's ids or keeps them
+(C758); the `HOME=/root` of `Plan::env_for` is the caller's to replace
+(C758); a join keeps the map of the run, and a root caller keeps its ids
+(C757, T-787). Tests: `cargo test -p pod-enter --all-features` (223 unit
+tests, 7 tests of `tests/userns.rs`), `cargo test -p pod-hostprobe
+--all-features` (175 unit tests); `sh scripts/ci/userns-tests.sh` as root
+(uid 65534 in the test) passed with no skip: with 1001:1001 the payload
+sees `id -u` and `id -g` 1001, the maps, a file of the caller as
+1001:1001, a file in `/tmp` as 1001, the host name, `CapEff` and `CapPrm`
+0; with no ids it is 0 with its capabilities; an exec that joins the run
+is 1001 with no capability. The plant `enter-userns-ids-ignored` is
+caught (`left: Ok(21)`); the plants `enter-userns-banner-twice` and
+`enter-userns-not-tried` follow the new lines.
+
+# T-787: `pod-enter`: the ids of the plan for a caller that makes the namespace rung with no user namespace (root)
+
+**Source:** T-786, a finding (`docs/decisions.md`, C757).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`Plan::userns_ids` names the ids of the payload inside the user namespace
+of the namespace rung. A caller with `CAP_SYS_ADMIN` (root) makes the
+mount namespace with no user namespace (`crates/pod-enter/src/ns_user.rs`,
+`spawn_own`), so the ids of the plan do nothing there: the payload of an
+image with `USER runner` runs as root, where docker runs it as the user
+of the image. The chroot rung has the same gap.
+
+## Premise
+
+- Read: `crates/pod-enter/src/ns_user.rs`, `crates/pod-enter/src/launch.rs`
+  (the child sets no ids before the `execve`).
+- Not measured: a root caller of podvm with an image that names a `USER`.
+  No consumer asked for it.
+
+## Approach
+
+Where the rung (or the chroot rung) has no user namespace and the plan
+names ids, the child calls `setgroups(0, NULL)`, `setresgid` and
+`setresuid` with the ids of the plan after the mounts and the root change,
+before the confinement and the exec; a refused call stops the payload with
+its step. A tree that root extracted keeps the owners of the image, so the
+ids of the plan are the ids of the image. Ask podvm first if it wants this
+(a COORD issue), and record the answer.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+```
+

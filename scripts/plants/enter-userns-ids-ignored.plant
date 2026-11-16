@@ -1,0 +1,6 @@
+# pod-enter: the rung maps the caller to 0 whatever the ids inside of the plan, so a payload with 1001:1001 sees uid 0; the live test as a caller with no capabilities must fail at its check of the uid (T-786).
+ENTRY=T-786
+GROUP=enter
+EXPECT='left: Ok\(21\)'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

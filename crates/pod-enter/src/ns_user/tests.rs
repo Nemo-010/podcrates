@@ -49,3 +49,45 @@ fn the_cause_names_both_refusals() {
     let c = both_refused(ns_setup_step(7).unwrap(), sys::EPERM, ns_setup_step(NS_USER_STEP).unwrap(), sys::EINVAL);
     assert_eq!(c, "unshare(CLONE_NEWNS) (EPERM (1)), and in a user namespace at unshare(CLONE_NEWUSER) (EINVAL (22))");
 }
+
+fn plan(ids: Option<(u32, u32)>) -> Plan {
+    Plan {
+        argv: vec!["/bin/true".to_string()],
+        env: Vec::new(),
+        working_dir: "/".to_string(),
+        fds: crate::Fds::default(),
+        banner: String::new(),
+        path_dirs: vec!["/bin".to_string()],
+        names: crate::Names::DEFAULT,
+        limits: Vec::new(),
+        no_new_privs: false,
+        die_with_parent: false,
+        confine: None,
+        hostname: None,
+        volumes: Vec::new(),
+        userns_ids: ids,
+    }
+}
+
+/// A plan with no ids maps to 0, as the probe legs; a plan with ids maps
+/// the caller to them, one line each; `u32::MAX` is refused before the
+/// fork with its value.
+#[test]
+fn the_ids_of_the_plan_are_the_ids_inside() {
+    let line = |ids| {
+        let m = Maps::of_caller_inside(userns_ids(&plan(ids)).unwrap());
+        (String::from_utf8(m.uid_line().to_vec()).unwrap(), String::from_utf8(m.gid_line().to_vec()).unwrap())
+    };
+    let leg = Maps::of_caller();
+    let zero = line(None);
+    assert_eq!((zero.0.as_bytes(), zero.1.as_bytes()), (leg.uid_line(), leg.gid_line()));
+    assert!(zero.0.starts_with("0 ") && zero.0.ends_with(" 1\n"), "{}", zero.0);
+    let user = line(Some((1001, 1002)));
+    let caller = |l: &str| l.split(' ').nth(1).unwrap().to_string();
+    assert_eq!(user.0, format!("1001 {} 1\n", caller(&zero.0)));
+    assert_eq!(user.1, format!("1002 {} 1\n", caller(&zero.1)));
+    for bad in [(u32::MAX, 1001), (1001, u32::MAX)] {
+        let e = userns_ids(&plan(Some(bad))).unwrap_err().to_string();
+        assert!(e.contains("the kernel maps no id 4294967295"), "{e}");
+    }
+}

@@ -1,9 +1,10 @@
 //! The user namespace of a caller with no capabilities, as `unshare -Ur`
 //! makes it: `unshare(CLONE_NEWUSER)`, then `deny` into
 //! `/proc/self/setgroups`, then a map of one line in `uid_map` and in
-//! `gid_map` (the id of the caller to 0). In that namespace the process
-//! holds each capability, so a mount namespace that it makes after this
-//! takes mounts.
+//! `gid_map` (the id of the caller to 0, or to the ids that the caller
+//! names: [`Maps::with_inside`]). In that namespace the process holds each
+//! capability, whatever its id inside, so a mount namespace that it makes
+//! after this takes mounts.
 //!
 //! The namespace rung of `pod-enter` and the probe leg
 //! [`crate::probes::USERNS_LEG`] call [`enter`], so the two cannot drift
@@ -42,30 +43,42 @@ pub struct Maps {
     gid_line: Vec<u8>,
 }
 
-/// One line of a map: `0 <id> 1`. The kernel takes one line with no
+/// One line of a map: `<inside> <id> 1`, the id `id` of the parent
+/// namespace to the id `inside`. The kernel takes one line with no
 /// capability in the parent namespace only where `id` is the effective id
-/// of the writer.
-pub fn map_line(id: u32) -> String {
-    format!("0 {id} 1\n")
+/// of the writer; `inside` can be each id but `u32::MAX`.
+pub fn map_line(inside: u32, id: u32) -> String {
+    format!("{inside} {id} 1\n")
 }
 
 impl Maps {
     /// The maps of `uid` and `gid` to 0.
     pub fn new(uid: u32, gid: u32) -> Maps {
+        Maps::with_inside((0, 0), uid, gid)
+    }
+
+    /// The maps of `uid` and `gid` to the uid and the gid of `inside`.
+    pub fn with_inside(inside: (u32, u32), uid: u32, gid: u32) -> Maps {
         let c = |s: &str| CBuf::new(s).expect("a literal path has no NUL");
         Maps {
             setgroups: c("/proc/self/setgroups"),
             uid_map: c("/proc/self/uid_map"),
             gid_map: c("/proc/self/gid_map"),
-            uid_line: map_line(uid).into_bytes(),
-            gid_line: map_line(gid).into_bytes(),
+            uid_line: map_line(inside.0, uid).into_bytes(),
+            gid_line: map_line(inside.1, gid).into_bytes(),
         }
     }
 
-    /// The maps of the effective ids of this process.
+    /// The maps of the effective ids of this process to 0: the probe legs.
     pub fn of_caller() -> Maps {
+        Maps::of_caller_inside((0, 0))
+    }
+
+    /// The maps of the effective ids of this process to the uid and the gid
+    /// of `inside`: the namespace rung of `pod-enter`.
+    pub fn of_caller_inside(inside: (u32, u32)) -> Maps {
         let id = |nr| unsafe { sys::sys(nr, [0; 6]) }.map_or(0, |n| n as u32);
-        Maps::new(id(sys::SYS_GETEUID), id(sys::SYS_GETEGID))
+        Maps::with_inside(inside, id(sys::SYS_GETEUID), id(sys::SYS_GETEGID))
     }
 
     /// The line of `uid_map`.
@@ -92,7 +105,7 @@ fn write_file(path: &CBuf, bytes: &[u8]) -> Result<(), Errno> {
     }
 }
 
-/// Enter a new user namespace and map the caller to 0 in it. The process
+/// Enter a new user namespace and map the caller in it by `m`. The process
 /// must have one thread: the kernel refuses `CLONE_NEWUSER` to a process
 /// with more (`EINVAL`). Async-signal-safe.
 pub fn enter(m: &Maps) -> Result<(), (Step, Errno)> {
@@ -113,10 +126,22 @@ mod tests {
 
     #[test]
     fn a_map_is_one_line_of_the_id_to_0() {
-        assert_eq!(map_line(1000), "0 1000 1\n");
+        assert_eq!(map_line(0, 1000), "0 1000 1\n");
         let m = Maps::new(1000, 100);
         assert_eq!(m.uid_line(), b"0 1000 1\n");
         assert_eq!(m.gid_line(), b"0 100 1\n");
+    }
+
+    /// The ids inside come first, then the ids of the caller, one each.
+    #[test]
+    fn a_map_with_ids_inside_names_them_first() {
+        assert_eq!(map_line(1001, 1000), "1001 1000 1\n");
+        let m = Maps::with_inside((1001, 1002), 1000, 100);
+        assert_eq!(m.uid_line(), b"1001 1000 1\n");
+        assert_eq!(m.gid_line(), b"1002 100 1\n");
+        let zero = Maps::with_inside((0, 0), 1000, 100);
+        let new = Maps::new(1000, 100);
+        assert_eq!((zero.uid_line(), zero.gid_line()), (new.uid_line(), new.gid_line()));
     }
 
     #[test]
@@ -124,8 +149,11 @@ mod tests {
         let euid = unsafe { sys::sys(sys::SYS_GETEUID, [0; 6]) }.expect("geteuid") as u32;
         let egid = unsafe { sys::sys(sys::SYS_GETEGID, [0; 6]) }.expect("getegid") as u32;
         let m = Maps::of_caller();
-        assert_eq!(m.uid_line(), map_line(euid).as_bytes());
-        assert_eq!(m.gid_line(), map_line(egid).as_bytes());
+        assert_eq!(m.uid_line(), map_line(0, euid).as_bytes());
+        assert_eq!(m.gid_line(), map_line(0, egid).as_bytes());
+        let m = Maps::of_caller_inside((1001, 1001));
+        assert_eq!(m.uid_line(), map_line(1001, euid).as_bytes());
+        assert_eq!(m.gid_line(), map_line(1001, egid).as_bytes());
     }
 
     #[test]

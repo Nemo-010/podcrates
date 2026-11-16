@@ -31,13 +31,14 @@ The entries:
   tries the rung again with a user namespace first, as `unshare -Ur` makes
   it: `unshare(CLONE_NEWUSER)`, `deny` into `/proc/self/setgroups`, then
   one line in `uid_map` and in `gid_map` (the effective ids of the caller
-  to 0; the sequence of `pod_hostprobe::userns`, built before the fork),
+  to the ids of `Plan::userns_ids`, 0 by default; the sequence of
+  `pod_hostprobe::userns`, built before the fork),
   then each step of the rung as for root. Each call has its step
   (`NS_USER_STEP` 23, `NS_SETGROUPS_STEP` 24, `NS_UID_MAP_STEP` 25,
   `NS_GID_MAP_STEP` 26). Only then does the entry fall back to chroot, and
   the line names both refusals (`both_refused`). The overlay root takes
-  the same retry. The files of the caller show as uid 0 in the payload,
-  each other owner as 65534. The kernel refuses a fresh proc there (the
+  the same retry. The files of the caller show as owned by the ids inside
+  (0 by default) in the payload, each other owner as 65534. The kernel refuses a fresh proc there (the
   PID namespace belongs to the user namespace of the host): the child
   binds the host's `/proc` recursively (`NS_PROC_BIND_STEP` 28) and
   remounts the bind `nosuid`, `nodev` and `noexec`
@@ -46,6 +47,19 @@ The entries:
   (`proc_of_this_pid_namespace`): a proc of another PID namespace gives
   one line and no `/proc`. The banner goes out one time for each entry,
   also over a retry or a fallback.
+* The ids of the payload inside the user namespace (`Plan::userns_ids`,
+  PodUtils/podvm#447): `Some((uid, gid))` writes `<uid> <caller-uid> 1`
+  and `<gid> <caller-gid> 1`; `None` is 0. The child holds each capability
+  in the namespace that it makes, whatever its ids there, so each mount of
+  the rung is the same; only the caller's ids are mapped, so each file
+  that the child makes gets them. The `execve` of a uid that is not 0
+  clears the permitted and the effective capabilities: the payload of a
+  user of its image holds none. A join of a run keeps the map of the run
+  (an exec of a run with 1001 is 1001, whatever its plan). The ids apply
+  only on the rung through a user namespace of its own: a caller that
+  makes the mount namespace with no user namespace (root) and each other
+  entry keep the ids of the caller (T-787). `u32::MAX` is refused before
+  the fork.
 * The device nodes of the host on the namespace rung through a user
   namespace (`ns_dev_bind`, PodUtils/podvm#414). The kernel refuses
   `mknod` there, so the image holds regular files at the paths of
@@ -236,7 +250,7 @@ each entry takes; the payload owns the standard output.
 | Item | What |
 | --- | --- |
 | `Names` | `product`, `mode_request`, `mode_active`, `cache`, `maps`, `lib_path`, `exec_table`, `device_spec`, `device_fds`, `cache_marker`, `memfd_label`, `reserved` (the guest paths that the interposer of the caller never rewrites; `Maps::new` refuses a volume under one). `Names::DEFAULT` gives `pod-enter`, `POD_ENTER_MODE`, `POD_ENTER_ACTIVE_MODE`, `POD_ENTER_CACHE`, `POD_ENTER_MAPS`, `POD_ENTER_LIB_PATH`, `POD_ENTER_EXEC_TABLE`, `POD_ENTER_DEVICE_SPEC`, `POD_ENTER_DEVICE_FDS`, `.pod-enter-cache-complete`, `pod-enter-payload`, no reserved path |
-| `Plan { argv, env, working_dir, fds, banner, path_dirs, names, limits, no_new_privs, die_with_parent, confine, hostname, volumes }`, `Program`, `VolumeBind { host, guest, read_only }` | what the payload will be; `Plan::{argv_for, env_for(&names, ..), set_active_mode(&names, ..), path_from, program, program_candidates, DEFAULT_PATH}`; `confine: Option<pod_confine::Spec>` (guest paths on a rung with a chroot, host paths on the entry with no chroot); `hostname: Option<String>` (the namespace rung enters a UTS namespace and sets it; each other entry refuses a plan with a name, and the rung does not fall back to chroot with one); `volumes: Vec<VolumeBind>` (the namespace rung binds each one, in order; each entry with no mount namespace refuses a plan with one, a join binds none, and the rung does not fall back to chroot with one) |
+| `Plan { argv, env, working_dir, fds, banner, path_dirs, names, limits, no_new_privs, die_with_parent, confine, hostname, volumes, userns_ids }`, `Program`, `VolumeBind { host, guest, read_only }` | what the payload will be; `Plan::{argv_for, env_for(&names, ..), set_active_mode(&names, ..), path_from, program, program_candidates, DEFAULT_PATH}`; `confine: Option<pod_confine::Spec>` (guest paths on a rung with a chroot, host paths on the entry with no chroot); `hostname: Option<String>` (the namespace rung enters a UTS namespace and sets it; each other entry refuses a plan with a name, and the rung does not fall back to chroot with one); `volumes: Vec<VolumeBind>` (the namespace rung binds each one, in order; each entry with no mount namespace refuses a plan with one, a join binds none, and the rung does not fall back to chroot with one); `userns_ids: Option<(u32, u32)>` (the uid and the gid of the payload in the user namespace of the rung; `None` is 0) |
 | `limits` | `Limit { resource, soft, hard }`, `Resource` (`from_word` of docker's `--ulimit` word, `word`, `number` of the kernel of this architecture, `name`), `INFINITY`, `MOST` (64): the child of each entry sets each limit (`prlimit64` on itself) and then `PR_SET_NO_NEW_PRIVS` where `Plan::no_new_privs` asks, after the root change and the `chdir`, before the exec; a refused call stops the payload and is named (`setrlimit(RLIMIT_NOFILE): EPERM`); `repeated` names the first resource that a list gives two times, and each entry refuses such a plan before the fork with `Error::LimitTwice`: the caller coalesces first (docker keeps the last value) |
 | `RootDir::open`, `Fds`, `Child`, `Bounded` | the held root; the descriptors of the payload (a passed descriptor onto the number of the root or of the memfd is refused before the fork; the readiness pipe moves clear of each passed number, and the child opens the paths of the rules of the confinement after the passes; a descriptor passed onto its own number loses its close-on-exec flag, so the payload holds it); a started payload (`wait`, `wait_forwarding`, `wait_bounded`) |
 | `spawn`, `run`, `spawn_ladder`, `run_ladder`, `spawn_userland`, `run_userland`, `spawn_namespace`, `run_namespace`, `spawn_namespace_root`, `run_namespace_root`, `spawn_joined`, `spawn_joined_root`, `spawn_selected`, `run_selected` | the entries; a `run_*` waits and forwards SIGINT and SIGTERM. `spawn_userland` and `run_userland` take `&Maps` after the plan: the working directory resolves through it before the fork, and a table whose root is not `root.path` is refused |
@@ -311,7 +325,7 @@ Against podvm `crates/podvm-enter` at `284f429`:
 | `podvm_enter::{abi, binfmt, fuse, plan}` | `pod_enter::*`, re-exported |
 | `podvm_enter::{ladder, memfd, device, userland, stage}` | `pod_enter::*` with the functions that take `&Names` wrapped by `podvm_enter` with podvm's signature |
 | `PODVM_MODE`, `PODVM_ACTIVE_MODE`, `PODVM_CACHE`, `PODVM_MAPS`, `PODVM_DEVICE_SPEC`, `PODVM_DEVICE_FDS`, `.podvm-cache-complete`, `podvm-payload`, `podvm:` | `podvm_enter::NAMES` |
-| `Plan { .. }` | `Plan { .., names: podvm_enter::NAMES, limits: Vec::new(), no_new_privs: false, die_with_parent: false, confine: None, hostname: None, volumes: Vec::new() }` (`--ulimit` and `--security-opt no-new-privileges` fill the limits; the launcher of a detached run sets `die_with_parent`; podvm's record of a detached run keeps them in its own fields) |
+| `Plan { .. }` | `Plan { .., names: podvm_enter::NAMES, limits: Vec::new(), no_new_privs: false, die_with_parent: false, confine: None, hostname: None, volumes: Vec::new(), userns_ids: None }` (`--ulimit` and `--security-opt no-new-privileges` fill the limits; the launcher of a detached run sets `die_with_parent`; podvm's record of a detached run keeps them in its own fields) |
 | the confine layer of PodUtils/podvm@T-1658 (the profile keys `fs.read`, `fs.write`, `fs.execute`, `net.ports`) | `Plan::confine: Some(pod_confine::Spec)`: `Spec::new().allow(path, Access::READ)` for each key (`Access::WRITE`, `Access::EXECUTE`), `connect_to(port)` (and `bind_to(port)` where a profile asks); `podvm probe` reports `pod_confine::probe()` |
 | `Plan::env_for(image, caller)`, `Plan::MODE_REQUEST_VAR` | `Plan::env_for(&NAMES, image, caller)`, `NAMES.mode_request` |
 | `ladder::Mode::parse(s)` | `podvm_enter::ladder::parse_mode(s)` |
@@ -332,6 +346,7 @@ Against podvm `crates/podvm-enter` at `284f429`:
 | `lifecycle::volume::refuse_paths`: `-w` or a first program in a volume refused by name | goes; give `&maps` to `check_workdir`, `ladder::payload_head`, `resolve_payload`, `guest_exe`, `guest_invoked`, `userland::invocation_path`, `userland::loader_plan`, `abi::resolve_in` (`interpose.rs`) and to `lifecycle::script::follow` |
 | `run_userland(root, plan, argv, ..)`, `spawn_userland(root, plan, argv, ..)` (`lifecycle/userland.rs`, `podvm-supervise`'s `launcher.rs`) | `run_userland(root, plan, &maps, argv, ..)`; `Maps::of_root(rootfs)` where the run has no volume. The child enters the working directory that the walk resolved: a link of the image in `-w` is followed inside the image, not on the host |
 | `userland::invocation_path` | the invoked spelling stays only where the host opens the resolved file through it (the same device and inode); else the resolved file |
+| the image's `USER` or `--user` of `run -d` and `create` on the namespace rung (PodUtils/podvm#447) | `Plan::userns_ids: Some((uid, gid))` with the ids that podvm resolves in the tree; `--user 0` is `None`. `Plan::env_for` adds `HOME=/root` where the image and the caller set no `HOME`: give the `HOME` of the user (docker reads the passwd of the image) in the caller's variables. Each file of the tree of the caller then shows as owned by the user |
 
 ## Tests
 
@@ -397,7 +412,13 @@ the upper directory holds pass (the write lands in it, and a write
 outside the rules fails), a working directory and a rule on a path that
 a whiteout of the upper directory removes are refused by name before the
 banner, a volume over a directory of the upper directory wins for `-w`
-and a rule, and a joined exec takes `-w` of the upper directory.
+and a rule, and a joined exec takes `-w` of the upper directory. Its test of the ids
+inside (T-786, `tests/userns/ids.rs`): with `Plan::userns_ids`
+1001:1001 the payload sees `id -u` and `id -g` 1001, the maps
+`1001 <caller> 1`, a file of the caller as owned by 1001:1001, a file
+that it makes in `/tmp` as owned by 1001, the host name of the plan,
+and `CapEff` and `CapPrm` 0; with no ids it sees 0 and its capabilities;
+an exec that joins the run with the ids is 1001 with no capability.
 `scripts/ci/userns-tests.sh` runs it
 in CI and fails on a skip. The plants `enter-userns-not-tried`,
 `enter-userns-no-maps`, `enter-userns-banner-twice`,
@@ -409,7 +430,8 @@ in CI and fails on a skip. The plants `enter-userns-not-tried`,
 `enter-confine-volume-descriptors-kept`, `enter-upper-workdir-in-the-lower`,
 `enter-upper-rule-in-the-lower`, `enter-upper-hidden-read`,
 `enter-upper-volume-under-the-layers`, `enter-upper-join-in-the-lower`,
-`enter-upper-whiteout-read` and `enter-upper-opaque-read` prove it.
+`enter-upper-whiteout-read`, `enter-upper-opaque-read` and
+`enter-userns-ids-ignored` prove it.
 `tests/overlay_root.rs` is podvm's acceptance test of the overlay root
 (PodUtils/podvm#323) with an upper directory of the caller: the writes
 are in the upper layer, the image is the same byte for byte, and a file

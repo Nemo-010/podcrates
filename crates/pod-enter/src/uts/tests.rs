@@ -16,6 +16,7 @@ fn plan(hostname: Option<&str>) -> Plan {
         confine: None,
         hostname: hostname.map(str::to_string),
         volumes: Vec::new(),
+        userns_ids: None,
     }
 }
 

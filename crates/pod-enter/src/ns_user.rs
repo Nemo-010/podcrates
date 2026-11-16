@@ -10,14 +10,23 @@
 //!
 //! In the child, first in the rung: `unshare(CLONE_NEWUSER)`, `deny` into
 //! `/proc/self/setgroups`, one line in `uid_map` and in `gid_map` (the
-//! effective ids of the caller to 0), all of [`pod_hostprobe::userns`], the
-//! sequence of the probe leg too. The maps come before each mount: a
-//! directory that the overlay root makes needs a mapped owner. The files of
-//! the caller show as uid 0 in the payload, each other owner as the
-//! overflow id (65534).
+//! effective ids of the caller to the ids of [`Plan::userns_ids`], 0 by
+//! default), all of [`pod_hostprobe::userns`], the sequence of the probe
+//! leg too. The maps come before each mount: a directory that the overlay
+//! root makes needs a mapped owner. The files of the caller show as owned
+//! by the ids inside in the payload, each other owner as the overflow id
+//! (65534).
+//!
+//! The child holds each capability in the namespace that it makes, also
+//! with ids inside that are not 0, so each mount of the rung is the same.
+//! Only the caller's ids are mapped, so each file that the child makes
+//! (a mount point, the root of the overlay) gets the caller's ids. The
+//! `execve` of a uid that is not 0 clears the permitted and the effective
+//! capabilities: the payload of a user of its image holds none.
 
 use std::io::Write;
 
+use pod_core::Class;
 use pod_hostprobe::select::Rung;
 use pod_hostprobe::sys::{self, Errno};
 use pod_hostprobe::userns::{Maps, Step};
@@ -89,14 +98,32 @@ pub(crate) struct Own {
     pub(crate) first: Option<(&'static str, Errno)>,
 }
 
+/// The ids inside the user namespace of `plan`: 0 where it names none.
+/// `u32::MAX` is `(uid_t)-1`, and the kernel refuses a map of it: the
+/// refusal comes before the fork, not as a fallback to chroot.
+pub(crate) fn userns_ids(plan: &Plan) -> Result<(u32, u32)> {
+    let ids = plan.userns_ids.unwrap_or((0, 0));
+    if ids.0 == u32::MAX || ids.1 == u32::MAX {
+        return Err(Error::runtime(
+            Class::Usage,
+            format!("the ids {}:{} inside the user namespace: the kernel maps no id {}", ids.0, ids.1, u32::MAX),
+        ));
+    }
+    Ok(ids)
+}
+
 /// Enter the namespace rung with the mounts of `mount`, and, at `EPERM` of
 /// `unshare(CLONE_NEWNS)`, again in a user namespace of its own. `banner`
 /// is the banner of the first try; the second try writes none.
 pub(crate) fn spawn_own(root: &RootDir, plan: &Plan, mount: &mut NsMount, banner: bool, err: &mut dyn Write) -> Own {
+    let ids = match userns_ids(plan) {
+        Ok(ids) => ids,
+        Err(e) => return Own { result: Err(e), first: None },
+    };
     let word = Rung::Namespace.word();
     match spawn_with(root, plan, word, None, None, None, Some(NsEntry::Own(mount)), banner, err) {
         Err(Error::NsSetup { step, errno }) if calls_for_user_namespace(step, errno) => {
-            mount.user = Some(Maps::of_caller());
+            mount.user = Some(Maps::of_caller_inside(ids));
             mount.devices = Some(crate::ns_dev_bind::devices(root, &plan.names));
             let result = spawn_with(root, plan, word, None, None, None, Some(NsEntry::Own(mount)), false, err);
             Own { result, first: Some((step, errno)) }
