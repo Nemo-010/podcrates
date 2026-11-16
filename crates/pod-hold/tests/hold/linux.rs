@@ -289,6 +289,109 @@ fn a_namespace_gives_its_tun_to_the_parent() {
     println!("ok: a_namespace_gives_its_tun_to_the_parent");
 }
 
+/// Refuse `socket(AF_INET or AF_INET6, SOCK_DGRAM)` with `EPERM` in this
+/// process, as the lab `udp-denied` of `pod-lab` does. Each other call runs.
+/// False when the host refuses the filter.
+fn refuse_udp_sockets() -> bool {
+    #[cfg(target_arch = "x86_64")]
+    const ARCH: u32 = 0xC000_003E;
+    #[cfg(target_arch = "aarch64")]
+    const ARCH: u32 = 0xC000_00B7;
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
+    return false;
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
+    {
+        const LD_ABS: u16 = 0x20; // BPF_LD | BPF_W | BPF_ABS
+        const JEQ: u16 = 0x15; // BPF_JMP | BPF_JEQ | BPF_K
+        const AND: u16 = 0x54; // BPF_ALU | BPF_AND | BPF_K
+        const RET: u16 = 0x06; // BPF_RET | BPF_K
+        const ERRNO: u32 = 0x0005_0000;
+        const ALLOW: u32 = 0x7FFF_0000;
+        let op = |code: u16, jt: u8, jf: u8, k: u32| libc::sock_filter { code, jt, jf, k };
+        // The offsets of `struct seccomp_data`: the number 0, the arch 4,
+        // the low half of argument 0 at 16 and of argument 1 at 24. A jump
+        // counts from the next instruction; the last instruction allows.
+        let program = [
+            op(LD_ABS, 0, 0, 4),
+            op(JEQ, 0, 9, ARCH),
+            op(LD_ABS, 0, 0, 0),
+            op(JEQ, 0, 7, libc::SYS_socket as u32),
+            op(LD_ABS, 0, 0, 16),
+            op(JEQ, 1, 0, libc::AF_INET as u32),
+            op(JEQ, 0, 4, libc::AF_INET6 as u32),
+            op(LD_ABS, 0, 0, 24),
+            op(AND, 0, 0, 0xF),
+            op(JEQ, 0, 1, libc::SOCK_DGRAM as u32),
+            op(RET, 0, 0, ERRNO | libc::EPERM as u32),
+            op(RET, 0, 0, ALLOW),
+        ];
+        let prog = libc::sock_fprog { len: program.len() as u16, filter: program.as_ptr() as *mut _ };
+        // SAFETY: prctl of this process; the program lives for the call.
+        unsafe {
+            libc::prctl(libc::PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) == 0
+                && libc::prctl(libc::PR_SET_SECCOMP, libc::SECCOMP_MODE_FILTER, &prog as *const libc::sock_fprog) == 0
+        }
+    }
+}
+
+/// The netns hold in the lab `udp-denied`: the host refuses each UDP
+/// socket, and the namespace still brings up `lo` and makes its wire (the
+/// TUN, else the veth pair) with its address and route. The child exits 20
+/// when the interfaces fail.
+fn a_namespace_makes_its_wire_where_udp_sockets_are_refused() {
+    const NAME: &str = "a_namespace_makes_its_wire_where_udp_sockets_are_refused";
+    let (parent, child) = netns::socketpair().expect("a pair");
+    // SAFETY: this process has one thread here; the child exits with _exit.
+    let pid = unsafe { libc::fork() };
+    assert!(pid >= 0);
+    if pid == 0 {
+        drop(parent);
+        let code = (|| {
+            if !refuse_udp_sockets() {
+                return 30;
+            }
+            // SAFETY: a plain system call; the descriptor is not kept.
+            let udp = unsafe { libc::socket(libc::AF_INET, libc::SOCK_DGRAM | libc::SOCK_CLOEXEC, 0) };
+            if udp >= 0 || errno() != libc::EPERM {
+                return 31;
+            }
+            let Ok(userns) = netns::enter() else { return 10 };
+            if netns::announce(child.as_raw_fd(), userns).is_err() {
+                return 11;
+            }
+            let tun = netns::Tun::default();
+            let made = netns::bringup_loopback().and_then(|()| netns::open_wire(&tun, netns::WireChoice::Auto));
+            match made {
+                Ok(_) => 0,
+                Err(e) => {
+                    let chain = e.chain();
+                    eprintln!("{NAME}: child: {chain}");
+                    // The socket of the ioctls and the ioctls are the defect;
+                    // no TUN and no veth pair is the host.
+                    if chain.contains("for the interfaces") || chain.contains("ioctl SIOC") { 20 } else { 12 }
+                }
+            }
+        })();
+        // SAFETY: the end of the child.
+        unsafe { libc::_exit(code) };
+    }
+    drop(child);
+    // SAFETY: getuid and getgid do not fail.
+    let (uid, gid) = unsafe { (libc::getuid(), libc::getgid()) };
+    if let Err(e) = netns::answer(parent.as_raw_fd(), pid as u32, uid, gid) {
+        let code = wait(pid);
+        assert_ne!(code, 31, "the filter does not refuse a UDP socket");
+        let why = if code == 30 { "a seccomp filter" } else { "a network namespace" };
+        println!("SKIP: {NAME}: the host refuses {why} (child exit {code}): {}", e.chain());
+        return;
+    }
+    match wait(pid) {
+        0 => println!("ok: {NAME}"),
+        12 => println!("SKIP: {NAME}: the namespace has no TUN and no veth wire"),
+        code => panic!("{NAME}: the interfaces fail where UDP sockets are refused (child exit {code})"),
+    }
+}
+
 pub fn main() {
     let args: Vec<String> = std::env::args().collect();
     match args.get(1).map(String::as_str) {
@@ -301,6 +404,7 @@ pub fn main() {
     // The fork of the namespace test comes first, while the process has one
     // thread.
     a_namespace_gives_its_tun_to_the_parent();
+    a_namespace_makes_its_wire_where_udp_sockets_are_refused();
     a_refused_connect_fails_with_the_errno_of_the_reply();
     a_socket_call_gets_the_descriptor_of_the_supervisor();
     a_raw_icmp_socket_gets_eperm_unless_the_hold_allows_it();

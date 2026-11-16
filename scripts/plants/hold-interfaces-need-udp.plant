@@ -1,0 +1,6 @@
+# The netns hold opens only an AF_INET datagram socket for its interface ioctls, as before T-743: the lab udp-denied refuses it.
+ENTRY=T-743
+GROUP=hold
+EXPECT='the interfaces fail where UDP sockets are refused'
+RUN='cargo test -p pod-hold --all-features --test hold'
+LIMIT=1800

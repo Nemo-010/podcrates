@@ -1,0 +1,6 @@
+# The unix listener gives up when Landlock refuses the move of its staged socket (EXDEV), as before T-742.
+ENTRY=T-742
+GROUP=link
+EXPECT='the listener under Landlock with no REFER: .*cross-device link'
+RUN='cargo test -p pod-link --all-features --test unix_hosts'
+LIMIT=1800

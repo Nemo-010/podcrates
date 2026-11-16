@@ -1,0 +1,6 @@
+# The bind at the path sets no mode before the bind: the new file has the mode of the umask until the chmod (T-742).
+ENTRY=T-742
+GROUP=link
+EXPECT='fchmod 600, umask'
+RUN='cargo test -p pod-link --all-features --lib -- unix::tests::the_mode_of_the_socket_is_the_mode_of_its_file_at_the_bind'
+LIMIT=1800

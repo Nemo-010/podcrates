@@ -8051,7 +8051,7 @@ cargo test -p pod-transit --test transit
 **Milestone:** M2
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8071,6 +8071,10 @@ On `EXDEV`, bind at the path with the mode set before the bind (no window where 
 cargo test -p pod-link --all-features
 ```
 
+## Done
+
+2026-11-16, the commit of the fix. The fix (call C724): `bind_private` of `crates/pod-link/src/unix.rs` binds at the path when the move of the staged socket gives `EXDEV`, and also when the staged name does not fit in `sun_path` (before, that path bound with the mode of the umask and set 0600 after the bind: a window). On Linux each bind of the carrier (`bind_at`, `bind_socket`) makes the socket with `socket(2)`, sets its mode with `fchmod` 0600, then binds and listens: Linux makes the file of the socket with the mode of the inode of the socket less the umask (`unix_bind_bsd`), so the file never has a wider mode; `bind_with_mode` then sets 0600 again. On another unix the bind and the chmod stay as before. A refused `listen` now gives `bind PATH: listen: ...`, not a bare refused bind (a finding of podnet's `listen-denied` lane, fixed in place). Tests: `tests/unix_hosts.rs`, `a_unix_listener_binds_under_landlock_with_no_refer` (a thread under a Landlock domain that handles no `REFER`, checked by a refused move of a file: the listener binds with the mode 0600, leaves no staging directory and answers a dial); before the fix it fails with podnet's error, `bind /tmp/...: Invalid cross-device link (os error 18)`. `a_refused_listen_names_listen` (a seccomp filter of one thread refuses `listen` with `EACCES`): before, `bind ...: Permission denied`. `src/unix/tests.rs`, `the_mode_of_the_socket_is_the_mode_of_its_file_at_the_bind` (the modes 0600, 0640 and 0700 against the umask of `/proc/self/status`) and `a_bind_with_the_mode_refuses_an_existing_path`. The plants `link-unix-exdev-fatal` (no `EXDEV` branch), `link-unix-mode-after-bind` (no `fchmod`) and `link-unix-listen-named-bind` (the bind of tokio) are caught. The tests pass as root and as uid 65534. podnet can drop its wait on PodUtils/podnet@T-380 and take the tag; its own `bind_with_mode` in `podnet-netns` stays its own. Release notes: `pod-link`: the unix carrier listens under Landlock with no `REFER` (the labs `no-tun`, `root-unreadable`, `proc-masked`, the `bind-denied` host of podrunner); each listener of the unix carrier on Linux has the mode 0600 from its bind on; a refused `listen` names `listen`.
+
 # T-743: `pod-hold`: the netns backend needs a UDP socket for its interface ioctls, which `udp-denied` refuses (PodUtils/podnet#592)
 
 **Source:** PodUtils/podnet#592 (PodUtils/podnet@T-381).
@@ -8078,7 +8082,7 @@ cargo test -p pod-link --all-features
 **Milestone:** M2
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8097,3 +8101,7 @@ Use an `AF_UNIX` datagram socket for the interface ioctls (or fall back to it on
 ```sh
 cargo test -p pod-hold --all-features
 ```
+
+## Done
+
+2026-11-16, the commit of the fix. The premise is not complete: an `AF_UNIX` socket takes only the ioctls of `dev_ioctl` (its family has no ioctl, so `sock_do_ioctl` gives the rest to `dev_ioctl`). Measured in a user and a network namespace with a TUN on kernel 6.18: `AF_UNIX` (datagram and stream) and `AF_NETLINK` give `SIOCSIFFLAGS` and `SIOCSIFMTU`, and `ENOTTY` for `SIOCSIFADDR`, `SIOCSIFNETMASK` and `SIOCADDRT`; `AF_INET` of the stream and of the datagram type, and `AF_PACKET`, give each of the five. The fix (call C723): `control` of `crates/pod-hold/src/netns/tun.rs` opens `AF_INET` of the stream type, else of the datagram type, and a failure of both names both. Test: `tests/hold.rs`, `a_namespace_makes_its_wire_where_udp_sockets_are_refused`: a child installs a seccomp filter that refuses `socket(AF_INET or AF_INET6, SOCK_DGRAM)` with `EPERM` (as the lab `udp-denied`), checks the refusal, enters a network namespace, brings up `lo` and opens the wire (`WireChoice::Auto`); exit 20 when the interfaces fail. Before the fix it fails with podnet's error, `socket() for the interfaces: Operation not permitted (os error 1)`. It passes as root (the TUN) and as uid 65534 (the veth wire); `scripts/root-netns-tests.sh` runs it as root in CI, where a skip fails. The plant `hold-interfaces-need-udp` (the datagram type alone) is caught. podnet can drop its wait on PodUtils/podnet@T-381 and take the tag. Release notes: `pod-hold`: the netns hold works where the host refuses UDP sockets (the lab `udp-denied`): the interface ioctls use a TCP socket.

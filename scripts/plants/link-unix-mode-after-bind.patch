@@ -1,0 +1,11 @@
+--- a/crates/pod-link/src/unix.rs
++++ b/crates/pod-link/src/unix.rs
+@@ -247,7 +247,7 @@
+     // SAFETY: fchmod and bind on a descriptor of this function; `addr` lives
+     // for the call and `len` is its used length.
+     let bound = unsafe {
+-        libc::fchmod(sock.as_raw_fd(), mode) == 0
++        mode != 0
+             && libc::bind(sock.as_raw_fd(), (&raw const addr).cast(), len as libc::socklen_t) == 0
+     };
+     if !bound {

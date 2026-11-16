@@ -1,0 +1,6 @@
+# The unix listener binds and listens in one call of tokio: a refused listen reads as a refused bind (T-742).
+ENTRY=T-742
+GROUP=link
+EXPECT='the failure names listen: .*bind .*Permission denied'
+RUN='cargo test -p pod-link --all-features --test unix_hosts a_refused_listen_names_listen'
+LIMIT=1800

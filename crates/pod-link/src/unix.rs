@@ -3,7 +3,10 @@
 //!
 //! * A listener's socket has the mode 0600: it is bound in a new directory
 //!   of mode 0700 beside the path, and moved to the path with no replace,
-//!   so it never exists at the path with the mode of the umask.
+//!   so it never exists at the path with the mode of the umask. Where the
+//!   move is refused (Landlock with no `REFER`: `EXDEV`) or the staged name
+//!   is too long, the socket is bound at the path with the mode 0600 set
+//!   before the bind.
 //! * A regular file at the path is never removed (a usage error); a socket
 //!   that answers belongs to another listener (in use); a stale socket is
 //!   removed.
@@ -162,8 +165,10 @@ fn claim(path: &Path) -> Result<(), CarrierError> {
 
 /// Bind a listener at `path` with the mode 0600. The socket is bound in a
 /// new directory of mode 0700 beside the path, then moved to the path with
-/// no replace. When the staged name does not fit in `sun_path`, the socket
-/// is bound at the path and its mode set at once.
+/// no replace. When the staged name does not fit in `sun_path`, or the move
+/// is refused with `EXDEV` (a Landlock domain with no `REFER` refuses each
+/// move to another directory), the socket is bound at the path with the
+/// mode set before the bind ([`bind_with_mode`]).
 fn bind_private(path: &Path) -> io::Result<UnixListener> {
     let parent = match path.parent() {
         Some(p) if !p.as_os_str().is_empty() => p,
@@ -175,7 +180,7 @@ fn bind_private(path: &Path) -> io::Result<UnixListener> {
     let bound = if staged.as_os_str().len() > MAX_PATH {
         None
     } else {
-        Some(UnixListener::bind(&staged).and_then(|listener| {
+        Some(bind_at(&staged).and_then(|listener| {
             std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o600))?;
             move_no_replace(&staged, path)?;
             Ok(listener)
@@ -184,13 +189,82 @@ fn bind_private(path: &Path) -> io::Result<UnixListener> {
     let _ = std::fs::remove_file(&staged);
     let _ = std::fs::remove_dir(&dir);
     match bound {
+        Some(Err(e)) if e.raw_os_error() == Some(libc::EXDEV) => bind_with_mode(path),
         Some(bound) => bound,
-        None => {
-            let listener = UnixListener::bind(path)?;
-            std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
-            Ok(listener)
-        }
+        None => bind_with_mode(path),
     }
+}
+
+/// Bind a listener at `path` that has the mode 0600 from the bind on, then
+/// set 0600 again, as the umask can make the mode narrower. An existing
+/// `path` is `AddrInUse`.
+fn bind_with_mode(path: &Path) -> io::Result<UnixListener> {
+    let listener = bind_at(path)?;
+    if let Err(e) = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)) {
+        let _ = std::fs::remove_file(path);
+        return Err(e);
+    }
+    Ok(listener)
+}
+
+/// A listener at `path`. On Linux its file has the mode 0600 less the umask
+/// from the bind on, and a refused `listen` names `listen`, not `bind`.
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn bind_at(path: &Path) -> io::Result<UnixListener> {
+    UnixListener::from_std(bind_socket(path, 0o600)?)
+}
+
+/// On another unix, `fchmod` of a socket is not certain to set the mode of
+/// its file: the caller sets the mode after the bind.
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
+fn bind_at(path: &Path) -> io::Result<UnixListener> {
+    UnixListener::bind(path)
+}
+
+/// A listening socket bound at `path`, whose file has `mode` less the
+/// umask. Linux makes the file of a bound socket with the mode of the inode
+/// of the socket less the umask (`unix_bind_bsd`), and `fchmod` of a socket
+/// sets the mode of that inode. Thus `fchmod` before `bind` gives the file
+/// its mode at its creation, with no window where another user can connect.
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn bind_socket(path: &Path, mode: libc::mode_t) -> io::Result<std::os::unix::net::UnixListener> {
+    use std::os::fd::{AsRawFd as _, FromRawFd as _, OwnedFd};
+    use std::os::unix::ffi::OsStrExt as _;
+    let bytes = path.as_os_str().as_bytes();
+    // SAFETY: an all-zero sockaddr_un is a valid value.
+    let mut addr: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+    if bytes.is_empty() || bytes.len() >= addr.sun_path.len() || bytes.contains(&0) {
+        return Err(io::Error::new(io::ErrorKind::InvalidInput, "the path does not fit in a socket address"));
+    }
+    addr.sun_family = libc::AF_UNIX as libc::sa_family_t;
+    for (to, from) in addr.sun_path.iter_mut().zip(bytes) {
+        *to = *from as libc::c_char;
+    }
+    let len = std::mem::size_of::<libc::sa_family_t>() + bytes.len() + 1;
+    // SAFETY: socket with constant arguments.
+    let fd = unsafe { libc::socket(libc::AF_UNIX, libc::SOCK_STREAM | libc::SOCK_CLOEXEC | libc::SOCK_NONBLOCK, 0) };
+    if fd < 0 {
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: a new descriptor that nothing else owns.
+    let sock = unsafe { OwnedFd::from_raw_fd(fd) };
+    // SAFETY: fchmod and bind on a descriptor of this function; `addr` lives
+    // for the call and `len` is its used length.
+    let bound = unsafe {
+        libc::fchmod(sock.as_raw_fd(), mode) == 0
+            && libc::bind(sock.as_raw_fd(), (&raw const addr).cast(), len as libc::socklen_t) == 0
+    };
+    if !bound {
+        // An existing path is EADDRINUSE: the kind `AddrInUse`.
+        return Err(io::Error::last_os_error());
+    }
+    // SAFETY: listen on a bound descriptor of this function.
+    if unsafe { libc::listen(sock.as_raw_fd(), 1024) } != 0 {
+        let e = io::Error::last_os_error();
+        let _ = std::fs::remove_file(path);
+        return Err(io::Error::new(e.kind(), format!("listen: {e}")));
+    }
+    Ok(std::os::unix::net::UnixListener::from(sock))
 }
 
 /// A value for a name that no other bind of this process or another
@@ -237,3 +311,6 @@ fn move_no_replace(from: &Path, to: &Path) -> io::Result<()> {
     std::fs::hard_link(from, to).map_err(in_use)?;
     std::fs::remove_file(from)
 }
+
+#[cfg(all(test, any(target_os = "linux", target_os = "android")))]
+mod tests;

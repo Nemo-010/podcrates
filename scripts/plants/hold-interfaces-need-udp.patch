@@ -1,0 +1,11 @@
+--- a/crates/pod-hold/src/netns/tun.rs
++++ b/crates/pod-hold/src/netns/tun.rs
+@@ -82,7 +82,7 @@
+ pub(super) fn control() -> Result<OwnedFd, Failure> {
+     let mut refused = Vec::new();
+     let mut last = None;
+-    for (kind, word) in [(libc::SOCK_STREAM, "stream"), (libc::SOCK_DGRAM, "datagram")] {
++    for (kind, word) in [(libc::SOCK_DGRAM, "datagram")] {
+         // SAFETY: socket with constant arguments.
+         let sock = unsafe { libc::socket(libc::AF_INET, kind | libc::SOCK_CLOEXEC, 0) };
+         if sock >= 0 {

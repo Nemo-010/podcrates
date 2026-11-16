@@ -12,6 +12,11 @@ pub(crate) fn errno(class: Class, what: &str, errno: i32) -> Failure {
     Failure::caused(Stage::Host, class, what.to_string(), std::io::Error::from_raw_os_error(errno))
 }
 
+/// The failure `what` with its cause `e`.
+pub(crate) fn caused(class: Class, what: impl Into<String>, e: std::io::Error) -> Failure {
+    Failure::caused(Stage::Host, class, what.into(), e)
+}
+
 /// The errno of the last call of this thread, for the call `what`, with
 /// the class of its kind.
 pub(crate) fn last_os(what: &str) -> Failure {

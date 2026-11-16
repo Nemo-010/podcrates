@@ -220,6 +220,10 @@ PodUtils/podnet#446 and #451; podnet's PodUtils/podnet@T-174):
     `...; the veth wire: ...`).
   * `Hold::netns` takes the wire: the proof of a veth hold names the veth
     pair, not a TUN.
+  * The socket of the interface ioctls is `AF_INET` of the stream type,
+    else of the datagram type (T-743, call C723): a host that refuses UDP
+    sockets (the lab `udp-denied`) keeps the netns hold. podnet opened a
+    UDP socket alone.
 
 With podnet `crates/podnet-netns` at `a7350b2`, the hold of a SYN of the
 router of the netns backend on `pod-netstack` (T-170, step 2;
@@ -331,6 +335,8 @@ unit test makes an interface: each name check comes before a system call.
 `tests/hold.rs` (no libtest: the binary is the payload too): a refused
 connect fails with the errno of the reply, a socket call gets the
 descriptor of the supervisor, a namespace gives its TUN to the parent,
+a namespace makes its wire under a filter that refuses UDP sockets
+(`a_namespace_makes_its_wire_where_udp_sockets_are_refused`),
 a raw ICMP socket gets `EPERM` from the filter with no notification,
 and with `Calls::allow_raw` reaches the supervisor and the kernel
 (`a_raw_icmp_socket_gets_eperm_unless_the_hold_allows_it`), and each

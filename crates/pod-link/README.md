@@ -492,6 +492,11 @@ tests that hold them:
 - [x] The unix carrier: a path of 1 to 107 bytes, mode 0600, a regular
   file refused (64), a live socket in use (69), a stale socket replaced,
   the peer's uid unless allowed, a socket pair: `tests/carriers.rs`.
+- [x] The unix carrier on hostile hosts: a listener under Landlock with no
+  `REFER` (the move of the staged socket gives `EXDEV`) binds at the path
+  with the mode 0600 set before the bind, and a refused `listen` names
+  `listen`: `tests/unix_hosts.rs`; the mode of the file of a socket is the
+  mode that `fchmod` gave the socket before its bind: `src/unix/tests.rs`.
 - [x] The memory carrier: a ring of 64 KiB to 64 MiB (1 MiB by default), a
   full ring makes the writer wait and drops nothing, the end of one side
   is the end of stream of the other: `tests/carriers.rs`.

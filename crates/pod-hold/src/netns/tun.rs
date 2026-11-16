@@ -72,15 +72,30 @@ pub(super) fn check_name(name: &str, what: &str) -> Result<(), Failure> {
     Ok(())
 }
 
-/// A datagram socket for the ioctls of the interfaces.
+/// A socket for the ioctls of the interfaces: `AF_INET` of the stream type,
+/// else of the datagram type. A host can refuse one type (a filter that
+/// refuses UDP sockets) and allow the other. An `AF_UNIX` socket is not
+/// enough: its family has no ioctl of its own, so the kernel gives only the
+/// ioctls of `dev_ioctl` (the flags, the MTU) to it, and refuses
+/// `SIOCSIFADDR`, `SIOCSIFNETMASK` and `SIOCADDRT` with `ENOTTY`. The
+/// `AF_INET` ioctls (`inet_ioctl`) are the same for each socket type.
 pub(super) fn control() -> Result<OwnedFd, Failure> {
-    // SAFETY: socket with constant arguments.
-    let sock = unsafe { libc::socket(libc::AF_INET, libc::SOCK_DGRAM | libc::SOCK_CLOEXEC, 0) };
-    if sock < 0 {
-        return Err(failure::last_os("socket() for the interfaces"));
+    let mut refused = Vec::new();
+    let mut last = None;
+    for (kind, word) in [(libc::SOCK_STREAM, "stream"), (libc::SOCK_DGRAM, "datagram")] {
+        // SAFETY: socket with constant arguments.
+        let sock = unsafe { libc::socket(libc::AF_INET, kind | libc::SOCK_CLOEXEC, 0) };
+        if sock >= 0 {
+            // SAFETY: a new descriptor that nothing else owns.
+            return Ok(unsafe { OwnedFd::from_raw_fd(sock) });
+        }
+        let e = std::io::Error::last_os_error();
+        refused.push(format!("{word}: {e}"));
+        last = Some(e);
     }
-    // SAFETY: a new descriptor that nothing else owns.
-    Ok(unsafe { OwnedFd::from_raw_fd(sock) })
+    let e = last.unwrap_or_else(|| std::io::Error::from_raw_os_error(libc::EPERM));
+    let what = format!("socket(AF_INET) for the interfaces ({})", refused.join("; "));
+    Err(failure::caused(Class::of_io(e.kind()), what, e))
 }
 
 pub(super) fn set_flags(sock: &OwnedFd, name: &str, what: &str) -> Result<(), Failure> {
