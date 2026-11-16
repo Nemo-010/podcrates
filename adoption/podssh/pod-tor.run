@@ -1,0 +1,18 @@
+# The trial of pod-tor in podssh (T-038), at podssh's main 0370b0b
+# (pod-tor.commit). crates/podssh-tor leaves podssh: podssh-cli takes
+# pod-tor with its feature tor, and gives Options its way out
+# (podssh_ws::client::way of the proxy of the environment) in place of a
+# ProxyChoice. The tests of the crate, its part of the job tor-net and its
+# live onion step move to podcrates (tor.yml). Each podcrates tag moves to
+# v0.65.0. The repository checks; no file of the crate stays; the build and
+# clippy of the CLI with the feature, with the lints that the gate allows;
+# pod-tor in its tree; the tests of its library with the feature, and the
+# test of the private network (it passes with no network).
+python3 scripts/check-repo.py
+test ! -e crates/podssh-tor
+! grep -rn --include=Cargo.toml -e 'podssh-tor' crates
+cargo build -q -p podssh-cli --features tor
+cargo tree -q -p podssh-cli --features tor -i pod-tor | grep -q '^pod-tor v'
+cargo clippy -q --all-targets -p podssh-cli --features tor -- -D warnings -A clippy::collapsible_if
+cargo test -q -p podssh-cli --features tor --lib
+cargo test -q -p podssh-cli --features tor --test tor_private

@@ -1,0 +1,2576 @@
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index 3cfe85c..ed82496 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -421,12 +421,10 @@ jobs:
+       - name: the Tor road through it
+         run: |
+           set -eu
+-          cargo test --locked -p podssh-tor --test private_network
+           cargo test --locked -p podssh-cli --features tor --test tor_private
+           # T-578: a node's onion service there, each relay an HSDir, once
+           # the consensus holds both shared random values (tor-net.sh).
+           sh scripts/tor-net.sh wait-onion "$RUNNER_TEMP/tor-net" 1200
+-          cargo test --locked -p podssh-tor --test onion_service -- --nocapture
+           # T-578: podssh ssh node:// through the onion road alone, from end to end.
+           cargo test --locked -p podssh-cli --features tor --test derp_road -- --nocapture derp_onion
+       - name: the network stopped
+diff --git a/.github/workflows/tor-live.yml b/.github/workflows/tor-live.yml
+index dd04b14..e94d19d 100644
+--- a/.github/workflows/tor-live.yml
++++ b/.github/workflows/tor-live.yml
+@@ -2,8 +2,9 @@ name: tor live
+ 
+ # T-353: the Tor road on Tor's public network, by the operator's leave
+ # (Q60, 2026-11-01): short runs, one bootstrap of Arti and one stream to
+-# github.com:22, twice; with the input onion, one onion service of a
+-# throwaway key (T-578, Q91). Started by hand only; it publishes nothing.
++# github.com:22, twice. The onion service of a throwaway key (T-578, Q91)
++# is a test of pod-tor, in podcrates' tor.yml. Started by hand only; it
++# publishes nothing.
+ 
+ on:
+   workflow_dispatch:
+@@ -11,10 +12,6 @@ on:
+       confirm:
+         description: "Type Q60 to reach Tor's public network"
+         required: true
+-      onion:
+-        description: "yes: also one onion service of a throwaway key, 1 MiB each way, then stopped (T-578, Q91)"
+-        required: false
+-        default: "no"
+ 
+ permissions:
+   contents: read
+@@ -35,15 +32,6 @@ jobs:
+         run: cargo test --locked -p podssh-cli --features tor --test tor_live --no-run
+       - name: GitHub's banner through Tor's public network
+         run: timeout 900 cargo test --locked -p podssh-cli --features tor --test tor_live -- --ignored --nocapture
+-      # T-578, Q91: one onion service on Tor's public network, more than
+-      # Q60's one bootstrap and one stream: a throwaway key in a new state,
+-      # one bootstrap at each end, 1 MiB each way, and the service stopped,
+-      # so that its descriptor expires unused.
+-      - name: one onion service of a throwaway key on Tor's public network
+-        if: inputs.onion == 'yes'
+-        env:
+-          PODSSH_TEST_TOR_ONION_LIVE: "yes"
+-        run: timeout 1200 cargo test --locked -p podssh-tor --test onion_service live_ -- --nocapture
+       # The Prove's case of a cage: each first hop through the box's proxy,
+       # which takes ports 443, 80 and 8443 alone; podssh holds Arti's first
+       # hops to 443 through a proxy (PODSSH_TOR_PORTS), and the stream to
+diff --git a/Cargo.toml b/Cargo.toml
+index 60dce49..51cc7ab 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -11,7 +11,6 @@ members = [
+   "crates/podssh-ssh",
+   "crates/podssh-todo",
+   "crates/podssh-warp",
+-  "crates/podssh-tor",
+   "crates/podssh-zerotier",
+   "crates/podssh-gsr",
+ ]
+diff --git a/crates/podssh-cli/Cargo.toml b/crates/podssh-cli/Cargo.toml
+index 5cba29b..f613daa 100644
+--- a/crates/podssh-cli/Cargo.toml
++++ b/crates/podssh-cli/Cargo.toml
+@@ -42,7 +42,7 @@ warp = ["dep:podssh-warp", "podssh-relay/warp"]
+ # Off by default: Arti adds about 500 crates, SQLite's C and Rust 1.92, and
+ # its live test waits for Q60. Without it, a tor:// destination is refused
+ # with exit 70.
+-tor = ["dep:podssh-tor"]
++tor = ["dep:pod-tor"]
+ # ZeroTier's road of a pair (T-733), a last fallback of Q78: ZeroTierOne's
+ # MPL-2.0 core in C++, linked statically. Off by default until its static
+ # musl build is measured; without it, the road is not there.
+@@ -85,7 +85,7 @@ podssh-probe = { path = "../podssh-probe" }
+ podssh-ts = { path = "../podssh-ts", optional = true }
+ podssh-iroh = { path = "../podssh-iroh", optional = true }
+ podssh-warp = { path = "../podssh-warp", optional = true }
+-podssh-tor = { path = "../podssh-tor", optional = true }
++pod-tor = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", optional = true }
+ podssh-zerotier = { path = "../podssh-zerotier", optional = true }
+ podssh-gsr = { path = "../podssh-gsr", optional = true }
+ # The type of a relay's URL, for `doctor`'s line; the version that
+@@ -98,11 +98,11 @@ podssh-ws = { path = "../podssh-ws", features = ["quic"] }
+ # The services of other parties: the facts of doctor's checks, STUN, the
+ # DERP map, the zone of OpenTunnel, the ACME directory, the relay of
+ # `podssh ts`.
+-pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ # The ACME client of `relay serve --acme` (src/acme/): pod-acme of
+ # PodUtils/podcrates (T-034 there); pod-core for the type of its lines.
+-pod-acme = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
+-pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-acme = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
++pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ # The leaf of a release's Sigstore bundle, read (T-375): no C, as its
+ # feature `verify` (ring) is off; the signatures are podssh-ws's own.
+ x509-parser = { version = "0.18", default-features = false }
+@@ -174,7 +174,7 @@ zeroize = { workspace = true }
+ futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
+ # `podssh session` (T-186): where a kept stream of output may start, and its
+ # ring (the grammar of T-221), and when the output has stopped.
+-pod-term = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-term = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ # `podssh session capture`: the screen that a terminal shows after the
+ # session's output. The model of the terminal oracle (T-200), pure Rust over
+ # vte, with no build script that compiles C; the lock has it already.
+@@ -228,7 +228,7 @@ windows-sys = { version = "0.61", features = [
+ ] }
+ 
+ [dev-dependencies]
+-pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", features = ["screen"] }
++pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", features = ["screen"] }
+ # `test-util` gives the tests a paused clock: the limit of a stuck write is
+ # 60 s (tests/direct_write_limit.rs).
+ tokio = { workspace = true, features = ["macros", "rt", "test-util"] }
+@@ -248,7 +248,7 @@ p256 = { workspace = true, features = ["getrandom"] }
+ tokio-rustls = { workspace = true }
+ # The stand-in DERP server of `tests/derp_road.rs` (T-379): pod-derp's own
+ # (its feature `standin`), which opens the client's info with NaCl's box.
+-pod-derp = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", features = ["standin"] }
++pod-derp = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", features = ["standin"] }
+ 
+ # The pseudo console of `tests/console.rs` (T-132): the version above, with
+ # the console's functions, which podssh-ssh builds too; and the job objects of
+diff --git a/crates/podssh-cli/src/man/facts/tests.rs b/crates/podssh-cli/src/man/facts/tests.rs
+index a903513..7675806 100644
+--- a/crates/podssh-cli/src/man/facts/tests.rs
++++ b/crates/podssh-cli/src/man/facts/tests.rs
+@@ -22,10 +22,6 @@ fn sources() -> Vec<(PathBuf, String)> {
+     if cfg!(feature = "warp") {
+         crates.push("podssh-warp");
+     }
+-    // The Tor road's crate is in the binary with its feature only (T-353).
+-    if cfg!(feature = "tor") {
+-        crates.push("podssh-tor");
+-    }
+     let mut dirs: Vec<PathBuf> = crates.iter().map(|c| crate_dir(c)).collect();
+     while let Some(dir) = dirs.pop() {
+         for entry in std::fs::read_dir(&dir).unwrap().flatten() {
+diff --git a/crates/podssh-cli/src/node_onion.rs b/crates/podssh-cli/src/node_onion.rs
+index a66e611..ca552f7 100644
+--- a/crates/podssh-cli/src/node_onion.rs
++++ b/crates/podssh-cli/src/node_onion.rs
+@@ -63,7 +63,7 @@ impl Road {
+ #[cfg(feature = "tor")]
+ fn allowed(pair: &Pair) -> String {
+     let secret = crate::onion::discovery_secret(&pair.name, pair.connect_token());
+-    podssh_tor::Discovery::from_secret(secret).public()
++    pod_tor::Discovery::from_secret(secret).public()
+ }
+ 
+ #[cfg(not(feature = "tor"))]
+@@ -126,7 +126,7 @@ where
+             return std::future::pending().await;
+         }
+     };
+-    let options = podssh_tor::ServiceOptions {
++    let options = pod_tor::ServiceOptions {
+         nickname: crate::onion::NICKNAME.to_string(),
+         port: crate::onion::VIRTUAL_PORT,
+         allowed: vec![road.allowed.clone()],
+@@ -155,7 +155,7 @@ where
+                 line(format!("its descriptor is published, in {} s", began.elapsed().as_secs()));
+                 break;
+             }
+-            Err(failure) if failure.detail == podssh_tor::onion::STOPPED => {
++            Err(failure) if failure.detail == pod_tor::onion::STOPPED => {
+                 line(format!("{failure}; the node serves its other roads"));
+                 return std::future::pending().await;
+             }
+@@ -166,7 +166,7 @@ where
+     tokio::spawn(async move {
+         while let Some(stream) = onion.accept().await {
+             let visitor =
+-                Visitor { stream: Box::new(podssh_tor::onion::bridged(stream)), peer: "the onion service".into() };
++                Visitor { stream: Box::new(pod_tor::onion::bridged(stream)), peer: "the onion service".into() };
+             if queue.send(visitor).await.is_err() {
+                 return;
+             }
+diff --git a/crates/podssh-cli/src/onion.rs b/crates/podssh-cli/src/onion.rs
+index 22f15e5..c7e0ca1 100644
+--- a/crates/podssh-cli/src/onion.rs
++++ b/crates/podssh-cli/src/onion.rs
+@@ -1,6 +1,6 @@
+ //! The onion road of a pair (T-578, the operator's ruling Q78): a node that
+ //! waits beside the pair's road as an onion service in the Tor network,
+-//! Arti's in this process through the Tor road (`podssh_tor`), and a client
++//! Arti's in this process through the Tor road (`pod_tor`), and a client
+ //! that reaches it by its onion address, when each other road failed. Both
+ //! ends make a key of restricted discovery of the pair's name and connect
+ //! token, so the service's descriptor is readable only by the pair's
+diff --git a/crates/podssh-cli/src/ssh/cloud/tor.rs b/crates/podssh-cli/src/ssh/cloud/tor.rs
+index 74df239..70c952b 100644
+--- a/crates/podssh-cli/src/ssh/cloud/tor.rs
++++ b/crates/podssh-cli/src/ssh/cloud/tor.rs
+@@ -1,6 +1,6 @@
+ //! `tor://[user@]HOST[:PORT]` (T-353, the operator's ruling Q52): a port of
+ //! any host, 22 by default, through the Tor network, by Arti in podssh's
+-//! process (`podssh_tor`), with no relay of podssh's. Each connection to a
++//! process (`pod_tor`), with no relay of podssh's. Each connection to a
+ //! Tor relay goes through `HTTPS_PROXY` when one is set, and then only to
+ //! the ports of [`PORTS_ENV`], 443 by default; the exit resolves the host's
+ //! name. The road is in a build with the feature `tor` only; without it, a
+diff --git a/crates/podssh-cli/src/ssh/cloud/tor/road.rs b/crates/podssh-cli/src/ssh/cloud/tor/road.rs
+index 4ac06da..e6abe82 100644
+--- a/crates/podssh-cli/src/ssh/cloud/tor/road.rs
++++ b/crates/podssh-cli/src/ssh/cloud/tor/road.rs
+@@ -5,7 +5,7 @@
+ use std::path::PathBuf;
+ use std::time::Duration;
+ 
+-use podssh_tor::{Bridge, Options, Tor, TorStream};
++use pod_tor::{Bridge, Options, Tor, TorStream};
+ use podssh_ws::dial::ProxyChoice;
+ use podssh_ws::Trust;
+ 
+@@ -162,7 +162,7 @@ pub async fn bootstrap_at(
+     let held = match (&bridges, &ports) {
+         // A bridge is the first hop, through its transport: the ports of a
+         // relay do not hold.
+-        (Some((list, file)), _) => format!("{}, named in {file}", podssh_tor::bridges::summary(list)),
++        (Some((list, file)), _) => format!("{}, named in {file}", pod_tor::bridges::summary(list)),
+         (None, Some(ports)) => {
+             let list: Vec<String> = ports.iter().map(u16::to_string).collect();
+             format!("first hops on port {} alone", list.join(", "))
+@@ -172,7 +172,7 @@ pub async fn bootstrap_at(
+     let mut options = Options {
+         state_dir,
+         cache_dir,
+-        proxy: ProxyChoice::FromEnvironment,
++        way: podssh_ws::client::way(&ProxyChoice::FromEnvironment),
+         first_hop_ports: if bridges.is_some() { None } else { ports },
+         trust_directories: false,
+         network: network.as_ref().map(|(text, _)| text.clone()),
+diff --git a/crates/podssh-cli/src/ssh/onion.rs b/crates/podssh-cli/src/ssh/onion.rs
+index 761ba95..87534ba 100644
+--- a/crates/podssh-cli/src/ssh/onion.rs
++++ b/crates/podssh-cli/src/ssh/onion.rs
+@@ -38,7 +38,7 @@ pub(crate) struct OnionRoads {
+     shown: String,
+     /// This end's client of Tor, bootstrapped at the first link of the run.
+     #[cfg(feature = "tor")]
+-    tor: tokio::sync::OnceCell<podssh_tor::Tor>,
++    tor: tokio::sync::OnceCell<pod_tor::Tor>,
+ }
+ 
+ impl OnionRoads {
+@@ -131,11 +131,11 @@ impl OnionRoads {
+             })
+             .await?;
+         self.log.verbose(&format!("{}: the onion road to the node's service", self.shown));
+-        let key = podssh_tor::Discovery::from_secret(self.discovery);
++        let key = pod_tor::Discovery::from_secret(self.discovery);
+         let port = crate::onion::VIRTUAL_PORT;
+         let stream = tor.connect_onion(address, port, Some(&key), LIMIT).await;
+         let stream = stream.map_err(|f| format!("the onion road: {f}"))?;
+-        Ok(Road::Onion(Box::new(podssh_tor::onion::bridged(stream))))
++        Ok(Road::Onion(Box::new(pod_tor::onion::bridged(stream))))
+     }
+ 
+     #[cfg(not(feature = "tor"))]
+diff --git a/crates/podssh-gsr/Cargo.toml b/crates/podssh-gsr/Cargo.toml
+index 852e584..3c74eb5 100644
+--- a/crates/podssh-gsr/Cargo.toml
++++ b/crates/podssh-gsr/Cargo.toml
+@@ -7,7 +7,7 @@ rust-version.workspace = true
+ license.workspace = true
+ publish.workspace = true
+ 
+-# A feature crate (T-707), as podssh-warp and podssh-tor are: podssh-cli
++# A feature crate (T-707), as podssh-warp is: podssh-cli
+ # takes it with its feature `gsr`. Not a default member: pod-gsr links
+ # OpenSSL, built from source by openssl-src (a C compiler and perl), as
+ # rustls has no SRP cipher suite; the binary still links it static. The
+@@ -15,14 +15,14 @@ publish.workspace = true
+ # pod-services' (PodUtils/podcrates); this crate gives them podssh's dial
+ # and proxy, and the words of podssh's lines.
+ [dependencies]
+-pod-gsr = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
+-pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-gsr = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
++pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ # The party of the relay's data file, for the line of the third party.
+-pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ podssh-ws = { path = "../podssh-ws" }
+ tokio = { workspace = true }
+ zeroize = { workspace = true }
+ 
+ [dev-dependencies]
+ tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "net", "io-util", "time", "sync"] }
+-pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+diff --git a/crates/podssh-iroh/Cargo.toml b/crates/podssh-iroh/Cargo.toml
+index 1753287..9b906bc 100644
+--- a/crates/podssh-iroh/Cargo.toml
++++ b/crates/podssh-iroh/Cargo.toml
+@@ -34,7 +34,7 @@ podssh-relay = { path = "../podssh-relay", features = ["derp", "pinggy", "opentu
+ podssh-ws = { path = "../podssh-ws" }
+ # The services of other parties: n0's relays and pkarr, the zone of the
+ # quick tunnel.
+-pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ tokio = { workspace = true }
+ # The types of iroh's interfaces: the relay's certificate verifier (rustls),
+ # the proxy's URL (url), and the resolver's errors (n0-error), at the
+@@ -96,4 +96,4 @@ sha2 = { workspace = true }
+ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+ # pod-derp's stand-in DERP server (its feature `standin`), for the node
+ # that a client finds by its record alone (`tests/record_roads.rs`, T-445).
+-pod-derp = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", features = ["standin"] }
++pod-derp = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", features = ["standin"] }
+diff --git a/crates/podssh-relay/Cargo.toml b/crates/podssh-relay/Cargo.toml
+index 02f944d..e57bc8f 100644
+--- a/crates/podssh-relay/Cargo.toml
++++ b/crates/podssh-relay/Cargo.toml
+@@ -10,19 +10,19 @@ publish.workspace = true
+ # A library other projects (podvm) use; its crates move to PodUtils/podcrates
+ # (T-684).
+ [dependencies]
+-pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
+-pod-identity = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
++pod-identity = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ # The relay client: the hosts, the pool, the rank, the failover, the tokens,
+ # the roads to a relay, the pairs, the grants, the reverse road and the
+ # blocking facade (PodUtils/podcrates@T-025): pod-relay, over podssh's
+ # process context (src/context.rs). The dialer of a node's targets is
+ # pod-proxy's, with podssh's settings (podssh-ws's dial.rs).
+-pod-relay = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
+-pod-proxy = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-relay = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
++pod-proxy = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ # The services of other parties: the relay's host, limits and seed, the
+ # DERP servers, Piping, the mailboxes and transit, OpenTunnel, the edge of
+ # the quick tunnel and its roots.
+-pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ podssh-ws = { path = "../podssh-ws" }
+ tokio = { workspace = true }
+ serde = { workspace = true }
+@@ -32,11 +32,11 @@ rand = { workspace = true }
+ # The resumable layer (src/session/), UDP in a stream (src/udp/), the link
+ # over a WebSocket (pod_transit::link) and the rule of a peer's answer
+ # (src/answer.rs): pod-session of PodUtils/podcrates (T-020 there).
+-pod-session = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-session = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ # The transit road (src/transit/): pod-transit of PodUtils/podcrates
+ # (T-027 there); podssh keeps PODSSH_TRANSIT and the settings of each
+ # connection.
+-pod-transit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-transit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ # SHA-256, HMAC-SHA-256 and HKDF of the tokens, the mailbox and croc, and
+ # X25519 of the key of DERP. Pure Rust, as in podssh-ws.
+ sha2 = { workspace = true }
+@@ -49,7 +49,7 @@ ed25519-dalek = { workspace = true, features = ["zeroize"] }
+ base64 = { workspace = true }
+ # The channel between two podssh ends (src/e2e/, T-088): Noise XX on snow,
+ # pure Rust: pod-e2e of PodUtils/podcrates (T-021 there).
+-pod-e2e = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-e2e = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ # A quick tunnel's connection to Cloudflare's edge (src/quick/serve.rs, T-300):
+ # the edge is the client of HTTP/2 on the connection that podssh dialed. Pure
+ # Rust, in the lock already through hyper; only with the features `quick`,
+@@ -66,10 +66,10 @@ rustls = { workspace = true, optional = true }
+ # The QUIC endpoint, its keys, the connection within its wait, the race of
+ # handshakes and the probe of UDP (PodUtils/podcrates, T-019): pod-quic, on
+ # the same noq.
+-pod-quic = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", optional = true }
++pod-quic = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", optional = true }
+ # The DERP road (src/derp.rs, T-349): pod-derp of PodUtils/podcrates (its
+ # T-031), with podssh's lines, names, way out and variables.
+-pod-derp = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", optional = true }
++pod-derp = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", optional = true }
+ # Tox's boxes (src/tox/, T-734): NaCl's crypto_box (X25519, XSalsa20,
+ # Poly1305). Pure Rust, RustCrypto's; no `getrandom`: a nonce comes from
+ # podssh's own source.
+@@ -87,15 +87,15 @@ peeroxide = { version = "=1.7.4", optional = true }
+ # (PodUtils/podcrates@T-032, T-684), through podssh's way out. smee's and
+ # filehost's HTTP/1.1 take its dial and its reader; smee's TLS is the async
+ # wrapper of rustls that podssh-ws builds, with no provider of its own.
+-pod-piping = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", optional = true }
++pod-piping = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", optional = true }
+ # The OpenTunnel road (T-530): pod-opentunnel of PodUtils/podcrates
+ # (PodUtils/podcrates@T-033, T-684), through podssh's way out and provider.
+-pod-opentunnel = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", optional = true }
++pod-opentunnel = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", optional = true }
+ tokio-rustls = { workspace = true, optional = true }
+ # Pairing by a short code (src/code/, T-086): the mailbox client, SPAKE2, the
+ # sealed phases and the words of a code, which podssh gives its AppID, its
+ # name and its way out; only with the feature `code`.
+-pod-wormhole = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", optional = true }
++pod-wormhole = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", optional = true }
+ # croc's relay road (src/croc/, T-694): the curve SIEC of croc's relay
+ # handshake, which no crate implements, on num-bigint's integers (0.5 since
+ # T-754), and AES-256-GCM of croc's crypt, the workspace's.
+@@ -108,7 +108,7 @@ aes-gcm = { workspace = true, optional = true }
+ # pod-devtunnel of PodUtils/podcrates; podssh gives it its way out, its
+ # token file and its lines. Its SSH is russh on ring, beside podssh's
+ # aws-lc-rs: only with the feature `devtunnel`.
+-pod-devtunnel = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", optional = true }
++pod-devtunnel = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", optional = true }
+ # The SSH server behind the stand-in's tunnel and the client of the session
+ # through it in tests/devtunnel.rs: the release that vendor/russh patches,
+ # with podssh's own crypto; only with `devtunnel-standin`.
+diff --git a/crates/podssh-ssh/Cargo.toml b/crates/podssh-ssh/Cargo.toml
+index 0dc03b7..97a4792 100644
+--- a/crates/podssh-ssh/Cargo.toml
++++ b/crates/podssh-ssh/Cargo.toml
+@@ -74,7 +74,7 @@ signature = { version = "3", default-features = false }
+ libc = { workspace = true }
+ # serve's line discipline where no pty opens (T-111): the cooked mode of
+ # PodUtils/podcrates' pod-term, the tag of every podcrates crate.
+-pod-term = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-term = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ 
+ [target.'cfg(windows)'.dependencies]
+ # Security keys (T-229): the WebAuthn API of Windows (webauthn.dll), loaded
+@@ -95,7 +95,7 @@ windows-sys = { version = "0.61", features = [
+ pageant = { version = "0.2.4", default-features = false, features = ["wmmessage"] }
+ 
+ [dev-dependencies]
+-pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", features = ["screen"] }
++pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", features = ["screen"] }
+ # `test-util` gives the tests a paused clock: a hop's 10 s of silence (T-462)
+ # and the relay's idle cut at 180 s (T-463) pass at once.
+ tokio = { workspace = true, features = ["macros", "rt", "signal", "process", "test-util"] }
+diff --git a/crates/podssh-todo/Cargo.toml b/crates/podssh-todo/Cargo.toml
+index e48a447..3b31136 100644
+--- a/crates/podssh-todo/Cargo.toml
++++ b/crates/podssh-todo/Cargo.toml
+@@ -10,4 +10,4 @@ publish.workspace = true
+ # The checker of the record is pod-todo of PodUtils/podcrates; the facts of
+ # podssh are in TODO/todo.toml.
+ [dependencies]
+-pod-todo = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-todo = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+diff --git a/crates/podssh-tor/Cargo.toml b/crates/podssh-tor/Cargo.toml
+deleted file mode 100644
+index 00a3348..0000000
+--- a/crates/podssh-tor/Cargo.toml
++++ /dev/null
+@@ -1,68 +0,0 @@
+-[package]
+-name = "podssh-tor"
+-description = "Tor through Arti: a stream to a host and port through the Tor network, each first hop through podssh's own dial and proxy."
+-version.workspace = true
+-edition.workspace = true
+-rust-version.workspace = true
+-license.workspace = true
+-publish.workspace = true
+-
+-# A crate of its own, outside the crates with no C, as podssh-iroh is (the
+-# operator's ruling Q52): Arti keeps its directory in SQLite, which is C
+-# (`static-sqlite` builds it in, so the binary needs no libsqlite3). Not a
+-# default member: a build without the feature `tor` of podssh-cli does not
+-# compile it.
+-[dependencies]
+-# No default features: no native-tls (OpenSSL), and no compression of the
+-# directory (zstd and xz are C); `rustls` takes the process's provider, which
+-# podssh-cli makes podssh-ws's own. 0.x: a new minor version is a change of
+-# API to read, so the range ends before 0.49. `pt-client` (T-385): bridges,
+-# and a transport that Arti does not manage, which this crate's runtime
+-# answers in the process (`transport.rs`); it adds tor-ptmgr, Rust alone (its
+-# manifest read at 0.47.0), whose launcher of programs runs only for a
+-# transport with a `path`, which podssh never writes and refuses.
+-# `onion-service-client` and `onion-service-service` (T-578): onion
+-# services, a node's and a client's, Rust alone (tor-hsclient, tor-hsservice,
+-# and the keystore of tor-keymgr; read at 0.48.0). `restricted-discovery` and
+-# `experimental-api`, which Arti marks experimental: a service that lists the
+-# keys of its clients, and a client that puts its key in its keystore.
+-arti-client = { version = ">=0.48, <0.49", default-features = false, features = [
+-  "tokio", "rustls", "static-sqlite", "pt-client",
+-  "onion-service-client", "onion-service-service", "restricted-discovery", "experimental-api",
+-] }
+-# The onion service's parts that arti-client does not re-export: the
+-# requests of its clients, their streams, and the keys of restricted
+-# discovery. The versions that arti-client builds.
+-tor-hsservice = { version = ">=0.48, <0.49", default-features = false, features = ["restricted-discovery"] }
+-tor-hscrypto = { version = ">=0.48, <0.49", default-features = false }
+-tor-proto = { version = ">=0.48, <0.49", default-features = false, features = ["hs-service"] }
+-tor-cell = { version = ">=0.48, <0.49", default-features = false }
+-tor-llcrypto = { version = ">=0.48, <0.49", default-features = false }
+-# The display of an onion address in full, which Arti redacts in its logs.
+-safelog = { version = "0.10", default-features = false }
+-# The runtime's parts: the TCP provider that dials through podssh-ws, in the
+-# version that arti-client builds.
+-tor-rtcompat = { version = ">=0.48, <0.49", default-features = false, features = ["tokio", "rustls"] }
+-# The pattern of an address and a port that a first hop may have, and the
+-# kind of Arti's errors: the versions that arti-client builds.
+-tor-netdoc = { version = ">=0.48, <0.49", default-features = false }
+-tor-error = { version = ">=0.48, <0.49", default-features = false }
+-async-trait = "0.1"
+-futures = { version = "0.3", default-features = false, features = ["std"] }
+-tokio = { workspace = true }
+-tokio-util = { version = "0.7", default-features = false, features = ["compat"] }
+-podssh-ws = { path = "../podssh-ws" }
+-# Another Tor network's configuration, as chutney writes it, read into
+-# Arti's builder (its tests run against a private network of C tor).
+-toml = { workspace = true }
+-
+-[dev-dependencies]
+-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+-# Arti's own client of a transport that it does not manage (T-385), driven
+-# against this crate's runtime in `tests/transports.rs`: the SOCKS5 handshake
+-# and its encoding of a bridge's arguments are Arti's, not a copy of them.
+-# The versions that arti-client builds.
+-tor-chanmgr = { version = ">=0.48, <0.49", default-features = false, features = ["pt-client"] }
+-tor-linkspec = { version = ">=0.48, <0.49", default-features = false, features = ["pt-client"] }
+-tor-llcrypto = { version = ">=0.48, <0.49", default-features = false }
+-tor-socksproto = { version = ">=0.48, <0.49", default-features = false }
+diff --git a/crates/podssh-tor/src/bridges.rs b/crates/podssh-tor/src/bridges.rs
+deleted file mode 100644
+index 1821abb..0000000
+--- a/crates/podssh-tor/src/bridges.rs
++++ /dev/null
+@@ -1,198 +0,0 @@
+-//! Bridges (T-385): relays that the directory does not list, which a user
+-//! names by bridge lines, as Tor gives them out. A line is a plain bridge
+-//! (`ADDRESS:PORT FINGERPRINT`), or one of the two transports that podssh
+-//! speaks itself, meek_lite and WebTunnel (`NAME ADDRESS FINGERPRINT
+-//! k=v...`); a leading `Bridge`, as in a torrc, is dropped. Arti asks each
+-//! line for the bridge's RSA fingerprint, so a line with none is refused
+-//! here, as is a transport that would be another program (obfs4,
+-//! snowflake): podssh starts none.
+-//!
+-//! In Arti's configuration ([`apply`]): the bridges in use, each of
+-//! podssh's transports as one that Arti does not manage, at its sentinel
+-//! ([`crate::transport`]), and the first hops on any address, as a bridge
+-//! of a transport has a dummy one that a rule of ports would drop. A
+-//! network's own file may name no transport ([`refuse_transports`]): one
+-//! with a `path` would be a program that Arti starts.
+-
+-use arti_client::config::pt::TransportConfigBuilder;
+-use arti_client::config::{BoolOrAuto, BridgeConfigBuilder, PtTransportName, TorClientConfigBuilder};
+-use tor_netdoc::types::policy::AddrPortPattern;
+-
+-use crate::transport::Kind;
+-
+-/// A bridge line that podssh can use.
+-#[derive(Debug, Clone, PartialEq, Eq)]
+-pub struct Bridge {
+-    line: String,
+-    transport: Option<Kind>,
+-}
+-
+-impl Bridge {
+-    /// A line of a bridge, or why podssh cannot use it. podssh's words
+-    /// repeat no part of the line but a transport's name: a bridge that is
+-    /// not public is a secret of sorts.
+-    pub fn parse(text: &str) -> Result<Bridge, String> {
+-        let mut words: Vec<&str> = text.split_ascii_whitespace().collect();
+-        if words.first().is_some_and(|w| w.eq_ignore_ascii_case("bridge")) {
+-            words.remove(0);
+-        }
+-        let Some(first) = words.first() else { return Err("an empty bridge line".into()) };
+-        let (transport, rest) = if first.contains(':') {
+-            (None, &words[1..])
+-        } else {
+-            let kind = Kind::by_name(first).ok_or_else(|| {
+-                let name = if first.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') { *first } else { "?" };
+-                format!(
+-                    "the transport {name} is another program, which podssh does not start; podssh speaks meek_lite \
+-                     and webtunnel itself, and takes a plain bridge's ADDRESS:PORT FINGERPRINT"
+-                )
+-            })?;
+-            (Some(kind), words.get(2..).unwrap_or_default())
+-        };
+-        let fingerprint = rest.first().map(|w| w.trim_start_matches('$')).unwrap_or_default();
+-        if fingerprint.len() != 40 || !fingerprint.bytes().all(|b| b.is_ascii_hexdigit()) {
+-            return Err("a bridge line needs the bridge's fingerprint, 40 hex digits after its address: Arti \
+-                        refuses a line without one"
+-                .into());
+-        }
+-        let line = words.join(" ");
+-        line.parse::<BridgeConfigBuilder>().map_err(|e| format!("Arti does not read the line: {e}"))?;
+-        let settings: Vec<(String, String)> =
+-            rest.iter().filter_map(|w| w.split_once('=')).map(|(k, v)| (k.to_string(), v.to_string())).collect();
+-        // The transport's arguments are read now, so that a bad one is said
+-        // before anything connects.
+-        match transport {
+-            Some(Kind::Meek) => {
+-                podssh_ws::meek::Args::parse(&settings)?;
+-            }
+-            Some(Kind::WebTunnel) => {
+-                podssh_ws::webtunnel::Args::parse(&settings)?;
+-            }
+-            None => {}
+-        }
+-        Ok(Bridge { line, transport })
+-    }
+-
+-    /// The transport, or none for a plain bridge.
+-    pub fn transport(&self) -> Option<Kind> {
+-        self.transport
+-    }
+-
+-    /// The line, with no leading `Bridge`.
+-    pub fn line(&self) -> &str {
+-        &self.line
+-    }
+-}
+-
+-/// `1 bridge over meek_lite`, `2 bridges over meek_lite and webtunnel`:
+-/// for a line of podssh's, with no word of a bridge line.
+-pub fn summary(bridges: &[Bridge]) -> String {
+-    let mut names: Vec<&str> = Vec::new();
+-    for bridge in bridges {
+-        let name = bridge.transport.map_or("plain TCP", Kind::name);
+-        if !names.contains(&name) {
+-            names.push(name);
+-        }
+-    }
+-    let over = match names.split_last() {
+-        Some((last, [])) => last.to_string(),
+-        Some((last, rest)) => format!("{} and {last}", rest.join(", ")),
+-        None => "nothing".to_string(),
+-    };
+-    let plural = if bridges.len() == 1 { "" } else { "s" };
+-    format!("{} bridge{plural} over {over}", bridges.len())
+-}
+-
+-/// Refuse a network's configuration that names a pluggable transport.
+-pub fn refuse_transports(network: &str) -> Result<(), String> {
+-    let table: toml::Table =
+-        toml::from_str(network).map_err(|e| format!("the network's configuration does not read: {e}"))?;
+-    let named = table.get("bridges").and_then(toml::Value::as_table).is_some_and(|b| b.contains_key("transports"));
+-    match named {
+-        true => Err("the network's configuration names a pluggable transport (bridges.transports), which Arti \
+-                     would run as another program; podssh starts none, and gives its own transports"
+-            .into()),
+-        false => Ok(()),
+-    }
+-}
+-
+-/// Put `bridges` in `builder`: in use, with podssh's transports at their
+-/// sentinels, and the first hops on any address.
+-pub fn apply(builder: &mut TorClientConfigBuilder, bridges: &[Bridge]) -> Result<(), String> {
+-    let section = builder.bridges();
+-    section.enabled(BoolOrAuto::Explicit(true));
+-    let list = section.bridges();
+-    list.clear();
+-    for bridge in bridges {
+-        list.push(bridge.line.parse::<BridgeConfigBuilder>().map_err(|e| format!("a bridge line: {e}"))?);
+-    }
+-    let transports = section.transports();
+-    transports.clear();
+-    for kind in Kind::ALL {
+-        let name: PtTransportName = kind.name().parse().map_err(|e| format!("{}: {e}", kind.name()))?;
+-        let mut transport = TransportConfigBuilder::default();
+-        transport.protocols(vec![name]).proxy_addr(kind.at());
+-        transports.push(transport);
+-    }
+-    // A bridge of a transport has a dummy address, which a rule of ports
+-    // drops (tor-guardmgr filters bridges by `reachable_addrs`).
+-    let reachable = builder.path_rules().reachable_addrs();
+-    reachable.clear();
+-    reachable.push(AddrPortPattern::new_all());
+-    Ok(())
+-}
+-
+-#[cfg(test)]
+-mod tests {
+-    use super::*;
+-
+-    const FP: &str = "0BAC39417268B96B9F514EF763FA6FBA1A788956";
+-
+-    #[test]
+-    fn a_line_of_each_kind_is_read_with_or_without_bridge() {
+-        let meek = Bridge::parse(&format!("Bridge meek_lite 192.0.2.20:80 {FP} url=https://cdn.test/ front=www.test"))
+-            .unwrap();
+-        assert_eq!(meek.transport(), Some(Kind::Meek));
+-        assert!(meek.line().starts_with("meek_lite 192.0.2.20:80 "), "{}", meek.line());
+-        let tunnel = format!("webtunnel [2001:db8::1]:443 {FP} url=https://b.test/s ver=0.0.7");
+-        let tunnel = Bridge::parse(&tunnel).unwrap();
+-        assert_eq!(tunnel.transport(), Some(Kind::WebTunnel));
+-        let plain = Bridge::parse(&format!("bridge 192.0.2.83:443 ${FP}")).unwrap();
+-        assert_eq!(plain.transport(), None);
+-        assert_eq!(summary(std::slice::from_ref(&meek)), "1 bridge over meek_lite");
+-        assert_eq!(summary(&[meek, tunnel, plain]), "3 bridges over meek_lite, webtunnel and plain TCP");
+-    }
+-
+-    #[test]
+-    fn a_line_with_no_fingerprint_another_program_or_a_bad_argument_is_refused() {
+-        // Tor Browser's meek line has no fingerprint.
+-        let shipped = "meek_lite 192.0.2.20:80 url=https://1603026938.rsc.cdn77.org front=www.phpmyadmin.net";
+-        assert!(Bridge::parse(shipped).unwrap_err().contains("fingerprint"));
+-        let obfs4 = Bridge::parse(&format!("obfs4 192.0.2.55:38114 {FP} cert=abc iat-mode=0")).unwrap_err();
+-        assert!(obfs4.contains("obfs4 is another program"), "{obfs4}");
+-        assert!(Bridge::parse(&format!("meek_lite 192.0.2.20:80 {FP} front=www.test")).is_err());
+-        assert!(Bridge::parse(&format!("webtunnel [2001:db8::1]:443 {FP} url=ftp://b.test/")).is_err());
+-        assert!(Bridge::parse("  ").is_err());
+-    }
+-
+-    #[test]
+-    fn a_network_that_names_a_transport_is_refused() {
+-        let managed = "[bridges]\nbridges = []\n[[bridges.transports]]\nprotocols = [\"obfs4\"]\npath = \"/bin/sh\"\n";
+-        assert!(refuse_transports(managed).unwrap_err().contains("bridges.transports"));
+-        let inline = "[bridges]\ntransports = [{ protocols = [\"x\"], proxy_addr = \"127.0.0.1:9\" }]\n";
+-        assert!(refuse_transports(inline).is_err());
+-        assert_eq!(refuse_transports("[bridges]\nbridges = []\n[path_rules]\n"), Ok(()));
+-    }
+-
+-    #[test]
+-    fn the_bridges_go_in_with_podssh_s_transports_and_any_first_hop() {
+-        let mut builder = TorClientConfigBuilder::default();
+-        builder.path_rules().reachable_addrs().push("*:443".parse().unwrap());
+-        let line = format!("meek_lite 192.0.2.20:80 {FP} url=https://cdn.test/ front=www.test");
+-        apply(&mut builder, &[Bridge::parse(&line).unwrap()]).unwrap();
+-        assert_eq!(builder.bridges().bridges().len(), 1);
+-        assert_eq!(builder.bridges().transports().len(), 2);
+-        assert_eq!(builder.path_rules().reachable_addrs().as_slice(), [AddrPortPattern::new_all()]);
+-        builder.build().expect("Arti takes the configuration");
+-    }
+-}
+diff --git a/crates/podssh-tor/src/client.rs b/crates/podssh-tor/src/client.rs
+deleted file mode 100644
+index 16d0f6d..0000000
+--- a/crates/podssh-tor/src/client.rs
++++ /dev/null
+@@ -1,224 +0,0 @@
+-//! A client of Tor: Arti on podssh's runtime ([`crate::runtime`]), its state
+-//! and its copy of the directory in podssh's cache, bootstrapped once for a
+-//! run, then a stream through a circuit to each `host:port` that the run
+-//! asks for. The exit resolves the name, so no name of a target is resolved
+-//! here, and none leaves this host but inside Tor.
+-
+-use std::path::PathBuf;
+-use std::sync::Arc;
+-use std::time::Duration;
+-
+-use arti_client::config::{CfgPath, TorClientConfigBuilder};
+-use arti_client::{DataStream, TorClient};
+-use podssh_ws::dial::ProxyChoice;
+-use tor_netdoc::types::policy::AddrPortPattern;
+-use tor_rtcompat::tokio::TokioRustlsRuntime;
+-use tor_rtcompat::{CompoundRuntime, RuntimeSubstExt as _};
+-
+-use crate::runtime::{ProxiedTcp, CONNECT_WAIT};
+-
+-/// The runtime of the client: tokio and rustls, with podssh's TCP provider.
+-pub type Runtime = CompoundRuntime<
+-    TokioRustlsRuntime,
+-    TokioRustlsRuntime,
+-    TokioRustlsRuntime,
+-    ProxiedTcp,
+-    TokioRustlsRuntime,
+-    TokioRustlsRuntime,
+-    TokioRustlsRuntime,
+->;
+-
+-/// What a client needs.
+-#[derive(Debug, Clone)]
+-pub struct Options {
+-    /// Arti's state: its guards, kept between runs, as Tor asks.
+-    pub state_dir: PathBuf,
+-    /// Arti's copy of the directory, so that a later run starts sooner.
+-    pub cache_dir: PathBuf,
+-    /// The proxy of each first hop.
+-    pub proxy: ProxyChoice,
+-    /// The ports that a first hop may have, or `None` for any: through a
+-    /// proxy that allows 443 alone, a guard on 9001 can never be reached.
+-    pub first_hop_ports: Option<Vec<u16>>,
+-    /// Whether Arti may skip its check of the directories' owners and modes,
+-    /// which a sandbox's mounts can fail although only this user writes them.
+-    pub trust_directories: bool,
+-    /// Another Tor network than Tor's own: the TOML of arti-client's
+-    /// configuration, as chutney writes it for a network of its own
+-    /// (`arti.toml`), whose authorities, caches and rules of paths replace
+-    /// Tor's. The directories, the proxy and the first hops above still hold.
+-    pub network: Option<String>,
+-    /// Bridges (T-385): with any, Arti's first hops are these alone,
+-    /// through their transports, and `first_hop_ports` does not hold.
+-    pub bridges: Vec<crate::bridges::Bridge>,
+-    /// The roots that a bridge's transport checks its TLS with.
+-    pub trust: podssh_ws::Trust,
+-}
+-
+-/// Why the client could not be made, or a stream not opened.
+-#[derive(Debug, Clone, PartialEq, Eq)]
+-pub struct Failure {
+-    /// What failed: "the configuration", "the bootstrap", "the stream".
+-    pub step: &'static str,
+-    /// Arti's words, and its kind of error.
+-    pub detail: String,
+-    /// Whether Arti refused the directories' owners or modes.
+-    pub permissions: bool,
+-}
+-
+-impl std::fmt::Display for Failure {
+-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+-        write!(f, "{}: {}", self.step, self.detail)
+-    }
+-}
+-
+-pub(crate) fn failure(step: &'static str, e: impl std::fmt::Display) -> Failure {
+-    Failure { step, detail: e.to_string(), permissions: false }
+-}
+-
+-pub(crate) fn arti_failure(step: &'static str, e: &arti_client::Error) -> Failure {
+-    use tor_error::HasKind as _;
+-    let kind = e.kind();
+-    Failure { step, detail: format!("{e} ({kind})"), permissions: kind == tor_error::ErrorKind::FsPermissions }
+-}
+-
+-/// The patterns of [`Options::first_hop_ports`], as Arti reads them.
+-pub fn reachable(ports: &[u16]) -> Result<Vec<AddrPortPattern>, String> {
+-    ports.iter().map(|p| format!("*:{p}").parse::<AddrPortPattern>().map_err(|e| format!("*:{p}: {e}"))).collect()
+-}
+-
+-/// A client of Tor, bootstrapped; a clone shares it.
+-#[derive(Clone)]
+-pub struct Tor {
+-    pub(crate) client: Arc<TorClient<Runtime>>,
+-}
+-
+-impl Tor {
+-    /// Make the client and bootstrap it, within `wait`: Arti fetches what it
+-    /// lacks of the directory and builds a first circuit. It must run inside
+-    /// a tokio runtime, with a default `CryptoProvider` of rustls installed.
+-    pub async fn bootstrap(options: &Options, wait: Duration) -> Result<Tor, Failure> {
+-        let base = TokioRustlsRuntime::current().map_err(|e| failure("the runtime", e))?;
+-        let tcp = ProxiedTcp::new(options.proxy.clone(), CONNECT_WAIT).with_trust(options.trust.clone());
+-        let said = tcp.said();
+-        let runtime: Runtime = base.with_tcp_provider(tcp);
+-        let mut builder = match &options.network {
+-            Some(text) => {
+-                // A transport there could be a program that Arti starts.
+-                crate::bridges::refuse_transports(text).map_err(|e| failure("the configuration", e))?;
+-                toml::from_str::<TorClientConfigBuilder>(text)
+-                    .map_err(|e| failure("the configuration", format!("the network's configuration: {e}")))?
+-            }
+-            None => TorClientConfigBuilder::default(),
+-        };
+-        // podssh's directories, as `from_directories` sets them, whatever the
+-        // network's configuration names.
+-        builder
+-            .storage()
+-            .cache_dir(CfgPath::new_literal(&options.cache_dir))
+-            .state_dir(CfgPath::new_literal(&options.state_dir));
+-        if options.trust_directories {
+-            builder.storage().permissions().dangerously_trust_everyone();
+-        }
+-        if !options.bridges.is_empty() {
+-            crate::bridges::apply(&mut builder, &options.bridges).map_err(|e| failure("the configuration", e))?;
+-        } else if let Some(ports) = &options.first_hop_ports {
+-            let list = builder.path_rules().reachable_addrs();
+-            list.clear();
+-            for pattern in reachable(ports).map_err(|e| failure("the configuration", e))? {
+-                list.push(pattern);
+-            }
+-        }
+-        let config = builder.build().map_err(|e| failure("the configuration", e))?;
+-        let builder = TorClient::with_runtime(runtime).config(config);
+-        // Arti says that a channel failed; a bridge's transport says why.
+-        let transport =
+-            || said.last().map_or_else(String::new, |why| format!("; the last failure of a transport: {why}"));
+-        let client = match tokio::time::timeout(wait, builder.create_bootstrapped()).await {
+-            Ok(Ok(client)) => client,
+-            Ok(Err(e)) => {
+-                let mut failed = arti_failure("the bootstrap", &e);
+-                failed.detail.push_str(&transport());
+-                return Err(failed);
+-            }
+-            Err(_) => {
+-                return Err(failure("the bootstrap", format!("not done within {} s{}", wait.as_secs(), transport())));
+-            }
+-        };
+-        Ok(Tor { client })
+-    }
+-
+-    /// A stream to `host:port` through a circuit, within `wait`; the exit
+-    /// resolves `host`. The stream keeps the client, whose channels carry it.
+-    pub async fn connect(&self, host: &str, port: u16, wait: Duration) -> Result<TorStream, Failure> {
+-        match tokio::time::timeout(wait, self.client.connect((host, port))).await {
+-            Ok(Ok(stream)) => Ok(TorStream { stream, _client: self.client.clone(), _service: None }),
+-            Ok(Err(e)) => Err(arti_failure("the stream", &e)),
+-            Err(_) => Err(failure("the stream", format!("not open within {} s", wait.as_secs()))),
+-        }
+-    }
+-}
+-
+-/// A stream through Tor, with the client that carries it, and the onion
+-/// service that it reached at a node ([`crate::onion`]), which a stream
+-/// keeps up while it lives.
+-pub struct TorStream {
+-    stream: DataStream,
+-    _client: Arc<TorClient<Runtime>>,
+-    _service: Option<Arc<tor_hsservice::RunningOnionService>>,
+-}
+-
+-impl TorStream {
+-    /// A stream that a client opened to the node's onion `service`.
+-    pub(crate) fn served(
+-        stream: DataStream,
+-        client: Arc<TorClient<Runtime>>,
+-        service: Arc<tor_hsservice::RunningOnionService>,
+-    ) -> TorStream {
+-        TorStream { stream, _client: client, _service: Some(service) }
+-    }
+-}
+-
+-impl tokio::io::AsyncRead for TorStream {
+-    fn poll_read(
+-        mut self: std::pin::Pin<&mut Self>,
+-        cx: &mut std::task::Context<'_>,
+-        buf: &mut tokio::io::ReadBuf<'_>,
+-    ) -> std::task::Poll<std::io::Result<()>> {
+-        std::pin::Pin::new(&mut self.stream).poll_read(cx, buf)
+-    }
+-}
+-
+-impl tokio::io::AsyncWrite for TorStream {
+-    fn poll_write(
+-        mut self: std::pin::Pin<&mut Self>,
+-        cx: &mut std::task::Context<'_>,
+-        buf: &[u8],
+-    ) -> std::task::Poll<std::io::Result<usize>> {
+-        std::pin::Pin::new(&mut self.stream).poll_write(cx, buf)
+-    }
+-    fn poll_flush(
+-        mut self: std::pin::Pin<&mut Self>,
+-        cx: &mut std::task::Context<'_>,
+-    ) -> std::task::Poll<std::io::Result<()>> {
+-        std::pin::Pin::new(&mut self.stream).poll_flush(cx)
+-    }
+-    fn poll_shutdown(
+-        mut self: std::pin::Pin<&mut Self>,
+-        cx: &mut std::task::Context<'_>,
+-    ) -> std::task::Poll<std::io::Result<()>> {
+-        std::pin::Pin::new(&mut self.stream).poll_shutdown(cx)
+-    }
+-}
+-
+-#[cfg(test)]
+-mod tests {
+-    use super::*;
+-
+-    #[test]
+-    fn the_ports_of_the_first_hop_are_patterns_of_any_address() {
+-        let patterns = reachable(&[443, 80]).unwrap();
+-        assert_eq!(patterns.len(), 2);
+-        assert_eq!(patterns[0], "*:443".parse::<AddrPortPattern>().unwrap());
+-    }
+-}
+diff --git a/crates/podssh-tor/src/lib.rs b/crates/podssh-tor/src/lib.rs
+deleted file mode 100644
+index 887f3c3..0000000
+--- a/crates/podssh-tor/src/lib.rs
++++ /dev/null
+@@ -1,26 +0,0 @@
+-//! Tor through Arti (T-353, the operator's ruling Q52): a stream to a host
+-//! and a port through the Tor network, for a host whose only way out is
+-//! HTTPS. Arti builds its circuits as it would anywhere; each connection
+-//! that it opens to a Tor relay goes through podssh's own dial ([`runtime`]),
+-//! so through `HTTPS_PROXY` and its credentials as each other road does,
+-//! and only to the ports that the proxy allows.
+-//!
+-//! Bridges (T-385) take their first hops in place of the directory's
+-//! relays ([`bridges`]); meek_lite and WebTunnel, the two transports that
+-//! pass where HTTPS passes, run in this process ([`transport`]), with no
+-//! other program.
+-//!
+-//! An onion service (T-578) reaches a node by its onion address
+-//! ([`onion`]): Arti's service in this process, whose every circuit is a
+-//! connection out to a relay, so the node binds nothing.
+-
+-pub mod bridges;
+-pub mod client;
+-pub mod onion;
+-pub mod runtime;
+-mod socks;
+-pub mod transport;
+-
+-pub use bridges::Bridge;
+-pub use client::{Failure, Options, Tor, TorStream};
+-pub use onion::{Discovery, Onion, ServiceOptions};
+diff --git a/crates/podssh-tor/src/onion.rs b/crates/podssh-tor/src/onion.rs
+deleted file mode 100644
+index f283a1e..0000000
+--- a/crates/podssh-tor/src/onion.rs
++++ /dev/null
+@@ -1,268 +0,0 @@
+-//! Tor's onion services (T-578): a node reached by its onion address, with no
+-//! listener of its own and no account, through volunteers' relays. The node's
+-//! service is Arti's, in this process: its circuits to its introduction
+-//! points and to each client's rendezvous point are connections out to Tor
+-//! relays, through the same dial and proxy as the client's first hops, so the
+-//! node binds nothing.
+-//!
+-//! The service's identity key is kept in Arti's keystore under the client's
+-//! `state_dir` (`keystore/hss/NICKNAME/`), and read again at the next launch,
+-//! so that the address stays: a caller gives each service a `state_dir` of
+-//! its own. Restricted discovery, where keys are given, lets only the holders
+-//! of those keys decrypt the service's descriptor, so that a stranger who
+-//! learns the address cannot find its introduction points; tor-hsservice
+-//! calls it a defence against floods, not access control, which is why the
+-//! caller's end-to-end channel still checks each end above the stream.
+-
+-use std::pin::Pin;
+-use std::str::FromStr as _;
+-use std::sync::Arc;
+-use std::time::Duration;
+-
+-use arti_client::config::onion_service::OnionServiceConfigBuilder;
+-use arti_client::{HsClientDescEncKey, HsId, KeystoreSelector};
+-use futures::{Stream, StreamExt as _};
+-use safelog::DisplayRedacted as _;
+-use tor_cell::relaycell::msg::{Connected, End, EndReason};
+-use tor_hscrypto::pk::{HsClientDescEncKeypair, HsClientDescEncSecretKey};
+-use tor_hsservice::config::restricted_discovery::HsClientNickname;
+-use tor_hsservice::{HsNickname, RunningOnionService, StreamRequest};
+-use tor_llcrypto::pk::curve25519;
+-use tor_proto::stream::IncomingStreamRequest;
+-
+-use crate::client::{arti_failure, failure, Failure, Tor, TorStream};
+-
+-/// A key of restricted discovery: an x25519 secret that a client holds, and
+-/// whose public half the service lists. A caller may make it of a secret
+-/// that both ends already share, so that no word passes between them.
+-#[derive(Clone)]
+-pub struct Discovery([u8; 32]);
+-
+-impl Discovery {
+-    /// The key of these 32 bytes of secret.
+-    pub fn from_secret(bytes: [u8; 32]) -> Discovery {
+-        Discovery(bytes)
+-    }
+-
+-    fn secret(&self) -> HsClientDescEncSecretKey {
+-        HsClientDescEncSecretKey::from(curve25519::StaticSecret::from(self.0))
+-    }
+-
+-    fn public_key(&self) -> HsClientDescEncKey {
+-        HsClientDescEncKeypair::from_secret_key(self.secret()).public().clone()
+-    }
+-
+-    /// The public half, as C tor and Arti write it:
+-    /// `descriptor:x25519:BASE32`.
+-    pub fn public(&self) -> String {
+-        self.public_key().to_string()
+-    }
+-}
+-
+-impl std::fmt::Debug for Discovery {
+-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+-        // The secret is never shown.
+-        write!(f, "Discovery({})", self.public())
+-    }
+-}
+-
+-/// What a service needs.
+-#[derive(Debug, Clone)]
+-pub struct ServiceOptions {
+-    /// The name of the service in the keystore and the state: a slug,
+-    /// such as `podssh`.
+-    pub nickname: String,
+-    /// The virtual port that the service answers; a stream to another is
+-    /// refused as a C tor service refuses it.
+-    pub port: u16,
+-    /// The public halves of the keys of restricted discovery
+-    /// ([`Discovery::public`]); none: any client that knows the address.
+-    pub allowed: Vec<String>,
+-}
+-
+-/// Whether `host` is an onion address of a v3 service: 56 letters of base32
+-/// `stream` as a pipe whose task copies both ways and flushes Arti's stream
+-/// each time its source has nothing more: a stream of Tor keeps a partial
+-/// cell until it is full or flushed, and a pump that never flushes (a road
+-/// written for TCP) would hold a short message there for ever. The task
+-/// owns the stream, so the service and the client stay up with it.
+-pub fn bridged(stream: crate::TorStream) -> tokio::io::DuplexStream {
+-    const PIPE: usize = 64 * 1024;
+-    let (ours, mut theirs) = tokio::io::duplex(PIPE);
+-    tokio::spawn(async move {
+-        let mut stream = stream;
+-        let _ = tokio::io::copy_bidirectional(&mut theirs, &mut stream).await;
+-    });
+-    ours
+-}
+-
+-/// The detail of [`Onion::published`]'s failure when the service ended,
+-/// which no longer wait can mend.
+-pub const STOPPED: &str = "the service stopped";
+-
+-/// and `.onion`, its checksum right.
+-pub fn is_onion(host: &str) -> bool {
+-    HsId::from_str(host).is_ok()
+-}
+-
+-/// An onion service, launched: its address, and the streams that clients
+-/// open to its port. Dropping it stops the service.
+-pub struct Onion {
+-    address: String,
+-    port: u16,
+-    service: Arc<RunningOnionService>,
+-    streams: Pin<Box<dyn Stream<Item = StreamRequest> + Send>>,
+-    tor: Tor,
+-}
+-
+-impl Tor {
+-    /// Launch the onion service of `options` on this client: its key read
+-    /// from the keystore, or made there at the first launch. It returns once
+-    /// the service runs, before its descriptor is published
+-    /// ([`Onion::published`] waits for that).
+-    pub fn serve_onion(&self, options: &ServiceOptions) -> Result<Onion, Failure> {
+-        const STEP: &str = "the onion service";
+-        let nickname = HsNickname::from_str(&options.nickname).map_err(|e| failure(STEP, e))?;
+-        let mut builder = OnionServiceConfigBuilder::default();
+-        builder.nickname(nickname);
+-        if !options.allowed.is_empty() {
+-            builder.restricted_discovery().enabled(true);
+-            for (n, text) in options.allowed.iter().enumerate() {
+-                let key = HsClientDescEncKey::from_str(text)
+-                    .map_err(|e| failure(STEP, format!("the key of restricted discovery {}: {e}", n + 1)))?;
+-                // A client's name in the service's list, never on the wire.
+-                let name = HsClientNickname::from_str(&format!("client-{}", n + 1)).map_err(|e| failure(STEP, e))?;
+-                builder.restricted_discovery().static_keys().access().push((name, key));
+-            }
+-        }
+-        let config = builder.build().map_err(|e| failure(STEP, e))?;
+-        let launched = self.client.launch_onion_service(config).map_err(|e| arti_failure(STEP, &e))?;
+-        let Some((service, requests)) = launched else {
+-            return Err(failure(STEP, "Arti says that the service is disabled"));
+-        };
+-        let Some(id) = service.onion_address() else {
+-            return Err(failure(STEP, "no identity key of the service in the keystore"));
+-        };
+-        // The address is the node's own word to its operators: not redacted.
+-        let address = id.display_unredacted().to_string();
+-        let streams = Box::pin(tor_hsservice::handle_rend_requests(requests));
+-        Ok(Onion { address, port: options.port, service, streams, tor: self.clone() })
+-    }
+-
+-    /// A stream to `port` of the onion service at `address`, within `wait`.
+-    /// With `discovery`, its key goes to this client's keystore first, in
+-    /// the place of another kept for that service, so that a service of
+-    /// restricted discovery that lists it can be found.
+-    pub async fn connect_onion(
+-        &self,
+-        address: &str,
+-        port: u16,
+-        discovery: Option<&Discovery>,
+-        wait: Duration,
+-    ) -> Result<TorStream, Failure> {
+-        let id = HsId::from_str(address).map_err(|e| failure("the onion address", e))?;
+-        if let Some(key) = discovery {
+-            self.keep_discovery(id, key)?;
+-        }
+-        self.connect(address, port, wait).await
+-    }
+-
+-    /// `key` in the keystore for the service `id`: kept when it is there
+-    /// already, else put there, after the one of an earlier pair.
+-    fn keep_discovery(&self, id: HsId, key: &Discovery) -> Result<(), Failure> {
+-        const STEP: &str = "the key of restricted discovery";
+-        match self.client.get_service_discovery_key(id) {
+-            Ok(Some(kept)) if kept == key.public_key() => return Ok(()),
+-            Ok(Some(_)) => {
+-                self.client
+-                    .remove_service_discovery_key(KeystoreSelector::Primary, id)
+-                    .map_err(|e| arti_failure(STEP, &e))?;
+-            }
+-            Ok(None) => {}
+-            Err(e) => return Err(arti_failure(STEP, &e)),
+-        }
+-        let inserted = self.client.insert_service_discovery_key(KeystoreSelector::Primary, id, key.secret());
+-        inserted.map(|_| ()).map_err(|e| arti_failure(STEP, &e))
+-    }
+-}
+-
+-impl Onion {
+-    /// The address, `BASE32.onion`, in lower case.
+-    pub fn address(&self) -> &str {
+-        &self.address
+-    }
+-
+-    /// Wait until the service says that it is reachable: its introduction
+-    /// points up and its descriptor published, within `wait`; else why not.
+-    pub async fn published(&self, wait: Duration) -> Result<(), Failure> {
+-        const STEP: &str = "the onion service's descriptor";
+-        let mut events = self.service.status_events();
+-        let mut now = self.service.status();
+-        let reached = async {
+-            loop {
+-                if now.state().is_fully_reachable() {
+-                    return true;
+-                }
+-                match events.next().await {
+-                    Some(status) => now = status,
+-                    None => return false,
+-                }
+-            }
+-        };
+-        match tokio::time::timeout(wait, reached).await {
+-            Ok(true) => Ok(()),
+-            Ok(false) => Err(failure(STEP, STOPPED)),
+-            Err(_) => {
+-                let status = self.service.status();
+-                let problem = status.current_problem().map_or_else(String::new, |p| format!(": {p:?}"));
+-                let state = status.state();
+-                Err(failure(STEP, format!("not published within {} s ({state:?}{problem})", wait.as_secs())))
+-            }
+-        }
+-    }
+-
+-    /// The next stream to the service's port; a stream to another port, or
+-    /// a request that is no stream, is refused as C tor refuses it. `None`
+-    /// once the service ends.
+-    pub async fn accept(&mut self) -> Option<TorStream> {
+-        while let Some(request) = self.streams.next().await {
+-            let port = match request.request() {
+-                IncomingStreamRequest::Begin(begin) => Some(begin.port()),
+-                _ => None,
+-            };
+-            if port != Some(self.port) {
+-                let _ = request.reject(End::new_with_reason(EndReason::DONE)).await;
+-                continue;
+-            }
+-            // A client that left before its CONNECTED is no stream.
+-            if let Ok(stream) = request.accept(Connected::new_empty()).await {
+-                return Some(TorStream::served(stream, self.tor.client.clone(), self.service.clone()));
+-            }
+-        }
+-        None
+-    }
+-}
+-
+-#[cfg(test)]
+-mod tests {
+-    use super::*;
+-
+-    #[test]
+-    fn a_key_of_discovery_shows_its_public_half_as_c_tor_writes_it() {
+-        let key = Discovery::from_secret([7; 32]);
+-        let public = key.public();
+-        assert!(public.starts_with("descriptor:x25519:"), "{public}");
+-        assert_eq!(HsClientDescEncKey::from_str(&public).unwrap(), key.public_key());
+-        assert_ne!(Discovery::from_secret([8; 32]).public(), public);
+-        assert!(!format!("{key:?}").contains("[7"), "the secret was shown");
+-    }
+-
+-    #[test]
+-    fn an_onion_address_is_one_of_a_v3_service() {
+-        // The address of the Tor Project's own site, as it publishes it.
+-        assert!(is_onion("2gzyxa5ihm7nsggfxnu52rck2vv4rvmdlkiu3zzui5du4xyclen53wid.onion"));
+-        assert!(!is_onion("2gzyxa5ihm7nsggfxnu52rck2vv4rvmdlkiu3zzui5du4xyclen53wia.onion"));
+-        assert!(!is_onion("www.torproject.org"));
+-        assert!(!is_onion("sub.2gzyxa5ihm7nsggfxnu52rck2vv4rvmdlkiu3zzui5du4xyclen53wid.onion"));
+-    }
+-}
+diff --git a/crates/podssh-tor/src/runtime.rs b/crates/podssh-tor/src/runtime.rs
+deleted file mode 100644
+index 205b4d2..0000000
+--- a/crates/podssh-tor/src/runtime.rs
++++ /dev/null
+@@ -1,144 +0,0 @@
+-//! The runtime that Arti runs on: tokio and rustls as Arti's own, with a
+-//! TCP provider whose connections are podssh-ws's [`dial`]: through the
+-//! proxy that the environment names, else directly. Arti asks for a relay
+-//! by its address and port alone, which a proxy's CONNECT carries as they
+-//! are, with no name to resolve. It never listens: a client of Tor needs no
+-//! listener (`AGENTS.md`, section 5, rule 2).
+-//!
+-//! A bridge's transport (T-385) is a sentinel address that Arti dials as a
+-//! SOCKS5 proxy; the provider gives it a pipe in memory whose far end is the
+-//! transport in this process ([`crate::transport`]). Any other address is a
+-//! relay, dialled as above.
+-
+-use std::io::{Error, ErrorKind, Result as IoResult};
+-use std::net::SocketAddr;
+-use std::pin::Pin;
+-use std::task::{Context, Poll};
+-use std::time::Duration;
+-
+-use futures::io::{AsyncRead, AsyncWrite};
+-use podssh_ws::dial::{dial, ProxyChoice};
+-use podssh_ws::Trust;
+-use tokio::io::DuplexStream;
+-use tokio_util::compat::{Compat, TokioAsyncReadCompatExt as _};
+-use tor_rtcompat::{NetStreamListener, NetStreamProvider, StreamOps, TcpConnectOptions, TcpListenOptions};
+-
+-use crate::transport::{Kind, Said, TRANSPORT_WAIT};
+-
+-/// How long one connection to a relay may take, the proxy's CONNECT included.
+-pub const CONNECT_WAIT: Duration = Duration::from_secs(20);
+-
+-/// The TCP provider: each connection through podssh-ws's dial.
+-#[derive(Clone, Debug)]
+-pub struct ProxiedTcp {
+-    proxy: ProxyChoice,
+-    wait: Duration,
+-    trust: Trust,
+-    said: Said,
+-}
+-
+-impl ProxiedTcp {
+-    /// Connections through `proxy`, each within `wait`.
+-    pub fn new(proxy: ProxyChoice, wait: Duration) -> Self {
+-        ProxiedTcp { proxy, wait, trust: Trust::Default, said: Said::default() }
+-    }
+-
+-    /// The roots that a bridge's transport checks its TLS with.
+-    pub fn with_trust(mut self, trust: Trust) -> Self {
+-        self.trust = trust;
+-        self
+-    }
+-
+-    /// The last failure of a bridge's transport, shared with each clone.
+-    pub fn said(&self) -> Said {
+-        self.said.clone()
+-    }
+-}
+-
+-/// A connection to a relay, or to a bridge's transport, as Arti reads and
+-/// writes it.
+-pub struct ProxiedStream {
+-    inner: Inner,
+-}
+-
+-enum Inner {
+-    Tcp(Compat<tokio::net::TcpStream>),
+-    Pipe(Compat<DuplexStream>),
+-}
+-
+-impl AsyncRead for ProxiedStream {
+-    fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<IoResult<usize>> {
+-        match &mut self.inner {
+-            Inner::Tcp(s) => Pin::new(s).poll_read(cx, buf),
+-            Inner::Pipe(s) => Pin::new(s).poll_read(cx, buf),
+-        }
+-    }
+-}
+-
+-impl AsyncWrite for ProxiedStream {
+-    fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
+-        match &mut self.inner {
+-            Inner::Tcp(s) => Pin::new(s).poll_write(cx, buf),
+-            Inner::Pipe(s) => Pin::new(s).poll_write(cx, buf),
+-        }
+-    }
+-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+-        match &mut self.inner {
+-            Inner::Tcp(s) => Pin::new(s).poll_flush(cx),
+-            Inner::Pipe(s) => Pin::new(s).poll_flush(cx),
+-        }
+-    }
+-    fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
+-        match &mut self.inner {
+-            Inner::Tcp(s) => Pin::new(s).poll_close(cx),
+-            Inner::Pipe(s) => Pin::new(s).poll_close(cx),
+-        }
+-    }
+-}
+-
+-// The socket options of a stream through a proxy are the proxy's, and a
+-// pipe has none, so none is offered: the trait's defaults refuse each one.
+-impl StreamOps for ProxiedStream {}
+-
+-/// The listener that is never made.
+-pub struct NoListener;
+-
+-impl NetStreamListener<SocketAddr> for NoListener {
+-    type Stream = ProxiedStream;
+-    type Incoming = futures::stream::Pending<IoResult<(ProxiedStream, SocketAddr)>>;
+-    fn incoming(self) -> Self::Incoming {
+-        futures::stream::pending()
+-    }
+-    fn local_addr(&self) -> IoResult<SocketAddr> {
+-        Err(refused())
+-    }
+-}
+-
+-fn refused() -> Error {
+-    Error::new(ErrorKind::Unsupported, "podssh's road through Tor listens on no socket")
+-}
+-
+-#[async_trait::async_trait]
+-impl NetStreamProvider<SocketAddr> for ProxiedTcp {
+-    type Stream = ProxiedStream;
+-    type Listener = NoListener;
+-    type ConnectOptions = TcpConnectOptions;
+-    type ListenOptions = TcpListenOptions;
+-
+-    async fn connect(&self, addr: &SocketAddr, _: &TcpConnectOptions) -> IoResult<ProxiedStream> {
+-        // A transport's sentinel is a key, never dialled.
+-        if let Some(kind) = Kind::by_addr(addr) {
+-            let reach = podssh_ws::pt::reach(&self.proxy, self.trust.clone(), TRANSPORT_WAIT);
+-            let pipe = crate::transport::spawn(kind, reach, self.said.clone());
+-            return Ok(ProxiedStream { inner: Inner::Pipe(pipe.compat()) });
+-        }
+-        let stream = dial(&addr.ip().to_string(), addr.port(), &self.proxy, self.wait)
+-            .await
+-            .map_err(|e| Error::new(ErrorKind::ConnectionRefused, e.to_string()))?;
+-        Ok(ProxiedStream { inner: Inner::Tcp(stream.compat()) })
+-    }
+-
+-    async fn listen(&self, _: &SocketAddr, _: &TcpListenOptions) -> IoResult<NoListener> {
+-        Err(refused())
+-    }
+-}
+diff --git a/crates/podssh-tor/src/socks.rs b/crates/podssh-tor/src/socks.rs
+deleted file mode 100644
+index fe236a6..0000000
+--- a/crates/podssh-tor/src/socks.rs
++++ /dev/null
+@@ -1,194 +0,0 @@
+-//! The server's side of SOCKS5 (RFC 1928) with a user and a password
+-//! (RFC 1929), as far as Arti's client of a pluggable transport speaks it
+-//! (`tor-chanmgr`, `transport/proxied.rs`, at 0.47): one CONNECT, whose
+-//! target the transport does not need, and the bridge's arguments in the
+-//! user name and the password, as Tor's specification of pluggable
+-//! transports carries them. Arti joins the arguments as `k=v;k=v`, with a
+-//! backslash before each `\` and `;`, and before a `=` of a key; up to 255
+-//! bytes go in the user name with a password of one NUL, and the rest of
+-//! 510 at most in the password. [`settings`] undoes that.
+-
+-use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _};
+-
+-/// The reply that lets the client's bytes through.
+-pub const SUCCEEDED: u8 = 0;
+-/// The reply of a transport that did not open.
+-pub const FAILED: u8 = 1;
+-/// The reply to a command other than CONNECT.
+-const NOT_SUPPORTED: u8 = 7;
+-/// The reply to a kind of address that SOCKS5 does not have.
+-const ADDRESS_NOT_SUPPORTED: u8 = 8;
+-
+-/// Answer a client's greeting, its user and password, and its CONNECT; the
+-/// bytes of the arguments, the user name and the password joined, or none.
+-/// The CONNECT is left without a reply: [`reply`] gives one once the
+-/// transport opened, or did not.
+-pub async fn accept<S: AsyncRead + AsyncWrite + Unpin>(s: &mut S) -> Result<Vec<u8>, String> {
+-    let io = |e: std::io::Error| e.to_string();
+-    let mut head = [0u8; 2];
+-    s.read_exact(&mut head).await.map_err(io)?;
+-    if head[0] != 5 {
+-        return Err(format!("not SOCKS5: version {}", head[0]));
+-    }
+-    let mut methods = vec![0u8; usize::from(head[1])];
+-    s.read_exact(&mut methods).await.map_err(io)?;
+-    // The user and the password carry the arguments; no arguments, no user.
+-    let method = match (methods.contains(&2), methods.contains(&0)) {
+-        (true, _) => 2,
+-        (false, true) => 0,
+-        (false, false) => {
+-            let _ = s.write_all(&[5, 0xff]).await;
+-            return Err("no method of SOCKS5 that podssh takes was offered".into());
+-        }
+-    };
+-    s.write_all(&[5, method]).await.map_err(io)?;
+-    let mut raw = Vec::new();
+-    if method == 2 {
+-        let mut version = [0u8; 2];
+-        s.read_exact(&mut version).await.map_err(io)?;
+-        if version[0] != 1 {
+-            return Err(format!("not RFC 1929's user and password: version {}", version[0]));
+-        }
+-        let mut user = vec![0u8; usize::from(version[1])];
+-        s.read_exact(&mut user).await.map_err(io)?;
+-        let mut length = [0u8; 1];
+-        s.read_exact(&mut length).await.map_err(io)?;
+-        let mut password = vec![0u8; usize::from(length[0])];
+-        s.read_exact(&mut password).await.map_err(io)?;
+-        s.write_all(&[1, 0]).await.map_err(io)?;
+-        raw = user;
+-        // A lone NUL is the password of arguments that fit in the user name.
+-        if password != [0] {
+-            raw.extend_from_slice(&password);
+-        }
+-    }
+-    let mut request = [0u8; 4];
+-    s.read_exact(&mut request).await.map_err(io)?;
+-    if request[0] != 5 {
+-        return Err(format!("not a request of SOCKS5: version {}", request[0]));
+-    }
+-    if request[1] != 1 {
+-        let _ = reply(s, NOT_SUPPORTED).await;
+-        return Err(format!("command {} is not CONNECT", request[1]));
+-    }
+-    let skip = match request[3] {
+-        1 => 4,
+-        4 => 16,
+-        3 => {
+-            let mut length = [0u8; 1];
+-            s.read_exact(&mut length).await.map_err(io)?;
+-            usize::from(length[0])
+-        }
+-        other => {
+-            let _ = reply(s, ADDRESS_NOT_SUPPORTED).await;
+-            return Err(format!("address type {other}"));
+-        }
+-    };
+-    // The bridge's address and port: the transport takes its own from the
+-    // arguments.
+-    let mut target = vec![0u8; skip + 2];
+-    s.read_exact(&mut target).await.map_err(io)?;
+-    Ok(raw)
+-}
+-
+-/// The reply to the CONNECT: `status`, and an address of zeros.
+-pub async fn reply<S: AsyncWrite + Unpin>(s: &mut S, status: u8) -> std::io::Result<()> {
+-    s.write_all(&[5, status, 0, 1, 0, 0, 0, 0, 0, 0]).await?;
+-    s.flush().await
+-}
+-
+-/// The arguments in `raw`: `k=v` pairs split at each `;` that no backslash
+-/// escapes, each at its first `=` that none escapes, the escapes removed.
+-pub fn settings(raw: &[u8]) -> Result<Vec<(String, String)>, String> {
+-    let text = std::str::from_utf8(raw).map_err(|_| "the bridge's arguments are not UTF-8".to_string())?;
+-    let mut out = Vec::new();
+-    if text.is_empty() {
+-        return Ok(out);
+-    }
+-    let (mut key, mut value) = (String::new(), None::<String>);
+-    let mut chars = text.chars();
+-    while let Some(c) = chars.next() {
+-        let c = match c {
+-            '\\' => chars.next().ok_or("the bridge's arguments end in a lone backslash")?,
+-            ';' => {
+-                let v = value.take().ok_or_else(|| format!("the argument {key:?} has no '='"))?;
+-                out.push((std::mem::take(&mut key), v));
+-                continue;
+-            }
+-            '=' if value.is_none() => {
+-                value = Some(String::new());
+-                continue;
+-            }
+-            c => c,
+-        };
+-        match value.as_mut() {
+-            Some(v) => v.push(c),
+-            None => key.push(c),
+-        }
+-    }
+-    let v = value.ok_or_else(|| format!("the argument {key:?} has no '='"))?;
+-    out.push((key, v));
+-    Ok(out)
+-}
+-
+-#[cfg(test)]
+-mod tests {
+-    use super::*;
+-
+-    fn pairs(list: &[(&str, &str)]) -> Vec<(String, String)> {
+-        list.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+-    }
+-
+-    /// Arti's own cases of its encoding (`proxied.rs`, `setting_encoding`),
+-    /// read back.
+-    #[test]
+-    fn arti_s_encoded_arguments_are_read_back() {
+-        assert_eq!(settings(b"").unwrap(), pairs(&[]));
+-        assert_eq!(settings(b"hello=world").unwrap(), pairs(&[("hello", "world")]));
+-        assert_eq!(settings(b"hey=verden;hello=world").unwrap(), pairs(&[("hey", "verden"), ("hello", "world")]));
+-        assert_eq!(settings(br"semi\;colon=equals=sign").unwrap(), pairs(&[("semi;colon", "equals=sign")]));
+-        assert_eq!(settings(br"equals\=sign=semi\;colon").unwrap(), pairs(&[("equals=sign", "semi;colon")]));
+-        let two = settings(br"semi\;colon=equals=sign;also=back\\slash").unwrap();
+-        assert_eq!(two, pairs(&[("semi;colon", "equals=sign"), ("also", r"back\slash")]));
+-        let url = settings(b"url=https://cdn.test/;front=www.test").unwrap();
+-        assert_eq!(url, pairs(&[("url", "https://cdn.test/"), ("front", "www.test")]));
+-        for bad in [&b"novalue"[..], b"a=1;b", b"a=1\\", b"\xff=1"] {
+-            assert!(settings(bad).is_err(), "{bad:?}");
+-        }
+-    }
+-
+-    /// The bytes of Arti's client in tor-socksproto's own test
+-    /// (`socks5_with_auth_ok`): its offer, its user and password, its
+-    /// CONNECT; the server's answers, and the arguments joined.
+-    #[tokio::test]
+-    async fn arti_s_handshake_is_answered_and_its_arguments_read() {
+-        let (mut client, mut server) = tokio::io::duplex(1024);
+-        let served = tokio::spawn(async move {
+-            let raw = accept(&mut server).await;
+-            reply(&mut server, SUCCEEDED).await.unwrap();
+-            raw
+-        });
+-        client.write_all(&[0x05, 0x02, 0x02, 0x00]).await.unwrap();
+-        let mut answer = [0u8; 2];
+-        client.read_exact(&mut answer).await.unwrap();
+-        assert_eq!(answer, [5, 2]);
+-        client.write_all(b"\x01\x05hello\x05world").await.unwrap();
+-        client.read_exact(&mut answer).await.unwrap();
+-        assert_eq!(answer, [1, 0]);
+-        client.write_all(b"\x05\x01\x00\x03\x12www.torproject.org\x01\xbb").await.unwrap();
+-        let mut answered = [0u8; 10];
+-        client.read_exact(&mut answered).await.unwrap();
+-        assert_eq!(answered[..2], [5, 0]);
+-        assert_eq!(served.await.unwrap().unwrap(), b"helloworld");
+-    }
+-
+-    /// A password of one NUL is no part of the arguments.
+-    #[tokio::test]
+-    async fn a_lone_nul_password_is_left_out() {
+-        let (mut client, mut server) = tokio::io::duplex(1024);
+-        let served = tokio::spawn(async move { accept(&mut server).await });
+-        client.write_all(&[5, 1, 2, 1, 3]).await.unwrap();
+-        client.write_all(b"a=1\x01\x00\x05\x01\x00\x01\x00\x00\x00\x01\x00\x01").await.unwrap();
+-        assert_eq!(served.await.unwrap().unwrap(), b"a=1");
+-    }
+-}
+diff --git a/crates/podssh-tor/src/transport.rs b/crates/podssh-tor/src/transport.rs
+deleted file mode 100644
+index 6b14939..0000000
+--- a/crates/podssh-tor/src/transport.rs
++++ /dev/null
+@@ -1,172 +0,0 @@
+-//! A bridge's pluggable transport, answered in this process (T-385). Arti
+-//! reaches a transport that it does not manage as a SOCKS5 proxy at the
+-//! transport's `proxy_addr`, through its runtime's TCP provider: podssh's
+-//! ([`crate::runtime`]). Each of podssh's two transports has a sentinel
+-//! address there, and the provider answers a dial of one with one end of a
+-//! pipe in memory; a task here holds the other end, answers Arti's SOCKS5
+-//! handshake ([`crate::socks`]), whose user and password carry the bridge's
+-//! arguments, opens the transport through podssh-ws (its dial, its proxy,
+-//! its TLS), says whether it opened, and carries the bytes.
+-//!
+-//! Nothing binds, listens or starts (`AGENTS.md`, section 5, rules 2 and 3):
+-//! a sentinel is a key that the provider matches, never dialled. That Arti
+-//! dials a transport through its runtime is its code at 0.47, not a promise
+-//! of its API; a test drives Arti's own client against the sentinel, so
+-//! that a release which changes it fails there.
+-
+-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+-use std::sync::{Arc, Mutex};
+-use std::time::Duration;
+-
+-use podssh_ws::pt::Reach;
+-use tokio::io::DuplexStream;
+-
+-use crate::socks;
+-
+-/// How long a transport's dial and TLS may take: Arti gives a channel
+-/// through a transport 10 s for those and its own handshake.
+-pub const TRANSPORT_WAIT: Duration = Duration::from_secs(10);
+-/// How long Arti's SOCKS5 handshake may take, in memory.
+-const HANDSHAKE_WAIT: Duration = Duration::from_secs(10);
+-/// The pipe in memory, each way.
+-const PIPE: usize = 256 * 1024;
+-
+-/// A transport that podssh speaks.
+-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+-pub enum Kind {
+-    Meek,
+-    WebTunnel,
+-}
+-
+-impl Kind {
+-    /// Each one, in the order of the configuration.
+-    pub const ALL: [Kind; 2] = [Kind::Meek, Kind::WebTunnel];
+-
+-    /// Its name in a bridge line, and in Arti's configuration.
+-    pub fn name(self) -> &'static str {
+-        match self {
+-            Kind::Meek => "meek_lite",
+-            Kind::WebTunnel => "webtunnel",
+-        }
+-    }
+-
+-    /// The transport of a bridge line's name.
+-    pub fn by_name(name: &str) -> Option<Kind> {
+-        Kind::ALL.into_iter().find(|k| k.name() == name)
+-    }
+-
+-    /// Its sentinel: a loopback address of a port that nothing serves, as
+-    /// Arti warns of a transport elsewhere; a key, never dialled.
+-    pub fn at(self) -> SocketAddr {
+-        let port = match self {
+-            Kind::Meek => 1,
+-            Kind::WebTunnel => 2,
+-        };
+-        SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, port))
+-    }
+-
+-    /// The transport whose sentinel `addr` is.
+-    pub fn by_addr(addr: &SocketAddr) -> Option<Kind> {
+-        Kind::ALL.into_iter().find(|k| k.at() == *addr)
+-    }
+-}
+-
+-/// The last failure of a transport, shared with whoever made the runtime:
+-/// Arti says only that a channel failed, and the bootstrap's failure names
+-/// this one ([`crate::client`]).
+-#[derive(Debug, Clone, Default)]
+-pub struct Said(Arc<Mutex<Option<String>>>);
+-
+-impl Said {
+-    /// The last failure, if any.
+-    pub fn last(&self) -> Option<String> {
+-        self.0.lock().unwrap_or_else(|e| e.into_inner()).clone()
+-    }
+-
+-    fn set(&self, line: String) {
+-        *self.0.lock().unwrap_or_else(|e| e.into_inner()) = Some(line);
+-    }
+-}
+-
+-/// Arti's end of a pipe whose far end, a task, serves `kind` with `reach`.
+-pub(crate) fn spawn(kind: Kind, reach: Reach, said: Said) -> DuplexStream {
+-    let (arti, far) = tokio::io::duplex(PIPE);
+-    tokio::spawn(serve(kind, far, reach, said));
+-    arti
+-}
+-
+-/// An open transport.
+-enum Open {
+-    // A session holds its fronts and its reach; boxed, as the stream is small.
+-    Meek(Box<podssh_ws::meek::Session>),
+-    WebTunnel(podssh_ws::url::Stream),
+-}
+-
+-/// The far end: the handshake, the transport, then its bytes.
+-async fn serve(kind: Kind, mut far: DuplexStream, reach: Reach, said: Said) {
+-    let name = kind.name();
+-    let raw = match tokio::time::timeout(HANDSHAKE_WAIT, socks::accept(&mut far)).await {
+-        Ok(Ok(raw)) => raw,
+-        Ok(Err(why)) => return said.set(format!("{name}: Arti's SOCKS5 handshake: {why}")),
+-        Err(_) => return said.set(format!("{name}: no SOCKS5 handshake within {} s", HANDSHAKE_WAIT.as_secs())),
+-    };
+-    let opened = match socks::settings(&raw) {
+-        Ok(settings) => open(kind, &settings, &reach).await,
+-        Err(why) => Err(why),
+-    };
+-    let carried = match opened {
+-        Ok(carried) => carried,
+-        Err(why) => {
+-            said.set(format!("{name}: {why}"));
+-            let _ = socks::reply(&mut far, socks::FAILED).await;
+-            return;
+-        }
+-    };
+-    if socks::reply(&mut far, socks::SUCCEEDED).await.is_err() {
+-        // Arti gave up on the channel while the transport opened.
+-        return;
+-    }
+-    match carried {
+-        Open::Meek(session) => {
+-            if let Some(why) = (*session).carry(far).await.failure() {
+-                said.set(format!("{name}: {why}"));
+-            }
+-        }
+-        Open::WebTunnel(mut stream) => {
+-            if let Err(e) = tokio::io::copy_bidirectional(&mut far, &mut stream).await {
+-                said.set(format!("{name}: the bridge's connection: {e}"));
+-            }
+-        }
+-    }
+-}
+-
+-/// `kind` opened for a bridge's `settings`.
+-async fn open(kind: Kind, settings: &[(String, String)], reach: &Reach) -> Result<Open, String> {
+-    match kind {
+-        Kind::Meek => {
+-            let args = podssh_ws::meek::Args::parse(settings)?;
+-            podssh_ws::meek::open(&args, reach).await.map(|session| Open::Meek(Box::new(session)))
+-        }
+-        Kind::WebTunnel => {
+-            let args = podssh_ws::webtunnel::Args::parse(settings)?;
+-            podssh_ws::webtunnel::open(&args, reach).await.map(Open::WebTunnel)
+-        }
+-    }
+-}
+-
+-#[cfg(test)]
+-mod tests {
+-    use super::*;
+-
+-    #[test]
+-    fn each_transport_has_a_sentinel_of_its_own_on_the_loopback() {
+-        for kind in Kind::ALL {
+-            assert_eq!(Kind::by_addr(&kind.at()), Some(kind));
+-            assert_eq!(Kind::by_name(kind.name()), Some(kind));
+-            assert!(kind.at().ip().is_loopback());
+-        }
+-        assert_ne!(Kind::Meek.at(), Kind::WebTunnel.at());
+-        assert_eq!(Kind::by_addr(&"127.0.0.1:443".parse().unwrap()), None);
+-        assert_eq!(Kind::by_name("obfs4"), None);
+-    }
+-}
+diff --git a/crates/podssh-tor/tests/onion_service.rs b/crates/podssh-tor/tests/onion_service.rs
+deleted file mode 100644
+index d234a28..0000000
+--- a/crates/podssh-tor/tests/onion_service.rs
++++ /dev/null
+@@ -1,228 +0,0 @@
+-//! Tor's onion services (T-578) against a Tor network of C tor on this host,
+-//! software that podssh did not write: chutney's network `basic` (four
+-//! authorities and five exits, each an HSDir, as chutney's `TestingTorNetwork`
+-//! votes), whose arti-client configuration `PODSSH_TEST_TOR_NETWORK` names
+-//! (`scripts/tor-net.sh start`). A node's service, Arti's in this process,
+-//! publishes its descriptor there and takes a client's stream through a
+-//! rendezvous point; restricted discovery hides it from a client with no
+-//! key; and a second start, with the same state, keeps its address. With no
+-//! network the tests say so and pass, as the other tests of this crate do.
+-//! The live run on Tor's own network is asked for alone.
+-
+-use std::path::{Path, PathBuf};
+-use std::time::Duration;
+-
+-use podssh_tor::{Discovery, Options, ServiceOptions, Tor};
+-use podssh_ws::dial::ProxyChoice;
+-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+-
+-const NETWORK_ENV: &str = "PODSSH_TEST_TOR_NETWORK";
+-/// The service's virtual port, as podssh's node serves it.
+-const PORT: u16 = 22;
+-/// A bootstrap in the private network: a few seconds, with room.
+-const BOOTSTRAP: Duration = Duration::from_secs(120);
+-/// Three introduction points and a descriptor at each HSDir of the ring:
+-/// seconds on a quiet host, minutes on a busy runner, as on Tor's own
+-/// network, where the introduction points and the upload take minutes.
+-const PUBLISH: Duration = Duration::from_secs(600);
+-const LIVE_PUBLISH: Duration = PUBLISH;
+-/// The descriptor fetched, the introduction and the rendezvous.
+-const REACH: Duration = Duration::from_secs(120);
+-const MIB: usize = 1 << 20;
+-
+-fn network() -> Option<String> {
+-    let Some(file) = std::env::var_os(NETWORK_ENV).filter(|v| !v.is_empty()) else {
+-        eprintln!("{NETWORK_ENV} is not set: no private Tor network, nothing to test (scripts/tor-net.sh)");
+-        return None;
+-    };
+-    Some(std::fs::read_to_string(&file).unwrap())
+-}
+-
+-/// A home of the test's own, made empty.
+-fn home(name: &str) -> PathBuf {
+-    let home = std::env::temp_dir().join(format!("podssh-tor-onion-{name}-{}", std::process::id()));
+-    let _ = std::fs::remove_dir_all(&home);
+-    home
+-}
+-
+-/// A client of the private network whose state and cache are under `home`;
+-/// the relays are on this host, reached directly.
+-async fn tor(home: &Path, network: &str) -> Tor {
+-    client(home, Some(network), ProxyChoice::Direct).await
+-}
+-
+-/// A client of `network`, else of Tor's own, through `proxy`.
+-async fn client(home: &Path, network: Option<&str>, proxy: ProxyChoice) -> Tor {
+-    let _ = podssh_ws::crypto::provider().install_default();
+-    let options = Options {
+-        state_dir: home.join("state"),
+-        cache_dir: home.join("cache"),
+-        proxy,
+-        // chutney's relays listen on ports from 5000 up; Tor's own network
+-        // is reached as the host allows.
+-        first_hop_ports: None,
+-        trust_directories: true,
+-        network: network.map(str::to_string),
+-        bridges: Vec::new(),
+-        trust: podssh_ws::Trust::Default,
+-    };
+-    Tor::bootstrap(&options, BOOTSTRAP).await.unwrap_or_else(|f| panic!("{f}"))
+-}
+-
+-fn service(allowed: Vec<String>) -> ServiceOptions {
+-    ServiceOptions { nickname: "podssh".into(), port: PORT, allowed }
+-}
+-
+-/// 1 MiB that no two runs of a byte repeat soon.
+-fn pattern() -> Vec<u8> {
+-    (0..MIB).map(|i| (i % 251) as u8 ^ (i >> 12) as u8).collect()
+-}
+-
+-/// A node's service, of restricted discovery for one key, reached by the
+-/// client that holds it: 1 MiB each way through the rendezvous circuit. A
+-/// stream to another port is refused; a client with no key, or another
+-/// key, cannot find the service at all.
+-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+-async fn a_node_s_onion_service_carries_a_mebibyte_each_way_and_hides_from_a_stranger() {
+-    let Some(network) = network() else { return };
+-    let (node_home, client_home, stranger_home) = (home("node"), home("client"), home("stranger"));
+-    let key = Discovery::from_secret([42; 32]);
+-    let node = tor(&node_home, &network).await;
+-    let onion = node.serve_onion(&service(vec![key.public()])).unwrap_or_else(|f| panic!("{f}"));
+-    let address = onion.address().to_string();
+-    assert!(podssh_tor::onion::is_onion(&address), "{address}");
+-    let began = std::time::Instant::now();
+-    onion.published(PUBLISH).await.unwrap_or_else(|f| panic!("{f}"));
+-    eprintln!("the descriptor was published in {} s", began.elapsed().as_secs());
+-    let stopped = echo(onion);
+-    let client = tor(&client_home, &network).await;
+-    carry(&client, &address, &key).await;
+-
+-    // Another port of the same service: refused by the node, as C tor refuses it.
+-    let other = client.connect_onion(&address, PORT + 1, Some(&key), REACH).await;
+-    assert!(other.is_err(), "a stream to port {} was taken", PORT + 1);
+-
+-    // A client with no key of the service, and one with another key, never
+-    // reach its introduction points: its descriptor's inner layer is not
+-    // theirs to read.
+-    let stranger = tor(&stranger_home, &network).await;
+-    let refused = stranger.connect_onion(&address, PORT, None, REACH).await;
+-    assert!(refused.is_err(), "a client with no key of restricted discovery reached the service");
+-    let other_key = Discovery::from_secret([43; 32]);
+-    let refused = stranger.connect_onion(&address, PORT, Some(&other_key), REACH).await;
+-    assert!(refused.is_err(), "a client with another key reached the service");
+-
+-    stopped.abort();
+-    for dir in [node_home, client_home, stranger_home] {
+-        let _ = std::fs::remove_dir_all(dir);
+-    }
+-}
+-
+-/// The node's side: each stream to the service echoed, as a far end of the
+-/// layer answers, until the task is stopped, which stops the service.
+-fn echo(mut onion: podssh_tor::Onion) -> tokio::task::JoinHandle<()> {
+-    tokio::spawn(async move {
+-        while let Some(stream) = onion.accept().await {
+-            tokio::spawn(async move {
+-                let (mut read, mut write) = tokio::io::split(stream);
+-                let _ = tokio::io::copy(&mut read, &mut write).await;
+-            });
+-        }
+-    })
+-}
+-
+-/// The client's side: a stream to the service at `address` with `key`, and
+-/// 1 MiB each way through it, the same bytes back.
+-async fn carry(client: &Tor, address: &str, key: &Discovery) {
+-    let stream = client.connect_onion(address, PORT, Some(key), REACH).await.unwrap_or_else(|f| panic!("{f}"));
+-    let (mut read, mut write) = tokio::io::split(stream);
+-    let sent = pattern();
+-    let writer = {
+-        let sent = sent.clone();
+-        tokio::spawn(async move {
+-            write.write_all(&sent).await.unwrap();
+-            write.flush().await.unwrap();
+-            write
+-        })
+-    };
+-    let mut back = vec![0u8; MIB];
+-    tokio::time::timeout(REACH, read.read_exact(&mut back)).await.expect("1 MiB back within the limit").unwrap();
+-    let _write = writer.await.unwrap();
+-    assert!(back == sent, "the bytes that came back are not those sent");
+-}
+-
+-/// The live run of the entry's Decision (Q91), asked for with
+-/// `PODSSH_TEST_TOR_ONION_LIVE=yes`: on Tor's own network, through
+-/// `HTTPS_PROXY` when one is set, a service of a throwaway key (a new state,
+-/// removed at the end), one bootstrap at each end, 1 MiB each way, and the
+-/// service stopped, so that its descriptor expires unused.
+-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+-async fn live_a_throwaway_service_on_tor_s_own_network_carries_a_mebibyte_each_way() {
+-    if std::env::var("PODSSH_TEST_TOR_ONION_LIVE").ok().as_deref() != Some("yes") {
+-        eprintln!("PODSSH_TEST_TOR_ONION_LIVE is not yes: no live run on Tor's own network");
+-        return;
+-    }
+-    let (node_home, client_home) = (home("live-node"), home("live-client"));
+-    let key = Discovery::from_secret(rand_secret());
+-    let node = client(&node_home, None, ProxyChoice::FromEnvironment).await;
+-    let onion = node.serve_onion(&service(vec![key.public()])).unwrap_or_else(|f| panic!("{f}"));
+-    let address = onion.address().to_string();
+-    onion.published(LIVE_PUBLISH).await.unwrap_or_else(|f| panic!("{f}"));
+-    let stopped = echo(onion);
+-    let visitor = client(&client_home, None, ProxyChoice::FromEnvironment).await;
+-    carry(&visitor, &address, &key).await;
+-    stopped.abort();
+-    drop(node);
+-    for dir in [node_home, client_home] {
+-        let _ = std::fs::remove_dir_all(dir);
+-    }
+-}
+-
+-/// A key of discovery of this run alone: the clock and the process, hashed
+-/// by the standard library's random state, which the OS seeds.
+-fn rand_secret() -> [u8; 32] {
+-    use std::hash::{BuildHasher as _, Hasher as _};
+-    let mut out = [0u8; 32];
+-    for (i, chunk) in out.chunks_mut(8).enumerate() {
+-        let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+-        hasher.write_usize(i);
+-        hasher.write_u128(std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos());
+-        chunk.copy_from_slice(&hasher.finish().to_le_bytes());
+-    }
+-    out
+-}
+-
+-/// The service's key is kept in its state: a second start with the same
+-/// state has the same address, and a start with another state another one.
+-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+-async fn a_second_start_keeps_the_address() {
+-    let Some(network) = network() else { return };
+-    let (kept_home, other_home) = (home("kept"), home("other"));
+-    let first = {
+-        let node = tor(&kept_home, &network).await;
+-        let onion = node.serve_onion(&service(Vec::new())).unwrap_or_else(|f| panic!("{f}"));
+-        onion.address().to_string()
+-    };
+-    // The first client's tasks let its state go as they end.
+-    let mut second = None;
+-    let mut last = String::new();
+-    for _ in 0..30 {
+-        tokio::time::sleep(Duration::from_secs(1)).await;
+-        let node = tor(&kept_home, &network).await;
+-        match node.serve_onion(&service(Vec::new())) {
+-            Ok(onion) => {
+-                second = Some(onion.address().to_string());
+-                break;
+-            }
+-            Err(f) => last = f.to_string(),
+-        }
+-    }
+-    let second = second.unwrap_or_else(|| panic!("no second start within 30 s: {last}"));
+-    assert_eq!(second, first, "the second start has another address: the service's key was not kept");
+-    let node = tor(&other_home, &network).await;
+-    let other = node.serve_onion(&service(Vec::new())).unwrap_or_else(|f| panic!("{f}"));
+-    assert_ne!(other.address(), first, "two states made the same key");
+-    for dir in [kept_home, other_home] {
+-        let _ = std::fs::remove_dir_all(dir);
+-    }
+-}
+diff --git a/crates/podssh-tor/tests/private_network.rs b/crates/podssh-tor/tests/private_network.rs
+deleted file mode 100644
+index 73d7977..0000000
+--- a/crates/podssh-tor/tests/private_network.rs
++++ /dev/null
+@@ -1,110 +0,0 @@
+-//! The Tor road against a Tor network of C tor on the loopback (T-353),
+-//! software that podssh did not write: chutney's network `basic-min`,
+-//! whose arti-client configuration (`arti.toml`) `PODSSH_TEST_TOR_NETWORK`
+-//! names (`scripts/tor-net.sh` starts it). Arti bootstraps from its
+-//! authorities with each first hop through a stand-in proxy, and a stream
+-//! through its exit reaches a service on the loopback. With no network the
+-//! test says so and passes, as each test of another program's server does
+-//! where that program is missing.
+-
+-use std::sync::{Arc, Mutex};
+-use std::time::Duration;
+-
+-use podssh_tor::{Options, Tor};
+-use podssh_ws::dial::ProxyChoice;
+-use tokio::io::{AsyncBufReadExt as _, AsyncReadExt as _, AsyncWriteExt as _, BufReader};
+-use tokio::net::{TcpListener, TcpStream};
+-
+-const NETWORK_ENV: &str = "PODSSH_TEST_TOR_NETWORK";
+-
+-/// A proxy of HTTP CONNECT on the loopback that carries each connection
+-/// and keeps the target of each CONNECT.
+-async fn proxy() -> (u16, Arc<Mutex<Vec<String>>>) {
+-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+-    let port = listener.local_addr().unwrap().port();
+-    let asked = Arc::new(Mutex::new(Vec::new()));
+-    let seen = asked.clone();
+-    tokio::spawn(async move {
+-        while let Ok((client, _)) = listener.accept().await {
+-            let seen = seen.clone();
+-            tokio::spawn(async move {
+-                let mut client = BufReader::new(client);
+-                let mut line = String::new();
+-                if client.read_line(&mut line).await.is_err() {
+-                    return;
+-                }
+-                let target = line.split_whitespace().nth(1).unwrap_or_default().to_string();
+-                loop {
+-                    let mut header = String::new();
+-                    match client.read_line(&mut header).await {
+-                        Ok(0) | Err(_) => return,
+-                        Ok(_) if header == "\r\n" => break,
+-                        Ok(_) => {}
+-                    }
+-                }
+-                seen.lock().unwrap().push(target.clone());
+-                let Ok(mut far) = TcpStream::connect(&target).await else {
+-                    let _ = client.get_mut().write_all(b"HTTP/1.1 502 Bad Gateway\r\n\r\n").await;
+-                    return;
+-                };
+-                let mut client = client.into_inner();
+-                if client.write_all(b"HTTP/1.1 200 Connection established\r\n\r\n").await.is_ok() {
+-                    let _ = tokio::io::copy_bidirectional(&mut client, &mut far).await;
+-                }
+-            });
+-        }
+-    });
+-    (port, asked)
+-}
+-
+-/// A service on the loopback that greets each client.
+-async fn target() -> u16 {
+-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+-    let port = listener.local_addr().unwrap().port();
+-    tokio::spawn(async move {
+-        while let Ok((mut stream, _)) = listener.accept().await {
+-            let _ = stream.write_all(b"target says hi\n").await;
+-        }
+-    });
+-    port
+-}
+-
+-/// Arti bootstraps in the private network with each first hop through the
+-/// proxy, and a stream through its exit reaches the service; the proxy saw
+-/// the relays, by their addresses, and never the service.
+-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+-async fn a_stream_through_a_private_network_reaches_the_service() {
+-    let Some(file) = std::env::var_os(NETWORK_ENV).filter(|v| !v.is_empty()) else {
+-        eprintln!("{NETWORK_ENV} is not set: no private Tor network, nothing to test (scripts/tor-net.sh)");
+-        return;
+-    };
+-    let network = std::fs::read_to_string(&file).unwrap();
+-    let _ = podssh_ws::crypto::provider().install_default();
+-    let (proxy_port, asked) = proxy().await;
+-    let service = target().await;
+-    let home = std::env::temp_dir().join(format!("podssh-tor-private-{}", std::process::id()));
+-    let _ = std::fs::remove_dir_all(&home);
+-    let options = Options {
+-        state_dir: home.join("state"),
+-        cache_dir: home.join("cache"),
+-        proxy: ProxyChoice::Via(podssh_ws::proxy::Proxy::parse(&format!("http://127.0.0.1:{proxy_port}")).unwrap()),
+-        // chutney's relays listen on ports from 5000 up.
+-        first_hop_ports: None,
+-        trust_directories: true,
+-        network: Some(network),
+-        bridges: Vec::new(),
+-        trust: podssh_ws::Trust::Default,
+-    };
+-    let tor = Tor::bootstrap(&options, Duration::from_secs(120)).await.unwrap_or_else(|f| panic!("{f}"));
+-    let mut stream = tor.connect("127.0.0.1", service, Duration::from_secs(60)).await.unwrap_or_else(|f| panic!("{f}"));
+-    let mut greeting = [0u8; 15];
+-    tokio::time::timeout(Duration::from_secs(30), stream.read_exact(&mut greeting)).await.unwrap().unwrap();
+-    assert_eq!(&greeting, b"target says hi\n");
+-    let asked = asked.lock().unwrap().clone();
+-    assert!(!asked.is_empty(), "no first hop went through the proxy");
+-    let literal = |t: &String| t.parse::<std::net::SocketAddr>().is_ok();
+-    assert!(asked.iter().all(literal), "a relay asked by a name: {asked:?}");
+-    let service_at = format!("127.0.0.1:{service}");
+-    assert!(!asked.contains(&service_at), "the service was reached through the proxy, not Tor: {asked:?}");
+-    let _ = std::fs::remove_dir_all(&home);
+-}
+diff --git a/crates/podssh-tor/tests/proxied_tcp.rs b/crates/podssh-tor/tests/proxied_tcp.rs
+deleted file mode 100644
+index 6b49638..0000000
+--- a/crates/podssh-tor/tests/proxied_tcp.rs
++++ /dev/null
+@@ -1,72 +0,0 @@
+-//! The Tor road's TCP provider (T-353) against a stand-in proxy on the
+-//! loopback: each relay is asked of the proxy by its address, a refusal is
+-//! the connection's error, and the provider listens on nothing.
+-
+-use std::io::ErrorKind;
+-use std::net::SocketAddr;
+-use std::time::Duration;
+-
+-use futures::io::{AsyncReadExt as _, AsyncWriteExt as _};
+-use podssh_tor::runtime::ProxiedTcp;
+-use podssh_ws::dial::ProxyChoice;
+-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+-use tor_rtcompat::{NetStreamProvider as _, TcpConnectOptions, TcpListenOptions};
+-
+-/// A relay's address goes to the proxy as it is, an IP literal and its
+-/// port, and the bytes then pass both ways.
+-#[tokio::test]
+-async fn each_relay_is_asked_of_the_proxy_by_its_address() {
+-    let proxy = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+-    let at = proxy.local_addr().unwrap();
+-    let server = tokio::spawn(async move {
+-        let (mut s, _) = proxy.accept().await.unwrap();
+-        let mut head = Vec::new();
+-        let mut byte = [0u8; 1];
+-        while !head.ends_with(b"\r\n\r\n") {
+-            s.read_exact(&mut byte).await.unwrap();
+-            head.push(byte[0]);
+-        }
+-        s.write_all(b"HTTP/1.1 200 Connection established\r\n\r\n").await.unwrap();
+-        let mut ping = [0u8; 4];
+-        s.read_exact(&mut ping).await.unwrap();
+-        s.write_all(b"pong").await.unwrap();
+-        (String::from_utf8(head).unwrap(), ping)
+-    });
+-    let choice = ProxyChoice::Via(podssh_ws::proxy::Proxy::parse(&format!("http://{at}")).unwrap());
+-    let tcp = ProxiedTcp::new(choice, Duration::from_secs(10));
+-    let relay: SocketAddr = "198.51.100.7:443".parse().unwrap();
+-    let mut stream = tcp.connect(&relay, &TcpConnectOptions::default()).await.unwrap();
+-    stream.write_all(b"ping").await.unwrap();
+-    let mut answer = [0u8; 4];
+-    stream.read_exact(&mut answer).await.unwrap();
+-    let (head, ping) = server.await.unwrap();
+-    assert!(head.starts_with("CONNECT 198.51.100.7:443 HTTP/1.1\r\n"), "{head}");
+-    assert_eq!((&ping, &answer), (b"ping", b"pong"));
+-}
+-
+-/// A refusal of the proxy is the connection's error, with its words.
+-#[tokio::test]
+-async fn a_refusal_of_the_proxy_is_an_error_of_the_connection() {
+-    let proxy = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+-    let at = proxy.local_addr().unwrap();
+-    tokio::spawn(async move {
+-        let (mut s, _) = proxy.accept().await.unwrap();
+-        let mut buf = [0u8; 512];
+-        let _ = s.read(&mut buf).await;
+-        let _ = s.write_all(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n").await;
+-    });
+-    let choice = ProxyChoice::Via(podssh_ws::proxy::Proxy::parse(&format!("http://{at}")).unwrap());
+-    let tcp = ProxiedTcp::new(choice, Duration::from_secs(10));
+-    let relay: SocketAddr = "198.51.100.7:9001".parse().unwrap();
+-    let err = tcp.connect(&relay, &TcpConnectOptions::default()).await.err().expect("a refusal");
+-    assert!(err.to_string().contains("403"), "{err}");
+-}
+-
+-/// The road listens on nothing.
+-#[tokio::test]
+-async fn it_listens_on_nothing() {
+-    let tcp = ProxiedTcp::new(ProxyChoice::Direct, Duration::from_secs(1));
+-    let any: SocketAddr = "127.0.0.1:0".parse().unwrap();
+-    let err = tcp.listen(&any, &TcpListenOptions::default()).await.err().expect("no listener");
+-    assert_eq!(err.kind(), ErrorKind::Unsupported);
+-}
+diff --git a/crates/podssh-tor/tests/transports.rs b/crates/podssh-tor/tests/transports.rs
+deleted file mode 100644
+index eb5ac0b..0000000
+--- a/crates/podssh-tor/tests/transports.rs
++++ /dev/null
+@@ -1,190 +0,0 @@
+-//! A bridge's transport answered in this process (T-385), against Arti's
+-//! own client of a transport that it does not manage: tor-chanmgr's
+-//! `ExternalProxyPlugin`, which joins the bridge's arguments into SOCKS5's
+-//! user and password and dials the transport's address through the
+-//! runtime's TCP provider, podssh's. Behind the sentinel, meek_lite and
+-//! WebTunnel reach stand-ins of meek-server and of the WebTunnel server on
+-//! the loopback, which echo. A provider that dials the sentinel for real
+-//! (no SOCKS greeting reaches podssh) fails the first two tests.
+-
+-use std::time::Duration;
+-
+-use futures::io::{AsyncReadExt as _, AsyncWriteExt as _};
+-use podssh_tor::runtime::ProxiedTcp;
+-use podssh_tor::transport::Kind;
+-use podssh_ws::dial::ProxyChoice;
+-use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
+-use tokio::net::{TcpListener, TcpStream};
+-use tor_chanmgr::transport::{ExternalProxyPlugin, TransportImplHelper as _};
+-use tor_linkspec::{ChannelMethod, OwnedChanTarget, OwnedChanTargetBuilder, PtTarget, PtTransportName};
+-use tor_llcrypto::pk::rsa::RsaIdentity;
+-use tor_socksproto::SocksVersion;
+-
+-const LIMIT: Duration = Duration::from_secs(20);
+-
+-/// A bridge of `kind` with `settings`, at a dummy address, as a bridge line
+-/// gives it to Arti.
+-fn bridge(kind: Kind, settings: &[(&str, &str)]) -> OwnedChanTarget {
+-    let name: PtTransportName = kind.name().parse().unwrap();
+-    let mut target = PtTarget::new(name, "192.0.2.20:80".parse().unwrap());
+-    for (k, v) in settings {
+-        target.push_setting(*k, *v).unwrap();
+-    }
+-    OwnedChanTargetBuilder::default()
+-        .rsa_identity(RsaIdentity::from_bytes(&[7; 20]).unwrap())
+-        .method(ChannelMethod::Pluggable(target))
+-        .build()
+-        .unwrap()
+-}
+-
+-/// A stand-in of meek-server: each POST with an id gets back what its body
+-/// held, at once; a request with no id gets 400.
+-async fn meek_stand_in() -> (u16, tokio::task::JoinHandle<Vec<String>>) {
+-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+-    let port = listener.local_addr().unwrap().port();
+-    let served = tokio::spawn(async move {
+-        let (mut s, _) = listener.accept().await.unwrap();
+-        let mut targets = Vec::new();
+-        let mut have = Vec::new();
+-        loop {
+-            let end = loop {
+-                if let Some(at) = have.windows(4).position(|w| w == b"\r\n\r\n") {
+-                    break at + 4;
+-                }
+-                let mut chunk = [0u8; 8192];
+-                match s.read(&mut chunk).await {
+-                    Ok(0) | Err(_) => return targets,
+-                    Ok(n) => have.extend_from_slice(&chunk[..n]),
+-                }
+-            };
+-            let head = String::from_utf8_lossy(&have[..end]).to_ascii_lowercase();
+-            have.drain(..end);
+-            targets.push(head.split(' ').nth(1).unwrap_or_default().to_string());
+-            let length: usize = head
+-                .split("\r\n")
+-                .find_map(|l| l.strip_prefix("content-length:"))
+-                .and_then(|v| v.trim().parse().ok())
+-                .unwrap_or(0);
+-            while have.len() < length {
+-                let mut chunk = [0u8; 8192];
+-                match s.read(&mut chunk).await {
+-                    Ok(0) | Err(_) => return targets,
+-                    Ok(n) => have.extend_from_slice(&chunk[..n]),
+-                }
+-            }
+-            let body: Vec<u8> = have.drain(..length).collect();
+-            let answer = match head.contains("\r\nx-session-id: ") {
+-                true => format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\n\r\n", body.len()).into_bytes(),
+-                false => b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n".to_vec(),
+-            };
+-            let echoed = if answer.starts_with(b"HTTP/1.1 200") { body } else { Vec::new() };
+-            if s.write_all(&[answer, echoed].concat()).await.is_err() {
+-                return targets;
+-            }
+-        }
+-    });
+-    (port, served)
+-}
+-
+-/// A stand-in of the WebTunnel server: the upgrade's two headers, a 101,
+-/// then an echo; the request's head is kept.
+-async fn webtunnel_stand_in() -> (u16, tokio::task::JoinHandle<String>) {
+-    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+-    let port = listener.local_addr().unwrap().port();
+-    let served = tokio::spawn(async move {
+-        let (mut s, _) = listener.accept().await.unwrap();
+-        let mut head = Vec::new();
+-        let mut byte = [0u8; 1];
+-        while !head.ends_with(b"\r\n\r\n") {
+-            if s.read_exact(&mut byte).await.is_err() {
+-                return String::new();
+-            }
+-            head.push(byte[0]);
+-        }
+-        let head = String::from_utf8_lossy(&head).into_owned();
+-        let lower = head.to_ascii_lowercase();
+-        if !lower.contains("\r\nconnection: upgrade\r\n") || !lower.contains("\r\nupgrade: websocket\r\n") {
+-            return head;
+-        }
+-        let switched = b"HTTP/1.1 101 Switching Protocols\r\nConnection: upgrade\r\nUpgrade: websocket\r\n\r\n";
+-        let _ = s.write_all(switched).await;
+-        let mut buf = [0u8; 4096];
+-        while let Ok(n) = s.read(&mut buf).await {
+-            if n == 0 || s.write_all(&buf[..n]).await.is_err() {
+-                break;
+-            }
+-        }
+-        head
+-    });
+-    (port, served)
+-}
+-
+-/// `ping` through Arti's client of `kind` for `bridge`, and its echo.
+-async fn ping(kind: Kind, target: &OwnedChanTarget) -> Result<[u8; 4], String> {
+-    let tcp = ProxiedTcp::new(ProxyChoice::Direct, Duration::from_secs(10));
+-    let said = tcp.said();
+-    let plugin = ExternalProxyPlugin::new(tcp, kind.at(), SocksVersion::V5);
+-    let connected = tokio::time::timeout(LIMIT, plugin.connect(target)).await.map_err(|_| "no channel in time")?;
+-    let (_, mut stream) = connected.map_err(|e| format!("{e}; podssh: {:?}", said.last()))?;
+-    stream.write_all(b"ping").await.map_err(|e| e.to_string())?;
+-    let mut back = [0u8; 4];
+-    let read = tokio::time::timeout(LIMIT, stream.read_exact(&mut back)).await.map_err(|_| "no echo in time")?;
+-    read.map_err(|e| e.to_string())?;
+-    Ok(back)
+-}
+-
+-/// meek_lite, its URL longer than SOCKS5's user name, so that Arti splits
+-/// the arguments between the user and the password: the bytes go in a POST
+-/// to the whole path, and come back.
+-#[tokio::test]
+-async fn arti_s_client_reaches_a_meek_lite_bridge_through_its_sentinel() {
+-    let (port, served) = meek_stand_in().await;
+-    let path = "a".repeat(300);
+-    let url = format!("http://127.0.0.1:{port}/{path}");
+-    let echoed = ping(Kind::Meek, &bridge(Kind::Meek, &[("url", url.as_str())])).await;
+-    assert_eq!(echoed.unwrap_or_else(|why| panic!("{why}")), *b"ping");
+-    // Arti's end went with `ping`, and so does the session's connection.
+-    let targets = tokio::time::timeout(LIMIT, served).await.expect("the session's end").unwrap();
+-    assert!(!targets.is_empty() && targets.iter().all(|t| *t == format!("/{path}")), "{targets:?}");
+-}
+-
+-/// WebTunnel, its path holding a `;`, which Arti escapes in the arguments:
+-/// the upgrade asks for the path as the line gives it, and bytes pass.
+-#[tokio::test]
+-async fn arti_s_client_reaches_a_webtunnel_bridge_through_its_sentinel() {
+-    let (port, served) = webtunnel_stand_in().await;
+-    let url = format!("http://127.0.0.1:{port}/s3cret;x");
+-    let echoed = ping(Kind::WebTunnel, &bridge(Kind::WebTunnel, &[("url", url.as_str()), ("ver", "0.0.7")])).await;
+-    assert_eq!(echoed.unwrap_or_else(|why| panic!("{why}")), *b"ping");
+-    let head = tokio::time::timeout(LIMIT, served).await.unwrap().unwrap();
+-    assert!(head.starts_with("GET /s3cret;x HTTP/1.1\r\n"), "{head}");
+-}
+-
+-/// A transport that cannot reach its server is a failure of SOCKS5 for
+-/// Arti, and the provider keeps why, for the bootstrap's words.
+-#[tokio::test]
+-async fn a_transport_that_cannot_open_fails_the_channel_and_says_why() {
+-    let closed = TcpListener::bind("127.0.0.1:0").await.unwrap();
+-    let port = closed.local_addr().unwrap().port();
+-    drop(closed);
+-    let url = format!("http://127.0.0.1:{port}/");
+-    let tcp = ProxiedTcp::new(ProxyChoice::Direct, Duration::from_secs(10));
+-    let said = tcp.said();
+-    let plugin = ExternalProxyPlugin::new(tcp, Kind::Meek.at(), SocksVersion::V5);
+-    let target = bridge(Kind::Meek, &[("url", url.as_str())]);
+-    let refused = tokio::time::timeout(LIMIT, plugin.connect(&target)).await.unwrap();
+-    assert!(refused.is_err(), "a channel through a transport that did not open");
+-    let why = said.last().expect("the provider kept no failure");
+-    assert!(why.starts_with("meek_lite: ") && why.contains(&format!("127.0.0.1:{port}")), "{why}");
+-}
+-
+-/// The control of the meek stand-in: a POST with no id gets 400.
+-#[tokio::test]
+-async fn the_meek_stand_in_refuses_a_post_with_no_session_id() {
+-    let (port, _) = meek_stand_in().await;
+-    let mut tcp = TcpStream::connect(("127.0.0.1", port)).await.unwrap();
+-    tcp.write_all(b"POST / HTTP/1.1\r\nHost: x\r\nContent-Length: 0\r\n\r\n").await.unwrap();
+-    let mut answer = [0u8; 12];
+-    tokio::time::timeout(LIMIT, tcp.read_exact(&mut answer)).await.unwrap().unwrap();
+-    assert_eq!(&answer, b"HTTP/1.1 400");
+-}
+diff --git a/crates/podssh-ts/Cargo.toml b/crates/podssh-ts/Cargo.toml
+index 06d6d2e..24d3005 100644
+--- a/crates/podssh-ts/Cargo.toml
++++ b/crates/podssh-ts/Cargo.toml
+@@ -11,7 +11,7 @@ publish.workspace = true
+ # their order (T-103).
+ podssh-ws = { path = "../podssh-ws" }
+ # The services of other parties: the default relay of Tailscale's road.
+-pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ tokio.workspace = true
+ zeroize.workspace = true
+ # The digest of what the echo of the live test with two nodes got (T-106,
+diff --git a/crates/podssh-warp/Cargo.toml b/crates/podssh-warp/Cargo.toml
+index 1a4f61c..83dd48f 100644
+--- a/crates/podssh-warp/Cargo.toml
++++ b/crates/podssh-warp/Cargo.toml
+@@ -14,8 +14,8 @@ publish.workspace = true
+ # it podssh's way out and podssh's resolver.
+ [dependencies]
+ podssh-ws = { path = "../podssh-ws" }
+-pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
+-pod-warp = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
++pod-warp = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ tokio = { workspace = true }
+ 
+ [dev-dependencies]
+diff --git a/crates/podssh-ws/Cargo.toml b/crates/podssh-ws/Cargo.toml
+index 538783c..0bf0a43 100644
+--- a/crates/podssh-ws/Cargo.toml
++++ b/crates/podssh-ws/Cargo.toml
+@@ -10,27 +10,27 @@ publish.workspace = true
+ [dependencies]
+ # TLS: the trust, the configurations, the pure-Rust crypto provider, the
+ # server's side and Encrypted Client Hello, with podssh's settings (tls.rs).
+-pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
+-pod-tls = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", features = ["pure", "rsa", "ech"] }
++pod-core = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
++pod-tls = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", features = ["pure", "rsa", "ech"] }
+ # The dial, the proxies, the race of addresses, Multipath TCP, the HTTP/1.1
+ # heads, the GET client (sealed with ECH where asked) and STUN's codec, with
+ # podssh's settings (dial.rs).
+-pod-proxy = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", features = ["ech"] }
++pod-proxy = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", features = ["ech"] }
+ # The resolver: an IP literal, the pins, the system, the cache of addresses
+ # and DNS over HTTPS, the SRV and HTTPS records (resolve.rs), with its reader
+ # of ECH lists for pod-tls.
+-pod-dns = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", features = ["ech"] }
++pod-dns = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", features = ["ech"] }
+ # The WebSocket: the frames, the session, the client of the relay on each
+ # road (TLS, HTTP/2, cleartext), a URL's WebSocket and the server's side,
+ # over podssh's way out (client.rs), with ECH.
+-pod-ws = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", features = ["ech"] }
++pod-ws = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", features = ["ech"] }
+ # The roads out that are not the relay: a second proxy over TLS, the
+ # forwarders, Wisp, wstunnel, meek_lite, WebTunnel and the Access client of
+ # Cloudflare (via.rs, forwarder.rs, wstunnel.rs, wisp.rs, meek.rs,
+ # webtunnel.rs, pt.rs, cloudflare.rs: podssh's way out and words over it);
+ # VLESS, VMess, Trojan and Shadowsocks (vless.rs, vmess.rs, trojan.rs,
+ # shadowsocks.rs); EICE and IAP (eice.rs, iap.rs).
+-pod-egress = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", features = ["via", "forwarder", "wisp", "wstunnel", "meek", "webtunnel", "cloudflare", "vless", "vmess", "trojan", "shadowsocks", "eice", "iap"] }
++pod-egress = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", features = ["via", "forwarder", "wisp", "wstunnel", "meek", "webtunnel", "cloudflare", "vless", "vmess", "trojan", "shadowsocks", "eice", "iap"] }
+ tokio = { workspace = true }
+ rustls = { workspace = true }
+ tokio-rustls = { workspace = true }
+@@ -61,7 +61,7 @@ aes = { workspace = true }
+ # connection and probe of UDP on noq, the quick tunnel's. Only with the
+ # feature `quic`, which the binary turns on. BLAKE2b-256 of Hysteria's
+ # Salamander, pure Rust, in the lock already (0.11, through argon2).
+-pod-quic = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", optional = true }
++pod-quic = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", optional = true }
+ blake2 = { version = "0.11", default-features = false, optional = true }
+ 
+ # The clocks of a host that slept (wake.rs): CLOCK_BOOTTIME beside
+@@ -79,7 +79,7 @@ plain-ws = ["pod-ws/plain-ws", "pod-egress/plain-ws"]
+ quic = ["dep:pod-quic", "dep:blake2"]
+ 
+ [dev-dependencies]
+-pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0", features = ["screen"] }
++pod-testkit = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0", features = ["screen"] }
+ # The doctor is async because it may be asked to perform a handshake, and
+ # the plants that assert `????` rather than `ok` have to drive it as a caller
+ # would. `macros` is what makes `#[tokio::test]` exist.
+diff --git a/crates/podssh-zerotier/Cargo.toml b/crates/podssh-zerotier/Cargo.toml
+index dee138f..71df921 100644
+--- a/crates/podssh-zerotier/Cargo.toml
++++ b/crates/podssh-zerotier/Cargo.toml
+@@ -7,7 +7,7 @@ rust-version.workspace = true
+ license.workspace = true
+ publish.workspace = true
+ 
+-# A crate of its own, outside the default members, as podssh-tor is: it
++# A crate of its own, outside the default members, as podssh-warp is: it
+ # compiles C++ (rule 4 allows it; the binary stays static). The feature
+ # `zerotier` of podssh-cli builds it.
+ [features]
+@@ -19,7 +19,7 @@ stand-in = ["tokio/net"]
+ libc = { workspace = true }
+ # TCP over the network's frames: the userspace stack of smoltcp, with its
+ # listener.
+-pod-netstack = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-netstack = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+ sha2 = { workspace = true }
+ tokio = { workspace = true }
+ 
+@@ -29,4 +29,4 @@ cc = "1.2"
+ [dev-dependencies]
+ tokio = { workspace = true, features = ["macros", "net", "rt", "rt-multi-thread"] }
+ # The relay of the live run, as podssh names no host of a third party.
+-pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.63.0" }
++pod-services = { git = "https://github.com/PodUtils/podcrates", tag = "v0.65.0" }
+diff --git a/scripts/gate.sh b/scripts/gate.sh
+index b2330d3..6980a36 100644
+--- a/scripts/gate.sh
++++ b/scripts/gate.sh
+@@ -122,7 +122,7 @@ echo "steps: $*"
+ 
+ # Each package of the workspace, by name: `cargo fmt --all` would also format
+ # the fork in vendor/, which keeps its own format and its patches.
+-PKGS="-p podssh-cli -p podssh-ssh -p podssh-relay -p podssh-ws -p podssh-core -p podssh-probe -p podssh-ts -p podssh-iroh -p podssh-todo -p podssh-warp -p podssh-tor -p podssh-zerotier"
++PKGS="-p podssh-cli -p podssh-ssh -p podssh-relay -p podssh-ws -p podssh-core -p podssh-probe -p podssh-ts -p podssh-iroh -p podssh-todo -p podssh-warp -p podssh-zerotier"
+ 
+ # The library crates. Each crate may use C, zig and the newest stable Rust;
+ # the one rule of the build is a statically compiled binary (the operator,
+@@ -164,7 +164,7 @@ step_lint() {
+         cargo clippy --locked --all-targets -p podssh-relay --features serve,plain-ws,quick,quic -- -D warnings $LINTS_ALLOWED
+     # The Tor road (T-353): the crate and the CLI's road with its feature.
+     run "clippy: no warning with the Tor feature" \
+-        cargo clippy --locked --all-targets -p podssh-cli -p podssh-tor --features podssh-cli/tor -- -D warnings $LINTS_ALLOWED
++        cargo clippy --locked --all-targets -p podssh-cli --features podssh-cli/tor -- -D warnings $LINTS_ALLOWED
+     # ZeroTier's road (T-733): the CLI's road with its stand-in.
+     run "clippy: no warning with the ZeroTier feature" \
+         cargo clippy --locked --all-targets -p podssh-cli -p podssh-zerotier --features podssh-cli/zerotier-test -- -D warnings $LINTS_ALLOWED
+@@ -324,11 +324,10 @@ step_iroh() {
+         cargo test --locked --no-fail-fast -p podssh-iroh -p podssh-cli --features podssh-cli/iroh-test
+ }
+ 
+-# The Tor road (T-353): the tests of podssh-tor (its TCP provider through a
+-# stand-in proxy) and the CLI's own with the feature. Arti's SQLite is C, as
+-# the Tailscale and iroh features' C is.
++# The Tor road (T-353): the CLI's own tests with the feature; the tests of
++# the road are pod-tor's, in podcrates. Arti's SQLite is C, as the Tailscale
++# and iroh features' C is.
+ step_tor() {
+-    tests "podssh-tor: its tests" cargo test --locked --no-fail-fast -p podssh-tor
+     tests "podssh-cli with the feature tor: its library's tests" \
+         cargo test --locked --no-fail-fast -p podssh-cli --features tor --lib
+ }
+diff --git a/scripts/repo_listeners.py b/scripts/repo_listeners.py
+index db9a179..ee531a4 100644
+--- a/scripts/repo_listeners.py
++++ b/scripts/repo_listeners.py
+@@ -177,7 +177,6 @@ LISTENERS = {
+         "crates/podssh-cli/src/pipe/listen_win.rs",
+         "crates/podssh-cli/src/doctor/unix.rs",
+         "crates/podssh-zerotier/src/stand_in.rs",
+-        "crates/podssh-tor/src/runtime.rs",
+         "crates/podssh-zerotier/src/member_tests.rs",
+         "crates/podssh-zerotier/src/road.rs",
+     ],

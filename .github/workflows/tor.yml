@@ -15,6 +15,11 @@ on:
   schedule:
     - cron: "41 3 * * 2"
   workflow_dispatch:
+    inputs:
+      onion:
+        description: "yes: also one onion service of a throwaway key on Tor's own network, 1 MiB each way, then stopped"
+        required: false
+        default: "no"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -77,3 +82,12 @@ jobs:
       - name: The network stopped
         if: always()
         run: sh scripts/tor-net.sh stop "$RUNNER_TEMP/tor-net"
+      # One onion service on Tor's own network, by hand alone: a throwaway
+      # key in a new state, one bootstrap at each end, 1 MiB each way, and
+      # the service stopped, so that its descriptor expires unused
+      # (docs/live-calls.md, L56).
+      - name: One onion service of a throwaway key on Tor's own network
+        if: github.event_name == 'workflow_dispatch' && inputs.onion == 'yes'
+        env:
+          POD_TEST_TOR_ONION_LIVE: "yes"
+        run: timeout 1200 cargo test --locked -p pod-tor --test onion_service live_ -- --nocapture
