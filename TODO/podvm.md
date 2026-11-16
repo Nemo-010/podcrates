@@ -9439,3 +9439,57 @@ packed crate (`licence_faults`), with three cases in its self-test. With
 the file of `pod-qga` removed it fails with "pod-qga: no LICENSE beside
 .../crates/pod-qga/Cargo.toml". podvm can drop its fall back to the text
 of the root for this crate when it takes the tag after `v0.64.0`.
+
+# T-806: `pod-enter`: a PID namespace with its own `/proc` on the namespace rung, which a join enters (PodUtils/podvm#457)
+
+**Source:** PodUtils/podvm#457 (COORD-164 of podvm, PodUtils/podvm@T-1930; PodUtils/podrunner#200).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P1
+**Effort:** M
+**Status:** open
+
+## Problem
+
+podrunner's QA (PodUtils/podrunner#200) ran `podvm run -d` of a user with
+no root on the namespace rung: a step of a job can list each process of
+the host with `ps`, end a `sleep` of the same user with `kill`, and end the
+podrunner that started the unit with `pkill`. The entry of `pod-enter`
+makes a user namespace and a mount namespace, and no PID namespace
+(`crates/pod-enter/src/entry.rs`: "No PID or network namespace: the banner
+says so"); in a user namespace of the rung the kernel refuses a fresh
+`proc` with `EPERM`, as the PID namespace belongs to the user namespace of
+the host, so the child binds the host's `/proc` (`ns_optional.rs`,
+`ns_proc_bind.rs`), which shows the processes of the host.
+
+## Premise
+
+- Read: PodUtils/podvm#457; `entry.rs`, `ns_optional.rs`,
+  `ns_proc_bind.rs`, `ns_join.rs` (the join of a run).
+- Read: a `proc` mount needs a PID namespace that the user namespace of
+  the mount owns: `CLONE_NEWPID` in the user namespace of the rung, then a
+  fork, gives the first child pid 1 of a namespace whose `proc` mounts.
+- Not measured: the rung with `CLONE_NEWPID` on the kernels of the labs.
+
+## Approach
+
+`Plan::pid_namespace: bool` for the namespace rung: the child makes
+`CLONE_NEWPID` in its user namespace before it forks the payload; the
+payload's parent in the namespace is a small init that reaps each child
+and gives each signal to the payload (or the payload is pid 1, where the
+plan asks for no init); the child mounts a fresh `proc` on the `/proc` of
+the root in place of the bind of the host's `/proc`. The `Child` of the
+caller keeps the host pid of the payload, so `pod-supervise` records host
+pids as now. The banner names the PID namespace. The join of a run
+(`ns_join`) enters it: `setns` of `/proc/PID/ns/pid_for_children`, then a
+fork, so `exec` lands in it. Tests (the user namespace leg of
+`tests/userns.rs`): the payload is pid 1 or the child of the init, `ps`
+in it lists the processes of the run alone, a `kill` of a pid of the host
+fails with `ESRCH`, the `/proc` is a `proc` of the new namespace, a join
+lands in the namespace, and the end of the init ends each process of it.
+
+## Prove
+
+```sh
+sh scripts/ci/userns-tests.sh
+```
