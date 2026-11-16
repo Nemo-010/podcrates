@@ -20,11 +20,9 @@ is done. Git and the record keep finished work.
    `pod-manual` (T-726), and the checks of the overlay upper view of
    `pod-enter` (T-750). List the changes of the API from
    `docs/releases/v0.60.0.md`.
-3. Close #205 (the request of `v0.60.0`) with its run ids: ci
-   43797570607, adoption 43797574794, release 43800608238.
-4. Take the unfinished work of the two `wip/` branches (below), finish
+3. Take the unfinished work of the two `wip/` branches (below), finish
    it, check it, push it to `main`, release it.
-5. Then the work order of `TODO/PROGRESS.md`: T-747, T-755, T-756, then
+4. Then the work order of `TODO/PROGRESS.md`: T-747, T-755, T-756, then
    the move of podssh (T-038, T-037, T-029, T-030, T-039, T-036), then
    T-526.
 

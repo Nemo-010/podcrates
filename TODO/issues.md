@@ -209,6 +209,6 @@ kinds and the rules.
 | #202 | request | [gh action] requested: the gates of main at 5792f06 and the release v0.59.0 | closed (ci 43788174436 failed: a test of T-743 as a user; adoption 43788178737 passed; replaced by #203) | T-738, T-742, T-743, T-744, T-736, T-732 |
 | #203 | request | [gh action] requested: the gates of main at 0e78211 and the release v0.59.0 | closed (ci 43790224125, adoption 43790228324, release 43792622830, publish 43792804759) | T-738, T-739, T-742, T-743, T-744, T-736, T-732 |
 | #204 | coord | COORD-118: v0.59.0: the volumes of pod-enter (podvm#440), podnet's two defects (podnet#592), the chroot row (podrunner#191) (to all) | open | T-738, T-739, T-742, T-743, T-744 |
-| #205 | request | [gh action] requested: the gates of main at 725b729 and the release v0.60.0 | open | T-716, T-714, T-715, T-745, T-726, T-750 |
+| #205 | request | [gh action] requested: the gates of main at 725b729 and the release v0.60.0 | closed | T-716, T-714, T-715, T-745, T-726, T-750 |
 
 #79 to #81 are pull requests.
