@@ -3422,7 +3422,7 @@ the run, and the published installer that checks it with `cosign`).
 **Milestone:** M8
 **Priority:** P2
 **Effort:** S
-**Status:** partial
+**Status:** done
 
 ## Problem
 
@@ -3487,8 +3487,11 @@ sh scripts/install/test.sh
   skipped, 9 n/a (windows), and 25 passed, 0 skipped, 5 n/a (macos). This
   proves the logic of the test, not the hosts.
 
-Left: the first run of the job `install-os` of `nightly.yml` (the sh of
-macOS and Git Bash of Windows themselves).
+2026-11-16, the first run on GitHub: nightly 43817142905 at `1739b5f`,
+the jobs `install-os (macos-15, 30)` (133131677417) and
+`install-os (windows-2025, 90)` (133131677339) passed `sh
+scripts/install/test.sh --strict` under the `/bin/sh` of macOS and the Git
+Bash of Windows.
 
 # T-703: a mechanical check of the open issues and their comments against the record, for each project (the ruling "Issues")
 
