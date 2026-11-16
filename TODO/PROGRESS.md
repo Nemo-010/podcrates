@@ -5,12 +5,10 @@
 ## State
 
 - `docs/HANDOFF.md` has what is in flight and what waits.
-- Last release: `v0.58.0` at `ca1107f` (`docs/releases/v0.58.0.md`; ci
-  43782163204, adoption 43782166425, release 43784336026; the hand-off
-  #200, COORD-116): T-725, T-737, T-731, T-702 part 1; `podlab` and its
-  installer are assets of the release.
-- In release: `v0.59.0` (`docs/releases/v0.59.0.md`): T-738, T-739, T-742,
-  T-743, T-744, T-736, T-732.
+- Last release: `v0.59.0` at `0e78211` (`docs/releases/v0.59.0.md`; ci
+  43790224125, adoption 43790228324, release 43792622830; the request
+  #203): T-738, T-739, T-742, T-743, T-744, T-736, T-732.
+- On `main` for the next tag: T-716 (the network labs).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.58.0` (`043f32c`, PodUtils/podssh#279): it runs the one
