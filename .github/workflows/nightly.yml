@@ -5,7 +5,9 @@ name: nightly
 # and Windows on their runners; the other Linux targets built with
 # cargo-zigbuild and run under QEMU user mode (scripts/binfmt.sh). Linux
 # x86_64 runs in ci.yml on each push. The job gate runs the gates that hold
-# their bounds in a release build only.
+# their bounds in a release build only. The job install-os runs the test of
+# the installer core (scripts/install/test.sh --strict) on macOS and
+# Windows.
 
 on:
   schedule:
@@ -111,6 +113,53 @@ jobs:
           test=a_server_that_the_root_signs_is_trusted_through_the_store_alone
           cargo test --locked -p pod-tls --all-features --test system_store -- --ignored --exact the_root_is_written
           POD_TLS_TEST_STORE_HOLDS=0 cargo test --locked -p pod-tls --all-features --test system_store -- --ignored --exact --nocapture "$test"
+
+  # The installer core on macOS (its /bin/sh) and on Windows (the sh of Git
+  # Bash), with fake assets of the target of the host (docs/install.md).
+  # A part that the OS does not have (the labs, busybox) is n/a; each other
+  # skip fails. The job install of ci.yml runs the test on Linux.
+  install-os:
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-15, limit: "30" }
+          # A fork of Git Bash is slow: a run of the installer gets 90 s.
+          - { runner: windows-2025, limit: "90" }
+    env:
+      INSTALL_TEST_LIMIT: ${{ matrix.limit }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: wget on macOS
+        if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: command -v wget > /dev/null || sh scripts/retry.sh brew install wget
+      # Windows: python3 can be the stub of the Microsoft Store; the test
+      # and the core call python3.
+      - name: python3 on Windows
+        if: runner.os == 'Windows'
+        run: |
+          set -eu
+          if ! python3 -c 'import sys' > /dev/null 2>&1; then
+            d="$RUNNER_TEMP/python3"
+            mkdir -p "$d"
+            printf '#!/bin/sh\nexec python "$@"\n' > "$d/python3"
+            echo "$d" >> "$GITHUB_PATH"
+          fi
+      - name: The installer on ${{ matrix.runner }}
+        run: |
+          set -eu
+          uname -s
+          uname -m
+          sh scripts/install/test.sh --strict
 
   # podnet's gate of row E2-1 for the udp carrier of pod-link (T-520,
   # PodUtils/podnet#527): its bounds of time are those of a release build.

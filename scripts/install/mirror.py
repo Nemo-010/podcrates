@@ -9,22 +9,27 @@ to PORTFILE. It is also an HTTP proxy: a request with an absolute URL gets
 the file of the path of that URL. Each request writes one line to LOG:
 "get PATH", "proxy auth=yes|no PATH", "missing PATH" or "cut PATH" (the
 client went away before the end). RATE (bytes each second) makes each
-file slow, so that a test can stop a download in the middle.
+file slow, so that a test can stop a download in the middle. It stops
+when PORTFILE is removed: a signal of the test does not reach a Python of
+Windows under Git Bash.
 """
 
+import os
 import sys
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 
 ROOT = Path(sys.argv[1]).resolve()
+PORTFILE = Path(sys.argv[2])
 LOG = Path(sys.argv[3])
 RATE = int(sys.argv[4]) if len(sys.argv) > 4 else 0
 
 
 def log(line: str) -> None:
-    with LOG.open("a", encoding="utf-8") as f:
+    with LOG.open("a", encoding="utf-8", newline="\n") as f:
         f.write(line + "\n")
 
 
@@ -59,9 +64,16 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
+def watch() -> None:
+    while PORTFILE.exists():
+        time.sleep(0.5)
+    os._exit(0)
+
+
 def main() -> int:
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    Path(sys.argv[2]).write_text(str(server.server_address[1]), encoding="utf-8")
+    PORTFILE.write_text(str(server.server_address[1]), encoding="utf-8")
+    threading.Thread(target=watch, daemon=True).start()
     server.serve_forever()
     return 0
 

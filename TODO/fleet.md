@@ -3328,7 +3328,7 @@ and Windows).
 **Milestone:** M8
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -3363,6 +3363,58 @@ command for a check of the installer by hand. A plant: a changed
 sh scripts/install/test.sh
 ```
 
+## Done
+
+2026-11-16, the commit of this entry (with T-718).
+
+- `scripts/install/core-net.sh` (new): the network part of the core (the
+  proxy, the downloader, the download) and the step of the signature,
+  `inst_signature`. Where `cosign` is on `PATH` (or `PODLAB_COSIGN=CMD`)
+  and the run is not offline, before a download: it gets `SHA256SUMS` and
+  `SHA256SUMS.sigstore.json` of the release, runs `cosign verify-blob`
+  with the identity
+  `https://github.com/REPO/.github/workflows/release.yml@refs/tags/vVERSION`
+  and the issuer `https://token.actions.githubusercontent.com`, then
+  checks each pin of the target against `SHA256SUMS`, and the installer
+  itself when it runs from a file. A failure is a refusal with the output
+  of `cosign`; no file changes. No `cosign`, `PODLAB_COSIGN=none` or
+  `--offline` gives one line, and the pins check each file. `TUF_ROOT`
+  is a temporary directory of the prefix (call C741). The dry run names
+  the check. `scripts/install/core.sh` keeps the rest; `pins.py` puts
+  both files inline and checks that the tree copy includes both.
+- `release.yml`: a run with a version makes the tag and starts itself on
+  the tag; the run on the tag (`id-token: write`) signs `SHA256SUMS`
+  keyless (`sigstore/cosign-installer` v4.1.3 by its commit, cosign
+  v3.1.4, the same pins as podnet), verifies it, refuses a changed copy
+  and the identity of a branch, runs the published installer with
+  `cosign` against `dist`, and attaches `SHA256SUMS.sigstore.json` to the
+  release. `docs/install.md` gives the check by hand;
+  `docs/maintenance.md` and `docs/session-protocol.md` give the release
+  steps and the file `core-net.sh` that a project takes.
+- `sh scripts/install/test.sh --strict`, `PODLAB` the release build of
+  `podlab`: 36 checks passed, 0 skipped, 0 n/a (`shellcheck` 0.9.0,
+  `busybox` 1.36.1, `dash`). The case `sig`, with a stand-in of `cosign`
+  that checks its arguments and the SHA-256 of the blob: a pass with the
+  identity of the tag, SHA256SUMS and its bundle downloaded once, no file
+  in `HOME`; the dry run and the offline run; a changed `SHA256SUMS`, a
+  pin that it does not hold, no bundle and a changed installer are each
+  refused with no file in place; no `cosign` and `PODLAB_COSIGN=none`
+  give one note and install; a missing `PODLAB_COSIGN` is refused.
+- The real `cosign` v3.1.4 (SHA-256 of `cosign_checksums.txt`) with
+  `inst_signature` of the core against `SHA256SUMS` and its bundle of
+  PodUtils/podnet v0.4.0-beta.13: verified; a changed copy refused
+  ("invalid signature when validating ASN.1 encoded signature"); the
+  identity of v0.4.0-beta.12 refused; no file in `HOME`.
+- Plant `install-changed-sums-installs` (the core ignores the result of
+  `cosign`): caught. The plant `install-cut-run-leaves-a-half-file` was
+  stale after the split of the core; its patch is made again, caught.
+- `shellcheck scripts/install/*.sh`: 0 findings.
+  `scripts/check-workflows.py`, `check-size.py`, `check-design-paths.py`:
+  0 faults.
+
+Left: the first run of `release.yml` on a tag (the keyless signature in
+the run, and the published installer that checks it with `cosign`).
+
 # T-718: the installer core: the test on macOS and Windows
 
 **Source:** T-702 (the needs of podssh: the target triple of each host, the quarantine of macOS).
@@ -3370,7 +3422,7 @@ sh scripts/install/test.sh
 **Milestone:** M8
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -3401,6 +3453,42 @@ test learns the triple of the host from the core, so the fixture names
 ```sh
 sh scripts/install/test.sh
 ```
+
+## Done
+
+2026-11-16, the commit of this entry (with T-717).
+
+- `nightly.yml`: the job `install-os` runs `sh scripts/install/test.sh
+  --strict` on `macos-15` and `windows-2025` (`shell: bash`, Git Bash),
+  with `wget` from Homebrew on macOS, a `python3` that runs `python`
+  where Windows has only the stub of the Microsoft Store, and a time
+  limit of 90 s for each run under Git Bash. Not in `ci.yml`, as the wip
+  had it: call C740.
+- `scripts/install/test.sh`: the core gives the target and the `.exe` of
+  the host, and the fake assets have those names
+  (`podlab-aarch64-apple-darwin`, `podlab-x86_64-pc-windows-msvc.exe`);
+  a part that the OS does not have is `n/a` and does not fail with
+  `--strict` (macOS: `busybox`, the labs, `shellcheck`; Windows also
+  `dash`, `wget`, the cut run); `shasum` where there is no `sha256sum`;
+  the cut run makes a new session with `python3` (no `setsid` on macOS);
+  `SYSTEMROOT` for a native program of Git Bash. The cases `downloaders`,
+  `proxy`, `exe` and `sig` are in `scripts/install/test-cases.sh` (the
+  limit of 500 lines). The case `exe`: the target of Windows installs
+  `podlab.exe`, a prefix `C:\...` goes through `cygpath`, and the CR of
+  `curl` of Windows is not shown. `mirror.py` stops when its port file
+  goes (a signal of Git Bash does not reach a native Python), and
+  `pins.py` writes LF on each host.
+- Linux: `sh scripts/install/test.sh --strict` gives 36 passed, 0
+  skipped, 0 n/a.
+- A host of Windows and of macOS on Linux, by a `uname` (and `sysctl`)
+  that gives `MINGW64_NT-10.0-26100 x86_64` or `Darwin arm64`, and a
+  `PATH` with no `dash`, `busybox`, `wget` and `shellcheck` (Windows) or
+  no `busybox` and `shellcheck` (macOS): `--strict` gives 21 passed, 0
+  skipped, 9 n/a (windows), and 25 passed, 0 skipped, 5 n/a (macos). This
+  proves the logic of the test, not the hosts.
+
+Left: the first run of the job `install-os` of `nightly.yml` (the sh of
+macOS and Git Bash of Windows themselves).
 
 # T-703: a mechanical check of the open issues and their comments against the record, for each project (the ruling "Issues")
 

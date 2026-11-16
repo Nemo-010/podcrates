@@ -7,12 +7,13 @@
 #   sh scripts/install/test.sh [--strict] [--case NAME]...
 #
 # The cases: pins, first, second, dryrun, upgrade, broken, corrupt, cut,
-# offline, space, downloaders, proxy, addpath, shells, labs, lint. With no
-# --case, each one runs. A tool that is not on this host (a shell, a
-# downloader, podlab, shellcheck) skips its part; with --strict a skip
-# fails. Each run of the installer has a time limit of LIMIT seconds
-# (INSTALL_TEST_LIMIT, default 30). PODLAB is the podlab binary of the
-# assets and of the labs (default: target/release/podlab).
+# offline, space, downloaders, proxy, addpath, shells, exe, sig, labs,
+# lint. With no --case, each one runs. A tool that is not on this host (a
+# shell, a downloader, podlab, shellcheck) skips its part; with --strict a
+# skip fails. A part that the host OS does not have (the list of na) is
+# "n/a" and does not fail. Each run of the installer has a time limit of
+# LIMIT seconds (INSTALL_TEST_LIMIT, default 30). PODLAB is the podlab
+# binary of the assets and of the labs (default: target/release/podlab).
 # shellcheck disable=SC2016 # the scripts that the test writes expand at their own run.
 set -u
 root=$(cd "$(dirname "$0")/../.." && pwd)
@@ -26,7 +27,7 @@ while [ $# -gt 0 ]; do
     esac
     shift
 done
-[ -n "$cases" ] || cases='pins first second dryrun upgrade broken corrupt cut offline space downloaders proxy addpath shells labs lint'
+[ -n "$cases" ] || cases='pins first second dryrun upgrade broken corrupt cut offline space downloaders proxy addpath shells exe sig labs lint'
 limit=${INSTALL_TEST_LIMIT:-30}
 # Not under /tmp: the labs of small-tmp and noexec-tmp mount a tmpfs there.
 work=$root/target/install-test.$$
@@ -39,21 +40,38 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 mkdir -p "$work/home" "$work/m/good" "$work/m/bad" "$work/m/broken" || exit 71
-n=0 skips=0
+n=0 skips=0 nas=0
 ok() { n=$((n + 1)); echo "ok $n $*"; }
 fail() {
     echo "FAIL: $*" >&2
     [ ! -f "$work/out" ] || sed 's/^/  | /' "$work/out" >&2
     exit 1
 }
-skip() {
-    echo "skip: $*"
+# The parts that an OS does not have: no busybox for macOS; no dash,
+# busybox or wget in Git Bash; no labs off Linux; no POSIX signal from
+# Git Bash to a native downloader. shellcheck gives the same result on
+# each host: the job on Linux runs it. Linux has no such part.
+os=$(uname -s)
+case $os in Linux) os=linux ;; Darwin) os=macos ;; MINGW* | MSYS* | CYGWIN*) os=windows ;; *) os=other ;; esac
+na() { case $os in macos) echo busybox labs shellcheck ;; windows) echo dash busybox wget labs cut shellcheck ;; esac; }
+# Git Bash: a native program (python, curl) needs SYSTEMROOT for a socket.
+osenv=''
+[ "$os" != windows ] || osenv="SYSTEMROOT=${SYSTEMROOT:-C:\\Windows}"
+skip() { # PART TEXT
+    case " $(na) " in
+        *" $1 "*) echo "n/a: $2 ($1: not on $os)"; nas=$((nas + 1)); return 0 ;;
+    esac
+    echo "skip: $2"
     skips=$((skips + 1))
-    [ "$strict" = 0 ] || fail "a skip with --strict: $*"
+    [ "$strict" = 0 ] || fail "a skip with --strict: $2"
 }
 expect() { grep -E -q -e "$1" "$work/out" || fail "$2: no line matches '$1'"; }
 gets() { if [ -f "$work/log" ]; then grep -c -e "$1" "$work/log"; else echo 0; fi; }
-sum() { sha256sum < "$1" | cut -d ' ' -f 1; }
+# sha256sum, else shasum of macOS.
+shacmd='sha256sum'
+command -v sha256sum > /dev/null 2>&1 || shacmd='shasum -a 256'
+# shellcheck disable=SC2086 # shacmd is a command and its options.
+sum() { $shacmd < "$1" | cut -d ' ' -f 1; }
 # The count of the temporary files in DIR, and the names that are not hidden.
 temps() {
     c=0
@@ -69,12 +87,32 @@ text_rules() {
     if grep -E -q '(^|[^A-Za-z])(T-[0-9]{3}|C[0-9]{3})([^0-9]|$)' "$1"; then fail "an id of a work entry in the output"; fi
 }
 
-# The target of this host, by the core itself.
+# A directory of PATH with a cosign of the host becomes a directory of
+# links with no cosign: only the stand-in of the case sig is a cosign.
+hostpath='' i=0
+ifs=$IFS IFS=:
+for d in $PATH; do
+    if [ -x "$d/cosign" ]; then
+        i=$((i + 1))
+        mkdir -p "$work/path$i"
+        for f in "$d"/*; do [ "${f##*/}" = cosign ] || ln -s "$f" "$work/path$i/"; done
+        d=$work/path$i
+    fi
+    hostpath=${hostpath:+$hostpath:}$d
+done
+IFS=$ifs
+PATH=$hostpath
+export PATH
+
+# The target and the .exe of this host, by the core itself.
 # shellcheck source=scripts/install/core.sh
-target=$(INST_NAME=x INST_ENV=X INST_TARGETS=any; . "$here/core.sh"; inst_detect_target; printf '%s' "$inst_target")
+target=$(INST_NAME=x INST_ENV=X INST_TARGETS=any; . "$here/core.sh"; inst_detect_target; printf '%s %s' "$inst_target" "$inst_exe")
+exe=${target#* } target=${target% *}
 [ -n "$target" ] || fail "the core finds no target for this host"
 case $target in x86_64-*) other=aarch64-unknown-linux-musl ;; *) other=x86_64-unknown-linux-musl ;; esac
-asset=podlab-$target
+asset=podlab-$target$exe bin=podlab$exe
+# The file of Windows, for the case exe on each host.
+wasset='podlab-x86_64-pc-windows-msvc.exe'
 
 # The assets: the real podlab when it is built, else a program of sh.
 podlab=${PODLAB:-$root/target/release/podlab}
@@ -93,7 +131,11 @@ else
     fake "$work/m/good/$asset" "$version"
 fi
 fake "$work/m/good/podlab-$other" "$version"
-python3 -I "$here/pins.py" sums "$work/m/good" "$asset" "podlab-$other" > /dev/null || fail "pins.py sums"
+# The assets of the release: each name once (on Windows, asset is wasset).
+assets="$asset podlab-$other"
+[ "$asset" = "$wasset" ] || { fake "$work/m/good/$wasset" "$version" && assets="$assets $wasset"; }
+# shellcheck disable=SC2086 # assets is a list of names.
+python3 -I "$here/pins.py" sums "$work/m/good" $assets > /dev/null || fail "pins.py sums"
 installer=$work/podlab-install.sh
 python3 -I "$here/pins.py" stamp "$here/podlab.sh" --version "$version" --assets "$work/m/good" --out "$installer" > /dev/null ||
     fail "pins.py stamp"
@@ -107,7 +149,8 @@ python3 -I "$here/pins.py" stamp "$here/podlab.sh" --version "$version" --assets
     fail "pins.py stamp"
 
 serve() { # PORTVAR [RATE]
-    python3 -I "$here/mirror.py" "$work/m" "$work/port.$1" "$work/log" ${2:+"$2"} 2> "$work/serve.$1" &
+    # No output to the pipe of the job: a process that holds it holds the job.
+    python3 -I "$here/mirror.py" "$work/m" "$work/port.$1" "$work/log" ${2:+"$2"} > /dev/null 2> "$work/serve.$1" &
     pids="$pids $!"
     i=0
     while [ ! -s "$work/port.$1" ]; do
@@ -133,8 +176,8 @@ run() {
     sh_=$1 rp=$2
     shift 2
     t0=$(date +%s)
-    # shellcheck disable=SC2086 # env and lab are lists of words; sh_ is a command.
-    env -i PATH="${xpath:+$xpath:}$PATH" HOME="$work/home" PODLAB_MIRROR="$mirror" $env \
+    # shellcheck disable=SC2086 # osenv, env and lab are lists of words; sh_ is a command.
+    env -i $osenv PATH="${xpath:+$xpath:}$PATH" HOME="$work/home" PODLAB_MIRROR="$mirror" $env \
         ${lab:+"$podlab" run "$lab" --} $sh_ "${inst:-$installer}" ${rp:+--prefix "$rp"} "$@" > "$work/out" 2>&1
     rc=$?
     t=$(($(date +%s) - t0))
@@ -146,11 +189,12 @@ run() {
 c_pins() {
     python3 -I "$here/pins.py" check "$here/podlab.sh" > "$work/out" 2>&1 || fail "pins.py check of the tree copy"
     p=$work/p-pins
-    env -i PATH="$PATH" HOME="$work/home" sh "$here/podlab.sh" --prefix "$p" > "$work/out" 2>&1 && fail "the tree copy installs"
+    # shellcheck disable=SC2086 # osenv is a list of words.
+    env -i $osenv PATH="$PATH" HOME="$work/home" sh "$here/podlab.sh" --prefix "$p" > "$work/out" 2>&1 && fail "the tree copy installs"
     expect 'has no pins of a release' "the tree copy refuses"
     [ ! -e "$p" ] || fail "the tree copy made $p"
     mkdir -p "$work/planted"
-    cp "$work/m/good/SHA256SUMS" "$work/m/good/podlab-$other" "$work/planted/"
+    for f in SHA256SUMS $assets; do cp "$work/m/good/$f" "$work/planted/"; done
     cp "$work/m/bad/$asset" "$work/planted/"
     python3 -I "$here/pins.py" stamp "$here/podlab.sh" --version 1.0.0 --assets "$work/planted" --out "$work/x.sh" > "$work/out" 2>&1 &&
         fail "pins.py stamps a file that does not agree with SHA256SUMS"
@@ -163,8 +207,8 @@ c_pins() {
 first() { # SHELL PREFIX
     g=$(gets "get /good/$asset")
     run "$1" "$2" || fail "the first run ($1)"
-    [ "$(sum "$2/podlab")" = "$(sum "$work/m/good/$asset")" ] || fail "$2/podlab is not the asset ($1)"
-    expect "installed $2/podlab" "the first run says what it installed"
+    [ "$(sum "$2/$bin")" = "$(sum "$work/m/good/$asset")" ] || fail "$2/$bin is not the asset ($1)"
+    expect "installed $2/$bin " "the first run says what it installed"
     expect 'self-check: podlab list: ok' "the self-check"
     expect "export PATH=\"$2:" "the PATH line"
     [ "$(gets "get /good/$asset")" = $((g + 1)) ] || fail "the first run did not download the asset once ($1)"
@@ -180,7 +224,7 @@ second() { # SHELL PREFIX
 
 c_first() { first sh "$work/p1" && ok "first: a fresh install, its self-check and its PATH line"; }
 c_second() {
-    [ -f "$work/p1/podlab" ] || first sh "$work/p1"
+    [ -f "$work/p1/$bin" ] || first sh "$work/p1"
     second sh "$work/p1" && ok "second: a second run downloads nothing and says so"
 }
 
@@ -188,7 +232,7 @@ c_dryrun() {
     g=$(gets /good/)
     run sh "$work/p-dry" --dry-run || fail "the dry run"
     expect 'dry run: no file was changed' "the dry run says so"
-    expect "dry run: $mirror/$asset to $work/p-dry/podlab" "the dry run names the file"
+    expect "dry run: $mirror/$asset to $work/p-dry/$bin" "the dry run names the file"
     [ ! -e "$work/p-dry" ] || fail "the dry run made the prefix"
     [ "$(gets /good/)" = "$g" ] || fail "the dry run downloaded"
     ok "dryrun: the plan, no file and no download"
@@ -197,7 +241,7 @@ c_dryrun() {
 c_upgrade() {
     p=$work/p-up
     mkdir -p "$p"
-    printf '#!/bin/sh\necho podlab 0.0.1\n' > "$p/podlab"
+    printf '#!/bin/sh\necho podlab 0.0.1\n' > "$p/$bin"
     first sh "$p"
     ok "upgrade: a file that does not agree with its pin is replaced"
 }
@@ -209,7 +253,7 @@ c_broken() {
     run sh "$p" && fail "an asset that does not run is installed"
     reset
     expect "$asset does not run on this host" "the refusal names the file"
-    [ "$(sum "$p/podlab")" = "$(sum "$work/m/good/$asset")" ] || fail "the old podlab changed"
+    [ "$(sum "$p/$bin")" = "$(sum "$work/m/good/$asset")" ] || fail "the old podlab changed"
     [ "$(temps "$p")" = 0 ] || fail "a temporary file stayed"
     ok "broken: the new file runs once before it replaces the old one"
 }
@@ -220,7 +264,7 @@ c_corrupt() {
     run sh "$p" && fail "a corrupt file installs"
     reset
     expect "error: $asset: the SHA-256 is [0-9a-f]{64}, not the pin" "the error names the file"
-    [ ! -e "$p/podlab" ] || fail "a corrupt file is in place"
+    [ ! -e "$p/$bin" ] || fail "a corrupt file is in place"
     [ "$(temps "$p")" = 0 ] || fail "a temporary file stayed"
     ok "corrupt: a file that does not agree with its pin fails by name"
 }
@@ -235,9 +279,9 @@ os.execvp(sys.argv[1], sys.argv[1:])'
 wait_temp() {
     i=0
     while :; do
-        for f in "$1"/.podlab-install.*.podlab; do [ ! -s "$f" ] || return 0; done
+        for f in "$1"/.podlab-install.*."$bin"; do [ ! -s "$f" ] || return 0; done
         # A run that writes to the name in place.
-        [ "$(sum "$1/podlab")" = "$old" ] || return 0
+        [ "$(sum "$1/$bin")" = "$old" ] || return 0
         i=$((i + 1))
         [ "$i" -lt 200 ] || fail "no download started in $1"
         sleep 0.05
@@ -245,33 +289,35 @@ wait_temp() {
 }
 
 c_cut() {
+    [ "$os" != windows ] || { skip cut "cut: a signal of Git Bash does not stop a native downloader"; return 0; }
     p=$work/p-cut
     mkdir -p "$p"
-    printf '#!/bin/sh\necho podlab 0.0.1\n' > "$p/podlab"
-    old=$(sum "$p/podlab")
+    printf '#!/bin/sh\necho podlab 0.0.1\n' > "$p/$bin"
+    old=$(sum "$p/$bin")
     slowurl=http://127.0.0.1:$slow/good
-    # KILL of the run and its children: no trap runs.
-    if command -v setsid > /dev/null 2>&1; then
-        env -i PATH="$PATH" HOME="$work/home" PODLAB_MIRROR="$slowurl" setsid sh "$installer" --prefix "$p" > "$work/out" 2>&1 &
-        pid=$!
-        wait_temp "$p"
-        kill -s KILL -- "-$pid" 2> /dev/null || kill -s KILL "$pid"
-        wait "$pid" 2> /dev/null
-        [ "$(sum "$p/podlab")" = "$old" ] || fail "a run cut by KILL changed $p/podlab"
-        [ "$(visible "$p")" = podlab ] || fail "a run cut by KILL left a file that is not hidden: $(visible "$p")"
-        run sh "$p" || fail "the run after a cut"
-        expect 'removed .* of a run that stopped' "the next run removes the files of the cut run"
-        [ "$(temps "$p")" = 0 ] || fail "a temporary file stayed after the next run"
-        [ "$(sum "$p/podlab")" = "$(sum "$work/m/good/$asset")" ] || fail "the run after a cut did not install"
-        printf '#!/bin/sh\necho podlab 0.0.1\n' > "$p/podlab"
-    else
-        skip "cut: no setsid for a KILL of a process group"
-    fi
+    # KILL of the run and its children: no trap runs. A new session (no
+    # setsid on macOS: python3) makes them one process group.
+    # shellcheck disable=SC2086 # osenv is a list of words.
+    env -i $osenv PATH="$PATH" HOME="$work/home" PODLAB_MIRROR="$slowurl" python3 -I -c 'import os, sys
+os.setsid()
+os.execvp(sys.argv[1], sys.argv[1:])' sh "$installer" --prefix "$p" > "$work/out" 2>&1 &
+    pid=$!
+    wait_temp "$p"
+    kill -s KILL -- "-$pid" 2> /dev/null || kill -s KILL "$pid"
+    wait "$pid" 2> /dev/null
+    [ "$(sum "$p/$bin")" = "$old" ] || fail "a run cut by KILL changed $p/$bin"
+    [ "$(visible "$p")" = "$bin" ] || fail "a run cut by KILL left a file that is not hidden: $(visible "$p")"
+    run sh "$p" || fail "the run after a cut"
+    expect 'removed .* of a run that stopped' "the next run removes the files of the cut run"
+    [ "$(temps "$p")" = 0 ] || fail "a temporary file stayed after the next run"
+    [ "$(sum "$p/$bin")" = "$(sum "$work/m/good/$asset")" ] || fail "the run after a cut did not install"
+    printf '#!/bin/sh\necho podlab 0.0.1\n' > "$p/$bin"
     # TERM, INT and HUP: the trap stops the download and removes its file.
     for sig in TERM INT HUP; do
         : > "$work/log.cut"
         # An asynchronous command of sh ignores INT: dfl gives it back.
-        env -i PATH="$PATH" HOME="$work/home" PODLAB_MIRROR="$slowurl" \
+        # shellcheck disable=SC2086 # osenv is a list of words.
+        env -i $osenv PATH="$PATH" HOME="$work/home" PODLAB_MIRROR="$slowurl" \
             python3 -I -c "$dfl" sh "$installer" --prefix "$p" > "$work/out" 2>&1 &
         pid=$!
         wait_temp "$p"
@@ -282,7 +328,7 @@ c_cut() {
         case $sig in TERM) want=143 ;; INT) want=130 ;; HUP) want=129 ;; esac
         [ "$rc" = "$want" ] || fail "a run stopped by $sig exits $rc, not $want"
         [ "$(temps "$p")" = 0 ] || fail "a run stopped by $sig left a temporary file"
-        [ "$(visible "$p")" = podlab ] || fail "a run stopped by $sig left a file"
+        [ "$(visible "$p")" = "$bin" ] || fail "a run stopped by $sig left a file"
         i=0
         while [ "$(gets "cut /good/$asset")" = "$c" ]; do
             i=$((i + 1))
@@ -290,7 +336,7 @@ c_cut() {
             sleep 0.1
         done
     done
-    [ "$(sum "$p/podlab")" = "$old" ] || fail "a stopped run changed $p/podlab"
+    [ "$(sum "$p/$bin")" = "$old" ] || fail "a stopped run changed $p/$bin"
     ok "cut: a run cut by KILL, TERM, INT or HUP leaves the old file and no half file"
 }
 
@@ -305,7 +351,7 @@ c_offline() {
         mirror=http://127.0.0.1:1/none env='PODLAB_DOWNLOADER=none'
         run sh "$p" --offline "$src" || fail "the offline install from $src"
         reset
-        [ "$(sum "$p/podlab")" = "$(sum "$work/m/good/$asset")" ] || fail "the offline install from $src"
+        [ "$(sum "$p/$bin")" = "$(sum "$work/m/good/$asset")" ] || fail "the offline install from $src"
         [ "$(temps "$p")" = 0 ] || fail "the offline install left a temporary file"
     done
     python3 -I "$here/pins.py" bundle "$work/bad.tar.gz" "podlab-$version" "$work/m/bad/$asset" > /dev/null || fail "pins.py bundle"
@@ -323,51 +369,8 @@ c_space() {
     run sh "$p" && fail "an install with no free space"
     reset
     expect "has 1 KiB free; the install needs [0-9]+ KiB.*--prefix DIR" "the error names the free space and the knob"
-    [ ! -e "$p/podlab" ] || fail "an install with no free space wrote a file"
+    [ ! -e "$p/$bin" ] || fail "an install with no free space wrote a file"
     ok "space: the free space of the prefix before a download, with the knob that fixes it"
-}
-
-c_downloaders() {
-    for d in curl wget python3 busybox; do
-        p=$work/p-dl-$d
-        if ! (env -i PATH="$PATH" PODLAB_DOWNLOADER=$d INST_NAME=podlab INST_ENV=PODLAB sh -c ". '$here/core.sh'; inst_detect_downloader" > /dev/null 2>&1); then
-            skip "downloaders: $d is not on this host"
-            continue
-        fi
-        env="PODLAB_DOWNLOADER=$d"
-        first sh "$p"
-        reset
-        expect "downloader: $d" "the run names its downloader"
-        [ "$d" != busybox ] || expect 'warning: busybox wget' "the warning of busybox wget"
-        ok "downloaders: $d"
-    done
-}
-
-c_proxy() {
-    # A shim of each downloader logs its argv; the proxy is the mirror.
-    mkdir -p "$work/argv"
-    for d in curl wget python3 busybox; do
-        real=$(command -v "$d") || continue
-        printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "%s"\nexec "%s" "$@"\n' "$work/argv.log" "$real" > "$work/argv/$d"
-        chmod 0755 "$work/argv/$d"
-        # A made-up credential of the test proxy.
-        secret=proxy-test-made-up-secret cred=user:proxy-test-made-up-secret
-        p=$work/p-proxy-$d
-        : > "$work/argv.log"
-        a=$(gets 'proxy auth=yes')
-        # No mirror listens on port 9: only the proxy reaches the file.
-        xpath=$work/argv mirror=http://127.0.0.1:9/good
-        env="http_proxy=http://$cred@127.0.0.1:$port PODLAB_DOWNLOADER=$d"
-        first sh "$p"
-        reset
-        [ "$(gets 'proxy auth=yes')" -gt "$a" ] || fail "$d did not reach the proxy with its credential"
-        [ -s "$work/argv.log" ] || fail "the shim of $d did not run"
-        ! grep -q "$secret" "$work/argv.log" || fail "the credential of the proxy is in the argv of $d"
-        ! grep -q "$secret" "$work/out" || fail "the credential of the proxy is in the output"
-        ! grep -r -q "$secret" "$p" "$work/home" || fail "the credential of the proxy is in a file"
-        expect 'proxy: http://127.0.0.1:' "the run names the proxy with no credential"
-        ok "proxy: $d through the proxy of the environment; the credential is in no argv, file or output"
-    done
 }
 
 c_addpath() {
@@ -388,7 +391,7 @@ c_shells() {
         set -- $s
         # shellcheck disable=SC2086 # s is a command and its options.
         if ! command -v "$1" > /dev/null 2>&1 || ! $s -c 'exit 0' 2> /dev/null; then
-            skip "shells: $s is not on this host"
+            skip "$1" "shells: $s is not on this host"
             continue
         fi
         p=$work/p-sh-$1
@@ -400,7 +403,7 @@ c_shells() {
 
 c_labs() {
     if [ -z "$podlab" ]; then
-        skip "labs: no podlab binary (build it, or give PODLAB)"
+        skip labs "labs: no podlab binary (build it, or give PODLAB)"
         return 0
     fi
     for prof in small-tmp noexec-tmp noexec-home inherited-fds no-proc no-passwd-entry ro-etc-ssl; do
@@ -411,7 +414,7 @@ c_labs() {
         rc=$?
         if [ "$rc" = 125 ]; then
             reset
-            skip "labs: this host cannot hold $prof"
+            skip labs "labs: this host cannot hold $prof"
             continue
         fi
         if [ "$prof" = noexec-home ]; then
@@ -438,16 +441,20 @@ c_lint() {
     done
     if command -v shellcheck > /dev/null 2>&1; then
         # From the root: the source directives name paths from there.
-        (cd "$root" && shellcheck -x --shell=sh scripts/install/core.sh scripts/install/podlab.sh \
-            scripts/install/test.sh "$installer") || fail "shellcheck"
+        (cd "$root" && shellcheck -x --shell=sh scripts/install/core.sh scripts/install/core-net.sh \
+            scripts/install/podlab.sh scripts/install/test.sh scripts/install/test-cases.sh "$installer") || fail "shellcheck"
         ok "lint: shellcheck --shell=sh"
     else
-        skip "lint: no shellcheck"
+        skip shellcheck "lint: no shellcheck"
     fi
 }
+
+# The cases downloaders, proxy, exe and sig.
+# shellcheck source=scripts/install/test-cases.sh
+. "$here/test-cases.sh"
 
 for c in $cases; do
     command -v "c_$c" > /dev/null 2>&1 || fail "no case $c"
     "c_$c"
 done
-echo "install-test: $n passed, $skips skipped"
+echo "install-test: $n passed, $skips skipped, $nas n/a ($os)"

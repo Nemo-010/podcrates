@@ -3,13 +3,17 @@ name: release
 # A release of podcrates (docs/design.md, section 10): a git tag vX.Y.Z of
 # main, which each consumer names in its Cargo.toml, and a GitHub release
 # with the notes of docs/releases/vX.Y.Z.md. With no input, a dry run that
-# checks each condition and tags nothing. After the tag, it starts the dry
-# run of publish.yml on the tag; the publish to crates.io is apart. Each
-# run (the dry run too) builds the assets of podlab (docs/install.md): a
-# static musl binary for x86_64 and aarch64, the installer
-# podlab-install.sh with the core inline and the pins of the release, the
-# offline bundle podlab-VERSION.tar.gz and SHA256SUMS; the release
-# attaches them.
+# checks each condition and tags nothing. With the input version, it makes
+# the tag and starts itself on the tag (a tag that GITHUB_TOKEN pushes
+# starts no workflow). The run on the tag signs SHA256SUMS, makes the
+# release and starts the dry run of publish.yml on the tag; the publish to
+# crates.io is apart. Each run (the dry run too) builds the assets of
+# podlab (docs/install.md): a static musl binary for x86_64 and aarch64,
+# the installer podlab-install.sh with the core inline and the pins of the
+# release, the offline bundle podlab-VERSION.tar.gz and SHA256SUMS; the
+# release attaches them with SHA256SUMS.sigstore.json, the keyless cosign
+# signature of SHA256SUMS by this workflow at the tag (the form of podnet
+# and podssh).
 
 on:
   workflow_dispatch:
@@ -29,6 +33,8 @@ jobs:
     permissions:
       contents: write
       actions: write
+      # The keyless signature: the OIDC token of this workflow at the tag.
+      id-token: write
     env:
       VERSION: ${{ inputs.version }}
       GH_TOKEN: ${{ github.token }}
@@ -44,6 +50,11 @@ jobs:
           want=${VERSION:-$have}
           echo "the version of the workspace: $have; the release: $want"
           [ "$have" = "$want" ] || { echo "Cargo.toml says $have, not $want"; exit 1; }
+          case $GITHUB_REF in
+            refs/tags/*)
+              [ "$GITHUB_REF_NAME" = "v$want" ] || { echo "the tag $GITHUB_REF_NAME is not v$want"; exit 1; }
+              [ -z "$VERSION" ] || { echo "the run on a tag takes no input"; exit 1; } ;;
+          esac
           if git rev-parse -q --verify "refs/tags/v$want" > /dev/null; then
             echo "the tag v$want exists: a tag never moves"
             [ -z "$VERSION" ] || exit 1
@@ -102,11 +113,51 @@ jobs:
           cat "$RUNNER_TEMP/second.txt"
           grep -q 'is already installed' "$RUNNER_TEMP/second.txt"
           [ "$("$p/podlab" --version)" = "podlab $v" ]
-      - name: Tag and publish
+      - name: The tag, and the run on the tag
         if: inputs.version != ''
         run: |
           set -eu
           git -c user.name=Azathothas -c user.email=ajamx101@gmail.com tag -a "v$VERSION" -m "podcrates v$VERSION"
           git push origin "v$VERSION"
-          gh release create "v$VERSION" --verify-tag --title "podcrates v$VERSION" --notes-file "docs/releases/v$VERSION.md" dist/*
-          gh workflow run publish.yml --ref "v$VERSION"
+          gh workflow run release.yml --ref "v$VERSION"
+      # The run on the tag: the keyless signature of SHA256SUMS. Its identity
+      # is this workflow at the tag; the check must pass with it, and fail on
+      # a changed copy and on the identity of a branch.
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+        with:
+          cosign-release: v3.1.4
+      - name: The signature of SHA256SUMS
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -eu
+          cd dist
+          cosign sign-blob --yes --bundle SHA256SUMS.sigstore.json SHA256SUMS
+          issuer=https://token.actions.githubusercontent.com
+          workflow="https://github.com/$GITHUB_REPOSITORY/.github/workflows/release.yml"
+          check() {
+            cosign verify-blob --bundle SHA256SUMS.sigstore.json --certificate-identity "$1" \
+              --certificate-oidc-issuer "$issuer" "$2"
+          }
+          check "$workflow@$GITHUB_REF" SHA256SUMS
+          awk 'NR == 1 { $0 = (substr($0, 1, 1) == "0" ? "1" : "0") substr($0, 2) } { print }' SHA256SUMS \
+            > "$RUNNER_TEMP/changed"
+          if check "$workflow@$GITHUB_REF" "$RUNNER_TEMP/changed"; then echo "a changed copy verified"; exit 1; fi
+          if check "$workflow@refs/heads/main" SHA256SUMS; then echo "the identity of a branch verified"; exit 1; fi
+          echo "signed by $workflow@$GITHUB_REF; a changed copy and the identity of a branch fail"
+      # The published installer checks the signature with this cosign, as
+      # a user with cosign does: the files come from dist (file://).
+      - name: The published installer checks the signature
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -eu
+          PODLAB_MIRROR="file://$PWD/dist" sh dist/podlab-install.sh --prefix "$RUNNER_TEMP/signed" > "$RUNNER_TEMP/signed.txt"
+          cat "$RUNNER_TEMP/signed.txt"
+          grep -q 'the signature of SHA256SUMS: ok (cosign, ' "$RUNNER_TEMP/signed.txt"
+      - name: Publish
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -eu
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "podcrates $GITHUB_REF_NAME" \
+            --notes-file "docs/releases/$GITHUB_REF_NAME.md" dist/*
+          gh workflow run publish.yml --ref "$GITHUB_REF_NAME"

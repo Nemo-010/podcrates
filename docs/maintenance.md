@@ -315,8 +315,11 @@ fourth argument of the script names the list when it is elsewhere.
    change), and set `version` of `[workspace.package]` to `X.Y.Z`.
 2. Push, and wait for the green `ci` run of the commit.
 3. Run `release.yml` with no input (a dry run), then with
-   `version=X.Y.Z`. It tags `vX.Y.Z`, makes the GitHub release and starts
-   the dry run of `publish.yml` on the tag.
+   `version=X.Y.Z`. It tags `vX.Y.Z` and starts itself on the tag. The
+   run on the tag signs `SHA256SUMS` with cosign (the identity of
+   `release.yml` at the tag), makes the GitHub release and starts the dry
+   run of `publish.yml` on the tag. Watch the run on the tag: when it
+   fails, the tag has no release.
 4. Watch the run of `publish.yml` on the tag. A failed dry run is a
    defect of the packaging: fix it in the next release.
 5. Keep the switch `crates-io` of `Cargo.toml` false: no crate goes to

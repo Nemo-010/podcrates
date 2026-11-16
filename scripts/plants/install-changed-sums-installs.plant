@@ -1,0 +1,7 @@
+# The installer core ignores the result of cosign: a SHA256SUMS that its
+# signature does not cover installs. The test must fail.
+ENTRY=T-717
+GROUP=install
+EXPECT='FAIL: a SHA256SUMS that its signature does not cover installs'
+RUN='sh scripts/install/test.sh --case sig'
+LIMIT=300

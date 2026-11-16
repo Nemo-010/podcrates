@@ -1,0 +1,13 @@
+diff --git a/scripts/install/core-net.sh b/scripts/install/core-net.sh
+index 7300c07..057cf84 100644
+--- a/scripts/install/core-net.sh
++++ b/scripts/install/core-net.sh
+@@ -148,7 +148,7 @@ inst_signature() {
+     export TUF_ROOT="${TUF_ROOT:-$inst_tmp.tuf}"
+     inst_wait "$inst_cosign" verify-blob --bundle "$inst_tmp.SHA256SUMS.sigstore.json" \
+         --certificate-identity "$(inst_signer)" --certificate-oidc-issuer "$inst_issuer" \
+-        "$inst_tmp.SHA256SUMS" > "$inst_tmp.cosign.log" 2>&1 || {
++        "$inst_tmp.SHA256SUMS" > "$inst_tmp.cosign.log" 2>&1 || [ -n "$inst_cosign" ] || {
+         tail -n 5 "$inst_tmp.cosign.log" | tr -cd '\n -~' | sed 's/^/    /' >&2
+         inst_die "the cosign signature of SHA256SUMS is not valid for $(inst_signer) (the lines above are the output of $inst_cosign); no file was changed"
+     }

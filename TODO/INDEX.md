@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**597 entries: 117 open, 14 partial, 6 blocked, 460 done.**
+**597 entries: 115 open, 16 partial, 6 blocked, 460 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 7 | 0 | 131 | 149 |
-| P2 | 52 | 3 | 4 | 241 | 300 |
+| P2 | 50 | 5 | 4 | 241 | 300 |
 | P3 | 54 | 4 | 2 | 86 | 146 |
-| **All** | 117 | 14 | 6 | 460 | 597 |
+| **All** | 115 | 16 | 6 | 460 | 597 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -622,8 +622,8 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-714](fleet.md) | P2 | S | M8 | feature | done | `pod-hostprobe`: the rows of the socket classes of podssh and podnet (bind alone, listen, UDP, raw and packet sockets, the loopback) |
 | [T-715](fleet.md) | P2 | S | M8 | feature | done | `pod-hostprobe`: the rows of the file classes of podssh (absent paths, the terminal, the lines of the ids, `HOME`, read-only mounts) |
 | [T-716](fleet.md) | P2 | M | M8 | feature | done | `pod-lab`: the labs of the network classes of podssh and podnet (podnet's hand-off) |
-| [T-717](fleet.md) | P2 | S | M8 | feature | open | the installer core: a signature of the release assets, checked where `cosign` is there |
-| [T-718](fleet.md) | P2 | S | M8 | feature | open | the installer core: the test on macOS and Windows |
+| [T-717](fleet.md) | P2 | S | M8 | feature | partial | the installer core: a signature of the release assets, checked where `cosign` is there |
+| [T-718](fleet.md) | P2 | S | M8 | feature | partial | the installer core: the test on macOS and Windows |
 | [T-723](fleet.md) | P1 | S | M8 | feature | done | `pod-todo`: a kind `reference` for an issue that holds no work (PodUtils/podvm#435) |
 | [T-724](fleet.md) | P1 | S | M8 | defect | done | `issue-sync.yml` builds `pod-todo` under the caller's `.cargo/config.toml` (PodUtils/podvm#437) |
 | [T-725](fleet.md) | P1 | M | M8 | defect | done | `pod-manual`: four gaps that podnet's take found, and false positives of `check-man.sh` and `check-strings.py` (PodUtils/podnet#589) |
