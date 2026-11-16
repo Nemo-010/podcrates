@@ -11,7 +11,8 @@
 //! with an upper directory, the checks before the fork read the upper
 //! layer over the image (T-750, `userns/upper.rs`). With the ids inside
 //! of the plan, the payload is a user of its image with no capability
-//! (T-786, `userns/ids.rs`).
+//! (T-786, `userns/ids.rs`); a caller that is uid 0 of a user namespace
+//! gets them through a nested one (T-787, `userns/nested.rs`).
 //!
 //! As root, the test makes the image and starts its own binary again as
 //! uid and gid 65534 with no groups (`pod_testkit::nobody`). The test of
@@ -42,6 +43,8 @@ use pod_testkit::nobody;
 
 #[path = "userns/ids.rs"]
 mod ids;
+#[path = "userns/nested.rs"]
+mod nested;
 #[path = "userns/upper.rs"]
 mod upper;
 #[path = "userns/volumes.rs"]
@@ -123,13 +126,17 @@ fn as_nobody(test: &str, tag: &str, body: fn(&Path)) {
     if tag == "dev" {
         dev_of_the_image(&root);
     }
-    if tag == "ids" {
+    if tag == "ids" || tag == "nested" {
         ids::of_the_image(&root);
+    }
+    if tag == "nested" && nobody::is_root() {
+        nested::host_root(&root);
     }
     // The run checks the flags of the bind of /proc: it gets a proc with
     // none, so that a host whose proc has them already does not hide a
-    // missing remount (T-689).
-    let bare = tag == "run";
+    // missing remount (T-689). The nested test starts again as uid 0 of a
+    // user namespace also as another user.
+    let bare = tag == "run" || tag == "nested";
     if !nobody::is_root() && !bare {
         body(&root);
         let _ = fs::remove_dir_all(&root);
@@ -141,6 +148,7 @@ fn as_nobody(test: &str, tag: &str, body: fn(&Path)) {
     // a host whose /dev has them does not hide a missing remount (T-736).
     let code = match tag {
         "run" => nobody::again_over_a_bare_proc(&args, &env[..1]),
+        "nested" => nobody::again_as_root_of_a_user_namespace(&args, &env[..1]),
         "dev" => nobody::again_over_a_bare_dev(&args, &env),
         _ => nobody::again(&args, &env[..1]),
     };
@@ -190,6 +198,11 @@ fn the_checks_read_the_upper_layer_of_an_overlay_root() {
 #[test]
 fn the_payload_runs_as_the_ids_inside_of_the_plan() {
     as_nobody("the_payload_runs_as_the_ids_inside_of_the_plan", "ids", ids::inside);
+}
+
+#[test]
+fn uid_0_of_a_user_namespace_gets_the_ids_of_the_plan() {
+    as_nobody("uid_0_of_a_user_namespace_gets_the_ids_of_the_plan", "nested", nested::root_of_a_user_namespace);
 }
 
 #[test]

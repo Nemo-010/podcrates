@@ -1,7 +1,10 @@
 //! The exit codes of a payload: the codes of the shell for a program that
-//! did not start, and docker's translation of a wait status.
+//! did not start, and docker's translation of a wait status. The error of a
+//! step that the child of the fork reported.
 
 use pod_hostprobe::sys;
+
+use crate::{Error, Plan};
 
 /// The program exists and the kernel refused to run it (`EACCES`,
 /// `ENOEXEC`, `EISDIR`, `EPERM`, `ETXTBSY`). The shell and docker exit
@@ -43,4 +46,57 @@ pub(crate) fn signal_name(signo: i64) -> String {
         n if n == sys::SIGTERM as i64 => "SIGTERM".to_string(),
         n => format!("signal {n}"),
     }
+}
+
+/// The error for a step that the child reported.
+pub(crate) fn step_failure(plan: &Plan, step_byte: u8, errno: sys::Errno, at: u8) -> Error {
+    // A refused nested user namespace names the ids of the plan.
+    if let Some(e) = crate::ns_user::nested_failure(plan, step_byte, errno) {
+        return e;
+    }
+    // A refused limit, `no_new_privs` or the death signal: the call, by
+    // name, and the payload did not run.
+    let call = match step_byte {
+        12 => plan.limits.get(usize::from(at)).map(|l| format!("setrlimit({})", l.resource.name())),
+        13 => Some("prctl(PR_SET_NO_NEW_PRIVS)".to_string()),
+        14 => Some("prctl(PR_SET_PDEATHSIG)".to_string()),
+        _ => None,
+    };
+    if let Some(call) = call {
+        return Error::runtime(
+            crate::errno_class(errno),
+            format!("the payload could not be started: {call}: {} ({})", errno.name(), errno.0),
+        );
+    }
+    let step = match step_byte {
+        1 => "fchdir onto the rootfs descriptor",
+        2 => "chroot into the rootfs",
+        3 => "chdir(\"/\") after the chroot",
+        5 => "execveat of the memfd",
+        6 => "execve of the userland entry argv",
+        11 => "chdir to the working directory",
+        _ => "execve of every candidate path",
+    };
+    // A working directory that went missing names the directory, so the
+    // refusal says which `-w` failed.
+    if step_byte == 11 {
+        return Error::runtime(
+            crate::errno_class(errno),
+            format!(
+                "the working directory {:?} could not be entered: {step} failed with {} ({})",
+                plan.working_dir,
+                errno.name(),
+                errno.0
+            ),
+        );
+    }
+    let text = format!("the payload could not be started: {step} failed with {} ({})", errno.name(), errno.0);
+    if !matches!(step_byte, 4..=6) {
+        return Error::runtime(crate::errno_class(errno), text);
+    }
+    let named = format!("{:?}: {text}", plan.argv.first().map(String::as_str).unwrap_or(""));
+    // 126 and not 127, as docker: `docker run alpine /etc/passwd` exits
+    // 126. A caller that reads 127 tries another path; one that reads 126
+    // does not.
+    if invocable_but_refused(errno) { Error::CannotInvoke(named) } else { Error::NotFound(named) }
 }

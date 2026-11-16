@@ -9163,7 +9163,7 @@ caught (`left: Ok(21)`); the plants `enter-userns-banner-twice` and
 **Milestone:** M6
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -9215,5 +9215,90 @@ the behaviour of now until a consumer asks for `setresuid`.
 
 ```sh
 cargo test -p pod-enter --all-features
+sh scripts/ci/userns-tests.sh
 ```
 
+## Done
+
+2026-11-16, commits ec12b6f and 3326c56. podvm's case (PodUtils/podvm#452):
+where `Plan::userns_ids` is `Some`, the effective uid is 0 and
+`/proc/self/uid_map` is not one line `0 0 4294967295`
+(`pod_hostprobe::userns::is_initial_map`, read before the fork; a map that
+cannot be read is a refusal), the child opens a nested user namespace
+(`unshare(CLONE_NEWUSER)`, `deny` into `setgroups`, `<uid> 0 1`,
+`<gid> 0 1`, the sequence of `pod_hostprobe::userns`). The step comes
+after each mount of the rung, the volumes and the host name, and before
+the root change, the confinement and the exec: the maps go through
+`/proc/self` of the root of the caller, and the chroot needs only
+`CAP_SYS_CHROOT` in the nested namespace. Each entry with a chroot takes
+it (the namespace rung, the chroot rung, the ladder); a join, the entry
+with no chroot and the rung through a user namespace of its own do not.
+A refused step has its own byte (`NS_NESTED_USER_STEP` 37 to
+`NS_NESTED_GID_MAP_STEP` 40) and is `Error::Runtime` with the ids, the
+call and the errno: no fallback to chroot as 0 (C759, C760). A host root
+keeps the ids of the caller: T-791 holds it. Tests:
+`cargo test -p pod-enter --all-features` (227 unit tests, 4 new; 8 tests
+of `tests/userns.rs`, 1 new), `cargo test -p pod-hostprobe --all-features`
+(176 unit tests, 1 new); `sh scripts/ci/userns-tests.sh` as root passed
+with no skip. The new test (`crates/pod-enter/tests/userns/nested.rs`)
+starts again as uid 0 of a user namespace over uid 65534
+(`pod_testkit::nobody::again_as_root_of_a_user_namespace`), and also
+passed as uid 65534: with 1001:1001 the payload sees `id -u` and `id -g`
+1001, the maps `1001 0 1`, a file of the caller as 1001:1001, a file in
+`/tmp` as 1001, the host name, `CapEff` and `CapPrm` 0; the chroot rung
+gives 1001; a joined exec is 1001 with no capability; with no ids it is
+0; with `max_user_namespaces` 0 the entry names `unshare(CLONE_NEWUSER)`
+and `ENOSPC` and does not fall back; as a host root the payload with the
+ids stays 0. The plant `enter-userns-nested-ids-ignored` is caught
+(`left: Ok(61)`); `sh scripts/plant-each.sh --apply` gives 0 stale.
+
+# T-791: `pod-enter`: the ids of the plan for a host root (a change of ids with no user namespace)
+
+**Source:** T-787, a finding (`docs/decisions.md`, C760).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`Plan::userns_ids` names the ids of the payload. A caller that is uid 0
+of a user namespace that is not the initial one gets them through a nested
+user namespace (T-787). A host root (uid 0 of the initial user namespace)
+makes the mount namespace with no user namespace, and the child sets no
+ids: the payload of an image with `USER runner` runs as root of the host,
+where docker runs it as the user of the image. No consumer runs as a host
+root with ids now: podvm's foreground run as root enters no user
+namespace of its own, and asked only for the nested case
+(PodUtils/podvm#452).
+
+## Premise
+
+- Read: `crates/pod-enter/src/ns_user.rs` (`nested_for`: the ids apply
+  only where the map is not the initial one),
+  `crates/pod-enter/src/launch.rs` (the child sets no ids before the
+  `execve`).
+- Not measured: a host root of a consumer with an image that names a
+  `USER`.
+
+## Approach
+
+Where the caller is a host root and the plan names ids, the child calls
+`setgroups(0, NULL)`, `setresgid` and `setresuid` with the ids of the plan.
+The `chroot` needs `CAP_SYS_CHROOT`, which `setresuid` to a uid that is
+not 0 removes: the change of ids comes after the `chroot`, the `chdir` and
+the landing check, before the confinement and the exec. A refused call stops the
+payload with a step of its own. A tree that root extracted keeps the
+owners of the image, so the ids of the plan are the ids of the image. A
+test as root: the payload with 1001:1001 sees `id -u` 1001 and `CapEff` 0.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+```
+
+## Start condition
+
+A consumer asks for the ids of the plan for a host root.

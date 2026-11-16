@@ -55,11 +55,30 @@ The entries:
   that the child makes gets them. The `execve` of a uid that is not 0
   clears the permitted and the effective capabilities: the payload of a
   user of its image holds none. A join of a run keeps the map of the run
-  (an exec of a run with 1001 is 1001, whatever its plan). The ids apply
-  only on the rung through a user namespace of its own: a caller that
-  makes the mount namespace with no user namespace (root) and each other
-  entry keep the ids of the caller (T-787). `u32::MAX` is refused before
-  the fork.
+  (an exec of a run with 1001 is 1001, whatever its plan). `u32::MAX` is
+  refused before the fork.
+* The ids of the plan for a caller that is uid 0 of a user namespace that
+  is not the initial one (`ns_user`, PodUtils/podvm#452): its
+  `/proc/self/uid_map` is not `0 0 4294967295`
+  (`pod_hostprobe::userns::is_initial_map`, read before the fork; a map
+  that cannot be read is a refusal). Such a caller makes the mount
+  namespace with no user namespace of the rung. Where `Plan::userns_ids`
+  is `Some((uid, gid))`, the child opens a nested user namespace after
+  each mount of the rung (the volumes and the host name too) and before
+  the root change: `unshare(CLONE_NEWUSER)`, `deny` into `setgroups`,
+  `<uid> 0 1` and `<gid> 0 1` (the sequence of `pod_hostprobe::userns`).
+  There `/proc/self` of the root of the caller holds the maps; after it the
+  kernel refuses a mount of the mount namespace of the caller, and the
+  chroot needs only `CAP_SYS_CHROOT` in the nested namespace. Then the
+  chroot, the confinement and the exec: the `execve` of the uid of the plan
+  clears each capability. The chroot rung and the ladder take the same
+  step. A refused call stops the payload with its step
+  (`NS_NESTED_USER_STEP` 37, `NS_NESTED_SETGROUPS_STEP` 38,
+  `NS_NESTED_UID_MAP_STEP` 39, `NS_NESTED_GID_MAP_STEP` 40): the error is
+  `Error::Runtime` with the ids, the call and the errno, never `NsSetup`
+  and never a fallback to chroot as 0. A host root (the initial
+  namespace), a join of a run (the map of the run holds) and the entry
+  with no chroot keep the ids of the caller (T-791).
 * The device nodes of the host on the namespace rung through a user
   namespace (`ns_dev_bind`, PodUtils/podvm#414). The kernel refuses
   `mknod` there, so the image holds regular files at the paths of
@@ -265,6 +284,7 @@ each entry takes; the payload owns the standard output.
 | `fuse` | `check_node`, `check_node_at`, `serve_tree`, `release_mount`, `ActiveMount`, `FUSE_NODE` |
 | `device` | `parse`, `Mapping`, `canon`, `spec_entry`, `serve_entry`, `banner_line(&names, ..)`, `open_all`, `Opened`, `specs_of(&names, ..)`, `push_spec(&names, ..)`, `push_serve(&names, ..)`, `CHILD_FD_BASE`, `HOST_FD_FLOOR`, `SEP_ENTRY` |
 | `NS_USER_STEP`, `NS_SETGROUPS_STEP`, `NS_UID_MAP_STEP`, `NS_GID_MAP_STEP`, `calls_for_user_namespace`, `both_refused` | the namespace rung through a user namespace (PodUtils/podvm#406): the steps in `ns_setup_step`, the refusal that calls for the retry (`EPERM` of `unshare(CLONE_NEWNS)`), the cause of the fallback line |
+| `NS_NESTED_USER_STEP`, `NS_NESTED_SETGROUPS_STEP`, `NS_NESTED_UID_MAP_STEP`, `NS_NESTED_GID_MAP_STEP` | the steps 37 to 40 of the nested user namespace of a caller that is uid 0 of a user namespace (PodUtils/podvm#452); a refused one is `Error::Runtime` with the ids of the plan, not `NsSetup` |
 | `DEVICES`, `Kind`, `kind_of`, `Choice`, `choose`, `NS_DEV_POINT_STEP`, `NS_DEV_BIND_STEP`, `NS_DEV_REMOUNT_STEP`, `ns_dev_refused_start(&names, ..)`, `ns_dev_skipped_line(&names, ..)`, `no_dev_line(&names)` | the device nodes of the host on the namespace rung through a user namespace (PodUtils/podvm#414): the choice of each path, the steps in `ns_setup_step`, the lines |
 | `NS_VOLUME_POINT_STEP`, `NS_VOLUME_LINK_STEP`, `NS_VOLUME_BIND_STEP`, `NS_VOLUME_REMOUNT_STEP`, `VOLUMES_MOST`, `volume_label`, `volume_guest_parts`, `volume_remount_flags` | the volumes of the namespace rung (PodUtils/podvm#440): the steps 33 to 36 in `ns_setup_step` (a refused one is `Error::Runtime` with the volume, not `NsSetup`), at most 255 volumes, `HOST:GUEST[:ro]`, the components of a guest path or why it is not one, the flags of the read-only remount for the `f_flags` of `statfs` |
 | `uts` | `NS_UTS_STEP`, `NS_HOSTNAME_STEP` (the steps of `unshare(CLONE_NEWUTS)` and `sethostname` in `ns_setup_step`), `MOST` (64 bytes): the host name of the payload on the namespace rung (PodUtils/podvm#403) |
@@ -347,6 +367,7 @@ Against podvm `crates/podvm-enter` at `284f429`:
 | `run_userland(root, plan, argv, ..)`, `spawn_userland(root, plan, argv, ..)` (`lifecycle/userland.rs`, `podvm-supervise`'s `launcher.rs`) | `run_userland(root, plan, &maps, argv, ..)`; `Maps::of_root(rootfs)` where the run has no volume. The child enters the working directory that the walk resolved: a link of the image in `-w` is followed inside the image, not on the host |
 | `userland::invocation_path` | the invoked spelling stays only where the host opens the resolved file through it (the same device and inode); else the resolved file |
 | the image's `USER` or `--user` of `run -d` and `create` on the namespace rung (PodUtils/podvm#447) | `Plan::userns_ids: Some((uid, gid))` with the ids that podvm resolves in the tree; `--user 0` is `None`. `Plan::env_for` adds `HOME=/root` where the image and the caller set no `HOME`: give the `HOME` of the user (docker reads the passwd of the image) in the caller's variables. Each file of the tree of the caller then shows as owned by the user |
+| the image's `USER` or `--user` of a foreground `run`, where podvm is uid 0 of a user namespace of its own (PodUtils/podvm#452) | the same `Plan::userns_ids: Some((uid, gid))`: the payload gets the ids through a nested user namespace (`<uid> 0 1`), on the namespace rung and the chroot rung, with no capability. Nothing more to give |
 
 ## Tests
 
@@ -418,7 +439,17 @@ inside (T-786, `tests/userns/ids.rs`): with `Plan::userns_ids`
 `1001 <caller> 1`, a file of the caller as owned by 1001:1001, a file
 that it makes in `/tmp` as owned by 1001, the host name of the plan,
 and `CapEff` and `CapPrm` 0; with no ids it sees 0 and its capabilities;
-an exec that joins the run with the ids is 1001 with no capability.
+an exec that joins the run with the ids is 1001 with no capability. Its
+test of the nested namespace (T-787, `tests/userns/nested.rs`) starts
+again as uid 0 of a user namespace of its own (`0 <caller> 1`, over uid
+65534 as root; `pod_testkit::nobody::again_as_root_of_a_user_namespace`):
+with the ids 1001:1001 the payload sees `id -u` and `id -g` 1001, the maps
+`1001 0 1`, a file of the caller as owned by 1001:1001, a file of `/tmp`
+as 1001, the host name, and `CapEff` and `CapPrm` 0; with no ids it is 0
+with its capabilities; the chroot rung gives 1001; an exec that joins the
+run is 1001 with no capability; with `max_user_namespaces` 0 the entry
+names `unshare(CLONE_NEWUSER)` and `ENOSPC` and does not fall back. As a
+host root before that, the payload with the ids stays 0.
 `scripts/ci/userns-tests.sh` runs it
 in CI and fails on a skip. The plants `enter-userns-not-tried`,
 `enter-userns-no-maps`, `enter-userns-banner-twice`,
@@ -430,8 +461,8 @@ in CI and fails on a skip. The plants `enter-userns-not-tried`,
 `enter-confine-volume-descriptors-kept`, `enter-upper-workdir-in-the-lower`,
 `enter-upper-rule-in-the-lower`, `enter-upper-hidden-read`,
 `enter-upper-volume-under-the-layers`, `enter-upper-join-in-the-lower`,
-`enter-upper-whiteout-read`, `enter-upper-opaque-read` and
-`enter-userns-ids-ignored` prove it.
+`enter-upper-whiteout-read`, `enter-upper-opaque-read`,
+`enter-userns-ids-ignored` and `enter-userns-nested-ids-ignored` prove it.
 `tests/overlay_root.rs` is podvm's acceptance test of the overlay root
 (PodUtils/podvm#323) with an upper directory of the caller: the writes
 are in the upper layer, the image is the same byte for byte, and a file

@@ -4,7 +4,8 @@
 //! user, the test runs in its own process. [`again_over_a_bare_proc`] also
 //! gives the test a proc with no flags of the host, and
 //! [`again_over_a_bare_dev`] (root only) a `/dev` with no `nosuid` and no
-//! `noexec`; [`again_over_a_flagged_tmpfs`] gives it a tmpfs with
+//! `noexec`; [`again_as_root_of_a_user_namespace`] makes it uid 0 of a user
+//! namespace of its own; [`again_over_a_flagged_tmpfs`] gives it a tmpfs with
 //! `nosuid`, `nodev`, `noexec` and `noatime`.
 
 use std::os::unix::process::CommandExt;
@@ -50,10 +51,24 @@ pub fn again(args: &[&str], env: &[(&str, &str)]) -> Result<i32, String> {
 /// the flags of the host's proc, and the proc of most hosts has them
 /// already. `Err` where the kernel refuses a namespace or the proc.
 pub fn again_over_a_bare_proc(args: &[&str], env: &[(&str, &str)]) -> Result<i32, String> {
+    again_in_a_user_namespace(args, env, false)
+}
+
+/// Start this test binary again as [`again_over_a_bare_proc`] does, but as
+/// uid and gid 0 of its user namespace: the maps are `0 <uid> 1` and
+/// `0 <gid> 1`, as podvm's foreground run makes them. The binary holds each
+/// capability in that namespace, which owns its PID namespace and its
+/// proc; the namespace is not the initial one.
+pub fn again_as_root_of_a_user_namespace(args: &[&str], env: &[(&str, &str)]) -> Result<i32, String> {
+    again_in_a_user_namespace(args, env, true)
+}
+
+fn again_in_a_user_namespace(args: &[&str], env: &[(&str, &str)], as_zero: bool) -> Result<i32, String> {
     let exe = std::env::current_exe().map_err(|e| format!("the path of this test binary: {e}"))?;
     let (uid, gid) = if is_root() { (NOBODY, NOBODY) } else { unsafe { (libc::geteuid(), libc::getegid()) } };
-    let uid_map = format!("{uid} {uid} 1");
-    let gid_map = format!("{gid} {gid} 1");
+    let (inside_uid, inside_gid) = if as_zero { (0, 0) } else { (uid, gid) };
+    let uid_map = format!("{inside_uid} {uid} 1");
+    let gid_map = format!("{inside_gid} {gid} 1");
     let mut command = std::process::Command::new(&exe);
     command.args(args).envs(env.iter().copied());
     if is_root() {

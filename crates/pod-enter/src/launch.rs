@@ -7,7 +7,7 @@ use pod_hostprobe::sys::{self, CBuf};
 
 use crate::entry::{NsEntry, chroot_landed, ns_setup_step};
 use crate::names::var_name;
-use crate::status::{NOT_FOUND, invocable_but_refused};
+use crate::status::NOT_FOUND;
 use crate::userland::Maps;
 use crate::{Child, Error, Plan, Result, RootDir, errno_failure};
 
@@ -116,6 +116,9 @@ pub(crate) fn spawn_with(
     // The volumes: a join binds none, as the mount namespace of the run
     // holds them; an entry with no mount namespace refuses them.
     let volumes = crate::ns_volume::prepare(plan, root, entry.filter(|_| ns.is_none()))?;
+    // The ids of the plan for a caller that is uid 0 of a user namespace
+    // that is not the initial one: a nested one (`ns_user`).
+    let nested = crate::ns_user::nested_for(plan, ns.as_ref(), userland.is_some())?;
 
     let mut argv: Vec<*const u8> = argv_owned.iter().map(|c| c.ptr() as *const u8).collect();
     argv.push(std::ptr::null());
@@ -273,6 +276,12 @@ pub(crate) fn spawn_with(
                 {
                     report(step, e);
                 }
+            }
+            // The nested user namespace: after each mount, while the
+            // `/proc` of the root of the caller holds the maps, and before the
+            // root change, the confinement and the exec.
+            if let Some(Err((step, e))) = nested.as_ref().map(crate::ns_user::enter_nested) {
+                report(step, e);
             }
             // `fchdir` onto the checked descriptor: a path can change after
             // its check, and a descriptor cannot. The working directory is
@@ -435,54 +444,5 @@ pub(crate) fn spawn_with(
     if let Some(step) = ns_setup_step(buf[0]) {
         return Err(Error::NsSetup { step, errno });
     }
-    Err(step_failure(plan, buf[0], errno, buf[3]))
-}
-
-/// The error for a step that the child reported.
-fn step_failure(plan: &Plan, step_byte: u8, errno: sys::Errno, at: u8) -> Error {
-    // A refused limit, `no_new_privs` or the death signal: the call, by
-    // name, and the payload did not run.
-    let call = match step_byte {
-        12 => plan.limits.get(usize::from(at)).map(|l| format!("setrlimit({})", l.resource.name())),
-        13 => Some("prctl(PR_SET_NO_NEW_PRIVS)".to_string()),
-        14 => Some("prctl(PR_SET_PDEATHSIG)".to_string()),
-        _ => None,
-    };
-    if let Some(call) = call {
-        return Error::runtime(
-            crate::errno_class(errno),
-            format!("the payload could not be started: {call}: {} ({})", errno.name(), errno.0),
-        );
-    }
-    let step = match step_byte {
-        1 => "fchdir onto the rootfs descriptor",
-        2 => "chroot into the rootfs",
-        3 => "chdir(\"/\") after the chroot",
-        5 => "execveat of the memfd",
-        6 => "execve of the userland entry argv",
-        11 => "chdir to the working directory",
-        _ => "execve of every candidate path",
-    };
-    // A working directory that went missing names the directory, so the
-    // refusal says which `-w` failed.
-    if step_byte == 11 {
-        return Error::runtime(
-            crate::errno_class(errno),
-            format!(
-                "the working directory {:?} could not be entered: {step} failed with {} ({})",
-                plan.working_dir,
-                errno.name(),
-                errno.0
-            ),
-        );
-    }
-    let text = format!("the payload could not be started: {step} failed with {} ({})", errno.name(), errno.0);
-    if !matches!(step_byte, 4..=6) {
-        return Error::runtime(crate::errno_class(errno), text);
-    }
-    let named = format!("{:?}: {text}", plan.argv.first().map(String::as_str).unwrap_or(""));
-    // 126 and not 127, as docker: `docker run alpine /etc/passwd` exits
-    // 126. A caller that reads 127 tries another path; one that reads 126
-    // does not.
-    if invocable_but_refused(errno) { Error::CannotInvoke(named) } else { Error::NotFound(named) }
+    Err(crate::status::step_failure(plan, buf[0], errno, buf[3]))
 }

@@ -66,11 +66,13 @@ pub struct Plan {
     /// namespace rung (`ns_user`); `None` is 0. The one-line maps then map
     /// the effective ids of the caller to these ids: the files of the
     /// caller show as owned by them, and the `execve` of a uid that is not
-    /// 0 drops each capability of the payload. Only the rung through a
-    /// user namespace of its own reads them: a caller that makes the mount
-    /// namespace with no user namespace (root), a join of a run (the map
-    /// of the run holds) and each other entry keep the ids of the caller.
-    /// `u32::MAX` is refused before the fork: the kernel maps no such id.
+    /// 0 drops each capability of the payload. A caller that is uid 0 of a
+    /// user namespace that is not the initial one gets them on each entry
+    /// with a chroot through a nested user namespace (`<uid> 0 1`), after
+    /// the mounts and before the root change. A host root (the initial
+    /// namespace), a join of a run (the map of the run holds) and the entry
+    /// with no chroot keep the ids of the caller. `u32::MAX` is refused
+    /// before the fork: the kernel maps no such id.
     pub userns_ids: Option<(u32, u32)>,
 }
 
