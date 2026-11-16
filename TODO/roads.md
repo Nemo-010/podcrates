@@ -563,6 +563,10 @@ when UDP is refused.
   iroh-relay does not do; `tests/proxy_env.rs` of the crate proves it. Here
   the fork goes to vendor/iroh-relay with its own licence, and the
   `[patch.crates-io]` of the root applies to the whole workspace.
+- Read (`cargo info iroh@1.4.1`): iroh has the feature `tls-ring` (`noq/ring`,
+  `iroh-relay/tls-ring`, `iroh-dns/tls-ring`; in its default features) beside
+  `tls-aws-lc-rs`: the crate takes `tls-ring`, so no aws-lc is in its tree
+  and the question of aws-lc-sys on the four targets above does not come up.
 
 ## Approach
 
