@@ -27,11 +27,6 @@ pub const SERVICE: &str = "pod-oci-test-registry";
 /// The address of each server, which the leaf certificate names.
 pub const AT: &str = "127.0.0.1";
 
-/// A port of the loopback that is free now.
-pub fn free_port() -> u16 {
-    std::net::TcpListener::bind((AT, 0)).unwrap().local_addr().unwrap().port()
-}
-
 /// `user:password` as the value of a `Basic` header.
 pub fn basic(user: &str, password: &str) -> String {
     use base64::Engine as _;

@@ -14,10 +14,9 @@
 // Each test binary uses a part of it.
 #![allow(dead_code)]
 
-use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use pod_wormhole::Config;
 use pod_ws::url::WsUrl;
@@ -90,10 +89,7 @@ pub fn python(modules: &str, package: &str) -> Option<String> {
     found
 }
 
-fn free_port() -> u16 {
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a port of the loopback");
-    listener.local_addr().expect("its address").port()
-}
+use pod_testkit::listener::free_port;
 
 /// A mailbox's URL where nothing listens: a port of the loopback just let go.
 pub fn nobody_there() -> WsUrl {
@@ -140,26 +136,30 @@ impl Server {
         let dir = std::env::temp_dir().join(format!("pod-wormhole-mailbox-{}-{tag}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("a scratch directory");
         let log = dir.join("server.log");
-        let port = free_port();
-        // `python -m twisted` is `twist`, which runs the plugin in the
-        // foreground; its state in a database of the scratch directory.
-        let child = Command::new(&python)
-            .args(["-m", "twisted", "wormhole-mailbox"])
-            .arg(format!("--port=tcp:{port}:interface=127.0.0.1"))
-            .arg(format!("--channel-db={}", dir.join("relay.sqlite").display()))
-            .current_dir(&dir)
-            .stdin(Stdio::null())
-            .stdout(std::fs::File::create(&log).expect("the log"))
-            .stderr(std::fs::File::create(dir.join("server.err")).expect("the log of errors"))
-            .spawn()
-            .expect("the mailbox server starts");
+        // A port that another test's server took ends this server: the
+        // start then takes a new port.
+        let started = pod_testkit::listener::start(LIMIT, |port| {
+            // `python -m twisted` is `twist`, which runs the plugin in the
+            // foreground; its state in a database of the scratch directory.
+            Command::new(&python)
+                .args(["-m", "twisted", "wormhole-mailbox"])
+                .arg(format!("--port=tcp:{port}:interface=127.0.0.1"))
+                .arg(format!("--channel-db={}", dir.join("relay.sqlite").display()))
+                .current_dir(&dir)
+                .stdin(Stdio::null())
+                .stdout(std::fs::File::create(&log).expect("the log"))
+                .stderr(std::fs::File::create(dir.join("server.err")).expect("the log of errors"))
+                .spawn()
+                .expect("the mailbox server starts")
+        });
+        let (child, port) = match started {
+            Ok(started) => started,
+            Err(why) => {
+                let said = std::fs::read_to_string(&log).unwrap_or_default();
+                panic!("the mailbox server: {why}: {said}");
+            }
+        };
         let server = Server { child, url: WsUrl::parse(&format!("ws://127.0.0.1:{port}/v1")).unwrap(), log, dir };
-        let at = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
-        let deadline = Instant::now() + LIMIT;
-        while TcpStream::connect_timeout(&at, Duration::from_millis(200)).is_err() {
-            assert!(Instant::now() < deadline, "the mailbox server did not listen in time: {}", server.said());
-            std::thread::sleep(Duration::from_millis(100));
-        }
         Some(server)
     }
 

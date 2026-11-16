@@ -8,10 +8,10 @@
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::net::{Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream};
+use std::net::{Ipv4Addr, Shutdown, TcpListener, TcpStream};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crate::common::{endpoint, file, one, raw, text};
 
@@ -139,22 +139,20 @@ fn python_relay() -> Option<(Python, u16)> {
         eprintln!("did not run: {why}");
         return None;
     }
-    let port = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).and_then(|l| l.local_addr()).expect("a port").port();
-    let child = Command::new(&python)
-        .args(["-m", "twisted", "transitrelay"])
-        .arg(format!("--port=tcp:{port}:interface=127.0.0.1"))
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()
-        .expect("the transit relay starts");
+    // A port that another test's relay took ends this relay: the start
+    // then takes a new port.
+    let started = pod_testkit::listener::start(pod_testkit::host::scaled(Duration::from_secs(60)), |port| {
+        Command::new(&python)
+            .args(["-m", "twisted", "transitrelay"])
+            .arg(format!("--port=tcp:{port}:interface=127.0.0.1"))
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .expect("the transit relay starts")
+    });
+    let (child, port) = started.unwrap_or_else(|why| panic!("the transit relay: {why}"));
     let relay = Python(child);
-    let at = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
-    let deadline = Instant::now() + Duration::from_secs(60);
-    while TcpStream::connect_timeout(&at, Duration::from_millis(200)).is_err() {
-        assert!(Instant::now() < deadline, "the transit relay did not listen in time");
-        std::thread::sleep(Duration::from_millis(100));
-    }
     Some((relay, port))
 }
 

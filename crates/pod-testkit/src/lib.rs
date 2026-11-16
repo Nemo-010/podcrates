@@ -7,6 +7,8 @@
 //! * [`need_userns!`] and [`need_tool!`]: a test that needs a user and a
 //!   mount namespace, or a tool of the host, skips with a reason on a host
 //!   that has none.
+//! * [`listener`]: a server child of a test on a port of the loopback that
+//!   it holds itself, with new ports where another process took one.
 //! * `nobody` (Linux only): a test as a caller with no capabilities; root
 //!   starts the test binary again as uid 65534.
 //! * `elf`: a static ELF made in the test (x86_64 and aarch64), and
@@ -25,6 +27,7 @@
 #[cfg(target_os = "linux")]
 pub mod elf;
 pub mod host;
+pub mod listener;
 #[cfg(feature = "masque")]
 pub mod masque;
 #[cfg(target_os = "linux")]

@@ -11,25 +11,22 @@
 //! for the tests of `pod-wormhole` (scripts/ci/mailbox-tests.sh).
 //!
 //! A start takes a relay only when its own child listens on its port
-//! ([`own_listener`]): two tests that run at a time can choose one port,
-//! and a test that took the other test's relay for its own lost its link
-//! when the other test stopped that relay.
+//! (`pod_testkit::listener`): two tests that run at a time can choose one
+//! port, and a test that took the other test's relay for its own lost its
+//! link when the other test stopped that relay.
 
 // Each test binary uses a part of it.
 #![allow(dead_code)]
 
-use std::net::{Ipv4Addr, SocketAddr, TcpListener};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
+use pod_testkit::listener::{free_port, start};
 use pod_ws::url::WsUrl;
 
 /// How long the server may take to listen.
 const START_LIMIT: Duration = Duration::from_secs(30);
-/// How many times a start takes new ports after its relay did not listen
-/// on the ones that it chose.
-const TRIES: u32 = 5;
 
 /// A transit relay of magic-wormhole's, listening on the loopback.
 pub struct Relay {
@@ -59,12 +56,6 @@ fn has_relay(python: &str) -> bool {
     probe.is_ok_and(|status| status.success())
 }
 
-/// A port of the loopback that nobody holds now.
-fn free_port() -> u16 {
-    let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("a port of the loopback");
-    listener.local_addr().expect("its address").port()
-}
-
 impl Relay {
     /// The relay, listening; `None`, with the reason on stderr, when this
     /// host cannot run it and the run does not require it.
@@ -80,16 +71,14 @@ impl Relay {
         std::fs::create_dir_all(&dir).expect("a scratch directory");
         crate::cleanup::at_test_end(&dir);
         let log = dir.join("relay.log");
-        let mut why = String::new();
-        for _ in 0..TRIES {
-            // Another relay of this binary can take a port between its
-            // choice here and the bind of this one: then this relay ends,
-            // and its port takes the other relay's connections.
-            let (tcp, ws) = (free_port(), free_port());
+        // The TCP port too can go to another relay of this binary: this
+        // relay then ends, and the start takes new ports.
+        let started = start(START_LIMIT, |ws| {
+            let tcp = free_port();
             // `python -m twisted` is `twist`, which runs the plugin in the
             // foreground (the package's docs/running.md); its TCP port too,
             // on the loopback, as it always listens on one.
-            let mut child = Command::new(&python)
+            Command::new(&python)
                 .args(["-m", "twisted", "transitrelay"])
                 .arg(format!("--port=tcp:{tcp}:interface=127.0.0.1"))
                 .arg(format!("--websocket=tcp:{ws}:interface=127.0.0.1"))
@@ -99,21 +88,11 @@ impl Relay {
                 .stdout(std::fs::File::create(&log).expect("the log"))
                 .stderr(std::fs::File::create(dir.join("relay.err")).expect("the log of errors"))
                 .spawn()
-                .expect("the transit relay starts");
-            match own_listener(&mut child, SocketAddr::from((Ipv4Addr::LOCALHOST, ws)), START_LIMIT) {
-                Ok(()) => {
-                    let url = WsUrl::parse(&format!("ws://127.0.0.1:{ws}/")).unwrap();
-                    return Some(Relay { child, url, log });
-                }
-                Err(not) => {
-                    let _ = child.kill();
-                    let _ = child.wait();
-                    why = format!("{not}: {}", said(&log));
-                    eprintln!("the transit relay did not take the ports {tcp} and {ws}: {why}");
-                }
-            }
-        }
-        panic!("the transit relay did not listen on ports of its own in {TRIES} tries: {why}");
+                .expect("the transit relay starts")
+        });
+        let (child, ws) = started.unwrap_or_else(|why| panic!("the transit relay: {why}: {}", said(&log)));
+        let url = WsUrl::parse(&format!("ws://127.0.0.1:{ws}/")).unwrap();
+        Some(Relay { child, url, log })
     }
 
     /// What the relay wrote, for a message.
@@ -140,55 +119,4 @@ fn said(log: &Path) -> String {
     let out = std::fs::read_to_string(log).unwrap_or_default();
     let err = std::fs::read_to_string(log.with_file_name("relay.err")).unwrap_or_default();
     format!("{out}{err}")
-}
-
-/// Wait until `child` itself listens at `at`; else why not: it ended, or it
-/// did not listen within `limit`. A connection to `at` is no proof: the
-/// listener can be another process's, as another test's relay on a port
-/// that both chose.
-pub fn own_listener(child: &mut Child, at: SocketAddr, limit: Duration) -> Result<(), String> {
-    let deadline = Instant::now() + limit;
-    loop {
-        if let Ok(Some(status)) = child.try_wait() {
-            return Err(format!("it ended ({status}) before it listened at {at}"));
-        }
-        if holds_listener(child.id(), at) {
-            return Ok(());
-        }
-        if Instant::now() >= deadline {
-            return Err(format!("it did not listen at {at} within {} s", limit.as_secs()));
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
-}
-
-/// Whether the process `pid` holds a socket that listens at `at`: the
-/// inode of a listener at `at` in `/proc/net/tcp` is among the process's
-/// files.
-#[cfg(target_os = "linux")]
-fn holds_listener(pid: u32, at: SocketAddr) -> bool {
-    let SocketAddr::V4(v4) = at else { return false };
-    // The kernel writes the address as the u32 of its bytes in the host's
-    // order, and the port in the host's order, both in hex.
-    let local = format!("{:08X}:{:04X}", u32::from_ne_bytes(v4.ip().octets()), v4.port());
-    let Ok(table) = std::fs::read_to_string("/proc/net/tcp") else { return false };
-    // The columns: sl, local, remote, state (0A: listen), queues, timer,
-    // retransmits, uid, timeout, inode.
-    let sockets: Vec<String> = table
-        .lines()
-        .skip(1)
-        .map(|line| line.split_whitespace().collect::<Vec<_>>())
-        .filter(|cols| cols.len() > 9 && cols[1] == local && cols[3] == "0A")
-        .map(|cols| format!("socket:[{}]", cols[9]))
-        .collect();
-    let Ok(fds) = std::fs::read_dir(format!("/proc/{pid}/fd")) else { return false };
-    fds.flatten()
-        .any(|fd| std::fs::read_link(fd.path()).is_ok_and(|to| sockets.iter().any(|s| to.as_os_str() == s.as_str())))
-}
-
-/// No table of the sockets on this system: a listener at `at` while the
-/// child lives.
-#[cfg(not(target_os = "linux"))]
-fn holds_listener(_pid: u32, at: SocketAddr) -> bool {
-    std::net::TcpStream::connect_timeout(&at, Duration::from_millis(200)).is_ok()
 }

@@ -20,11 +20,9 @@
 //! server does not need Mosquitto too.
 
 use std::collections::BTreeMap;
-use std::net::{Ipv4Addr, SocketAddr, TcpStream as StdTcp};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
 
 use pod_proxy::http::request;
 use pod_wormhole::mqtt::packet::{self, Packet};
@@ -35,7 +33,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use tokio::task::JoinHandle;
 
-use super::{LIMIT, free_port};
+use super::LIMIT;
 
 #[derive(Default)]
 struct State {
@@ -239,28 +237,32 @@ impl Mosquitto {
         };
         let dir = std::env::temp_dir().join(format!("pod-wormhole-mosquitto-{}-{tag}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("a scratch directory");
-        let port = free_port();
         let config = dir.join("mosquitto.conf");
-        let text = format!(
-            "listener {port} 127.0.0.1\nprotocol websockets\nallow_anonymous true\npersistence false\nlog_dest stderr\n"
-        );
-        std::fs::write(&config, text).expect("the configuration");
-        let child = Command::new(program)
-            .arg("-c")
-            .arg(&config)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(std::fs::File::create(dir.join("mosquitto.log")).expect("the log"))
-            .spawn()
-            .expect("Mosquitto starts");
+        // A port that another test's server took ends this broker: the
+        // start then takes a new port.
+        let started = pod_testkit::listener::start(LIMIT, |port| {
+            let text = format!(
+                "listener {port} 127.0.0.1\nprotocol websockets\nallow_anonymous true\npersistence false\nlog_dest stderr\n"
+            );
+            std::fs::write(&config, text).expect("the configuration");
+            Command::new(&program)
+                .arg("-c")
+                .arg(&config)
+                .stdin(Stdio::null())
+                .stdout(Stdio::null())
+                .stderr(std::fs::File::create(dir.join("mosquitto.log")).expect("the log"))
+                .spawn()
+                .expect("Mosquitto starts")
+        });
+        let (child, port) = match started {
+            Ok(started) => started,
+            Err(why) => {
+                let said = std::fs::read_to_string(dir.join("mosquitto.log")).unwrap_or_default();
+                panic!("Mosquitto: {why}: {said}");
+            }
+        };
         let url = WsUrl::parse(&format!("ws://127.0.0.1:{port}/mqtt")).unwrap();
         let broker = Mosquitto { url, child: Some(child), dir: Some(dir) };
-        let at = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
-        let deadline = Instant::now() + LIMIT;
-        while StdTcp::connect_timeout(&at, Duration::from_millis(200)).is_err() {
-            assert!(Instant::now() < deadline, "Mosquitto did not listen in time: {}", broker.said());
-            std::thread::sleep(Duration::from_millis(100));
-        }
         Some(broker)
     }
 

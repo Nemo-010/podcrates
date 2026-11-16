@@ -10,7 +10,7 @@
 //! `POD_DNS_TEST_COREDNS=required`, which `scripts/ci/coredns-tests.sh`
 //! sets with the pinned release.
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream};
+use std::net::{IpAddr, Ipv4Addr, TcpListener};
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
@@ -58,11 +58,6 @@ fn program() -> Option<PathBuf> {
     }
     let path = std::env::var_os("PATH")?;
     std::env::split_paths(&path).map(|dir| dir.join("coredns")).find(|p| p.is_file())
-}
-
-/// A port of the loopback that is free now.
-fn free_port() -> u16 {
-    TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap().local_addr().unwrap().port()
 }
 
 /// PEM of `der` with the label `label`.
@@ -116,31 +111,35 @@ impl CoreDns {
         std::fs::write(dir.join("cert.pem"), pem("CERTIFICATE", &leaf.der)).unwrap();
         std::fs::write(dir.join("key.pem"), key_pem(&leaf)).unwrap();
         std::fs::write(dir.join("test.zone"), ZONE).unwrap();
-        let port = free_port();
-        let corefile = format!(
-            "https://test.:{port} {{\n  bind {AT}\n  tls {cert} {key}\n  file {zone}\n  errors\n  log\n}}\n",
-            cert = dir.join("cert.pem").display(),
-            key = dir.join("key.pem").display(),
-            zone = dir.join("test.zone").display(),
-        );
-        std::fs::write(dir.join("Corefile"), corefile).unwrap();
-        let child = Command::new(&program)
-            .arg("-conf")
-            .arg(dir.join("Corefile"))
-            .current_dir(&dir)
-            .stdin(Stdio::null())
-            .stdout(std::fs::File::create(dir.join("coredns.log")).unwrap())
-            .stderr(std::fs::File::create(dir.join("coredns.err")).unwrap())
-            .spawn()
-            .expect("CoreDNS starts");
-        let mut dns = CoreDns { port, roots, child, dir };
-        let at = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
-        let deadline = std::time::Instant::now() + pod_testkit::host::scaled(LIMIT);
-        while TcpStream::connect_timeout(&at, Duration::from_millis(200)).is_err() {
-            let ended = dns.child.try_wait().ok().flatten();
-            assert!(ended.is_none() && std::time::Instant::now() < deadline, "CoreDNS did not listen: {}", dns.said());
-            std::thread::sleep(Duration::from_millis(100));
-        }
+        // A port that another test's server took ends this CoreDNS, and
+        // CoreDNS binds with SO_REUSEPORT: a port that two hold is not
+        // taken either. The start then takes a new port.
+        let started = pod_testkit::listener::start(pod_testkit::host::scaled(LIMIT), |port| {
+            let corefile = format!(
+                "https://test.:{port} {{\n  bind {AT}\n  tls {cert} {key}\n  file {zone}\n  errors\n  log\n}}\n",
+                cert = dir.join("cert.pem").display(),
+                key = dir.join("key.pem").display(),
+                zone = dir.join("test.zone").display(),
+            );
+            std::fs::write(dir.join("Corefile"), corefile).unwrap();
+            Command::new(&program)
+                .arg("-conf")
+                .arg(dir.join("Corefile"))
+                .current_dir(&dir)
+                .stdin(Stdio::null())
+                .stdout(std::fs::File::create(dir.join("coredns.log")).unwrap())
+                .stderr(std::fs::File::create(dir.join("coredns.err")).unwrap())
+                .spawn()
+                .expect("CoreDNS starts")
+        });
+        let (child, port) = match started {
+            Ok(started) => started,
+            Err(why) => {
+                let read = |name: &str| std::fs::read_to_string(dir.join(name)).unwrap_or_default();
+                panic!("CoreDNS: {why}: {}{}", read("coredns.log"), read("coredns.err"));
+            }
+        };
+        let dns = CoreDns { port, roots, child, dir };
         Some(dns)
     }
 

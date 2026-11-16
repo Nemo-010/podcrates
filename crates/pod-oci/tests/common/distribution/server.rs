@@ -67,8 +67,9 @@ impl Registry {
         write("cert.pem", &pki.leaf_pem());
         write("key.pem", &pki.key_pem());
         write("htpasswd", &format!("{}:{}\n", super::USER, super::PASSWORD_BCRYPT));
-        for attempt in 1.. {
-            let port = super::free_port();
+        // A port that another test's server took ends this registry: the
+        // start then takes a new port.
+        let started = pod_testkit::listener::start(pod_testkit::host::scaled(LIMIT), |port| {
             let path = |name: &str| dir.join(name).display().to_string();
             let tls_part = if tls {
                 format!("  tls:\n    certificate: {}\n    key: {}\n", path("cert.pem"), path("key.pem"))
@@ -94,7 +95,7 @@ impl Registry {
                 at = super::AT,
             );
             write("config.yml", &config);
-            let child = Command::new(&program)
+            Command::new(&program)
                 .arg("serve")
                 .arg(dir.join("config.yml"))
                 .current_dir(&dir)
@@ -103,16 +104,10 @@ impl Registry {
                 .stdout(std::fs::File::create(dir.join("registry.out")).unwrap())
                 .stderr(std::fs::File::create(dir.join("registry.err")).unwrap())
                 .spawn()
-                .expect("the registry starts");
-            let mut child = child;
-            // A free port can go to a parallel test before the registry binds
-            // it; the registry then ends, and a new port is taken.
-            if listens(&mut child, port, &dir) {
-                return Some(Registry { port, endpoint: format!("{}:{port}", super::AT), dir, child });
-            }
-            assert!(attempt < 3, "the registry did not listen: {}", said(&dir));
-        }
-        unreachable!()
+                .expect("the registry starts")
+        });
+        let (child, port) = started.unwrap_or_else(|why| panic!("the registry: {why}: {}", said(&dir)));
+        Some(Registry { port, endpoint: format!("{}:{port}", super::AT), dir, child })
     }
 
     /// What the registry wrote, for a message.
@@ -145,22 +140,4 @@ impl Drop for Registry {
 fn said(dir: &std::path::Path) -> String {
     let read = |name: &str| std::fs::read_to_string(dir.join(name)).unwrap_or_default();
     format!("{}{}", read("registry.out"), read("registry.err"))
-}
-
-/// Wait until the registry says that it listens at `port`, at most
-/// [`LIMIT`]. A connect alone can reach another server of a parallel test
-/// at the same port. `false`: the registry ended, as its port was taken.
-fn listens(child: &mut Child, port: u16, dir: &std::path::Path) -> bool {
-    let line = format!("listening on {}:{port}", super::AT);
-    let deadline = std::time::Instant::now() + pod_testkit::host::scaled(LIMIT);
-    loop {
-        if said(dir).contains(&line) {
-            return true;
-        }
-        if child.try_wait().is_ok_and(|status| status.is_some()) {
-            return false;
-        }
-        assert!(std::time::Instant::now() < deadline, "the registry did not listen: {}", said(dir));
-        std::thread::sleep(Duration::from_millis(100));
-    }
 }
