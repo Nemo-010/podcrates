@@ -88,7 +88,7 @@ pub const MAX_OPENTUNNEL: usize = 100;
 
 /// The length of the label of an onion address of version 3: 35 bytes in
 /// base32 (a key of 32, a checksum of 2, the version).
-const ONION_LABEL: usize = 56;
+pub const ONION_LABEL: usize = 56;
 
 /// The longest name of a tunnel of `ssh -R` that a record holds: a free
 /// name of localhost.run's is some 21 characters (`a1b2c3d4e5f6.lhr.life`),
@@ -102,7 +102,7 @@ pub const MAX_PINGGY: usize = 200;
 
 /// pkarr's cap on the DNS packet of a record (iroh-dns's
 /// `MAX_DNS_PACKET_SIZE`), checked here to say so in words.
-const MAX_DNS_PACKET: usize = 1000;
+pub const MAX_DNS_PACKET: usize = 1000;
 
 /// The longest label of a DNS name.
 const MAX_LABEL: usize = 63;

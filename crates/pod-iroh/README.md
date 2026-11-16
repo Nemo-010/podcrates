@@ -11,8 +11,9 @@ pkarr that names its home relay and its other roads (DERP, the quick
 tunnel, Pinggy, the tunnel of `ssh -R`, an onion service, OpenTunnel), so
 that a client with an old ticket, or with the node's key alone, finds it.
 
-The base is podssh's `crates/podssh-iroh` (PodUtils/podssh@T-162, T-163,
-T-165, T-280, T-350, T-359, T-445, T-665, T-666), with podssh's copy of
+The base is podssh's `crates/podssh-iroh` (PodUtils/podssh@T-162,
+PodUtils/podssh@T-163, PodUtils/podssh@T-350, PodUtils/podssh@T-445,
+PodUtils/podssh@T-665 and others), with podssh's copy of
 `iroh-relay` 1.4.1 and its patch in `vendor/` (see "The fork of
 iroh-relay"). iroh builds with `tls-ring`, so no aws-lc is in the tree
 (`cargo tree -i aws-lc-sys` finds none); the endpoint takes the caller's
