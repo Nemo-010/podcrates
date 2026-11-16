@@ -196,7 +196,7 @@ let io = split.connect("SHA256:...@link.example", "SHA256:...@https://relay.exam
 | `Link` | `new(carrier, role, settings)` starts the task of the link on the current tokio runtime; `open`, `accept`, `close` (a `GOAWAY` after the queued frames), `closed` (wait for the end and its reason), `ended`, `streams`, `rtt` (of the last `PING`), `role`. A drop ends the link at once |
 | `Stream` | `AsyncRead` and `AsyncWrite`; `id`, `reset(code)`, `buffered`. A shutdown sends `CLOSE`; a drop sends `CLOSE` and, when the peer did not close its side, `RESET` with `CANCEL` |
 | `Role` | `Dialer` (odd ids) or `Listener` (even ids) |
-| `Settings` | the windows, the stream limit, the frame size, the keepalive (below); `check` |
+| `Settings` | the windows, the stream limit, the frame size, the keepalive (`WIRE.md`, "Settings"); `check`, `queue_limit` |
 | `Error` | each failure by name; `class` (for the exit code), `io_kind`; into `std::io::Error` (a stream's error) and into `pod_core::Failure` (the stage `Session`) |
 | `ResetCode`, `GoAwayCode` | `CANCEL`, `REFUSED`, `PROTOCOL`; `NORMAL`, `PROTOCOL`. A caller's own reset codes start at 16 |
 | `Carrier`, `Listener`, `Facts`, `Accepted` | the trait of a carrier: `name`, `facts` (ordered, reliable, duplex, unit, cost), `available`, `dial`, `listen`; the accept side: `accept`, and `accept_peer` (the stream and the Ed25519 key that the peer proved, `None` for a carrier that proves no key); `BoxIo` is the byte stream that they give |
@@ -278,22 +278,13 @@ let io = split.connect("SHA256:...@link.example", "SHA256:...@https://relay.exam
 
 ## The wire
 
-Each end first writes the preface `PODLINK` and the byte 1. Then each
-frame is a header of 8 bytes (the type, a stream id of 32 bits, a body
-length of 24 bits; big endian) and its body:
+`WIRE.md` gives the wire of the link: the preface, the frames, the rules
+with their ids (W-01 to W-35), the order of the checks, the timers, the
+constants and the settings with their limits. It is normative, and the
+test `wire_doc` holds it to the code. This section gives the bytes of
+each carrier under the link.
 
-| Type | Frame | Id | Body |
-| --- | --- | --- | --- |
-| 1 | `OPEN` | the new stream | none |
-| 2 | `DATA` | a stream | 1 byte to 1 MiB |
-| 3 | `WINDOW` | a stream, or 0 for the link | the credit, 4 bytes, not 0 |
-| 4 | `CLOSE` | a stream | none: the sender writes no more |
-| 5 | `RESET` | a stream | the code, 4 bytes |
-| 6 | `PING` | 0 | 8 bytes |
-| 7 | `PONG` | 0 | the 8 bytes of the `PING` |
-| 8 | `GOAWAY` | 0 | the code, 4 bytes |
-
-The tcp carrier puts TLS 1.3 under these bytes, with the ALPN
+The tcp carrier puts TLS 1.3 under the bytes of the link, with the ALPN
 `podlink/1`, no resumption, and the certificate of each end's identity
 (self-signed, Ed25519). After its handshake the listener writes the byte
 1, its acceptance of the key of the dialer; the dial ends when it reads
@@ -350,32 +341,7 @@ its peer is the loss of that half; the end that sees the loss writes
 `LOST` on the other half and ends the session.
 
 A frame is the record that the link gives its carrier: at most 1 MiB of
-body. A carrier with a smaller unit splits a record itself. A peer that
-breaks a rule (an unknown type, a length that does not fit its type, a
-body over 1 MiB, bytes past a window, an id of the wrong parity or used
-again, a frame of a stream that never existed) ends the link: it gets a
-`GOAWAY` with the code `PROTOCOL`. A frame of a stream that existed and is
-gone is dropped, and its bytes go back to the link's credit.
-
-## Settings
-
-| Field | Default | Limits | What |
-| --- | --- | --- | --- |
-| `stream_window` | 1 MiB | 16 KiB to 8 MiB | the largest receive window of a stream. A stream starts at 16 KiB (`INITIAL_WINDOW`, part of the protocol); its window doubles each time its reader empties its buffer when credit goes back |
-| `link_window` | 8 MiB | 16 KiB to 8 MiB, not less than `stream_window` | the most bytes of all streams that this end holds unread: the memory of a link. Credit goes back when the reader takes the bytes |
-| `max_streams` | 256 | 1 to 4096 | the streams of the link at this end, from both ends; an `OPEN` over it gets `RESET` with `REFUSED` |
-| `frame_size` | 16 KiB | 1 KiB to 1 MiB | the largest `DATA` body that this end sends |
-| `keepalive` | 10 s | more than 0 | the silence before this end sends a `PING` |
-| `dead_after` | 30 s | more than `keepalive` | the silence after which the link ends with `Error::Dead` |
-
-A stream that stops reading holds at most its own window of the link's
-window, and the other streams use the rest: with the defaults, seven
-stalled streams that grew to 1 MiB leave 1 MiB to the others, and a
-stream that stalls before it grows holds 16 KiB. The writer of a link
-queues at most 4 frames (at least 64 KiB) of `DATA`, so that a credit and
-a `PONG` do not wait behind a long run of bytes. A peer that sends more
-than 8192 frames that wait for an answer, and does not read, ends the
-link.
+body. A carrier with a smaller unit splits a record itself.
 
 ## The ARQ
 

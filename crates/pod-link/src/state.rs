@@ -13,12 +13,7 @@ use tokio::time::Instant;
 
 use crate::error::{Error, GoAwayCode};
 use crate::frame::{Frame, PREFACE};
-use crate::settings::{INITIAL_WINDOW, Settings};
-
-/// The most frames other than `DATA` that wait for the carrier. A peer
-/// that sends `PING` or `OPEN` frames and does not read the answers ends
-/// the link at this count, so its answers cannot fill the memory.
-pub(crate) const CONTROL_LIMIT: usize = 8192;
+use crate::settings::{CONTROL_LIMIT, INITIAL_WINDOW, Settings};
 
 /// The most bytes that one write to the carrier takes from the queue, so
 /// that a `WINDOW` or a `PONG` does not wait behind a long run of `DATA`.
@@ -188,7 +183,7 @@ impl State {
 
     /// The most `DATA` bytes that wait for the carrier.
     pub fn queue_limit(&self) -> usize {
-        (4 * self.settings.frame_size).max(BATCH)
+        self.settings.queue_limit()
     }
 
     pub fn push_urgent(&mut self, frame: Frame) {

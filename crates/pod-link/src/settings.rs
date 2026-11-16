@@ -21,6 +21,19 @@ pub const MAX_STREAMS: usize = 4096;
 /// The smallest `DATA` body that a setting can give: 1 KiB.
 pub const MIN_FRAME: usize = 1 << 10;
 
+/// The most credit of a stream or of the link. A peer that gives more
+/// breaks the protocol (a window is at most [`MAX_WINDOW`]).
+pub const MAX_CREDIT: u64 = u32::MAX as u64;
+
+/// The most frames other than `DATA` that wait for the carrier. A peer
+/// that sends `PING` or `OPEN` frames and does not read the answers ends
+/// the link at this count, so its answers cannot fill the memory.
+pub const CONTROL_LIMIT: usize = 8192;
+
+/// The smallest queue of `DATA` bytes that wait for the carrier
+/// ([`Settings::queue_limit`]).
+pub const MIN_QUEUE: usize = 64 << 10;
+
 /// What one end of a link allows and sends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Settings {
@@ -65,6 +78,12 @@ impl Default for Settings {
 }
 
 impl Settings {
+    /// The most `DATA` bytes that wait for the carrier: 4 frames, and at
+    /// least [`MIN_QUEUE`]. A writer waits for room.
+    pub fn queue_limit(&self) -> usize {
+        (4 * self.frame_size).max(MIN_QUEUE)
+    }
+
     /// Each value against its limits. [`crate::Link::new`] calls it.
     pub fn check(&self) -> Result<(), SettingsError> {
         let window = MIN_WINDOW..=MAX_WINDOW;

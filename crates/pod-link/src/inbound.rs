@@ -4,11 +4,8 @@ use tokio::time::Instant;
 
 use crate::error::{Error, GoAwayCode, ResetCode};
 use crate::frame::Frame;
+use crate::settings::MAX_CREDIT;
 use crate::state::State;
-
-/// The most credit that a stream or the link can hold. A peer that gives
-/// more breaks the protocol (a window is at most 8 MiB).
-const MAX_CREDIT: u64 = u32::MAX as u64;
 
 impl State {
     /// Apply one frame of the peer. An error ends the link.

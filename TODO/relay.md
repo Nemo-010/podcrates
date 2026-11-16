@@ -8274,7 +8274,7 @@ cargo test -p pod-session --all-features
 **Milestone:** M2
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8341,6 +8341,34 @@ cargo todo check
 
 A changed type byte in the document, and a changed limit in
 `settings.rs`, each make the test fail with the row named.
+
+## Done
+
+2026-11-16, the commit of the change. `crates/pod-link/WIRE.md` is the
+normative wire of the link: 35 rules (W-01 to W-35; a rule marked "(this
+crate)" is the behaviour of this implementation, which a peer does not
+check), the order of the checks of the decoder and of the link for each
+frame type, the section "Time" (`now >= t0 + T`; the t0 of each timer;
+`dead_after` before the `PING` at the same moment), and the tables of the
+frame types, the codes, the limits and the settings. The README keeps
+the carriers and points to it. The status line names the protocol
+version (the last byte of the preface), not the version of the crate: a
+version of the crate in the text would change at each release with no
+change of the wire. `CONTROL_LIMIT`, `MAX_CREDIT`, `MIN_QUEUE` and
+`Settings::queue_limit` are public now. The test `tests/wire_doc.rs`
+checks each row of the frame types against the decoder (the type byte,
+the id 0 and an id, the smallest and largest body and one past each),
+each code and each limit against its constant (both ways: no row with no
+constant, no constant with no row), each setting against
+`Settings::default` and `Settings::check` at each limit and one past it,
+the order of the rule ids, each reference to a rule, the range in the
+README and the protocol version. A type byte of `RESET` changed to 9 in
+the document fails with "row RESET: the type 9, the crate has 5";
+`MAX_STREAMS` changed to 4000 in `settings.rs` fails with "row
+MAX_STREAMS: 4096, the crate has 4000" and "row max_streams: check of
+4096 gives an error". Release notes: `pod-link`: `WIRE.md`, the normative
+wire of the link; `CONTROL_LIMIT`, `MAX_CREDIT`, `MIN_QUEUE` and
+`Settings::queue_limit` are public.
 
 # T-775: `pod-link`: a table of frames in bytes with the result of each, read by one test
 
@@ -8582,7 +8610,7 @@ encodes the frame into its batch. At the reader, the bytes of the
 carrier go into the decoder's buffer (`Decoder::push`), the decoder
 copies the body into a new `Vec` (`crates/pod-link/src/frame.rs:265`
 says "kind::DATA => Frame::Data(id, body.to_vec()),"), `on_data` copies
-it into the buffer of the stream (`crates/pod-link/src/inbound.rs:122`),
+it into the buffer of the stream (`crates/pod-link/src/inbound.rs:119`),
 and a read copies it into the caller's buffer. The Rust core of zmux
 measured 0.0000 allocations for each frame on its bulk path, and
 0.0005 to 0.0007 over TCP.

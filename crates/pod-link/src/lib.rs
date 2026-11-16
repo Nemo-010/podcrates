@@ -102,6 +102,9 @@ pub use carrier::{Accepted, BoxIo, Carrier, CarrierError, CarrierErrorKind, Cost
 pub use error::{Error, GoAwayCode, ResetCode};
 pub use frame::{Decoder, Frame, FrameError, MAX_RECORD};
 pub use link::Link;
-pub use settings::{INITIAL_WINDOW, MAX_STREAMS, MAX_WINDOW, MIN_FRAME, MIN_WINDOW, Settings, SettingsError};
+pub use settings::{
+    CONTROL_LIMIT, INITIAL_WINDOW, MAX_CREDIT, MAX_STREAMS, MAX_WINDOW, MIN_FRAME, MIN_QUEUE, MIN_WINDOW, Settings,
+    SettingsError,
+};
 pub use state::Role;
 pub use stream::Stream;
