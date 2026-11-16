@@ -2711,7 +2711,7 @@ Each of the three issues is in `TODO/issues.md` with its state.
 **Milestone:** M5
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2744,6 +2744,19 @@ check a closed number get the same form.
 ```sh
 cargo test -p pod-enter --all-features --lib -- pass_clear
 ```
+
+## Done
+
+2026-11-16. The test opens a directory of its own
+(`pod-enter-pass-clear-moves-PID` of the temporary directory), keeps the
+device and inode of the root, and after the drop of `Moved` checks that
+the number of the copy no longer names that directory, closed or reused
+by another thread, which cannot open it. The other tests of the module
+read no closed low number (`the_kind_names_a_directory_and_a_pipe` reads a
+number over 900). Plant `enter-pass-clear-copy-kept` (the drop leaves the
+copy open). Here: `cargo test -p pod-enter --all-features --lib --
+pass_clear` (3 passed). The next nightly checks ppc64le.
+
 
 # T-789: The nightly at `f309b07` is red on armv7: two tests of the MQTT board of `pod-wormhole` against the stand-in
 

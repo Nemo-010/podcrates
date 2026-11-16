@@ -27,24 +27,39 @@ fn open_dir() -> i64 {
     sys::open(&tmp, sys::O_RDONLY | sys::O_DIRECTORY | sys::O_CLOEXEC, 0).unwrap()
 }
 
-fn is_open(fd: i64) -> bool {
-    sys::fstatat(fd, &sys::cempty(), sys::AT_EMPTY_PATH).is_ok()
+/// The device and inode that `fd` names, where it is open.
+fn ident(fd: i64) -> Option<(u64, u64)> {
+    sys::fstatat(fd, &sys::cempty(), sys::AT_EMPTY_PATH).ok().map(|s| (s.st_dev, s.st_ino))
+}
+
+/// A new directory of this test alone, opened: no other thread of the test
+/// binary opens it, so its identity tells the copy from a reused number.
+fn open_own_dir(name: &str) -> (i64, std::path::PathBuf) {
+    let d = std::env::temp_dir().join(format!("pod-enter-pass-clear-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(&d).unwrap();
+    let c = CBuf::new(d.to_str().unwrap()).unwrap();
+    (sys::open(&c, sys::O_RDONLY | sys::O_DIRECTORY | sys::O_CLOEXEC, 0).unwrap(), d)
 }
 
 /// A root descriptor on a passed number moves above each passed number;
 /// the caller keeps its own; the copy closes with `Moved`.
 #[test]
 fn a_root_on_a_passed_number_moves_above_each_passed_number() {
-    let root = open_dir();
+    let (root, dir) = open_own_dir("moves");
     let p = plan(vec![(root, 0), (root + 3, 0)]);
     let mut moved = Moved::default();
     let copy = keep(&p, root, "the root file system", &mut moved).unwrap();
     assert!(copy > root + 3, "{copy} is not above {}", root + 3);
-    assert!(is_open(root) && is_open(copy));
+    let own = ident(root);
+    assert!(own.is_some() && ident(copy) == own);
     drop(moved);
-    assert!(!is_open(copy), "the copy stayed open");
-    assert!(is_open(root), "the caller's descriptor closed");
+    // Another thread can take the number of the copy once it is closed; it
+    // cannot open the directory of this test.
+    assert_ne!(ident(copy), own, "the copy stayed open");
+    assert_eq!(ident(root), own, "the caller's descriptor closed");
     let _ = sys::close(root);
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 /// A descriptor on no passed number stays, and no copy is made.
