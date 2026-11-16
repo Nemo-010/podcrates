@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 608 entries: 118 open, 13 partial, 6 blocked, 471 done.
+`TODO/INDEX.md` holds 609 entries: 119 open, 13 partial, 6 blocked, 471 done.
 
 ## State
 
@@ -18,7 +18,8 @@
     of 200 MiB), with the release asset of `podlab`; `pod-manual` is
     PodUtils/podssh@T-790; its installer on the core is
     PodUtils/podssh@T-793.
-  - podnet: `v0.60.0` (`ad8abd4`, PodUtils/podnet#597; its T-380 and T-381
+  - podnet: `v0.61.0` (`45a683a`, PodUtils/podnet#597, with the installer
+    core; its finding is T-773; its T-380 and T-381
     done with T-742 and T-743; T-726 gives it 9 `requires` rules with no
     glue): its help and manual
     come from `pod-manual` with no workaround of T-725; it runs the one

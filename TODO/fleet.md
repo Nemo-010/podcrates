@@ -4602,3 +4602,46 @@ of the Google Cloud CLI as the stand-in proxy). Plant
 `lab-tool-proxy-variables-kept`. Here (root): `cargo test -p pod-lab
 --all-features` (54 unit tests, the binary 7, `cli` 5, `lab` as root and as
 uid 65534: each case ok).
+
+# T-773: the installer core: a tree copy with no pins stops on a host with cosign (PodUtils/podnet#597)
+
+**Source:** PodUtils/podnet#597 (COORD-096 of podnet, its take of `v0.61.0`).
+**Category:** defect
+**Milestone:** M8
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+podnet: "a project installer whose tree copy has no pins and runs from a
+file (`sh scripts/install.sh`) stops on a host with cosign, because
+`inst_signature` compares `$0` with `NAME-install.sh` of the signed
+`SHA256SUMS`. podnet's tree copy does its own signature check first, then
+replaces `inst_signature` with a no-op. If other projects run a tree copy
+from a file, the core could skip the self-compare when the block of pins
+is empty." The loop of `inst_signature` over the plan has the same form: a
+copy with no pins has no pin to compare with the signed line.
+
+## Premise
+
+- Read: PodUtils/podnet#597; `scripts/install/core-net.sh`
+  (`inst_signature`), `scripts/install/core.sh` (`inst_pin`).
+- Not measured: a tree copy of the core on a host with cosign.
+
+## Approach
+
+Where the installer holds no pins (a tree copy that `pins.py stamp` did not
+write), `inst_signature` takes the line of each file of the plan from the
+signed `SHA256SUMS` as its pin, and does not compare the installer itself
+(a tree copy is no asset of the release). A stamped installer keeps both
+checks. With no cosign, a copy with no pins refuses as now. A case of
+`scripts/install/test.sh` runs a tree copy from a file with a fake cosign:
+it installs with the pins of the signed file, and a changed asset is
+refused.
+
+## Prove
+
+```sh
+sh scripts/install/test.sh --case sig
+```
