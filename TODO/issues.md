@@ -212,5 +212,6 @@ kinds and the rules.
 | #205 | request | [gh action] requested: the gates of main at 725b729 and the release v0.60.0 | closed | T-716, T-714, T-715, T-745, T-726, T-750 |
 | #206 | coord | COORD-119: v0.60.0: the network labs of pod-lab, 20 host-class rows of pod-hostprobe, clap's requires in pod-manual, the overlay upper layer of pod-enter (to all) | open | T-716, T-714, T-715, T-745, T-726, T-750 |
 | #207 | coord | COORD-120: the owner's ruling "Web access": use the services of web.pkgforge.dev first for each web or git search and read (to all) | open | none |
+| #208 | request | [gh action] requested: the delete of the four `wip/` branches whose work is on main | open | T-717, T-718, T-746, T-751 |
 
 #79 to #81 are pull requests.

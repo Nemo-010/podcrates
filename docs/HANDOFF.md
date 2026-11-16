@@ -52,7 +52,7 @@ the entry, run all the checks, then delete the branch by a
 `git push origin --delete`).
 
 - `wip/T-717-installer-sign` (T-717, T-718) and `wip/T-746-way-out`
-  (T-746, T-751): their work is on `main`; delete both branches. T-717
+  (T-746, T-751): their work is on `main`; #208 asks for the delete of both and of the two branches below. T-717
   and T-718 stay `partial` until the first run of `release.yml` on a tag
   (the signature) and the first run of the job `install-os` of
   `nightly.yml`. T-751 part 2 is open: `podlab check` reads the rows that
