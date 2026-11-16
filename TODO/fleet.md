@@ -4950,3 +4950,55 @@ list of paths as an argument).
 ```sh
 cargo test -p pod-lab --all-features
 ```
+
+# T-807: `pod-manual`: four forms that podssh's manual needs before its text, help and JSON move to the crate (PodUtils/podssh#288)
+
+**Source:** PodUtils/podssh#288 (COORD-096 of podssh, PodUtils/podssh@T-790).
+**Category:** feature
+**Milestone:** M5
+**Priority:** P2
+**Effort:** M
+**Status:** open
+
+## Problem
+
+podssh builds `pod_manual::Manual` from its own tables, and its tests run
+each check of the crate with no exception (podssh `ee6b6bd`); `podssh man
+--roff` is the writer of the crate. Its text form, `--help` and `--json`
+stay podssh's, as the model has no place for four forms of its output:
+(1) an empty reason of a kind of flag: `FlagKind::Ignored { why: "" }`
+writes "Accepted and ignored:" and `Refused { instead: "" }` writes
+"Refused. Use" with no flag (`crates/pod-manual/src/sections.rs`); (2) a
+kind "not in this release": a flag that the parser takes and refuses with
+its own exit code, not a flag of another tool; (3) the availability of a
+command in a build: a verb that a build with no feature (Tailscale, iroh,
+Tor) keeps in its help with one sentence why, and exits 70, named in the
+JSON for each command; (4) a topic inside the section of a command: the
+`-o` keywords of `podssh ssh`, each with its status and default.
+
+## Premise
+
+- Read: PodUtils/podssh#288; `crates/pod-manual/src/model.rs` (`FlagKind`,
+  `Command`, the topics), `sections.rs`, `text/`, `json`.
+- Not measured: podssh's text and JSON against the crate's writers with
+  the four forms.
+
+## Approach
+
+(1) An empty `why` or `instead` writes "Accepted and ignored." or
+"Refused." alone. (2) `FlagKind::NotInRelease { code, why }`: the parser
+takes the flag and the program exits with `code`; the help, the man page,
+the text and the JSON say so. (3) `Command::availability`: `Always`, or
+`Feature { name, why, code }` (the help keeps the verb with its sentence;
+the JSON names it for each command; a check holds the exit code to the
+table of exit codes). (4) `Topic::within: Option<command>`: a topic that
+the writers show inside the section of its command (the text, the man
+page, the JSON), with each item's status and default. Tests of each
+writer for each form, and the checks (`check::model`, `check::texts`)
+extended. Name the tag on the hand-off.
+
+## Prove
+
+```sh
+cargo test -p pod-manual --all-features
+```

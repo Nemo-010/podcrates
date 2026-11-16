@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**639 entries: 126 open, 14 partial, 6 blocked, 493 done.**
+**640 entries: 127 open, 14 partial, 6 blocked, 493 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 12 | 8 | 0 | 145 | 165 |
-| P2 | 58 | 3 | 4 | 254 | 319 |
+| P2 | 59 | 3 | 4 | 254 | 320 |
 | P3 | 56 | 3 | 2 | 92 | 153 |
-| **All** | 126 | 14 | 6 | 493 | 639 |
+| **All** | 127 | 14 | 6 | 493 | 640 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -686,3 +686,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-804](podvm.md) | P1 | S | M5 | defect | done | `pod-qga` has no `LICENSE` beside its manifest; a check of each crate that cargo packs (PodUtils/podvm#456) |
 | [T-805](relay.md) | P2 | S | M2 | feature | open | `pod-relay`: a node that gets `409` for its own lost socket gives up on that route sooner than `rejoin`, and says so (PodUtils/podnet#604) |
 | [T-806](podvm.md) | P1 | M | M6 | feature | open | `pod-enter`: a PID namespace with its own `/proc` on the namespace rung, which a join enters (PodUtils/podvm#457) |
+| [T-807](fleet.md) | P2 | M | M5 | feature | open | `pod-manual`: four forms that podssh's manual needs before its text, help and JSON move to the crate (PodUtils/podssh#288) |

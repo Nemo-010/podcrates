@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 639 entries: 126 open, 14 partial, 6 blocked, 493 done.
+`TODO/INDEX.md` holds 640 entries: 127 open, 14 partial, 6 blocked, 493 done.
 
 ## State
 
@@ -77,7 +77,7 @@ next entry.
 First: the next tag (the fixes of
 PodUtils/podssh#262, on `main`). Then the ruling "Discipline": T-692
 (`pod-lab`, part 1), T-700 (`pod-manual`, PodUtils/podnet#584; part 1
-done, then the take of each consumer; its findings T-704 and T-705),
+done, then the take of each consumer; its findings T-704 and T-705; T-807, the four forms of podssh's manual, PodUtils/podssh#288),
 T-767 (a stalled resume of `pod-session`, PodUtils/podssh#283; partial: the far end's lines of each resume and of each wait that holds are in, the cause is open) with its finding T-768 (a late spare), T-703 (the issues against
 the record) and T-702 (the installer). Then the move of podssh's waves 3 and 4 (the
 ruling "The move of podssh", PodUtils/podssh#248): T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2
