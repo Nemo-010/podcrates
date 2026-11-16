@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**597 entries: 123 open, 12 partial, 6 blocked, 456 done.**
+**597 entries: 119 open, 13 partial, 6 blocked, 459 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 7 | 0 | 131 | 149 |
-| P2 | 57 | 2 | 4 | 237 | 300 |
+| P2 | 53 | 3 | 4 | 240 | 300 |
 | P3 | 55 | 3 | 2 | 86 | 146 |
-| **All** | 123 | 12 | 6 | 456 | 597 |
+| **All** | 119 | 13 | 6 | 459 | 597 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -605,7 +605,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-689](upkeep.md) | P2 | S | M5 | defect | done | the plant `enter-userns-proc-no-remount` misses where the host's `/proc` has `nosuid`, `nodev` and `noexec` already |
 | [T-691](podvm.md) | P2 | S | M6 | defect | done | `pod-enter`: the root directory and the memfd move clear of the numbers of the passed descriptors (PodUtils/podvm#422) |
 | [T-692](fleet.md) | P1 | L | M8 | feature | partial | `pod-lab`: the hostile host classes as shared profiles, `podlab check` and `podlab run` (PodUtils/podrunner#180) |
-| [T-693](fleet.md) | P2 | S | M8 | feature | open | `pod-hostprobe`: the rows of the socket class (AF_INET6, connect, AF_UNIX, getsockname) |
+| [T-693](fleet.md) | P2 | S | M8 | feature | partial | `pod-hostprobe`: the rows of the socket class (AF_INET6, connect, AF_UNIX, getsockname) |
 | [T-694](fleet.md) | P2 | S | M8 | feature | open | `pod-hostprobe`: the rows of `TMPDIR` and of the inherited descriptors |
 | [T-695](fleet.md) | P2 | S | M8 | feature | open | `pod-hostprobe`: the rows of the machine, the cgroup version and the `/proc` mount |
 | [T-696](fleet.md) | P2 | S | M8 | feature | open | `pod-lab`: `bind-denied` refuses UDP bind and connect of AF_INET and AF_INET6 |
@@ -619,8 +619,8 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-711](foundation.md) | P1 | S | M0 | chore | done | a message from outside the team: its own session verifies and confirms it; each other session checks the author (the ruling "Strangers") |
 | [T-712](foundation.md) | P1 | S | M0 | chore | done | the watcher reports each comment that is new or edited (the owner's ask) |
 | [T-713](podvm.md) | P1 | S | M6 | defect | done | `pod-enter`: the tests of `tests/userns.rs` race on `ETXTBSY` as a user with no root |
-| [T-714](fleet.md) | P2 | S | M8 | feature | open | `pod-hostprobe`: the rows of the socket classes of podssh and podnet (bind alone, listen, UDP, raw and packet sockets, the loopback) |
-| [T-715](fleet.md) | P2 | S | M8 | feature | open | `pod-hostprobe`: the rows of the file classes of podssh (absent paths, the terminal, the lines of the ids, `HOME`, read-only mounts) |
+| [T-714](fleet.md) | P2 | S | M8 | feature | done | `pod-hostprobe`: the rows of the socket classes of podssh and podnet (bind alone, listen, UDP, raw and packet sockets, the loopback) |
+| [T-715](fleet.md) | P2 | S | M8 | feature | done | `pod-hostprobe`: the rows of the file classes of podssh (absent paths, the terminal, the lines of the ids, `HOME`, read-only mounts) |
 | [T-716](fleet.md) | P2 | M | M8 | feature | done | `pod-lab`: the labs of the network classes of podssh and podnet (podnet's hand-off) |
 | [T-717](fleet.md) | P2 | S | M8 | feature | open | the installer core: a signature of the release assets, checked where `cosign` is there |
 | [T-718](fleet.md) | P2 | S | M8 | feature | open | the installer core: the test on macOS and Windows |
@@ -637,7 +637,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-742](relay.md) | P1 | S | M2 | defect | done | `pod-link`: the unix carrier fails under Landlock: the move of its staged socket gives `EXDEV` (PodUtils/podnet#592) |
 | [T-743](relay.md) | P1 | S | M2 | defect | done | `pod-hold`: the netns backend needs a UDP socket for its interface ioctls, which `udp-denied` refuses (PodUtils/podnet#592) |
 | [T-744](podvm.md) | P2 | S | M6 | feature | done | `pod-hostprobe`: the row `chroot(/tmp) in unshare(NEWUSER+maps)`, the chroot of a driver with no root (PodUtils/podrunner#191) |
-| [T-745](fleet.md) | P2 | M | M8 | feature | open | `pod-hostprobe`: the probe rows of the network classes (a CONNECT through the proxy, the CA of a handshake, a lookup, a direct connect, a ClientHello) |
+| [T-745](fleet.md) | P2 | M | M8 | feature | done | `pod-hostprobe`: the probe rows of the network classes (a CONNECT through the proxy, the CA of a handshake, a lookup, a direct connect, a ClientHello) |
 | [T-746](fleet.md) | P2 | M | M8 | feature | open | `pod-lab`: a way out through the stand-in proxy of a proxy class, for the live lanes of the consumers |
 | [T-747](fleet.md) | P3 | M | M8 | feature | open | `pod-lab`: the direct network classes on each address: an SNI filter by `nf_tables`, an IPv6 device with a default route |
 | [T-750](podvm.md) | P2 | M | M6 | defect | done | `pod-enter`: on an overlay root with an upper directory, the working directory and the paths of the rules are checked in the lower layer alone |

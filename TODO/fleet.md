@@ -2888,7 +2888,7 @@ of each profile for podvm, and the network profiles of podnet.
 **Milestone:** M8
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -3565,7 +3565,7 @@ python3 -I scripts/check-strings.py --plant /bin/ls
 **Milestone:** M8
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -3582,7 +3582,7 @@ show the classes.
 
 ## Premise
 
-- Read: `crates/pod-lab/src/facts.rs` (the measurements),
+- Read: `facts.rs` of `pod-lab` (the measurements; T-714 removes it),
   `crates/pod-hostprobe/src/probes/access.rs` (`p_tcp_listen`).
 - Measured: in a fresh network namespace of Linux 6.18, `bind(127.0.0.1:0)`
   and `listen` pass, and `connect(127.0.0.1:1)` gives `ENETUNREACH`.
@@ -3606,6 +3606,28 @@ cargo test -p pod-hostprobe --all-features
 cargo test -p pod-lab --all-features
 ```
 
+## Done
+
+2026-11-16, commits 30aa8977, 7defab02, 3d63ff89 and the next one (local branch `rows`); calls C732 to C735.
+
+- Seven census rows of `pod-hostprobe`, each in its own probe child
+  (`src/probes/sockets.rs`): `bind(127.0.0.1:0)`, `listen after
+  bind(127.0.0.1:0)` (a skip where the bind fails),
+  `socket(AF_INET, SOCK_DGRAM)+connect` and
+  `socket(AF_INET6, SOCK_DGRAM)+connect` (the errno of the step;
+  `EAFNOSUPPORT` with no IPv6), `socket(AF_INET, SOCK_RAW)` (ICMP),
+  `socket(AF_PACKET, SOCK_RAW)` and `connect(127.0.0.1:1)` (no wait over
+  2 s; `ECONNREFUSED` is `ok` with the errno in the reason). New errno
+  names and constants: `ENXIO`, `ENETUNREACH`, `ECONNREFUSED`,
+  `EINPROGRESS`, `EISCONN`, `EAFNOSUPPORT`.
+- `pod-lab`: `bind-allowed`, `listen-refused`, `udp-refused` (also of
+  `proxy-only`), `raw-refused`, `loopback-absent` and `tcp-connect-refused`
+  of `bind-denied` read the rows; the lab facts `BindAllowed`,
+  `ListenRefused`, `UdpRefused`, `RawRefused`, `NoLoopback` and
+  `InetConnectRefused` and `src/facts.rs` are gone. T-693 is `partial`:
+  its connect row is in.
+- Tests and plants: see T-745.
+
 # T-715: `pod-hostprobe`: the rows of the file classes of podssh (absent paths, the terminal, the lines of the ids, `HOME`, read-only mounts)
 
 **Source:** T-701 (the profiles `no-ptmx`, `no-passwd-entry`, `noexec-home`, `no-proc` and `ro-etc-ssl` of `pod-lab`).
@@ -3613,7 +3635,7 @@ cargo test -p pod-lab --all-features
 **Milestone:** M8
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -3626,7 +3648,7 @@ read-only mount. A check of a report gives `unseen` for each part.
 
 ## Premise
 
-- Read: `crates/pod-lab/src/facts.rs`, `crates/pod-hostprobe/src/identity.rs`,
+- Read: `facts.rs` of `pod-lab` (T-714 removes it), `crates/pod-hostprobe/src/identity.rs`,
   `crates/pod-hostprobe/src/writable.rs`.
 - Not measured: a host with no `/proc` (the probe children of
   `pod-hostprobe` start through `/proc/self/exe`, so a row there needs a
@@ -3647,6 +3669,25 @@ and a new file) and `statfs(/etc/ssl)` (`ST_RDONLY`). Then move the
 cargo test -p pod-hostprobe --all-features
 cargo test -p pod-lab --all-features
 ```
+
+## Done
+
+2026-11-16, commits 30aa8977, 7defab02, 3d63ff89 and the next one (local branch `rows`); calls C732 to C735.
+
+- Eight census rows (`src/probes/files.rs`): `stat(/dev/pts)`,
+  `readlink(/proc/self/exe)` (in the probe process: `Kind::Here`,
+  `Probe::measure`), `tty_nr of /proc/self/stat`,
+  `open(/dev/tty, O_NONBLOCK)+poll` (no read), `line of getuid() in
+  /etc/passwd`, `line of getgid() in /etc/group`,
+  `creat($HOME/.pod-hostprobe)` (with `noexec`) and `statfs(/etc/ssl)`.
+  A row of a fact gives `ok` with `KEY VALUE` items (`verdict::items`,
+  `Outcome::value`).
+- `pod-lab`: `ptmx-absent`, `no-ctty`, `tty-opens`, `no-id-lines`,
+  `home-noexec`, `proc-absent` and `etc-ssl-read-only` read the rows with
+  `Expect::Value`; the lab facts `Absent`, `NoControllingTerminal`,
+  `TtyOpens`, `NoPasswdEntry`, `HomeNoexec` and `ReadOnlyMount` are gone.
+  `/dev/net/tun` keeps its row of the machine tier.
+- Tests and plants: see T-745.
 
 # T-716: `pod-lab`: the labs of the network classes of podssh and podnet (podnet's hand-off)
 
@@ -3791,7 +3832,7 @@ branch `net716`); calls C725 to C729.
 **Milestone:** M8
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -3823,12 +3864,63 @@ Then the facts of the parts whose row a host gives move to `Observe::Row`,
 and the lab keeps its stand-ins for its own check. The JSON Schema of the
 report takes the new names.
 
+## Decision
+
+C735: no row reaches the network. This entry adds the rows that read what a host shows of its way out with no packet out; the rows that send a packet through a proxy or to a server are T-751, behind a setting of the caller that is off by default.
+
 ## Prove
 
 ```sh
 cargo test -p pod-hostprobe --all-features
 cargo test -p pod-lab --all-features
 ```
+
+## Done
+
+2026-11-16, commits 30aa8977, 7defab02, 3d63ff89 and the next one (local branch `rows`); calls C732 to C735.
+
+- Five census rows that read the host with no packet past the loopback
+  (`src/probes/network.rs`): `getenv(HTTPS_PROXY)` (the first of
+  `https_proxy`, `HTTPS_PROXY`, `all_proxy`, `ALL_PROXY`: set, variable,
+  scheme, credential 0 or 1, port; no host and no credential in the
+  reason), `getenv(SSL_CERT_FILE)+read` (the certificates of the file),
+  `read(/etc/resolv.conf)` (the `nameserver` lines; with none, a TCP
+  connect to `127.0.0.1:53`), `read(/proc/net/route)` and
+  `read(/proc/net/ipv6_route)` (a default route that is up and no reject
+  route; `ipv6 absent` where the kernel has none). 88 rows in all; the
+  JSON Schema of the report names each one (schema 1); the example
+  `valid-host-classes.json`.
+- `pod-lab`: the parts `proxy-variable` (`proxy-only`,
+  `proxy-tls-reterminate`, `proxy-per-name`, `ws-upgrade-refused`),
+  `no-proxy` (`sni-allowlist`, `no-proxy-no-dns`) and `cert-file`
+  (`proxy-tls-reterminate`); `direct-refused`, `no-resolver` and
+  `no-ipv4-route` read the rows. `Expect::Value`, `Expect::Shows` and
+  `Observe::LabCheck` (C733): the connect out of the lab and its lookup
+  stay as checks of the lab beside the rows. `NetFact::LoopbackReaches` is
+  gone. The network lab sets its variables in the environment of the lab
+  process before it measures (C734). `podlab list` and `man/podlab.1`
+  follow.
+- Tests: 160 unit tests of `pod-hostprobe` (the items of a reason, the
+  field `tty_nr`, the lines of an id, the items of a proxy URL, the
+  certificates, the `nameserver` lines, the default routes, the kinds of
+  the rows); `tests/host_rows.rs` (no libtest): each row against what the
+  test reads itself, as root and again as uid 65534 (a raw and a packet
+  socket `EPERM`, a file in a `HOME` of root `EACCES`), also in
+  `scripts/ci/userns-tests.sh`; `tests/children.rs`: 88 rows, the report
+  reads back. `pod-lab`: 45 unit tests, 13 of them in `src/check/rows.rs`
+  (a made-up report of each changed part through the JSON);
+  `tests/lab.rs` each case as root and as uid 65534, each lab holds.
+- Plants: `hostprobe-listen-row-measures-the-bind`,
+  `hostprobe-connect-reset-denied`, `hostprobe-tty-nr-field-shifted`,
+  `hostprobe-proxy-host-in-reason`, `hostprobe-route-reject-default`,
+  `hostprobe-proc-row-in-a-child`, `lab-check-shows-fails`,
+  `lab-check-labcheck-in-report`, `lab-check-value-missing-holds`; the
+  patch and the EXPECT of `lab-proxy-variable-unset` written again.
+  `plant-each.sh --group hostprobe`: 22 caught; `--group lab`: 36
+  caught; `--apply`: 0 stale. `scripts/ci/userns-tests.sh` passes as root
+  (each case again as uid 65534), with no skip.
+- Not here: the rows that send a packet out (T-751); the row of a default
+  route of IPv6 for `ipv6-reaches` (T-747).
 
 # T-746: `pod-lab`: a way out through the stand-in proxy of a proxy class, for the live lanes of the consumers
 
