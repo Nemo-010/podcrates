@@ -272,6 +272,13 @@ podcrates.
   that issue). podnet fixes it in its frozen file and names the commit
   on #156: the import takes that fix, with a bound check of each reader
   of a list and the crash input as a test.
+- A fix in the frozen `src/tunnel.rs` to port at the import
+  (PodUtils/podnet#603, COORD-097 of podnet, podnet `eb23c379`): the leg
+  `quic+warp` reconnects when its WARP session closes
+  (`EndpointSource::closed` reads the session each 2 s; the reactor takes a
+  closed session as a lost connection). `WarpLink` and `EndpointSource`
+  moved to `src/tunnel/warp_targets.rs`: the import reads `src/tunnel.rs`
+  and `src/tunnel/warp_targets.rs` at `eb23c379` or later.
 
 ## Approach
 
