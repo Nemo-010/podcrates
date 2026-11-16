@@ -536,7 +536,7 @@ T-026 and T-030 are done.
 **Milestone:** M4
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -590,6 +590,41 @@ sh scripts/agent/check.sh
 ## Start condition
 
 T-031 is done.
+
+## Done
+
+2026-11-16, the commits from the import (`0c47ad6`) to `94c7975`. The
+import: the crate podssh-iroh of podssh at `0370b0b` whole, and podssh's
+copy of iroh-relay 1.4.1 with its patch (`vendor/iroh-relay`,
+`vendor/patches/iroh-relay`; `SOURCES`); its edition was 2024 already. The
+adaptation (`9b81c39`, call C767): iroh builds with `tls-ring` (`cargo tree
+-i aws-lc-sys` finds none in the workspace); the fork comes in by
+`[patch.crates-io]` of the root, and `exclude` keeps it out of the
+workspace. The endpoint takes the caller's `pod_tls::Context` (its
+provider, with `presets::Empty`), its resolver (`resolve::Chain` over a
+`pod_core::Resolve`) and its `pod_proxy::ProxyChoice` for the relay's dial;
+pkarr, `/ping` and the question of the version go through the caller's
+`pod_ws::Way`. The crate reads no variable: the `from_environment`
+functions and `pkarr::choose` are gone, the names of the variables stay as
+constants, and the words of what a user does after a refused version are a
+parameter. podssh's parts are `pod-session`, `pod-identity`, `pod-derp` and
+`pod-opentunnel`; the Pinggy address of a record is checked for its form by
+`pod_iroh::pinggy`, in podssh's wire form. `_podssh` and the ALPNs
+`podssh/1`, `podssh/2` stay. podssh's ids in the comments are
+`PodUtils/podssh@T-NNN`. Tests: 69, each with its name of the source (36
+unit tests and 33 in `tests/`), pass with `cargo test -p pod-iroh
+--all-features`; `tests/proxy_env.rs` reads an environment of its own, and
+sets no variable of the process. The static probe (`be1af67`,
+`examples/static-probe/src/iroh.rs`) parses iroh's ticket and signs and
+reads a record; its musl binary built with zig passes `check-static.sh`,
+and makes an endpoint with the pure-Rust provider of `pod-tls`.
+`cargo deny` (advisories, licenses, bans, sources; licenses and sources
+with all features) passes with no change of `deny.toml`. The README
+(`f6cd810`) has the API, the settings, the parity list, the adoption map
+and the fork. `sh scripts/agent/check.sh notest`: fmt, clippy, lint,
+record, size, paths and static pass; doc passes after `125c5c0`, which
+repairs a link of `pod-tor` to its private module. The adoption trial of
+podssh is the main session's.
 
 # T-038: `pod-tor`: the Tor road through arti
 
