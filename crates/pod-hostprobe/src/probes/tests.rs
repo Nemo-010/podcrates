@@ -181,4 +181,7 @@ fn the_user_namespace_leg_is_a_census_row_of_its_own() {
     let p = find(USERNS_LEG).expect("the row exists");
     assert!(p.group == Group::Census);
     assert!(matches!(p.kind, Kind::Child { ns_flags: 0, .. }));
+    let p = find(USERNS_CHROOT).expect("the row exists");
+    assert!(p.group == Group::Census);
+    assert!(matches!(p.kind, Kind::Child { ns_flags: 0, .. }));
 }

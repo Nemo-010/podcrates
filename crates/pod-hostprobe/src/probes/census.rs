@@ -64,6 +64,17 @@ pub(super) fn p_userns_mount() -> Outcome {
     }
 }
 
+pub(super) fn p_userns_chroot() -> Outcome {
+    if let Err(skip) = one_thread() {
+        return skip;
+    }
+    let maps = crate::userns::Maps::of_caller();
+    if let Err((step, e)) = crate::userns::enter(&maps) {
+        return Outcome { reason: format!("{} failed with {} ({})", step.name(), e.name(), e.0), ..Outcome::denied(e) };
+    }
+    p_chroot()
+}
+
 pub(super) fn p_unshare_newpid() -> Outcome {
     Outcome::from(unsafe { sys::sys(sys::SYS_UNSHARE, [sys::CLONE_NEWPID, 0, 0, 0, 0, 0]) })
 }

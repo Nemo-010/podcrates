@@ -1,0 +1,6 @@
+# The chroot row of a driver with no root skips the user namespace and its
+# maps, so a caller with no capabilities gets EPERM; the leg test must fail.
+ENTRY=T-744
+GROUP=hostprobe
+EXPECT='the chroot leg'
+RUN='cargo test -p pod-hostprobe --all-features --test userns_leg'

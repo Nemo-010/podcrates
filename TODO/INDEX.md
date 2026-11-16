@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**588 entries: 120 open, 12 partial, 6 blocked, 450 done.**
+**589 entries: 120 open, 12 partial, 6 blocked, 451 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 12 | 7 | 0 | 130 | 149 |
-| P2 | 57 | 2 | 4 | 232 | 295 |
+| P2 | 57 | 2 | 4 | 233 | 296 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 120 | 12 | 6 | 450 | 588 |
+| **All** | 120 | 12 | 6 | 451 | 589 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -635,3 +635,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-738](podvm.md) | P1 | M | M6 | feature | open | `pod-enter`: bind the volumes of a plan on the namespace rung, also through a user namespace (PodUtils/podvm#440) |
 | [T-742](relay.md) | P1 | S | M2 | defect | done | `pod-link`: the unix carrier fails under Landlock: the move of its staged socket gives `EXDEV` (PodUtils/podnet#592) |
 | [T-743](relay.md) | P1 | S | M2 | defect | done | `pod-hold`: the netns backend needs a UDP socket for its interface ioctls, which `udp-denied` refuses (PodUtils/podnet#592) |
+| [T-744](podvm.md) | P2 | S | M6 | feature | done | `pod-hostprobe`: the row `chroot(/tmp) in unshare(NEWUSER+maps)`, the chroot of a driver with no root (PodUtils/podrunner#191) |

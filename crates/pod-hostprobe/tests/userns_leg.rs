@@ -13,7 +13,7 @@
 
 #[cfg(target_os = "linux")]
 fn main() {
-    use pod_hostprobe::probes::USERNS_LEG;
+    use pod_hostprobe::probes::{USERNS_CHROOT, USERNS_LEG};
     use pod_hostprobe::verdict::Verdict;
     use pod_hostprobe::{Settings, child::Spawner, run_child};
     use pod_testkit::host::skip_line;
@@ -39,7 +39,11 @@ fn main() {
     let spawner = Spawner::new(&settings);
     let leg = spawner.run_probe(USERNS_LEG, 0);
     println!("userns_leg: {}", leg.row(USERNS_LEG));
+    let chroot = spawner.run_probe(USERNS_CHROOT, 0);
+    println!("userns_leg: {}", chroot.row(USERNS_CHROOT));
     if leg.verdict == Verdict::Ok {
+        // The same user namespace takes a chroot (PodUtils/podrunner#191).
+        assert_eq!(chroot.verdict, Verdict::Ok, "the chroot leg: {}", chroot.row(USERNS_CHROOT));
         return;
     }
     // The probe of the test kit (no code of this crate) says whether the

@@ -105,6 +105,10 @@ pub static PROBES: &[Probe] = &[
     // namespace and its maps first, then the mount namespace and a tmpfs.
     Probe { name: USERNS_LEG, group: Group::Census,
             kind: Kind::Child { ns_flags: 0, body: p_userns_mount } },
+    // The chroot of a driver with no root: the user namespace and its maps,
+    // then `chroot` (PodUtils/podrunner#191).
+    Probe { name: USERNS_CHROOT, group: Group::Census,
+            kind: Kind::Child { ns_flags: 0, body: p_userns_chroot } },
     Probe { name: "pivot_root(/tmp,/tmp)", group: Group::Census,
             kind: Kind::Child { ns_flags: 0, body: p_pivot_root } },
     Probe { name: "ptrace(PTRACE_TRACEME)", group: Group::Census,
@@ -272,6 +276,11 @@ pub static PROBES: &[Probe] = &[
 /// [`crate::userns::enter`], then `unshare(CLONE_NEWNS)`, `/` private and a
 /// tmpfs on `/tmp`. [`crate::select`] reads it through this name.
 pub const USERNS_LEG: &str = "mount(tmpfs,/tmp) in unshare(NEWUSER+maps,NEWNS)";
+
+/// `chroot(/tmp)` after the sequence of [`crate::userns::enter`]: what a
+/// driver with no root gets, where the row `chroot(/tmp)` of the caller
+/// itself gives `EPERM`.
+pub const USERNS_CHROOT: &str = "chroot(/tmp) in unshare(NEWUSER+maps)";
 
 /// The machine tier's legs, in the order they run. [`crate::machine`] and the
 /// report read the verdicts through these names, so a rename moves all three.

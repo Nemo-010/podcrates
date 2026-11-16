@@ -1,0 +1,11 @@
+--- a/crates/pod-hostprobe/src/probes/census.rs
++++ b/crates/pod-hostprobe/src/probes/census.rs
+@@ -69,7 +69,7 @@
+         return skip;
+     }
+     let maps = crate::userns::Maps::of_caller();
+-    if let Err((step, e)) = crate::userns::enter(&maps) {
++    if let Err((step, e)) = Ok::<(), (crate::userns::Step, Errno)>(()).map(|_| &maps).map(drop) {
+         return Outcome { reason: format!("{} failed with {} ({})", step.name(), e.name(), e.0), ..Outcome::denied(e) };
+     }
+     p_chroot()

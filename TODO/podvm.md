@@ -8825,3 +8825,35 @@ A volume moves a podvm run off the namespace rung: the loader family serves it a
 cargo test -p pod-enter --all-features
 sh scripts/ci/userns-tests.sh
 ```
+
+# T-744: `pod-hostprobe`: the row `chroot(/tmp) in unshare(NEWUSER+maps)`, the chroot of a driver with no root (PodUtils/podrunner#191)
+
+**Source:** PodUtils/podrunner#191 (COORD-067 of podrunner; PodUtils/podrunner@T-283).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+`podrunner doctor` shows the rows `mount(tmpfs,/mnt) in clone(NEWNS)` and `chroot(/tmp)`. For a user with no root, both give `EPERM`, while a driver with namespaces (the namespace rung of `pod-enter`) can mount and chroot in its own user namespace. podrunner asks for a mount row and a chroot row in a user namespace with an ID map.
+
+## Premise
+
+- Read: PodUtils/podrunner#191. The mount row exists since `v0.52.0` (T-670): `mount(tmpfs,/tmp) in unshare(NEWUSER+maps,NEWNS)` (`pod_hostprobe::probes::USERNS_LEG`), with the maps written by the child itself in the sequence of `pod_hostprobe::userns::enter`.
+
+## Approach
+
+A census row `chroot(/tmp) in unshare(NEWUSER+maps)` (`USERNS_CHROOT`): the sequence of `userns::enter`, then `chroot(/tmp)`, in a child with no namespace flags, so a refusal of the user namespace is a denial with its errno. The schema of the report names it.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features
+sh scripts/plant-each.sh hostprobe-userns-chroot-no-userns
+```
+
+## Done
+
+2026-11-16. `USERNS_CHROOT` and `p_userns_chroot` in `crates/pod-hostprobe`; `schemas/hostprobe-report.v1.schema.json` names the row; `tests/userns_leg.rs` runs both rows as uid 65534 and requires the chroot where the mount leg holds (both OK on this host). The plant `hostprobe-userns-chroot-no-userns` is caught.
