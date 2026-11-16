@@ -19,3 +19,5 @@ file d234a28c31601ec95c3aba9b95d9096178f01eff crates/podssh-tor/tests/onion_serv
 file 73d79779404fb007433b70cee19b752353d16c23 crates/podssh-tor/tests/private_network.rs -> crates/pod-tor/tests/private_network.rs
 file 6b496388d0f9e286c24f2fc18e099513364e70e6 crates/podssh-tor/tests/proxied_tcp.rs -> crates/pod-tor/tests/proxied_tcp.rs
 file eb5ac0bd6fc6b3072c714b69e2b4827ece891660 crates/podssh-tor/tests/transports.rs -> crates/pod-tor/tests/transports.rs
+# The private Tor network of the tests (chutney), whole.
+file 6e0b7e7499d9ca6a34a55c9261c530c4e0ded1a4 scripts/tor-net.sh -> scripts/tor-net.sh
