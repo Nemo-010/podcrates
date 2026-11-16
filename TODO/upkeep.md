@@ -2241,7 +2241,7 @@ on a runner) passes 3 of 3 on both procs. `cargo test -p pod-enter
 **Milestone:** M5
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2261,3 +2261,7 @@ Print the options of the host's `/dev` in the step of `scripts/ci/userns-tests.s
 sh scripts/ci/userns-tests.sh
 sh scripts/plant-each.sh enter-userns-dev-no-remount
 ```
+
+## Done
+
+2026-11-16, commit b550da60 (call C718). The cause is confirmed here: in a mount namespace whose `/dev` is remounted `nosuid,noexec`, `plant-each.sh enter-userns-dev-no-remount` at `e4e0374f` gives "MISSED ... exit 0", as shard 2 of run 43771492486. The runner image of that shard was `ubuntu-24.04` 20261111.370.1; the shard that caught the plant at `7ef7aab` (run 43730541043, shard 1) ran on 20261111.127.1. The logs do not show the options of `/dev` (an inference: the newer image mounts `/dev` with `noexec` too). The fix: `pod_testkit::nobody::again_over_a_bare_dev` starts the test binary again as uid 65534 from a root parent in a private mount namespace whose `/dev` is remounted (`MS_REMOUNT | MS_BIND`, with `rdonly` and `nodev` kept) with no `nosuid` and no `noexec`; `nobody::mount_options` reads the options of a mount. As root, `a_caller_with_no_capabilities_gets_the_devices_of_the_host` of `crates/pod-enter/tests/userns.rs` runs through it and asserts that its `/dev` has neither flag; as another user over a `/dev` with one of the flags, it writes `not seen here: ...` to its standard error and passes. `scripts/ci/userns-tests.sh` prints the options of the host's `/dev` and, as a user that is not root where `sudo -n` works (a GitHub runner), runs that test again with root; a skip line or a `not seen here` line in that run fails the script. Proof here (root): at b550da60 the plant gives "caught (exit 1)" with `left: Ok(8)`, over the host's `/dev` (`rw,relatime`) and over a `/dev` remounted `nosuid,noexec`. The path of a runner, with the planted binary over a `/dev` remounted `nosuid,noexec`: as uid 65534 the test writes `not seen here` and passes; as root it fails with `left: Ok(8)`. On a runner the first run is as the runner's user, and the second run with `sudo -n` catches the plant. `sh scripts/ci/userns-tests.sh` passes as root.
