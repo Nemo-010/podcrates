@@ -122,16 +122,18 @@ watches them.
    installer core of podcrates at a tag (the owner's ruling "Installer";
    `docs/install.md` of podcrates). Do not write a core of your own: ask
    podcrates for a change of this one.
-   - Get `scripts/install/core.sh` and `scripts/install/pins.py` of
-     podcrates at the tag that the last COORD issue of podcrates on the
+   - Get `scripts/install/core.sh`, `scripts/install/core-net.sh` and
+     `scripts/install/pins.py` of podcrates at the tag that the last COORD issue of podcrates on the
      installer names, and check each one by its SHA-256.
    - Keep `scripts/install/ME.sh` (from `scripts/install/podlab.sh` of
      podcrates): the name, the variables, the files and the hooks of
      the setup and of the self-check (`ME doctor`). Its block of pins
      stays empty in the tree.
    - The release workflow stamps it (`pins.py stamp`), makes the offline
-     bundle (`pins.py bundle`) and `SHA256SUMS`, and attaches each file
-     to the release, never as a workflow artifact.
+     bundle (`pins.py bundle`) and `SHA256SUMS`, signs `SHA256SUMS` in
+     its run on the tag (`cosign sign-blob --bundle
+     SHA256SUMS.sigstore.json`), and attaches each file to the release,
+     never as a workflow artifact.
    - Test the stamped file in each shell (`dash`, `busybox sh`,
      `bash --posix`) and in each profile of `pod-lab` of your lane
      (`crates/pod-lab/LANES.md`): a first run, a second run that downloads

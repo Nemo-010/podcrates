@@ -16,6 +16,10 @@ name: ci
 #   installer of podlab as a release stamps it, against a mirror on the
 #   loopback, under dash, busybox sh and bash --posix, and in the labs of
 #   pod-lab that hold with no root; a skip fails.
+# * install-os: the same test on macOS (its /bin/sh) and on Windows (the sh
+#   of Git Bash), with fake assets of the target of the host; a part that
+#   the OS does not have (the labs, busybox) is n/a, and each other skip
+#   fails.
 # * all: the one status to require. It fails when a job failed or was
 #   skipped.
 #
@@ -418,15 +422,56 @@ jobs:
           if [ -f "$restrict" ]; then sudo sh -c "echo 0 > $restrict"; fi
           sh scripts/install/test.sh --strict
 
+  install-os:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    # A fork of Git Bash is slow: a run of the installer gets 90 s there.
+    env:
+      INSTALL_TEST_LIMIT: ${{ runner.os == 'Windows' && '90' || '30' }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: wget on macOS
+        if: runner.os == 'macOS'
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+        run: command -v wget > /dev/null || sh scripts/retry.sh brew install wget
+      # Windows: python3 can be the stub of the Microsoft Store; the test
+      # and the core call python3.
+      - name: python3 on Windows
+        if: runner.os == 'Windows'
+        run: |
+          set -eu
+          if ! python3 -c 'import sys' > /dev/null 2>&1; then
+            d="$RUNNER_TEMP/python3"
+            mkdir -p "$d"
+            printf '#!/bin/sh\nexec python "$@"\n' > "$d/python3"
+            echo "$d" >> "$GITHUB_PATH"
+          fi
+      - name: The installer on ${{ runner.os }}
+        run: |
+          set -eu
+          uname -s
+          uname -m
+          sh scripts/install/test.sh --strict
+
   all:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     if: always()
-    needs: [lint, test, record, static, install]
+    needs: [lint, test, record, static, install, install-os]
     steps:
       - name: Each job passed
         run: |
           set -eu
-          for r in "${{ needs.lint.result }}" "${{ needs.test.result }}" "${{ needs.record.result }}" "${{ needs.static.result }}" "${{ needs.install.result }}"; do
+          for r in "${{ needs.lint.result }}" "${{ needs.test.result }}" "${{ needs.record.result }}" "${{ needs.static.result }}" "${{ needs.install.result }}" "${{ needs.install-os.result }}"; do
             [ "$r" = success ] || { echo "a job ended: $r"; exit 1; }
           done
