@@ -8,7 +8,7 @@
 - Last release: `v0.59.0` at `0e78211` (`docs/releases/v0.59.0.md`; ci
   43790224125, adoption 43790228324, release 43792622830; the request
   #203): T-738, T-739, T-742, T-743, T-744, T-736, T-732.
-- On `main` for the next tag: T-716 (the network labs).
+- On `main` for the next tag: T-716 (the network labs), T-726, T-750.
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.58.0` (`043f32c`, PodUtils/podssh#279): it runs the one
