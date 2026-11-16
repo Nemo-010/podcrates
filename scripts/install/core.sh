@@ -32,8 +32,10 @@ inst_files() { printf '%s %s\n' "$INST_NAME$2" "$INST_NAME-$1$2"; }
 # The first line of FILE --version must be "INST_NAME VERSION".
 inst_version_ok() { case $1 in "$INST_NAME $INST_VERSION" | "$INST_NAME $INST_VERSION "*) return 0 ;; *) return 1 ;; esac; }
 # The last step: a check of the installed program, with no network.
+# shellcheck disable=SC2317 # a project redefines each hook; the core calls it by name.
 inst_selfcheck() { return 0; }
 # The setup of the project after the files (for example a config file).
+# shellcheck disable=SC2317 # a project redefines each hook; the core calls it by name.
 inst_setup() { return 0; }
 
 inst_usage() {
@@ -261,7 +263,7 @@ inst_resolve_prefix() {
     fi
     case $inst_prefix in /*) ;; *) inst_prefix=$(pwd)/$inst_prefix ;; esac
     case $inst_prefix in
-        *'"'* | *'$'* | *'`'* | *'\'* | *'
+        *'"'* | *'$'* | *'`'* | *\\* | *'
 '*) inst_die "$inst_prefix: the prefix has a quote, a dollar, a backslash or a newline: give --prefix DIR with no such character" ;;
     esac
     inst_prefix=${inst_prefix%/}
@@ -370,9 +372,9 @@ inst_plan() {
     while read -r inst_n inst_a; do
         [ -n "$(inst_pin "$inst_a")" ] ||
             inst_die "$inst_a: no pin for the target $inst_target; this release has: $INST_TARGETS"
-        inst_s=get
+        inst_s='get'
         if [ -f "$inst_prefix/$inst_n" ] && [ "$(inst_sha256 "$inst_prefix/$inst_n")" = "$(inst_pin "$inst_a")" ]; then
-            inst_s=ok
+            inst_s='ok'
         else
             inst_need=$((inst_need + $(inst_size "$inst_a") / 1024 + 1))
         fi

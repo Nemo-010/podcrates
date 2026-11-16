@@ -94,7 +94,10 @@ def block(version: str, assets: Path) -> str:
         m = TARGET.search(name)
         if m and m.group(1) not in targets:
             targets.append(m.group(1))
+        # Read by name through eval (inst_pin, inst_size): shellcheck cannot see it.
+        pins.append("# shellcheck disable=SC2034 # read by name through eval")
         pins.append(f'INST_SUM_{key(name)}="{want}"')
+        pins.append("# shellcheck disable=SC2034 # read by name through eval")
         pins.append(f'INST_SIZE_{key(name)}="{f.stat().st_size}"')
     lines.append(f'INST_TARGETS="{" ".join(targets)}"')
     return "\n".join(lines + pins + [END]) + "\n"

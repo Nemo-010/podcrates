@@ -3316,6 +3316,8 @@ its own installer on the core, its setup, its self-check and its
 lanes); T-717 (the signature of the assets) and T-718 (the test on macOS
 and Windows).
 
+2026-11-16: `ci.yml` run 43779481815 at `f84fb23` failed in the job `install`: `shellcheck` (0.9.0, `--strict`) found SC2034 on the pins (read by name through `eval`), SC2317 on the default hooks (called by name), SC1003 on a backslash in a `case` pattern and SC2209 on a plain word in an assignment. Each is fixed with a directive that gives the reason, or with the other form; the test passed with `--strict` here (31 checks) after `shellcheck` was installed. The same run failed in the job `lint`: two plants of `pod-lab` were stale after T-737 (a session ran only its new plant); both are made again and caught.
+
 # T-717: the installer core: a signature of the release assets, checked where `cosign` is there
 
 **Source:** T-702 (the needs of podnet: the cosign signature of `SHA256SUMS`).
