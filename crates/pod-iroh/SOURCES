@@ -1,0 +1,91 @@
+# The files of this crate that came from another repository
+# (docs/design.md, section 9). A file line holds the git blob id at the
+# commit (`git ls-tree COMMIT -- PATH` gives it). scripts/check-sources.py
+# compares each with the default branch of its repository.
+
+repo PodUtils/podssh 0370b0bfdbe0ad7e3c60480d7220bee054568ad7
+# The move of podssh (PodUtils/podssh@T-684, PodUtils/podssh#248): the iroh
+# road, crates/podssh-iroh, imported whole (T-037), and podssh's copy of
+# iroh-relay 1.4.1 with its patch (vendor/iroh-relay, vendor/patches/iroh-relay).
+dir crates/podssh-iroh
+file 175328795c43e852e61c6f6bcd9663278c1f44bb crates/podssh-iroh/Cargo.toml -> crates/pod-iroh/Cargo.toml
+file 238f0bf1bd95f5f1280db1d5c9405422dcaee843 crates/podssh-iroh/src/allow.rs -> crates/pod-iroh/src/allow.rs
+file b000fd1dded6d59088df1e5571910355ac3901f4 crates/podssh-iroh/src/client.rs -> crates/pod-iroh/src/client.rs
+file 1edb9740c41dc478884b17e827f2828e61f5a32e crates/podssh-iroh/src/endpoint.rs -> crates/pod-iroh/src/endpoint.rs
+file a7f4afb238ca356f767542f08df22acef60c0d16 crates/podssh-iroh/src/endpoint_udp_tests.rs -> crates/pod-iroh/src/endpoint_udp_tests.rs
+file bf284896726eed0c98f32eb889fd8ba98b4e146b crates/podssh-iroh/src/far.rs -> crates/pod-iroh/src/far.rs
+file 3340e66bc61279b1f6eaa05fcf9f97ec387395d0 crates/podssh-iroh/src/keys.rs -> crates/pod-iroh/src/keys.rs
+file 7260f428cfb002918c253806570de4e7da733a2d crates/podssh-iroh/src/lib.rs -> crates/pod-iroh/src/lib.rs
+file 748a931619749cb375ceb84607bc1ebd1624e947 crates/podssh-iroh/src/pkarr.rs -> crates/pod-iroh/src/pkarr.rs
+file 5b2f87d940c19d156d72e6291fb9031b4101a3f0 crates/podssh-iroh/src/pkarr_record.rs -> crates/pod-iroh/src/pkarr_record.rs
+file 99a571a6317dc2bdc33a0117e36c1bfc8151a997 crates/podssh-iroh/src/pkarr_record_tests.rs -> crates/pod-iroh/src/pkarr_record_tests.rs
+file ccd2df0b32d22ec5a1269dba165fcda6f923c748 crates/podssh-iroh/src/pkarr_tests.rs -> crates/pod-iroh/src/pkarr_tests.rs
+file 094e9788b0c29409e6da64a1fe5a117cb96d996f crates/podssh-iroh/src/probe.rs -> crates/pod-iroh/src/probe.rs
+file e7e612225a3172c6b9e97cf9842d72accc5c62e4 crates/podssh-iroh/src/relays.rs -> crates/pod-iroh/src/relays.rs
+file 171900a3bb19393ddc8ae252e7433792e9781611 crates/podssh-iroh/src/resolve.rs -> crates/pod-iroh/src/resolve.rs
+file 3d75904272fffe0c96fd296e28f09a1cbf624677 crates/podssh-iroh/src/share.rs -> crates/pod-iroh/src/share.rs
+file 2446afb3e9efbdeea6237f27299444be23fab220 crates/podssh-iroh/src/stream.rs -> crates/pod-iroh/src/stream.rs
+file 219ad15d1b41b6497ec331fb84d1b91c83f6504a crates/podssh-iroh/src/test_pkarr.rs -> crates/pod-iroh/src/test_pkarr.rs
+file a50a93bddd332f8e2c64d171da6fbba27254acae crates/podssh-iroh/src/test_relay.rs -> crates/pod-iroh/src/test_relay.rs
+file fdac4076c97ea4469c35649ce3ca16f3979ef276 crates/podssh-iroh/src/ticket.rs -> crates/pod-iroh/src/ticket.rs
+file 25e337ba2c4c60a9ef45663b45695b3bf42e62c1 crates/podssh-iroh/src/tuning.rs -> crates/pod-iroh/src/tuning.rs
+file 4233176d35bbfbfc3d02e798e0e87a9e17fe21e0 crates/podssh-iroh/src/tuning_tests.rs -> crates/pod-iroh/src/tuning_tests.rs
+file 70c0fce034ae1cdf8826c1d9a8db70b147a6f524 crates/podssh-iroh/src/version.rs -> crates/pod-iroh/src/version.rs
+file b56b20ac3ae7da9f400d96dd9e0cd82993f663d0 crates/podssh-iroh/tests/cleanup/mod.rs -> crates/pod-iroh/tests/cleanup/mod.rs
+file 4ee000cb7db9e062927f4ce67415640f4bb48421 crates/podssh-iroh/tests/common/mod.rs -> crates/pod-iroh/tests/common/mod.rs
+file 40ba903225faaa5e8eb682ebde36d9c3bac473a5 crates/podssh-iroh/tests/common/socks5.rs -> crates/pod-iroh/tests/common/socks5.rs
+file f5b1e86d83c7c5afa468944462aba738253b8d5c crates/podssh-iroh/tests/keys.rs -> crates/pod-iroh/tests/keys.rs
+file fd63fdeb9dcd757a08a42b8a132d2841f7c1defd crates/podssh-iroh/tests/pkarr_lookup.rs -> crates/pod-iroh/tests/pkarr_lookup.rs
+file d19b46a38e6fdc3d22959fe159160b46fc889fbc crates/podssh-iroh/tests/proxy_env.rs -> crates/pod-iroh/tests/proxy_env.rs
+file e1a7c645af18459e2c6d0388513de80272f155d3 crates/podssh-iroh/tests/record_roads.rs -> crates/pod-iroh/tests/record_roads.rs
+file 8d44408baf73fce3039168d272aca78974dda8d8 crates/podssh-iroh/tests/relays.rs -> crates/pod-iroh/tests/relays.rs
+file 4cfa037aacee5f8f0e0058d8500771594227774c crates/podssh-iroh/tests/road.rs -> crates/pod-iroh/tests/road.rs
+file 5eff09564498f1b4aa3aea14b4c2e182caac43dc crates/podssh-iroh/tests/share.rs -> crates/pod-iroh/tests/share.rs
+file 506b1547a117edf23cc56626c55a5022fddcc03d crates/podssh-iroh/tests/tickets.rs -> crates/pod-iroh/tests/tickets.rs
+file 83e415caecf879501ea21910dccc56142d40cda7 crates/podssh-iroh/tests/version.rs -> crates/pod-iroh/tests/version.rs
+dir vendor/iroh-relay
+file 812e55c1fa88e9a2647cd983a870ad8220f29909 vendor/iroh-relay/.cargo_vcs_info.json -> vendor/iroh-relay/.cargo_vcs_info.json
+file d40bf63e29d02c1c7d2a5305215b9bded1a7b113 vendor/iroh-relay/CHANGELOG.md -> vendor/iroh-relay/CHANGELOG.md
+file bea9caa0b976c1d98d6934e0476b8d8101d2adfc vendor/iroh-relay/Cargo.lock -> vendor/iroh-relay/Cargo.lock
+file 55da24ccb26d7a45eb3dab0beca9d0439812340f vendor/iroh-relay/Cargo.toml -> vendor/iroh-relay/Cargo.toml
+file 295897799aa911ace43353f55aa50693f33d9328 vendor/iroh-relay/Cargo.toml.orig -> vendor/iroh-relay/Cargo.toml.orig
+file 94d6e6abce3e2a3506b47c43bcf11a1d53e5253a vendor/iroh-relay/LICENSE-BSD3 -> vendor/iroh-relay/LICENSE-BSD3
+file 6c06adae23133bac6f26beb82f081531ee441db9 vendor/iroh-relay/README.md -> vendor/iroh-relay/README.md
+file 3c37ab1676554bc28d14bbb08d7655745e9345e5 vendor/iroh-relay/build.rs -> vendor/iroh-relay/build.rs
+file 18ac21e96b3b737a10be4a6f3235e32fd0ad9c3e vendor/iroh-relay/proptest-regressions/protos/relay.txt -> vendor/iroh-relay/proptest-regressions/protos/relay.txt
+file 7ceca20bbb70cac09018a7d2502eb627b66f1f72 vendor/iroh-relay/proptest-regressions/protos/send_recv.txt -> vendor/iroh-relay/proptest-regressions/protos/send_recv.txt
+file 2acade987ebad9bd950536f013fea4e9e6c4fc10 vendor/iroh-relay/release.toml -> vendor/iroh-relay/release.toml
+file bb69869260277662ffecbeb64c16fc3ac8ff0060 vendor/iroh-relay/src/client.rs -> vendor/iroh-relay/src/client.rs
+file d5d9b59a725a344f4db8efcf6afde20a5b1a0fe5 vendor/iroh-relay/src/client/conn.rs -> vendor/iroh-relay/src/client/conn.rs
+file 19ab334523a39a437e7baefa8d5635f7f020ab0d vendor/iroh-relay/src/client/socks5.rs -> vendor/iroh-relay/src/client/socks5.rs
+file f7b16e70535759d0dfd9384011f2bc79d39fcc28 vendor/iroh-relay/src/client/streams.rs -> vendor/iroh-relay/src/client/streams.rs
+file fd0719f281d2ae371e3dba7ebcd30417e998686c vendor/iroh-relay/src/client/tls.rs -> vendor/iroh-relay/src/client/tls.rs
+file a78adb55ece44f4e497a3ea84a5496050e893d65 vendor/iroh-relay/src/client/util.rs -> vendor/iroh-relay/src/client/util.rs
+file 505cdea7c17f1b165bca16ac9d79ecdb9980b0ae vendor/iroh-relay/src/defaults.rs -> vendor/iroh-relay/src/defaults.rs
+file be84cddb844d459fb364735ee99ad11973299f11 vendor/iroh-relay/src/http.rs -> vendor/iroh-relay/src/http.rs
+file 2361f97909d511368d0fa2058b2aafa9a0ca9927 vendor/iroh-relay/src/key_cache.rs -> vendor/iroh-relay/src/key_cache.rs
+file a35c7ea5c88dd73beae121a8b1fbf74cbcaf7864 vendor/iroh-relay/src/lib.rs -> vendor/iroh-relay/src/lib.rs
+file c65dc0898cf9982090928bf2071a351b959e68d2 vendor/iroh-relay/src/main.rs -> vendor/iroh-relay/src/main.rs
+file ec719c5d88932237eb444c6ade734c75f495863f vendor/iroh-relay/src/ping_tracker.rs -> vendor/iroh-relay/src/ping_tracker.rs
+file efa0e65d9b3bd6bb0da8eb7a0504b18184e29a09 vendor/iroh-relay/src/protos.rs -> vendor/iroh-relay/src/protos.rs
+file e25f43c9fa0aa030095d6315e5285fe7edb75402 vendor/iroh-relay/src/protos/common.rs -> vendor/iroh-relay/src/protos/common.rs
+file 4104a10955119836fa042cb44f1a6e8ae380e877 vendor/iroh-relay/src/protos/handshake.rs -> vendor/iroh-relay/src/protos/handshake.rs
+file 2bd019b400965940c9060985c72eb9b633578034 vendor/iroh-relay/src/protos/relay.rs -> vendor/iroh-relay/src/protos/relay.rs
+file d3788a9437dfe887c72e6b655a6149f67fc6010d vendor/iroh-relay/src/protos/streams.rs -> vendor/iroh-relay/src/protos/streams.rs
+file cda864a248d32a289244fc4c160753165b553335 vendor/iroh-relay/src/quic.rs -> vendor/iroh-relay/src/quic.rs
+file 82af136c7bafae4f1542a9917fd4ce5d55c3c703 vendor/iroh-relay/src/relay_map.rs -> vendor/iroh-relay/src/relay_map.rs
+file b8206d887668d83d8257c7025de44c29a47bfbc1 vendor/iroh-relay/src/server.rs -> vendor/iroh-relay/src/server.rs
+file 32c77f759214685cffdb50a4fd55c576db77bc1e vendor/iroh-relay/src/server/client.rs -> vendor/iroh-relay/src/server/client.rs
+file 13a9d90abd2bc0e6cb40e5c9f4b7bfc7b546f570 vendor/iroh-relay/src/server/clients.rs -> vendor/iroh-relay/src/server/clients.rs
+file a774bf6a3f700a0f55ec78ecf9ea6748cd0dfeff vendor/iroh-relay/src/server/http_server.rs -> vendor/iroh-relay/src/server/http_server.rs
+file bfdbb1e1dfa7e1fc78dd6eb964bca8fe234b37fd vendor/iroh-relay/src/server/metrics.rs -> vendor/iroh-relay/src/server/metrics.rs
+file 5b0463f591867d50a74e1ebf79a23e1f84c4b16e vendor/iroh-relay/src/server/resolver.rs -> vendor/iroh-relay/src/server/resolver.rs
+file a15710f4c5ee25db5eb8a2b01113a9cb008dff52 vendor/iroh-relay/src/server/streams.rs -> vendor/iroh-relay/src/server/streams.rs
+file f8676282dfe3bef5e1105ae8e5bad81791fa9ac6 vendor/iroh-relay/src/server/testing.rs -> vendor/iroh-relay/src/server/testing.rs
+file 760b34d90d35135ffd0ad1d8b7929068142f3ef9 vendor/iroh-relay/src/test_utils.rs -> vendor/iroh-relay/src/test_utils.rs
+file 2b3f254970fd9d3323e9a138435818a1d7fbf090 vendor/iroh-relay/src/tls.rs -> vendor/iroh-relay/src/tls.rs
+file 5271eccb9944f046b3856b2fca215e215f88d292 vendor/iroh-relay/tests/multiple-hostnames-pebble.sh -> vendor/iroh-relay/tests/multiple-hostnames-pebble.sh
+file 7e6d8a4dd6635b5e9c4f4f0eb76ee64c332da059 vendor/iroh-relay/tests/relay_axum.rs -> vendor/iroh-relay/tests/relay_axum.rs
+file 5b54b20e8e902f522a41c544dfaa00f80bc784b6 vendor/iroh-relay/tests/relay_hyper.rs -> vendor/iroh-relay/tests/relay_hyper.rs
+file b34a67ea6bfa0146b338a14c1b4f896fa763dad7 vendor/iroh-relay/tests/runtime_auth.rs -> vendor/iroh-relay/tests/runtime_auth.rs
+file e1b9278d5a31c928a13130db389cb03b772c503a vendor/patches/iroh-relay/0001-socks5-proxy.patch -> vendor/patches/iroh-relay/0001-socks5-proxy.patch
