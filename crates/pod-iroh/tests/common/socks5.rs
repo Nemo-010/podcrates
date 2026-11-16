@@ -101,7 +101,10 @@ async fn tunnel(
     let port = u16::from_be_bytes(port);
     seen.lock().unwrap().push(Seen { address_type: request[3], host: host.clone(), port });
     let bound = [1, 127, 0, 0, 1, 0, 0];
-    if request[3] != 3 || host != super::RELAY_NAME || port != relay_port {
+    // The relay by its name (`socks5h://`), or by its address on the
+    // pinned address (`socks5://`, which the client resolves).
+    let to_relay = (request[3] == 3 && host == super::RELAY_NAME) || (request[3] == 1 && host == super::RELAY_ADDR);
+    if !to_relay || port != relay_port {
         client.write_all(&[&[5, 2, 0][..], &bound[..]].concat()).await?;
         return Ok(());
     }

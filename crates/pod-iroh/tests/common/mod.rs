@@ -24,6 +24,10 @@ use tokio::net::{TcpListener, TcpStream};
 
 /// The relay's name, which no resolver knows: `.test` is reserved.
 pub const RELAY_NAME: &str = "relay.podssh.test";
+/// The address that a test pins [`RELAY_NAME`] to, for a `socks5://` proxy,
+/// which gets an address: not on the loopback, which the dialer sends
+/// through no proxy. The stand-in proxy forwards it to the relay.
+pub const RELAY_ADDR: &str = "192.0.2.7";
 pub const LIMIT: Duration = Duration::from_secs(60);
 
 /// A relay server on the loopback, with no QUIC, and its URL under

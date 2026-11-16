@@ -1,0 +1,6 @@
+# The fork of iroh-relay sends the relay's name to a socks5:// proxy, as to
+# a socks5h:// one: the test of pod-iroh must see a tunnel by name.
+ENTRY=T-808
+GROUP=link
+EXPECT='a_socks5_proxy_without_h_gets_the_relay_s_address'
+RUN='cargo test -p pod-iroh --all-features --test proxy_env a_socks5_proxy_without_h_gets_the_relay_s_address'

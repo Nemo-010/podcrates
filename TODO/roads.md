@@ -1619,7 +1619,7 @@ python3 -I scripts/check-probe.py
 **Milestone:** M4
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1650,6 +1650,25 @@ not a name).
 ```sh
 cargo test -p pod-iroh --all-features --test proxy_env
 ```
+
+## Done
+
+2026-11-16, the commit of the fix. `socks5::resolves_here` of the fork
+(`vendor/iroh-relay/src/client/socks5.rs`): a `socks5://` proxy gets an
+address of the relay from the dial's resolver (the caller's, through
+`pod-iroh`), with the address type 1 or 4; `socks5h://` keeps the name,
+with its fall back to an address on reply 8 (`dial_socks5` in
+`client/tls.rs`). The change is
+`vendor/patches/iroh-relay/0002-socks5-resolves-here.patch`, which applies
+after `0001-socks5-proxy.patch` (it applies in reverse to the tree). Test:
+`a_socks5_proxy_without_h_gets_the_relay_s_address` of
+`crates/pod-iroh/tests/proxy_env.rs`: the relay's name pinned to
+`192.0.2.7` (not the loopback, which the dialer sends through no proxy),
+the stand-in proxy forwards that address to the relay, and each tunnel is
+of type 1. With the defect planted it fails: the relay dial comes by name
+(type 3). Plant `iroh-socks5-sends-the-name`. Release notes: `pod-iroh`: a
+`socks5://` proxy gets the relay's address, as `pod-proxy` takes the
+scheme.
 
 # T-809: `pod-iroh`: the relay dial of iroh takes a proxy URL, not the caller's dialer (T-037)
 

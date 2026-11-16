@@ -19,7 +19,7 @@ use pod_iroh::{Options, Udp};
 use pod_proxy::{Environment, ProxyChoice};
 use pod_tls::Trust;
 
-use common::{LIMIT, RELAY_NAME, proxy, relay};
+use common::{LIMIT, RELAY_ADDR, RELAY_NAME, proxy, relay};
 
 /// An environment where only `ALL_PROXY`, set to `url`, names a proxy.
 fn all_proxy_alone(url: &str) -> ProxyChoice {
@@ -87,5 +87,30 @@ async fn a_socks5_proxy_in_all_proxy_reaches_the_relay_by_name() {
     assert!(!seen.is_empty(), "no tunnel through the stand-in");
     for each in &seen {
         assert_eq!((each.address_type, each.host.as_str(), each.port), (3, RELAY_NAME, port), "{seen:?}");
+    }
+}
+
+/// A `socks5://` proxy gets the relay's address, which the client resolves
+/// with the caller's resolver, as curl and pod-proxy take the scheme; only
+/// `socks5h://` sends the name (T-808). The planted defect, the name for
+/// both schemes, shows a tunnel by name.
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn a_socks5_proxy_without_h_gets_the_relay_s_address() {
+    let (relay_url, _relay) = relay().await;
+    let port = relay_url.port().unwrap();
+    let (proxy, seen) = common::socks5::proxy(port, None).await;
+    let environment = all_proxy_alone(&format!("socks5://{proxy}"));
+
+    let mut options = from_environment(&relay_url, environment);
+    let pinned: std::net::IpAddr = RELAY_ADDR.parse().unwrap();
+    options.resolve =
+        std::sync::Arc::new(pod_proxy::resolve::System::with_pins(vec![(RELAY_NAME.to_string(), pinned)]));
+    let endpoint = pod_iroh::bind(&options).await.expect("an endpoint through SOCKS5");
+    tokio::time::timeout(LIMIT, endpoint.online()).await.expect("the relay through the SOCKS5 proxy");
+    endpoint.close().await;
+    let seen = seen.lock().unwrap().clone();
+    assert!(!seen.is_empty(), "no tunnel through the stand-in");
+    for each in &seen {
+        assert_eq!((each.address_type, each.host.as_str(), each.port), (1, RELAY_ADDR, port), "{seen:?}");
     }
 }

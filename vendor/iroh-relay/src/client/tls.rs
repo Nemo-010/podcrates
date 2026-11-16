@@ -239,9 +239,10 @@ impl MaybeTlsStreamBuilder {
     }
 
     /// A tunnel to the relay through the SOCKS5 proxy of `proxy_url`, over
-    /// `tcp_stream`, a connection to it (podssh's patch). The proxy gets the
-    /// relay's name; a proxy that takes no names gets one more connection,
-    /// with an address of the relay from this client's resolver.
+    /// `tcp_stream`, a connection to it (podssh's patch). A `socks5://` proxy
+    /// gets an address of the relay from this client's resolver; a
+    /// `socks5h://` proxy gets the relay's name, and a proxy that takes no
+    /// names gets one more connection, with an address.
     async fn dial_socks5(
         &self,
         proxy_url: &Url,
@@ -253,7 +254,17 @@ impl MaybeTlsStreamBuilder {
             })
         })?;
         let port = url_port(&self.url).ok_or_else(|| e!(DialError::InvalidTargetPort))?;
-        match socks5::connect(tcp_stream, proxy_url, socks5::Target::of(host), port).await {
+        let target = socks5::Target::of(host);
+        if socks5::resolves_here(proxy_url) && matches!(target, socks5::Target::Name(_)) {
+            let addr = self
+                .dns_resolver
+                .resolve_host(&self.url, self.prefer_ipv6, DNS_TIMEOUT)
+                .await?;
+            return socks5::connect(tcp_stream, proxy_url, socks5::Target::Addr(addr), port)
+                .await
+                .map_err(|failure| DialError::from(failure.into_io()));
+        }
+        match socks5::connect(tcp_stream, proxy_url, target, port).await {
             Ok(stream) => Ok(stream),
             Err(socks5::Failure::NoNames) => {
                 // The proxy's URL is not logged: it may hold a password.

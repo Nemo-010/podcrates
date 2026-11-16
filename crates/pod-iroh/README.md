@@ -115,10 +115,10 @@ a record is `pod_iroh::pinggy::Address` (podssh: `podssh_relay::pinggy`);
 defect is an endpoint with no proxy, which iroh's own selection gives of
 that environment (podssh: it set the process's variables).
 
-A known difference of `pod-proxy`'s rule: the patched relay dial sends the
-relay's name to a `socks5://` proxy too (podssh's rule, PodUtils/podssh@T-280),
-where `pod-proxy` resolves the name for `socks5://` and sends it for
-`socks5h://`.
+The relay dial follows `pod-proxy`'s rule of the schemes: a `socks5://`
+proxy gets an address of the relay, which the caller's resolver gives, and
+a `socks5h://` proxy gets the name (T-808; podssh's patch sent the name for
+both, PodUtils/podssh@T-280).
 
 ## Adoption map
 
@@ -148,12 +148,15 @@ where `pod-proxy` resolves the name for `socks5://` and sends it for
   BSD-3-Clause notice of the code that it took from Tailscale
   (`LICENSE-BSD3`).
 - **The tree**: `vendor/iroh-relay` is that crate byte for byte (but
-  cargo's marker `.cargo-ok`), with the patch of
-  `vendor/patches/iroh-relay/0001-socks5-proxy.patch` applied, as podssh
-  carried it at `0370b0b` (`SOURCES`).
+  cargo's marker `.cargo-ok`), with the patches of
+  `vendor/patches/iroh-relay/` applied in order: `0001-socks5-proxy.patch`,
+  as podssh carried it at `0370b0b` (`SOURCES`), and
+  `0002-socks5-resolves-here.patch` of podcrates (T-808).
 - **The patch**: the relay dial (`dial_url_proxy`) spoke HTTP `CONNECT`
   only. A `socks5://` or `socks5h://` proxy gets the exchange of RFC 1928,
-  with no TLS of its own: the relay's name with the address type 3, the
+  with no TLS of its own: for `socks5h://` the relay's name with the
+  address type 3, for `socks5://` an address of the relay from the
+  client's resolver (as curl and `pod-proxy` take the schemes), the
   user and password of RFC 1929 from the URL, the reply read to its end,
   and on reply 8 one more connection with an address; 10 s for the
   exchange; port 1080 when the URL names none. reqwest's feature `socks`
@@ -171,7 +174,7 @@ where `pod-proxy` resolves the name for `socks5://` and sends it for
 
 ## Tests
 
-`cargo test -p pod-iroh --all-features`: 69 tests, each with its name of
+`cargo test -p pod-iroh --all-features`: 70 tests, each with its name of
 the source. The unit tests: the credentials of a proxy, the probe of UDP
 against iroh's relay server, the arms of QUIC, the record and its checks,
 the choice of a server of pkarr, the notice of a refused version.
@@ -179,7 +182,7 @@ the choice of a server of pkarr, the notice of a refused version.
 20 MiB each way), `tests/share.rs` (the lanes), `tests/tickets.rs` (iroh's
 own ticket and the allowlist), `tests/keys.rs`, `tests/relays.rs` (the
 order of the relays, `/ping`, SOCKS5 with a password),
-`tests/proxy_env.rs` (`ALL_PROXY` alone, SOCKS5 by name),
+`tests/proxy_env.rs` (`ALL_PROXY` alone, SOCKS5 by name for `socks5h://`, by address for `socks5://`),
 `tests/pkarr_lookup.rs` (a node that moved, a forged record, iroh's own
 client of pkarr), `tests/record_roads.rs` (a record with each road, a
 client with the node's key alone over the stand-in DERP server of

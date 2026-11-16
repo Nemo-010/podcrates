@@ -1,0 +1,11 @@
+--- a/vendor/iroh-relay/src/client/socks5.rs
++++ b/vendor/iroh-relay/src/client/socks5.rs
+@@ -43,7 +43,7 @@
+ /// Whether the proxy gets an address that this client resolves: `socks5://`,
+ /// as curl and pod-proxy take it. `socks5h://` sends the host name.
+ pub(super) fn resolves_here(url: &Url) -> bool {
+-    url.scheme() == "socks5"
++    url.scheme() == "socks5" && false
+ }
+ 
+ /// Where the proxy is asked to go.

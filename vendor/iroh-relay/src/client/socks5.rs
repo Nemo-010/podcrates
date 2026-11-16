@@ -35,10 +35,15 @@ const EXCHANGE_TIMEOUT: Duration = Duration::from_secs(10);
 /// The port of a SOCKS5 proxy whose URL names none.
 pub(super) const DEFAULT_PORT: u16 = 1080;
 
-/// Whether `url` names a SOCKS5 proxy. Both schemes send the host name:
-/// `socks5://` too, as the client may have no DNS.
+/// Whether `url` names a SOCKS5 proxy.
 pub(super) fn is_socks5(url: &Url) -> bool {
     matches!(url.scheme(), "socks5" | "socks5h")
+}
+
+/// Whether the proxy gets an address that this client resolves: `socks5://`,
+/// as curl and pod-proxy take it. `socks5h://` sends the host name.
+pub(super) fn resolves_here(url: &Url) -> bool {
+    url.scheme() == "socks5"
 }
 
 /// Where the proxy is asked to go.
