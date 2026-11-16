@@ -220,8 +220,10 @@ and `issue-sync.yml`; a newer push cancels the queued run of `ci.yml`,
 `services.yml`, `release.yml`, `upstream.yml`, `record-issues.yml`) when a step needs them.
 
 A push of a session whose account has no GitHub Actions starts no run:
-then ask for `ci.yml`, `adoption.yml`, `plants.yml`, `secrets.yml` and
-`deny.yml` of the pushed commit in the same way (each takes a dispatch).
+then dispatch `ci.yml`, `adoption.yml`, `plants.yml`, `secrets.yml` and
+`deny.yml` of the pushed commit with `actions_run_trigger` (the MCP tool
+of a cloud session can dispatch). Dispatch the gates of a commit only
+after its push, and push nothing more until the runs started.
 
 A block that tests the SHA of `main` fails when `main` moves before it
 runs: push nothing to `main` from the open of such a request until its
@@ -232,7 +234,7 @@ red for that time, and the mapping follows the tag). A push between the
 gates and the release gives `release.yml` a head with no run of `ci`, and
 the release fails.
 
-When the dispatch fails, open a new issue titled exactly
+Only when the dispatch fails, open a new issue titled exactly
 `[gh action] requested`: one line of why, and one `sh` block with each
 `gh` command in full (`-R` and each flag), `set -e` first. The owner's
 local agent runs the block once and writes the output or the error back.

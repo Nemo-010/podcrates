@@ -7,8 +7,8 @@
 - `docs/HANDOFF.md` has what is in flight and what waits.
 - Last release: `v0.60.0` at `725b729` (`docs/releases/v0.60.0.md`; ci
   43797570607, adoption 43797574794, release 43800608238; the request
-  #205): T-716, T-714, T-715, T-745, T-726, T-750. The hand-off to the
-  consumers is not open yet (`docs/HANDOFF.md`).
+  #205): T-716, T-714, T-715, T-745, T-726, T-750. The hand-off is
+  COORD-119 (#206).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.58.0` (`043f32c`, PodUtils/podssh#279): it runs the one

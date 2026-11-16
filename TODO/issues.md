@@ -195,11 +195,11 @@ kinds and the rules.
 | #188 | coord | COORD-113: v0.54.0: pod-lab and pod-manual part 1; run your release in the labs, and take your help and manual from pod-manual (to all) | open | T-692, T-700 |
 | #189 | request | [gh action] requested: the checks of main at aec056d and a dry run of issue-sync.yml | closed (its SHA moved before it ran; replaced by #190) | T-703 |
 | #190 | request | [gh action] requested: the checks of main at bf13591 and a dry run of issue-sync.yml | closed (deny 43762144799 and secrets 43762148637 passed; adoption 43762137913 failed: T-703; issue-sync dry run 43762153730: one fault, #190 unmapped; ci and plants cancelled by #191) | T-703 |
-| #191 | request | [gh action] requested: the checks of main at 320ebdf (the rules of the issues opt in) and a dry run of issue-sync.yml | open | T-703 |
+| #191 | request | [gh action] requested: the checks of main at 320ebdf (the rules of the issues opt in) and a dry run of issue-sync.yml | closed (not run; `main` moved past 320ebdf, and the gates of later commits ran: #193, #203, #205) | T-703 |
 | #192 | coord | COORD-114: the rules of the issues found drift in the records of podssh and podnet; repair the map, then turn the rules on (to podssh) (to podnet) | open | T-703 |
 | #193 | request | [gh action] requested: the gates of main at e3c3e1d and the release v0.55.0 | closed (ci 43765816118, adoption 43765819330, release 43767734826, publish 43767752196) | T-703, T-701 |
 | #194 | coord | COORD-115: v0.55.0: the sync of the issues (call issue-sync.yml at this tag) and 18 new lab profiles from podssh and podnet (to all) | open | T-703, T-701 |
-| #195 | request | [gh action] requested: the gates of main at 93bf133 and the release v0.56.0 | open | T-723 |
+| #195 | request | [gh action] requested: the gates of main at 93bf133 and the release v0.56.0 | closed (`v0.56.0` is out; the gates of later commits ran: #197, #203, #205) | T-723 |
 | #196 | request | [gh action] requested: the gates of main at 0d6421c, a dry run of issue-sync.yml, and the release v0.57.0 | closed (ci 43771483683 failed in pod-transit: T-731; adoption 43771488468 passed; replaced by #197) | T-724, T-731 |
 | #197 | request | [gh action] requested: ci and a dry run of issue-sync.yml at 0d6421c again, and the release v0.57.0 | closed (ci 43773301549, issue-sync dry run 43773304717, release 43775650432, publish 43775667576) | T-724 |
 | #198 | request | [gh action] requested: the gates of main at f84fb23 and the release v0.58.0 | closed (ci 43779481815 failed: shellcheck in install, two stale plants in lint; adoption 43779485406 passed; replaced by #199) | T-725, T-737, T-731, T-702 |
@@ -210,5 +210,6 @@ kinds and the rules.
 | #203 | request | [gh action] requested: the gates of main at 0e78211 and the release v0.59.0 | closed (ci 43790224125, adoption 43790228324, release 43792622830, publish 43792804759) | T-738, T-739, T-742, T-743, T-744, T-736, T-732 |
 | #204 | coord | COORD-118: v0.59.0: the volumes of pod-enter (podvm#440), podnet's two defects (podnet#592), the chroot row (podrunner#191) (to all) | open | T-738, T-739, T-742, T-743, T-744 |
 | #205 | request | [gh action] requested: the gates of main at 725b729 and the release v0.60.0 | closed | T-716, T-714, T-715, T-745, T-726, T-750 |
+| #206 | coord | COORD-119: v0.60.0: the network labs of pod-lab, 20 host-class rows of pod-hostprobe, clap's requires in pod-manual, the overlay upper layer of pod-enter (to all) | open | T-716, T-714, T-715, T-745, T-726, T-750 |
 
 #79 to #81 are pull requests.

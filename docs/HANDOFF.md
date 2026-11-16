@@ -11,33 +11,23 @@ is done. Git and the record keep finished work.
 
 1. Start the watcher under the Monitor tool and keep it running:
    `python3 -I scripts/agent/watch.py podcrates --state STATE_DIR --every 120`.
-   Read the open COORD issues `(to podcrates)` and the open
-   `[gh action] requested` issues.
-2. Open the hand-off of `v0.60.0` (the next COORD number, title with
-   `(to all)`), and map it in `TODO/issues.md` and `TODO/github.txt`. Name:
-   the network labs of `pod-lab` (T-716), the new rows of
-   `pod-hostprobe` (T-714, T-715, T-745), clap's `requires` in the model of
-   `pod-manual` (T-726), and the checks of the overlay upper view of
-   `pod-enter` (T-750). List the changes of the API from
-   `docs/releases/v0.60.0.md`.
-3. Take the unfinished work of the two `wip/` branches (below), finish
+   Read the open COORD issues `(to podcrates)`.
+2. Take the unfinished work of the two `wip/` branches (below), finish
    it, check it, push it to `main`, release it.
-4. Then the work order of `TODO/PROGRESS.md`: T-747, T-755, T-756, then
+3. Then the work order of `TODO/PROGRESS.md`: T-747, T-755, T-756, then
    the move of podssh (T-038, T-037, T-029, T-030, T-039, T-036), then
    T-526.
 
 ## The rules that cost the most time
 
-- The account of a cloud session cannot start a workflow. Each run comes
-  by a `[gh action] requested` issue (`docs/maintenance.md`, "A run of a
-  workflow"). Do not edit the block of a request: close the issue and open
-  a new one.
-- The block tests that `main` is at its commit. Push nothing to `main`
-  from the open of a request until its runs start (a check) or until the
-  tag exists (a release). Keep the record on a local branch meanwhile.
-- Watch the runs from the open of the request (the watcher reports each
-  run that starts and ends). Do not wait for the comment of the owner's
-  agent: a red run that waits blocks each consumer.
+- A push of a cloud session starts no workflow. Dispatch each run with
+  the MCP tool `actions_run_trigger` (`docs/maintenance.md`, "A run of a
+  workflow"). Only when the dispatch fails, open a `[gh action] requested`
+  issue.
+- Push nothing to `main` from a dispatch of the gates until its runs
+  start, and from a dispatch of `release.yml` until the tag exists.
+- Watch the runs (the watcher reports each run that starts and ends). A
+  red run that waits blocks each consumer.
 - Run the lint scripts of `ci.yml` before each push, not only the four
   checks of `AGENTS.md`: `check-design-paths.py`, `check-probe.py`,
   `check-workflows.py`, `check-size.py`, `scripts/plants/plant-each.sh
