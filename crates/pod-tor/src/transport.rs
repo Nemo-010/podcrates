@@ -4,7 +4,7 @@
 //! crate's ([`crate::runtime`]). Each of the two transports has a sentinel
 //! address there, and the provider answers a dial of one with one end of a
 //! pipe in memory; a task here holds the other end, answers Arti's SOCKS5
-//! handshake ([`crate::socks`]), whose user and password carry the bridge's
+//! handshake (`socks.rs`), whose user and password carry the bridge's
 //! arguments, opens the transport through `pod-egress` (the dial and the
 //! TLS of the way out), says whether it opened, and carries the bytes.
 //!
