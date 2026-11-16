@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/net/proxy.rs b/crates/pod-lab/src/net/proxy.rs
+index a598146a..382c0c1d 100644
+--- a/crates/pod-lab/src/net/proxy.rs
++++ b/crates/pod-lab/src/net/proxy.rs
+@@ -122,7 +122,7 @@ pub fn proxy(cas: &Cas, net: &Net, rules: &Proxy, mut tcp: TcpStream) {
+     if rules.reterminate.contains(&host.as_str()) {
+         let _ = tcp.set_read_timeout(Some(WAIT));
+         if let Ok(Some(_)) = peek_record(&tcp) {
+-            tls(cas, tcp, &host, Ca::Proxy, rules.refuse_upgrade);
++            tls(cas, tcp, &host, Ca::Server, rules.refuse_upgrade);
+         }
+         return;
+     }

@@ -1,0 +1,6 @@
+# The lab of no-proxy-no-dns keeps the /etc/resolv.conf of the host, with
+# its name servers; the check from inside must refuse the run.
+ENTRY=T-716
+GROUP=lab
+EXPECT='the lab no-proxy-no-dns does not hold: no-resolver'
+RUN='sh scripts/ci/userns-tests.sh'

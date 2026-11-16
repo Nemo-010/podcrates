@@ -1,0 +1,12 @@
+diff --git a/crates/pod-lab/src/net/standin.rs b/crates/pod-lab/src/net/standin.rs
+index 542e89f9..1c0bb628 100644
+--- a/crates/pod-lab/src/net/standin.rs
++++ b/crates/pod-lab/src/net/standin.rs
+@@ -98,7 +98,6 @@ fn serve(ready: Ready, net: &'static Net, cas: Arc<Cas>, lab: i64, cert_file: Pa
+             _ => break,
+         }
+     }
+-    let _ = std::fs::remove_file(&cert_file);
+     k::exit_group(0)
+ }
+ 

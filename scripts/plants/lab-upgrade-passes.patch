@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/net/proxy.rs b/crates/pod-lab/src/net/proxy.rs
+index a598146a..03b386ca 100644
+--- a/crates/pod-lab/src/net/proxy.rs
++++ b/crates/pod-lab/src/net/proxy.rs
+@@ -28,7 +28,7 @@ fn answer(s: &mut impl Write, status: &str, body: &str) {
+ /// 200 with [`BODY`].
+ fn http(s: &mut (impl Read + Write), refuse: bool) {
+     let Ok(head) = read_head(s) else { return };
+-    if refuse && header(&head, "upgrade").is_some() {
++    if refuse && false && header(&head, "upgrade").is_some() {
+         answer(s, "403 Forbidden", "");
+     } else {
+         answer(s, "200 OK", BODY);

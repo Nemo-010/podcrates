@@ -1,0 +1,6 @@
+# The stand-in server of sni-allowlist takes each name; the check from
+# inside must refuse the run.
+ENTRY=T-716
+GROUP=lab
+EXPECT='the lab sni-allowlist does not hold: sni-reset'
+RUN='sh scripts/ci/userns-tests.sh'

@@ -1,13 +1,13 @@
 diff --git a/crates/pod-lab/src/mounts.rs b/crates/pod-lab/src/mounts.rs
-index d94cd38e..6a322baf 100644
+index 1b5a4c26..eb6e84f9 100644
 --- a/crates/pod-lab/src/mounts.rs
 +++ b/crates/pod-lab/src/mounts.rs
-@@ -224,7 +224,7 @@ fn ids(uid: u32, gid: u32) -> Result<(), String> {
+@@ -243,7 +243,7 @@ fn ids(uid: u32, gid: u32) -> Result<(), String> {
          };
          let id = id.to_string();
          let kept: String =
 -            text.lines().filter(|l| l.split(':').nth(2) != Some(id.as_str())).map(|l| format!("{l}\n")).collect();
 +            text.lines().filter(|l| !l.is_empty() || id.is_empty()).map(|l| format!("{l}\n")).collect();
-         let name = file.trim_start_matches("/etc/");
-         let tmp = std::env::temp_dir().join(format!("podlab-{name}-{}", k::getpid()));
-         let made = std::fs::OpenOptions::new()
+         bind_text(file, &kept)?;
+     }
+     Ok(())

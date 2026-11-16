@@ -1,0 +1,6 @@
+# Each network lab puts 192.0.2.0/24 on its loopback, so a direct connect
+# of proxy-only reaches out; the check from inside must refuse the run.
+ENTRY=T-716
+GROUP=lab
+EXPECT='the lab proxy-only does not hold: direct-refused'
+RUN='sh scripts/ci/userns-tests.sh'

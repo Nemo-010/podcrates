@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/lab.rs b/crates/pod-lab/src/lab.rs
+index ba3bf8bb..9f2e4e53 100644
+--- a/crates/pod-lab/src/lab.rs
++++ b/crates/pod-lab/src/lab.rs
+@@ -254,7 +254,7 @@ fn environment(c: &mut Command, lab: &Started) {
+     }
+     if let Some(p) = &lab.net.proxy {
+         let url = crate::net::proxy_url(p);
+-        for v in &PROXY_VARIABLES[..4] {
++        for v in &PROXY_VARIABLES[..0] {
+             c.env(v, &url);
+         }
+     }

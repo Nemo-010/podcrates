@@ -1,0 +1,12 @@
+diff --git a/crates/pod-lab/src/net/setup.rs b/crates/pod-lab/src/net/setup.rs
+index 878a62e7..df349eb1 100644
+--- a/crates/pod-lab/src/net/setup.rs
++++ b/crates/pod-lab/src/net/setup.rs
+@@ -107,7 +107,6 @@ fn nsswitch(text: &str) -> String {
+ /// the file of the host where the host has one.
+ fn no_resolver() -> Result<(), String> {
+     let bind = crate::mounts::bind_text;
+-    bind("/etc/resolv.conf", "options attempts:1 timeout:1\n")?;
+     bind("/etc/hosts", "127.0.0.1 localhost\n::1 localhost\n")?;
+     match std::fs::read_to_string("/etc/nsswitch.conf") {
+         Ok(text) => bind("/etc/nsswitch.conf", &nsswitch(&text)),

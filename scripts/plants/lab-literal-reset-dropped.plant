@@ -1,0 +1,6 @@
+# The stand-in proxy of proxy-per-name answers 200 to an IP literal; the
+# check from inside must refuse the run.
+ENTRY=T-716
+GROUP=lab
+EXPECT='the lab proxy-per-name does not hold: answer-per-name'
+RUN='sh scripts/ci/userns-tests.sh'

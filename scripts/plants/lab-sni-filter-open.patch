@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/net/proxy.rs b/crates/pod-lab/src/net/proxy.rs
+index a598146a..247a37ca 100644
+--- a/crates/pod-lab/src/net/proxy.rs
++++ b/crates/pod-lab/src/net/proxy.rs
+@@ -60,7 +60,7 @@ pub fn server(cas: &Cas, net: &Net, tcp: TcpStream, name: Option<&str>, ca: Ca,
+         return;
+     };
+     let given = server_name(&record).ok().flatten();
+-    if let Some(list) = net.sni
++    if let Some(list) = net.sni.filter(|_| false)
+         && !given.as_deref().is_some_and(|n| list.contains(&n))
+     {
+         reset(tcp);

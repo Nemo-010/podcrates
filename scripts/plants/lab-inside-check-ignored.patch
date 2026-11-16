@@ -1,9 +1,11 @@
+diff --git a/crates/pod-lab/src/lab.rs b/crates/pod-lab/src/lab.rs
+index ba3bf8bb..1c7be98b 100644
 --- a/crates/pod-lab/src/lab.rs
 +++ b/crates/pod-lab/src/lab.rs
-@@ -212,6 +212,7 @@
-     let set = setup(profile, &connect);
-     let findings = inside::measure(&settings.hostprobe, &inside::rows(profile));
-     let mut verdict = check_with(profile, &findings, &inside::lab_fact);
+@@ -216,6 +216,7 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
+         LabFact::Net(f) => crate::net::measure(f, net.as_ref()),
+         f => inside::lab_fact(f),
+     });
 +    verdict.parts.iter_mut().for_each(|p| p.state = State::Holds);
      for (part, why) in verdict.parts.iter_mut().zip(&set) {
          if let Some(why) = why {

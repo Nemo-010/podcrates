@@ -1,0 +1,6 @@
+# The stand-in proxy of proxy-tls-reterminate shows the CA of the server
+# for a listed name; the check from inside must refuse the run.
+ENTRY=T-716
+GROUP=lab
+EXPECT='the lab proxy-tls-reterminate does not hold: tls-reterminated'
+RUN='sh scripts/ci/userns-tests.sh'

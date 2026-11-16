@@ -1,0 +1,6 @@
+# The stand-in leaves the certificate file of the command after the run;
+# the test must fail.
+ENTRY=T-716
+GROUP=lab
+EXPECT='the stand-in left /'
+RUN='sh scripts/ci/userns-tests.sh'

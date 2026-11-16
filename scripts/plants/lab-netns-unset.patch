@@ -1,13 +1,13 @@
 diff --git a/crates/pod-lab/src/mounts.rs b/crates/pod-lab/src/mounts.rs
-index d94cd38e..2499fa24 100644
+index 1b5a4c26..d23ad446 100644
 --- a/crates/pod-lab/src/mounts.rs
 +++ b/crates/pod-lab/src/mounts.rs
-@@ -59,7 +59,7 @@ pub fn holds(holds: &[Hold]) -> Result<Vec<Result<(), String>>, String> {
+@@ -66,7 +66,7 @@ pub fn holds(holds: &[Hold]) -> Result<Made, String> {
              userns::enter(&userns::Maps::new(uid, gid))
                  .map_err(|(step, e)| format!("the user namespace of the mounts: {}", words(step.name(), e)))?;
          }
--        let net = if holds.contains(&Hold::NetNs) { CLONE_NEWNET } else { 0 };
-+        let net = 0;
+-        let netns = holds.iter().any(|h| matches!(h, Hold::NetNs | Hold::LabNet(_)));
++        let netns = holds.iter().any(|h| matches!(h, Hold::LabNet(_)));
+         let net = if netns { CLONE_NEWNET } else { 0 };
          k::unshare(k::CLONE_NEWNS | net).map_err(|e| words("unshare(CLONE_NEWNS)", e))?;
          let none = k::cempty();
-         k::mount(&none, &c("/")?, &none, k::MS_REC | k::MS_PRIVATE).map_err(|e| words("mount(/, MS_PRIVATE)", e))?;

@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/net/setup.rs b/crates/pod-lab/src/net/setup.rs
+index 878a62e7..0f48052b 100644
+--- a/crates/pod-lab/src/net/setup.rs
++++ b/crates/pod-lab/src/net/setup.rs
+@@ -120,7 +120,7 @@ fn no_resolver() -> Result<(), String> {
+ /// stand-ins.
+ pub fn prepare(net: &Net) -> Result<Ready, String> {
+     let fd = k::socket(k::AF_INET, k::SOCK_DGRAM | k::SOCK_CLOEXEC, 0).map_err(|e| words("socket(AF_INET)", e))?;
+-    let up = loopback_up(fd).and_then(|_| if net.outside_v4 { outside_v4_up(fd) } else { Ok(()) });
++    let up = loopback_up(fd).and_then(|_| if net.outside_v4 || true { outside_v4_up(fd) } else { Ok(()) });
+     let _ = k::close(fd);
+     up?;
+     if net.outside_v6 {

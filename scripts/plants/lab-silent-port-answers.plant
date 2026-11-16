@@ -1,0 +1,6 @@
+# The silent port of proxy-tls-reterminate sends a byte; the check from
+# inside must refuse the run.
+ENTRY=T-716
+GROUP=lab
+EXPECT='the lab proxy-tls-reterminate does not hold: ssh-port-silent'
+RUN='sh scripts/ci/userns-tests.sh'
