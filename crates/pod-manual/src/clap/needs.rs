@@ -2,7 +2,8 @@
 //! found by the parser itself. clap gives no getter of the requirements of
 //! an argument, so each argument is given alone to a copy of the parser,
 //! and the arguments that clap's `MissingRequiredArgument` error names are
-//! the arguments that it needs.
+//! the arguments that it needs. clap shows a needed group as `<A|B>`: the
+//! need of one of its arguments (`Rule::Needs` with `one`).
 //!
 //! The copy of the tree: no variable gives a value (clap's `env`), and no
 //! argument, group or command is required, so that an error names only what
@@ -13,7 +14,7 @@
 use std::collections::BTreeSet;
 
 use ::clap::error::{ContextKind, ContextValue, ErrorKind};
-use ::clap::{ArgAction, Command};
+use ::clap::{ArgAction, ArgGroup, Command};
 
 use crate::model::Rule;
 
@@ -71,6 +72,65 @@ impl Probe {
     }
 }
 
+/// The text of each argument and group of a command as an error of clap
+/// shows a missing one, with the indices of its arguments. The key `i` is
+/// the argument `i`: its usage with a value. The key of a group comes after
+/// them: clap's `<A|B>`, a flag as its usage and a positional as its value
+/// names, in the order of the group.
+struct Keys {
+    text: Vec<String>,
+    members: Vec<Vec<usize>>,
+}
+
+impl Keys {
+    fn new(cmd: &Command, args: &[::clap::Arg]) -> Self {
+        let mut text: Vec<String> = args.iter().map(|a| a.clone().required(true).to_string()).collect();
+        let mut members: Vec<Vec<usize>> = (0..args.len()).map(|i| vec![i]).collect();
+        for g in cmd.get_groups() {
+            let at = group_args(g, args);
+            let shown: Vec<String> = at.iter().map(|i| group_form(&args[*i])).collect();
+            let key = format!("<{}>", shown.join("|"));
+            // A group of one positional shows as that positional, and two
+            // groups of the same arguments are one need.
+            if !text.contains(&key) {
+                text.push(key);
+                members.push(at);
+            }
+        }
+        Keys { text, members }
+    }
+
+    /// The key of `missing`; none when no key or two keys show so.
+    fn find(&self, missing: &str) -> Option<usize> {
+        let mut at = self.text.iter().enumerate().filter(|(_, k)| *k == missing).map(|(i, _)| i);
+        at.next().filter(|_| at.next().is_none())
+    }
+}
+
+/// The arguments of `group`, in their order. clap refuses a group in a
+/// group (a debug assertion of its builder).
+fn group_args(group: &ArgGroup, args: &[::clap::Arg]) -> Vec<usize> {
+    let mut out: Vec<usize> = Vec::new();
+    for i in group.get_args().filter_map(|n| args.iter().position(|a| a.get_id() == n)) {
+        if !out.contains(&i) {
+            out.push(i);
+        }
+    }
+    out
+}
+
+/// An argument as clap's `format_group` shows it.
+fn group_form(arg: &::clap::Arg) -> String {
+    if !arg.is_positional() {
+        return arg.to_string();
+    }
+    match arg.get_value_names() {
+        Some([one]) => one.to_string(),
+        Some(names) if !names.is_empty() => names.iter().map(|n| format!("<{n}>")).collect::<Vec<_>>().join(" "),
+        _ => arg.get_id().to_string(),
+    }
+}
+
 /// The tokens that give `arg` with the value `value`.
 fn tokens(arg: &::clap::Arg, value: &str) -> Vec<String> {
     let count = arg.get_num_args().map_or(1, |n| n.min_values().max(1));
@@ -106,20 +166,17 @@ struct Found {
     possible: bool,
 }
 
-fn probe(p: &mut Probe, path: &[String], lead: &[String], arg: &::clap::Arg, keys: &[String]) -> Option<Found> {
+fn probe(p: &mut Probe, path: &[String], lead: &[String], arg: &::clap::Arg, keys: &Keys) -> Option<Found> {
     let base: BTreeSet<String> = p.missing(path, lead)?.into_iter().collect();
     let (vals, possible) = values(arg);
     let mut each = Vec::new();
     for v in vals {
         let given: Vec<String> = lead.iter().cloned().chain(tokens(arg, &v)).collect();
         let Some(miss) = p.missing(path, &given) else { continue };
-        // A shown argument of the command that the parse names and the base
-        // parse does not. A group or an argument of two shown forms is no
+        // An argument or a group of the command that the parse names and
+        // the base parse does not. An argument of two shown forms is no
         // single need.
-        let need = miss.iter().filter(|m| !base.contains(*m)).filter_map(|m| {
-            let mut at = keys.iter().enumerate().filter(|(_, k)| *k == m).map(|(i, _)| i);
-            at.next().filter(|_| at.next().is_none())
-        });
+        let need = miss.iter().filter(|m| !base.contains(*m)).filter_map(|m| keys.find(m));
         each.push((v, need.collect()));
         if !possible && each.len() == 2 {
             break;
@@ -128,14 +185,13 @@ fn probe(p: &mut Probe, path: &[String], lead: &[String], arg: &::clap::Arg, key
     (!each.is_empty()).then(|| Found { spelling: super::spelling(arg), each, possible })
 }
 
-/// The `Needs` rules of the command at `path`. A rule that names a hidden
-/// argument is left out, as the model has no hidden argument.
+/// The `Needs` rules of the command at `path`. A need of a hidden argument,
+/// or of a group with a hidden argument, is left out, as the model has no
+/// hidden argument.
 pub(super) fn rules(p: &mut Probe, path: &[String]) -> Vec<Rule> {
     let Some(cmd) = p.command(path) else { return Vec::new() };
     let args: Vec<::clap::Arg> = cmd.get_arguments().cloned().collect();
-    // clap shows a missing argument as its usage with a value: the key of
-    // each argument.
-    let keys: Vec<String> = args.iter().map(|a| a.clone().required(true).to_string()).collect();
+    let keys = Keys::new(cmd, &args);
     let skip = |a: &::clap::Arg| {
         a.is_hide_set()
             || matches!(
@@ -164,13 +220,13 @@ pub(super) fn rules(p: &mut Probe, path: &[String]) -> Vec<Rule> {
             found.push((i, f));
         }
     }
-    shape(&args, &found)
+    shape(&args, &keys, &found)
 }
 
 /// The rules of the probes: the needs of each value in common, then the
 /// needs of one value alone; a need that another need of the same argument
 /// gives is left out (clap's `requires` is followed through).
-fn shape(args: &[::clap::Arg], found: &[(usize, Found)]) -> Vec<Rule> {
+fn shape(args: &[::clap::Arg], keys: &Keys, found: &[(usize, Found)]) -> Vec<Rule> {
     let common = |f: &Found| -> BTreeSet<usize> {
         let mut sets = f.each.iter().map(|(_, s)| s.clone());
         let first = sets.next().unwrap_or_default();
@@ -178,28 +234,45 @@ fn shape(args: &[::clap::Arg], found: &[(usize, Found)]) -> Vec<Rule> {
     };
     let plain: Vec<(usize, BTreeSet<usize>)> = found.iter().map(|(i, f)| (*i, common(f))).collect();
     let of = |i: usize| plain.iter().find(|(j, _)| *j == i).map(|(_, s)| s.clone()).unwrap_or_default();
-    let direct = |needs: &BTreeSet<usize>, all: &BTreeSet<usize>| -> Vec<String> {
+    let hidden = |c: &usize| keys.members[*c].iter().any(|i| args[*i].is_hide_set());
+    let direct = |needs: &BTreeSet<usize>, all: &BTreeSet<usize>| -> Vec<Vec<String>> {
         let given = |c: &usize| all.iter().any(|b| b != c && of(*b).contains(c) && !of(*c).contains(b));
-        let shown = needs.iter().filter(|c| !args[**c].is_hide_set() && !given(c));
-        shown.map(|c| super::spelling(&args[*c])).collect()
+        let shown = needs.iter().filter(|c| !hidden(c) && !given(c));
+        shown.map(|c| keys.members[*c].iter().map(|i| super::spelling(&args[*i])).collect()).collect()
     };
     let mut out = Vec::new();
     for (i, f) in found {
         let all = of(*i);
-        let needs = direct(&all, &all);
-        if !needs.is_empty() {
-            out.push(Rule::Needs { flag: f.spelling.clone(), value: None, needs });
-        }
+        push(&mut out, &f.spelling, None, direct(&all, &all));
         if !f.possible {
             continue;
         }
         for (v, s) in &f.each {
             let extra: BTreeSet<usize> = s.difference(&all).copied().collect();
-            let needs = direct(&extra, s);
-            if !needs.is_empty() {
-                out.push(Rule::Needs { flag: f.spelling.clone(), value: Some(v.clone()), needs });
-            }
+            push(&mut out, &f.spelling, Some(v), direct(&extra, s));
         }
     }
     out
+}
+
+/// The rules of the needs of `flag`: one rule of each need of one argument,
+/// then one rule of each group (a need of one of its arguments). A group of
+/// one argument is a need of that argument.
+fn push(out: &mut Vec<Rule>, flag: &str, value: Option<&String>, needs: Vec<Vec<String>>) {
+    let rule =
+        |needs: Vec<String>, one: bool| Rule::Needs { flag: flag.to_string(), value: value.cloned(), needs, one };
+    let mut each: Vec<String> = Vec::new();
+    let mut groups: Vec<Vec<String>> = Vec::new();
+    for n in needs {
+        match n.as_slice() {
+            [] => {}
+            [one] if each.contains(one) => {}
+            [one] => each.push(one.clone()),
+            _ => groups.push(n),
+        }
+    }
+    if !each.is_empty() {
+        out.push(rule(each, false));
+    }
+    out.extend(groups.into_iter().map(|g| rule(g, true)));
 }

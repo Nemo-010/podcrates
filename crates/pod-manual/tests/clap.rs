@@ -161,7 +161,7 @@ fn the_help_of_each_command_comes_from_the_model() {
 /// A tree with clap's `requires` and `requires_if`: a chain of two needs, a
 /// need of one value, a need of a value that a parser of addresses takes,
 /// a need of a required positional argument and of one after it, a need of
-/// a group and of a hidden flag. The flag that `--password-file` needs
+/// one of a group and of a hidden flag. The flag that `--password-file` needs
 /// takes `PATH` as its variable, set in each test run: the probe must not
 /// take a variable as given. With no argument, the command shows its help:
 /// the probe must not stop there.
@@ -192,7 +192,13 @@ fn needs_sample() -> clap::Command {
 
 fn needs(flag: &str, value: Option<&str>, needs: &[&str]) -> Rule {
     let needs = needs.iter().map(|n| n.to_string()).collect();
-    Rule::Needs { flag: flag.into(), value: value.map(str::to_string), needs }
+    Rule::Needs { flag: flag.into(), value: value.map(str::to_string), needs, one: false }
+}
+
+/// A need of one of `needs` (clap's `requires` of a group).
+fn needs_one(flag: &str, value: Option<&str>, needs: &[&str]) -> Rule {
+    let needs = needs.iter().map(|n| n.to_string()).collect();
+    Rule::Needs { flag: flag.into(), value: value.map(str::to_string), needs, one: true }
 }
 
 /// The reader gives clap's `requires` and `requires_if` as `Needs`, each
@@ -207,14 +213,16 @@ fn the_reader_gives_each_rule_of_requires() {
         needs("--password-file", None, &["--realm"]),
         needs("--mode", Some("tls"), &["--cert"]),
         needs("--bind", None, &["--host"]),
+        needs_one("--audit", None, &["--json", "--text"]),
         needs("TARGET", None, &["--host"]),
         needs("EXTRA", None, &["--verbose"]),
     ];
     let got: Vec<&Rule> = login.rules.iter().filter(|r| matches!(r, Rule::Needs { .. })).collect();
-    assert_eq!(got, want.iter().collect::<Vec<_>>(), "the group of --audit and the hidden --trace are left out");
+    assert_eq!(got, want.iter().collect::<Vec<_>>(), "the hidden --trace is left out");
     assert_none(model(&m));
     let t = text::render(&m);
-    for s in ["--user needs --password-file.", "--mode tls needs --cert.", "EXTRA needs --verbose."] {
+    let want = ["--user needs --password-file.", "--mode tls needs --cert.", "EXTRA needs --verbose."];
+    for s in want.iter().chain(&["--audit needs one of --json, --text."]) {
         assert!(t.contains(s), "{s}: {t}");
     }
     let j: serde_json::Value = serde_json::from_str(&json::text(&json::document(&m))).unwrap();
@@ -230,4 +238,96 @@ fn a_tree_with_no_requires_gives_no_needs() {
     let m = manual();
     let any = m.commands.iter().flat_map(|c| &c.rules).find(|r| matches!(r, Rule::Needs { .. }));
     assert_eq!(any, None);
+}
+
+/// A tree with clap's `requires` of groups: a group of two flags, a group
+/// of an option and a positional, a group of three, a group of one flag,
+/// a group with a hidden flag, a `requires_if` of a group, and a flag that
+/// needs a flag with a need of a group.
+fn groups_sample() -> clap::Command {
+    let flag = |id: &'static str| clap::Arg::new(id).long(id).action(clap::ArgAction::SetTrue);
+    let group = |id: &'static str, args: &[&'static str]| clap::ArgGroup::new(id).args(args);
+    clap::Command::new("podnet").subcommand(
+        clap::Command::new("audit")
+            .about("Audit the hosts")
+            .arg(flag("audit").requires("out"))
+            .arg(flag("json"))
+            .arg(flag("text"))
+            .group(group("out", &["json", "text"]))
+            .arg(flag("save").requires("dest"))
+            .arg(clap::Arg::new("file").long("file").value_name("FILE"))
+            .arg(clap::Arg::new("host").value_name("HOST"))
+            .group(group("dest", &["file", "host"]))
+            .arg(flag("report").requires("any"))
+            .arg(flag("quiet"))
+            .group(group("any", &["quiet", "json", "text"]).multiple(true))
+            .arg(flag("brief").requires("only"))
+            .group(group("only", &["quiet"]))
+            .arg(flag("debug").requires("inner"))
+            .arg(flag("trace").hide(true))
+            .group(group("inner", &["trace", "json"]))
+            .arg(clap::Arg::new("mode").long("mode").value_parser(["plain", "signed"]).requires_if("signed", "keys"))
+            .arg(clap::Arg::new("key").long("key").value_name("KEY"))
+            .arg(clap::Arg::new("agent").long("agent"))
+            .group(group("keys", &["key", "agent"]))
+            .arg(flag("strict").requires("audit")),
+    )
+}
+
+/// The reader gives a `requires` of a group as a need of one of its
+/// arguments (a positional by its name); a
+/// group of one argument is a need of it; a group with a hidden argument
+/// and a need that another need gives are left out. Each writer names the
+/// rule, the JSON keeps it, and the model agrees with the parser.
+#[test]
+fn the_reader_gives_a_need_of_one_of_a_group() {
+    let m = pod_manual::clap::read(groups_sample());
+    let audit = m.command("audit").unwrap();
+    let want = [
+        needs_one("--audit", None, &["--json", "--text"]),
+        needs_one("--save", None, &["--file", "HOST"]),
+        needs_one("--report", None, &["--quiet", "--json", "--text"]),
+        needs("--brief", None, &["--quiet"]),
+        needs_one("--mode", Some("signed"), &["--key", "--agent"]),
+        needs("--strict", None, &["--audit"]),
+    ];
+    let got: Vec<&Rule> = audit.rules.iter().filter(|r| matches!(r, Rule::Needs { .. })).collect();
+    assert_eq!(got, want.iter().collect::<Vec<_>>(), "the group with the hidden --trace is left out");
+    assert_none(model(&m));
+    assert_none(flags(&m, pod_manual::clap::parser(groups_sample())));
+    let sentences = [
+        "--audit needs one of --json, --text.",
+        "--save needs one of --file, HOST.",
+        "--mode signed needs one of --key, --agent.",
+        "--brief needs --quiet.",
+    ];
+    let t = text::render(&m);
+    let page = help::render(&m, &["audit".to_string()]).unwrap();
+    let full = pod_manual::llms::full(&m, &[]);
+    let r = roff::render(&m);
+    for s in sentences {
+        for (name, out) in [("text", &t), ("help", &page), ("llms-full.txt", &full)] {
+            assert!(out.contains(s), "{name}: {s}: {out}");
+        }
+        assert!(r.contains(&roff::escape(s)), "man: {s}: {r}");
+    }
+    let doc = json::text(&json::document(&m));
+    let j: serde_json::Value = serde_json::from_str(&doc).unwrap();
+    let c = j["commands"].as_array().unwrap().iter().find(|c| c["path"] == serde_json::json!(["audit"])).unwrap();
+    let rule = c["rules"].as_array().unwrap().iter().find(|r| r["flag"] == "--audit").unwrap();
+    assert_eq!(
+        rule,
+        &serde_json::json!({"rule": "needs", "flag": "--audit", "needs": ["--json", "--text"], "one": true})
+    );
+    assert_eq!(json::read(&doc).unwrap(), m, "the JSON gives the model back");
+    let files = pod_manual::llms::from_json(&doc, &[], "https://example.invalid/").unwrap();
+    assert!(files.full.contains(sentences[0]), "{}", files.full);
+}
+
+/// A JSON of the manual with no field `one` reads as a need of each name.
+#[test]
+fn a_need_with_no_field_one_is_a_need_of_each() {
+    let r: Rule = serde_json::from_str(r#"{"rule": "needs", "flag": "--user", "needs": ["--a", "--b"]}"#).unwrap();
+    assert_eq!(r, needs("--user", None, &["--a", "--b"]));
+    assert_eq!(r.sentence(), "--user needs --a and --b.");
 }

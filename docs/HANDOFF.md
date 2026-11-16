@@ -18,8 +18,8 @@ is done. Git and the record keep finished work.
    job needs an entry.
 3. T-767 (PodUtils/podssh#283, P1, partial): wait for podssh's next stall
    with the line `session.resume`, then find the cause; T-768 beside it.
-4. Then the work order of `TODO/PROGRESS.md`: T-747, T-755, T-756,
-   the contract of `pod-link` (T-774 to T-778), then the move of podssh
+4. Then the work order of `TODO/PROGRESS.md`: T-747, T-755, the
+   contract of `pod-link` (T-774 to T-778), then the move of podssh
    (T-038, T-037, T-029, T-030, T-039, T-036), then T-526.
 
 ## The rules that cost the most time

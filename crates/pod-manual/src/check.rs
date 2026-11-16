@@ -10,13 +10,13 @@
 //! * [`exit_codes`]: each exit code that the program gives has a fact, and
 //!   each fact of one code is a code that it gives.
 //! * [`flags`]: each command and flag of the model against the parser.
-//! * [`model`]: each rule names flags of its command, and each name selects
-//!   one section.
+//! * [`model`]: each rule names flags of its command, a need of one of
+//!   names two or more, and each name selects one section.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use crate::model::Manual;
+use crate::model::{Manual, Rule};
 use crate::rules::Kind;
 
 mod walk;
@@ -222,7 +222,7 @@ pub fn flags(manual: &Manual, parser: impl Fn(&[String]) -> Option<ParserCommand
 }
 
 /// The rules of the model itself: each rule names flags or arguments of
-/// its command; the groups of a command name each command under it once,
+/// its command; a need of one of names two or more; the groups of a command name each command under it once,
 /// and no other; each name of a section selects one section.
 pub fn model(manual: &Manual) -> Vec<Finding> {
     let mut out = Vec::new();
@@ -234,6 +234,13 @@ pub fn model(manual: &Manual) -> Vec<Finding> {
                 if c.flag(name).is_none() && c.arg(name).is_none() {
                     out.push(finding(at, format!("the rule names {name}, which is no flag and no argument")));
                 }
+            }
+            // A need of one of a single name is a need of that name: the
+            // sentence "needs one of" must name a choice.
+            if let Rule::Needs { flag, needs, one: true, .. } = r
+                && needs.len() < 2
+            {
+                out.push(finding(at, format!("the rule of {flag} needs one of less than two names; give two or more")));
             }
         }
         if c.groups.is_empty() {

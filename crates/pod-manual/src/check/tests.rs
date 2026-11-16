@@ -25,7 +25,12 @@ fn a_fault_in_each_part_of_the_model_is_found() {
         (
             "sample tunnel",
             Box::new(|m| {
-                m.commands[1].rules.push(Rule::Needs { flag: "--url".into(), value: None, needs: vec!["C681".into()] })
+                m.commands[1].rules.push(Rule::Needs {
+                    flag: "--url".into(),
+                    value: None,
+                    needs: vec!["C681".into()],
+                    one: false,
+                })
             }),
         ),
     ];
@@ -42,11 +47,35 @@ use crate::model::{Block, Rule};
 #[test]
 fn a_rule_that_names_no_flag_and_a_name_of_two_sections_are_found() {
     let mut m = manual();
-    m.commands[1].rules.push(Rule::Needs { flag: "--url".into(), value: None, needs: vec!["--nothing".into()] });
+    m.commands[1].rules.push(Rule::Needs {
+        flag: "--url".into(),
+        value: None,
+        needs: vec!["--nothing".into()],
+        one: false,
+    });
     assert_eq!(model(&m).len(), 1, "{:?}", model(&m));
     let mut m = manual();
     m.topics[0].aliases.push("keywords".into());
     assert!(model(&m).iter().any(|f| f.what.contains("names two sections")), "{:?}", model(&m));
+}
+
+/// A need of one of two names is a rule; a need of one of a single name is
+/// a finding, as its sentence names no choice.
+#[test]
+fn a_need_of_one_of_names_two_or_more() {
+    let one = |needs: &[&str]| Rule::Needs {
+        flag: "--url".into(),
+        value: None,
+        needs: needs.iter().map(|n| n.to_string()).collect(),
+        one: true,
+    };
+    let mut m = manual();
+    m.commands[1].rules.push(one(&["--socket", "NAME"]));
+    assert_none(model(&m));
+    assert_eq!(one(&["--socket", "NAME"]).sentence(), "--url needs one of --socket, NAME.");
+    m.commands[1].rules.push(one(&["--socket"]));
+    let f = model(&m);
+    assert!(f.len() == 1 && f[0].what.contains("the rule of --url needs one of less than two names"), "{f:?}");
 }
 
 /// A rule may name a positional argument by its name: clap gives such

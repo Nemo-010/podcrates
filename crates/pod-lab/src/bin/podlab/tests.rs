@@ -114,7 +114,10 @@ fn the_rules_of_the_manual_are_the_rules_of_the_parser() {
     };
     let conflict = Rule::Excludes { flags: vec!["--json".into(), "--roff".into()] };
     let needs = |flag: &str| {
-        ("check".to_string(), Rule::Needs { flag: flag.into(), value: None, needs: vec!["--network".into()] })
+        (
+            "check".to_string(),
+            Rule::Needs { flag: flag.into(), value: None, needs: vec!["--network".into()], one: false },
+        )
     };
     assert_eq!(
         rules(&manual()),
@@ -122,14 +125,18 @@ fn the_rules_of_the_manual_are_the_rules_of_the_parser() {
             needs("--network-other"),
             needs("--network-literal"),
             needs("--network-closed"),
-            ("run".to_string(), Rule::Needs { flag: "--serve-ca".into(), value: None, needs: vec!["--serve".into()] }),
+            (
+                "run".to_string(),
+                Rule::Needs { flag: "--serve-ca".into(), value: None, needs: vec!["--serve".into()], one: false }
+            ),
             ("man".to_string(), conflict.clone())
         ]
     );
     let cmd = super::cli::command()
         .mut_subcommand("run", |c| c.mut_arg("allow_connect", |a| a.requires("partial")))
         .mut_subcommand("man", |c| c.mut_arg("section", |a| a.requires("no_pager")));
-    let needs = |flag: &str, need: &str| Rule::Needs { flag: flag.into(), value: None, needs: vec![need.into()] };
+    let needs =
+        |flag: &str, need: &str| Rule::Needs { flag: flag.into(), value: None, needs: vec![need.into()], one: false };
     let check = |flag: &str| ("check".to_string(), needs(flag, "--network"));
     let want = [
         check("--network-other"),
