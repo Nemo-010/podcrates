@@ -57,14 +57,23 @@ pub struct Spawner {
     /// fork. `None` where the value holds a NUL.
     child_flag: Option<CBuf>,
     child_name: Option<CBuf>,
+    /// True where [`crate::Settings::network`] is set: the rows that send
+    /// a packet out run, each in its child, which reads the targets from
+    /// [`crate::probes::NETWORK_VARIABLE`].
+    pub network: bool,
 }
 
 impl Spawner {
     /// The environment of this process goes to each child as it is: the
     /// child must see the same `PATH` and the same variables as the caller.
+    /// The one exception is [`crate::probes::NETWORK_VARIABLE`]: the
+    /// spawner sets it from [`crate::Settings::network`] alone, so that a
+    /// variable of the caller never turns on a row that sends a packet out.
     pub fn new(settings: &crate::Settings) -> Spawner {
         let (exe, source) = Self::find_self();
-        let envp_owned = std::env::vars_os()
+        let network = settings.network.as_ref().and_then(crate::probes::send::encode);
+        let mut envp_owned: Vec<CBuf> = std::env::vars_os()
+            .filter(|(k, _)| k != crate::probes::NETWORK_VARIABLE)
             .filter_map(|(k, v)| {
                 let mut s = Vec::new();
                 s.extend_from_slice(k.as_bytes());
@@ -78,12 +87,18 @@ impl Spawner {
                 String::from_utf8(s).ok().and_then(|s| CBuf::new(&s))
             })
             .collect();
+        if let Some(text) = &network
+            && let Some(c) = CBuf::new(&format!("{}={text}", crate::probes::NETWORK_VARIABLE))
+        {
+            envp_owned.push(c);
+        }
         Spawner {
             exe,
             exe_source: source,
             envp_owned,
             child_flag: CBuf::new(&settings.child_flag),
             child_name: CBuf::new(&settings.child_name),
+            network: settings.network.is_some(),
         }
     }
 

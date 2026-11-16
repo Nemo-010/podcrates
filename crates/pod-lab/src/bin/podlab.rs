@@ -56,6 +56,13 @@ mod cli {
             /// each port.
             #[arg(long, value_name = "PORT")]
             allow_connect: Vec<u16>,
+            /// Let the stand-in proxy of a network lab pass a CONNECT to a
+            /// name that is not of the lab to the real network, after the
+            /// rules of its class: directly, or through the proxy of
+            /// HTTPS_PROXY of this host with its credential. The command
+            /// never gets that proxy or its credential.
+            #[arg(long)]
+            way_out: bool,
             /// The name of the profile.
             profile: String,
             /// The command and its arguments.
@@ -186,12 +193,21 @@ mod cli {
                 print(&v);
                 code(&v)
             }
-            Cmd::Run { partial, allow_connect, profile: name, cmd } => {
+            Cmd::Run { partial, allow_connect, way_out, profile: name, cmd } => {
                 let p = match profile(&settings, &name) {
                     Ok(p) => p,
                     Err(c) => return c,
                 };
-                match pod_lab::run(&settings, p, &cmd, Options { partial, stdout: None, allow_connect }) {
+                if way_out && !pod_lab::has_proxy(p) {
+                    eprintln!("podlab: --way-out needs a profile with a stand-in proxy; {name} has none");
+                    return EXIT_USAGE;
+                }
+                if way_out {
+                    // The environment of podlab holds the proxy of the host.
+                    pod_lab::net::not_dumpable();
+                }
+                let opts = Options { partial, stdout: None, allow_connect, way_out };
+                match pod_lab::run(&settings, p, &cmd, opts) {
                     Ok(ran) => {
                         for part in ran.verdict.parts.iter().filter(|x| x.state != State::Holds) {
                             eprintln!(

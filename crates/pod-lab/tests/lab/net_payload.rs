@@ -22,7 +22,7 @@ pub fn main(kind: &str) -> Option<Out> {
         "nodns" => nodns(),
         "ws" => ws(),
         "v6" => v6(),
-        _ => return None,
+        _ => return crate::way_out_payload::main(kind),
     };
     let file = std::env::var("SSL_CERT_FILE").unwrap_or_default();
     Some(out.map(|line| format!("{line}\ncert {file}")))
@@ -30,7 +30,7 @@ pub fn main(kind: &str) -> Option<Out> {
 
 const WAIT: Duration = Duration::from_secs(5);
 
-fn connect(at: &str) -> std::io::Result<TcpStream> {
+pub fn connect(at: &str) -> std::io::Result<TcpStream> {
     let a: SocketAddr = at.parse().map_err(std::io::Error::other)?;
     let s = TcpStream::connect_timeout(&a, WAIT)?;
     s.set_read_timeout(Some(WAIT))?;
@@ -66,7 +66,7 @@ fn code(head: &str) -> u16 {
 
 /// A `CONNECT` to `target` through the proxy, with its credential where
 /// `auth`: the status, and the stream.
-fn via(target: &str, auth: bool) -> Result<(u16, TcpStream), String> {
+pub fn via(target: &str, auth: bool) -> Result<(u16, TcpStream), String> {
     use base64::Engine as _;
     let (at, cred) = proxy()?;
     let mut s = connect(&at).map_err(|e| format!("the proxy at {at}: {e}"))?;
@@ -80,7 +80,7 @@ fn via(target: &str, auth: bool) -> Result<(u16, TcpStream), String> {
 }
 
 /// A TLS client that trusts the roots of `SSL_CERT_FILE`.
-fn tls(
+pub fn tls(
     tcp: TcpStream,
     name: &str,
     sni: bool,
@@ -107,7 +107,7 @@ fn tls(
 }
 
 /// The issuer of the leaf: the name of the CA of the lab in its DER.
-fn issuer(s: &rustls::StreamOwned<rustls::ClientConnection, TcpStream>) -> &'static str {
+pub fn issuer(s: &rustls::StreamOwned<rustls::ClientConnection, TcpStream>) -> &'static str {
     let leaf = s.conn.peer_certificates().and_then(|c| c.first()).map(|c| c.as_ref().to_vec()).unwrap_or_default();
     let has = |n: &[u8]| leaf.windows(n.len()).any(|w| w == n);
     if has(b"pod-lab proxy CA") {

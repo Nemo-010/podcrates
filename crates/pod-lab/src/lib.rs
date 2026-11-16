@@ -58,7 +58,7 @@ pub use check::{PartVerdict, Seen, State, Verdict, check, check_with, judge};
 #[cfg(target_os = "linux")]
 pub use inside::{measure, rows};
 #[cfg(target_os = "linux")]
-pub use lab::{Options, Ran, RunError, exit_code, lab_main, run};
+pub use lab::{Options, Ran, RunError, exit_code, has_proxy, lab_main, run};
 #[cfg(target_os = "linux")]
 pub use profile::{Ca, Call, Expect, Hold, IdFact, LabFact, Net, NetFact, Observe, Part, Profile, Proxy, When};
 #[cfg(target_os = "linux")]

@@ -3,21 +3,28 @@
 //! (`standin`): a stand-in HTTP `CONNECT` proxy on `127.0.0.1:3128` and a
 //! stand-in TLS server on port 443, with two certificate authorities that
 //! the lab makes for each run (`tls`). No stand-in reaches out of the
-//! namespace: each answer of "the outside" comes from the stand-in itself.
+//! namespace: each answer of "the outside" comes from the stand-in itself,
+//! but where the caller asks for a way out (`out`): then the stand-in proxy
+//! passes a `CONNECT` to a name that is not of the lab ([`is_lab_name`]) to
+//! the real network, through a process outside the namespace (`relay`).
 //!
 //! [`Net`] is the data of the stand-ins of a profile; [`NetFact`] is a fact
 //! that the lab measures from inside (`measure`).
 
 mod measure;
+mod out;
+mod pass;
 mod proxy;
+mod relay;
 mod setup;
 mod standin;
 mod tls;
 mod wire;
 
 pub use measure::measure;
+pub(crate) use out::{WayOut, start as start_way_out};
 pub use setup::{Ready, prepare};
-pub use standin::{Started, start};
+pub use standin::{Started, not_dumpable, start};
 
 /// The port of the stand-in proxy, on `127.0.0.1` of the lab.
 pub const PROXY_PORT: u16 = 3128;
@@ -198,6 +205,24 @@ impl NetFact {
             NetFact::NoResolver => "a lookup of a name fails, and no name server answers".to_string(),
             NetFact::LiteralReaches => "TLS to 192.0.2.1:443 checks the address in the certificate".to_string(),
             NetFact::V6Reaches => "connect([fd00:6c61:62::1]:443) reaches the stand-in server".to_string(),
+        }
+    }
+}
+
+/// True where `host` (a name or an address of a `CONNECT`) is of the lab:
+/// its two names, `localhost`, its addresses outside (`192.0.2.0/24`,
+/// [`OUTSIDE_V6`]) and the loopback. The stand-ins answer it; a way out
+/// never dials it.
+pub fn is_lab_name(host: &str) -> bool {
+    use std::net::IpAddr;
+    match host.parse::<IpAddr>() {
+        Ok(IpAddr::V4(a)) => a.is_loopback() || a.is_unspecified() || a.octets()[..3] == OUTSIDE_V4[..3],
+        Ok(IpAddr::V6(a)) => {
+            a.is_loopback() || a.is_unspecified() || a == outside_v6() || a.to_ipv4_mapped().is_some_and(|v4| is_lab_name(&v4.to_string()))
+        }
+        Err(_) => {
+            let name = host.trim_end_matches('.');
+            [LISTED, OTHER, "localhost"].contains(&name) || name.ends_with(".localhost")
         }
     }
 }

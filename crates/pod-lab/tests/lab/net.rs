@@ -10,7 +10,7 @@ use pod_testkit::host::skip_line;
 /// False, with a skip line, where a caller that is not root gets no user
 /// namespace: a network lab needs one. `scripts/ci/userns-tests.sh` fails
 /// on the line.
-fn userns_here(name: &str) -> bool {
+pub fn userns_here(name: &str) -> bool {
     if !pod_testkit::nobody::is_root()
         && let Err(why) = pod_testkit::host::userns()
     {
@@ -106,4 +106,5 @@ pub fn all() {
     no_proxy_no_dns();
     ws_upgrade_refused();
     ipv6_only();
+    crate::way_out::all();
 }
