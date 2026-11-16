@@ -1,0 +1,12 @@
+diff --git a/crates/pod-relay/src/forward_layer/client.rs b/crates/pod-relay/src/forward_layer/client.rs
+--- a/crates/pod-relay/src/forward_layer/client.rs
++++ b/crates/pod-relay/src/forward_layer/client.rs
+@@ -163,7 +163,7 @@ fn way_refused(failure: &Failure) -> bool {
+     failure
+         .attempts
+         .iter()
+-        .any(|(_, e)| matches!(e, OpenError::Connect { error, .. } if crate::way_refusal::upgrade_refused(error)))
++        .any(|(_, e)| matches!(e, OpenError::Connect { .. }))
+ }
+ 
+ impl Dialer {

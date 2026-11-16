@@ -1,0 +1,12 @@
+diff --git a/crates/pod-relay/src/forward_layer/link.rs b/crates/pod-relay/src/forward_layer/link.rs
+--- a/crates/pod-relay/src/forward_layer/link.rs
++++ b/crates/pod-relay/src/forward_layer/link.rs
+@@ -38,7 +38,7 @@ fn road_error(ended: &Ended) -> Option<io::Error> {
+             "the relay closed the link of the HTTP road ({code} {})",
+             pod_core::text::one_line(&reason)
+         ))),
+-        End::Failed(why) => Some(io::Error::other(why)),
++        End::Failed(_) => None,
+     }
+ }
+ 

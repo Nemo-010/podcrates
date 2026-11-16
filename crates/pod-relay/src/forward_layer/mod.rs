@@ -12,6 +12,7 @@
 //!   that holds each session of it, where several share one name;
 //! - [`client`]: the links of one session to the host that holds it, and the
 //!   session across them;
+//! - [`link`]: one link, a WebSocket or a session of the HTTP road;
 //! - [`kept`]: what each host offered, kept for a day, so that a run that did
 //!   not ask takes the layer where its first host offered it.
 //!
@@ -20,9 +21,11 @@
 
 pub mod client;
 pub mod kept;
+pub mod link;
 pub mod offer;
 
-pub use client::{Dialer, Missed, carry, no_room};
+pub use client::{Dialer, Missed, carry, carry_or_road, no_room};
+pub use link::Link;
 pub use offer::{Offer, offered};
 
 /// The head of the path; the target follows it as on `/connect/`.

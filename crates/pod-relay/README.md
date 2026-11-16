@@ -48,7 +48,7 @@ and prints nothing.
 | `token`, `cache` | `obtain`, `kept` (the token of the settings, the run or the cache, with no mint), `MintContext`, `Token`, `TokenError`, `token_key`, `remember`, `forget` (the tokens of a run); `Cache`, `Cached`, `valid_token` |
 | `open`, `failover`, `failures`, `gate` | the opener (`open`; `open_on_loopback` with the feature `plain-ws`), the modes of a failover, the record of each host's faults, the gate of each origin |
 | `rank`, `rank_list`, `rank_auto` | the rank of the hosts, the order of the default list, the rank in a session's background (`Races`) |
-| `h2_road`, `quic_road`, `http_road`, `cleartext`, `forward_layer` | the roads to a relay; `http_road`: `Form` (`Split`, `Serial`, `One`; `name`, `parse`), `Forms`, `client::{open, Road (dial, dial_alpn, with_forms, in_run), Opened}`, `conn::{Dial, DialAlpn, Dialed, ALPN_OFFER, H2}`, `one::{Learned, MARK_WAIT}` (`Context::http_road_learned`) |
+| `h2_road`, `quic_road`, `http_road`, `cleartext`, `forward_layer` | the roads to a relay; `http_road`: `Form` (`Split`, `Serial`, `One`; `name`, `parse`), `Forms`, `client::{open, open_layer, Road (dial, dial_alpn, with_forms, in_run), Opened}`, `OPEN_LAYER`, `ONE_LAYER`, `layer_route`; `forward_layer`: `Dialer` (`link`, `link_or_road`, `over_road`, `with_road_form`, `by_road`), `Link` (`Ws`, `Road`), `carry`, `carry_or_road`, `Missed::Road`; `way_refusal::upgrade_refused`, `conn::{Dial, DialAlpn, Dialed, ALPN_OFFER, H2}`, `one::{Learned, MARK_WAIT}` (`Context::http_road_learned`) |
 | `health`, `addresses`, `keyed` | `/health` of a host; the addresses that carried a session; a request that the relay asks this client's key to sign |
 | `pair` (feature `pair`) | `PairContext`, `create`, `status`, `stop`, `revoke`, `halt`, `rotate`, the stores of a pair and of an operator's part, `newest` (the stored pair with the most time left, or the next one), `Pair::for_node` (a node's part of the name and the node token that its user gives, call C130) |
 | `reverse` (feature `pair`) | `run` (the node), `NodeConfig`, `NodeState`, `Handler`, `TcpHandler`, `UdpHandler`, `local::{Target, LocalHandler}`, `channel` and `ChannelHandler` (each session to a service of the process, T-150), `Layered`, `E2e`, `routes::Routes`, `operator` (`OperatorLimits::eof_idle`, `EOF_IDLE`), `serve`, `Settings` (`half_close`, `drain`, `lost_hold`), `HALF_CLOSE_IDLE`, `DRAIN`, `FIRST_CONFLICT`, `LOST_HOLD`, `held_line`, `wire::{Wire, Door, Carrier}`, the codecs |
@@ -158,6 +158,24 @@ server must make at the take of this version:
 - The `410` of `1000` carries `X-Total: BYTES`, the bytes down of the
   session. The client fails a `1000` with no count, or with a count that
   differs from its offset.
+
+A link of the resumable layer on the road (PodUtils/podssh#287), which the
+role's server serves at the take of the version that has it:
+
+- `POST /v1/http/open-layer/HOST/PORT` and `POST
+  /v1/http/one-layer/HOST/PORT` (`OPEN_LAYER`, `ONE_LAYER`;
+  `layer_route` names them, `route` gives `None`, so a role with no such
+  road answers `404`): the target is checked as `/v1/layer/` checks it,
+  with the token of the forward road, and the session's bytes are one link
+  of the role's layer, a new session or a resume. The rest of the session
+  is as the road's.
+- The client: `forward_layer::Dialer::link_or_road` and `carry_or_road`
+  take the road for a link once the way refused the upgrade of a link of
+  the session (`way_refusal::upgrade_refused`), and each later link goes on
+  it, each a new session of the road. `link` and `carry` stay the upgrade
+  alone. `tests/http_road_layer.rs` runs a session over each form against
+  a stand-in role whose far end keeps the sessions, through a cut of the
+  road.
 
 The test of the ask, `tests/http_road_acks.rs`, runs the client against a
 stand-in role in memory (`tests/http_road_stand_in/`) on a paused clock: a

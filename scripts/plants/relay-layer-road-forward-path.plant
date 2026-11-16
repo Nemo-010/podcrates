@@ -1,0 +1,6 @@
+# pod-relay: a link of the layer on the HTTP road opens a forward session, so the role gives it no layer; the test of a session over each form must fail at its first link (T-801, PodUtils/podssh#287).
+ENTRY=T-801
+GROUP=relay
+EXPECT='the HTTP road to t: '
+RUN='cargo test -p pod-relay --all-features --test http_road_layer'
+LIMIT=1800

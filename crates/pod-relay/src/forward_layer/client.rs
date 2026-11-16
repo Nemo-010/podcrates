@@ -14,20 +14,32 @@
 //! A host with no room for a new session refuses it in the first link's
 //! handshake, before any byte of the session went ([`no_room`]): its client
 //! takes the contract's road then.
+//!
+//! Where the way refuses the upgrade of a link (`crate::way_refusal`), that
+//! link and each later one of the session go on the HTTP road, a new session
+//! of the road each (`OPEN_LAYER`, PodUtils/podssh#287), with the token as
+//! the WebSocket road gets one.
+
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use pod_core::entropy::OsEntropy;
 use pod_session::client::{Client, ClientError, Outcome};
 use pod_session::resume::{self, Next, Note};
-use pod_session::ws_link::Link;
+use pod_session::ws_link;
 use pod_session::{Ended, HandshakeError, RefuseCode};
 use pod_ws::{ConnectError, Trust};
 use tokio::io::{AsyncRead, AsyncWrite};
+use zeroize::Zeroizing;
 
+pub use super::link::Link;
 use super::offer::Offer;
 use crate::context::Context;
 use crate::failover::Mode;
+use crate::http_road::client::{self as road, Road, Target};
+use crate::http_road::{Form, Tuning};
 use crate::open::{self, Failure, OpenError, Request};
 use crate::relay::{Relay, RelayList};
+use crate::token::{self, MintContext, Origin};
 
 /// Who a link's failure names.
 const WHO: &str = "the relay";
@@ -43,6 +55,9 @@ enum Way {
     /// (`pod_ws::plain`). The binary never enables it.
     #[cfg(feature = "plain-ws")]
     PlainLoopback(String),
+    /// Each link on this road with this token: a road that a caller built
+    /// (a stand-in of the tests, or an embedder's own).
+    Road(Box<Road>, Zeroizing<String>),
 }
 
 /// The links of one session to one host. A dialer serves one session: its
@@ -55,6 +70,15 @@ pub struct Dialer {
     /// `host:port`, for messages.
     target: String,
     way: Way,
+    /// The target and its family, for the open of the HTTP road.
+    host: String,
+    port: u16,
+    family: Option<u8>,
+    /// Set once the way refused the upgrade of a link: each later link goes
+    /// on the HTTP road.
+    by_road: AtomicBool,
+    /// The form of each link on the HTTP road; none: the road's own order.
+    road_form: Option<Form>,
 }
 
 /// Why a link did not open.
@@ -65,6 +89,8 @@ pub enum Missed {
     /// The plain upgrade's failure, on the loopback.
     #[cfg(feature = "plain-ws")]
     Plain(ConnectError),
+    /// The failure of the open of a link on the HTTP road.
+    Road(ConnectError),
 }
 
 /// A refusal that a new link of the same host gets again.
@@ -94,6 +120,7 @@ impl Missed {
             },
             #[cfg(feature = "plain-ws")]
             Missed::Plain(e) => refused_for_good(e),
+            Missed::Road(e) => refused_for_good(e),
         }
     }
 
@@ -105,6 +132,7 @@ impl Missed {
             Missed::Open(failure) => matches!(failure.last(), OpenError::Connect { error, .. } if not_found(error)),
             #[cfg(feature = "plain-ws")]
             Missed::Plain(e) => not_found(e),
+            Missed::Road(e) => not_found(e),
         }
     }
 
@@ -114,6 +142,7 @@ impl Missed {
             Missed::Open(failure) => failure.lines(target),
             #[cfg(feature = "plain-ws")]
             Missed::Plain(e) => vec![e.to_string()],
+            Missed::Road(e) => vec![format!("the HTTP road to {target}: {e}")],
         }
     }
 
@@ -123,8 +152,18 @@ impl Missed {
             Missed::Open(failure) => Some(failure),
             #[cfg(feature = "plain-ws")]
             Missed::Plain(_) => None,
+            Missed::Road(_) => None,
         }
     }
+}
+
+/// Whether the way, not the relay, refused the upgrade at an attempt of
+/// `failure`.
+fn way_refused(failure: &Failure) -> bool {
+    failure
+        .attempts
+        .iter()
+        .any(|(_, e)| matches!(e, OpenError::Connect { error, .. } if crate::way_refusal::upgrade_refused(error)))
 }
 
 impl Dialer {
@@ -160,10 +199,21 @@ impl Dialer {
         Dialer::on_loopback(offer.holder(asked), host, port, token)
     }
 
+    /// The links of a session to `host:port`, each on `road` with `token`
+    /// from the first: a road that the caller built, as a stand-in of a
+    /// test, for `relay`.
+    pub fn over_road(relay: Relay, road: Road, token: &str, host: &str, port: u16) -> Result<Dialer, String> {
+        let dialer = Dialer::with(relay, host, port, Way::Road(Box::new(road), Zeroizing::new(token.to_string())))?;
+        dialer.by_road.store(true, Ordering::Relaxed);
+        Ok(dialer)
+    }
+
     fn with(relay: Relay, host: &str, port: u16, way: Way) -> Result<Dialer, String> {
         let path = super::path(host, port)?;
         let target = pod_proxy::host::authority(host, port);
-        Ok(Dialer { relays: RelayList { hosts: vec![relay], explicit: true }, path, target, way })
+        let relays = RelayList { hosts: vec![relay], explicit: true };
+        let (host, family, by_road) = (host.to_string(), None, AtomicBool::new(false));
+        Ok(Dialer { relays, path, target, way, host, port, family, by_road, road_form: None })
     }
 
     /// Each link asks for the addresses of `family` alone (4 or 6), as the
@@ -172,7 +222,20 @@ impl Dialer {
         if let Some(family) = family {
             self.path.push_str(&format!("?family={family}"));
         }
+        self.family = family;
         self
+    }
+
+    /// Each link on the HTTP road in `form` alone (`PODSSH_HTTP_ROAD`
+    /// names one); none: the road's own order.
+    pub fn with_road_form(mut self, form: Option<Form>) -> Dialer {
+        self.road_form = form;
+        self
+    }
+
+    /// Whether the links go on the HTTP road.
+    pub fn by_road(&self) -> bool {
+        self.by_road.load(Ordering::Relaxed)
     }
 
     /// The host that holds the session.
@@ -192,7 +255,71 @@ impl Dialer {
 
     /// A new link to the host, nothing read from it yet; `notes` hears what
     /// the opener says on the way (a token that could not be cached).
-    pub async fn link(&self, notes: &mut (dyn FnMut(&str) + Send)) -> Result<Link, Missed> {
+    ///
+    /// The upgrade alone: [`Dialer::link_or_road`] takes the HTTP road where
+    /// the way refused it.
+    pub async fn link(&self, notes: &mut (dyn FnMut(&str) + Send)) -> Result<ws_link::Link, Missed> {
+        self.ws_link(notes).await
+    }
+
+    /// [`Dialer::link`], or a link on the HTTP road once the way refused the
+    /// upgrade of a link of this session (PodUtils/podssh#287): that link
+    /// and each later one; `notes` hears the change once.
+    pub async fn link_or_road(&self, notes: &mut (dyn FnMut(&str) + Send)) -> Result<Link, Missed> {
+        if self.by_road() {
+            return self.road_link().await;
+        }
+        match self.ws_link(notes).await {
+            Ok(link) => Ok(Link::Ws(link)),
+            Err(Missed::Open(failure)) if way_refused(&failure) => {
+                self.by_road.store(true, Ordering::Relaxed);
+                notes(&format!(
+                    "{}: the way refused the WebSocket upgrade of the layer's link; each link goes on the HTTP road",
+                    self.relay().name()
+                ));
+                self.road_link().await
+            }
+            Err(missed) => Err(missed),
+        }
+    }
+
+    /// A link on the HTTP road: a new session of the road to the layer.
+    async fn road_link(&self) -> Result<Link, Missed> {
+        let target = Target { host: &self.host, port: self.port, family: self.family };
+        let opened = match &self.way {
+            Way::Road(road, token) => road::open_layer(road, &target, token, self.road_form, Tuning::default()).await,
+            Way::Tls(ctx, trust) => self.road_tls(ctx, trust, &target).await,
+            #[cfg(feature = "plain-ws")]
+            Way::PlainLoopback(_) => Err(ConnectError::Config("the loopback has no HTTP road".into())),
+        };
+        let opened = opened.map_err(Missed::Road)?;
+        Ok(Link::Road { stream: opened.stream, ended: opened.ended })
+    }
+
+    /// The open on the HTTP road over TLS, with a token as the WebSocket
+    /// road gets one; a cached token that the role no longer takes is
+    /// minted once more, never for a refusal by policy.
+    async fn road_tls(&self, ctx: &Context, trust: &Trust, target: &Target<'_>) -> Result<road::Opened, ConnectError> {
+        let relay = self.relays.primary();
+        let limit = open::CONNECT_TIMEOUT;
+        let mint = MintContext { ctx, relay, trust, timeout: limit };
+        let forms = crate::pool::cached_limits(&ctx.cache, &relay.host).http_forms;
+        let road = Road::tls(&ctx.way, relay, trust, limit).in_run(ctx).with_forms(forms);
+        let words = |e: token::TokenError| ConnectError::Http(format!("a token for the HTTP road: {e}"));
+        let token = token::obtain(&mint, false).await.map_err(words)?;
+        let opened = road::open_layer(&road, target, token.secret(), self.road_form, Tuning::default()).await;
+        let stale =
+            matches!(&opened, Err(ConnectError::Refused { status: 403, body }) if !open::is_policy_refusal(body));
+        if !(stale && token.origin == Origin::Cache) {
+            return opened;
+        }
+        token::forget(ctx, &token::token_key(relay));
+        let token = token::obtain(&mint, true).await.map_err(words)?;
+        road::open_layer(&road, target, token.secret(), self.road_form, Tuning::default()).await
+    }
+
+    /// A link by the WebSocket upgrade.
+    async fn ws_link(&self, notes: &mut (dyn FnMut(&str) + Send)) -> Result<ws_link::Link, Missed> {
         match &self.way {
             Way::Tls(ctx, trust) => {
                 let request = Request {
@@ -205,7 +332,7 @@ impl Dialer {
                     failover: Mode::default(),
                 };
                 let opened = open::open(&request, notes).await.map_err(Missed::Open)?;
-                Ok(Link::start_by(opened.session, Vec::new(), WHO))
+                Ok(ws_link::Link::start_by(opened.session, Vec::new(), WHO))
             }
             #[cfg(feature = "plain-ws")]
             Way::PlainLoopback(token) => {
@@ -215,8 +342,9 @@ impl Dialer {
                 let session = pod_ws::plain::connect_loopback(&relay.host, relay.port, &self.path, token, limit, idle)
                     .await
                     .map_err(Missed::Plain)?;
-                Ok(Link::start_by(session, Vec::new(), WHO))
+                Ok(ws_link::Link::start_by(session, Vec::new(), WHO))
             }
+            Way::Road(..) => Err(Missed::Road(ConnectError::Config("a road of the caller takes no upgrade".into()))),
         }
     }
 }
@@ -225,7 +353,7 @@ impl Dialer {
 /// on a new link of `dialer` after each lost one, until the session ends.
 /// `note` hears each loss, attempt and resume. A host that greeted with no
 /// layer gets the bytes as they are, on the first link alone.
-pub async fn carry<A, N>(dialer: &Dialer, client: Client<Link>, app: A, note: N) -> Outcome
+pub async fn carry<A, N>(dialer: &Dialer, client: Client<ws_link::Link>, app: A, note: N) -> Outcome
 where
     A: AsyncRead + AsyncWrite + Unpin + Send,
     N: FnMut(Note),
@@ -240,6 +368,25 @@ where
     };
     // On the heap: the layer's future is larger than a small thread's stack
     // in a debug build.
+    Box::pin(resume::run(client, app, connect, note, &mut OsEntropy)).await
+}
+
+/// [`carry`] with each link of [`Dialer::link_or_road`]: a session whose
+/// first link went on the HTTP road, or whose way refuses the upgrade of a
+/// later link, goes on with links of the road.
+pub async fn carry_or_road<A, N>(dialer: &Dialer, client: Client<Link>, app: A, note: N) -> Outcome
+where
+    A: AsyncRead + AsyncWrite + Unpin + Send,
+    N: FnMut(Note),
+{
+    let connect = |_: &Ended| async move {
+        let mut quiet = |_: &str| {};
+        match dialer.link_or_road(&mut quiet).await {
+            Ok(link) => Next::Link(link),
+            Err(missed) if missed.is_final() => Next::Stop(missed.lines(dialer.target()).join("; ")),
+            Err(missed) => Next::Retry(missed.lines(dialer.target()).join("; ")),
+        }
+    };
     Box::pin(resume::run(client, app, connect, note, &mut OsEntropy)).await
 }
 
@@ -265,6 +412,19 @@ mod tests {
         assert!(refused(401, "a key's signature").is_final());
         let offline = Missed::Open(Failure { attempts: vec![("r".into(), OpenError::Offline)] });
         assert!(offline.is_final());
+    }
+
+    /// The way's refusal of the upgrade sends the links to the HTTP road;
+    /// the relay's own refusal and a host that is down do not.
+    #[test]
+    fn only_the_way_s_refusal_of_the_upgrade_takes_the_road() {
+        let proxy = ConnectError::Refused { status: 403, body: "Forbidden: WebSocket upgrades are not allowed".into() };
+        let at = |error| Failure { attempts: vec![("r".into(), OpenError::Connect { error, origin: Origin::Minted })] };
+        assert!(way_refused(&at(proxy)));
+        assert!(way_refused(&at(ConnectError::Refused { status: 426, body: String::new() })));
+        assert!(!way_refused(&at(ConnectError::Refused { status: 403, body: "layer: missing or wrong token".into() })));
+        assert!(!way_refused(&at(ConnectError::Refused { status: 502, body: "bad gateway".into() })));
+        assert!(!way_refused(&Failure { attempts: vec![("r".into(), OpenError::Offline)] }));
     }
 
     #[test]

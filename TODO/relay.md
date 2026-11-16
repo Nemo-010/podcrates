@@ -8922,7 +8922,7 @@ cargo test -p pod-link --all-features
 **Milestone:** M2
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8969,6 +8969,30 @@ role then takes the session as one link.
 ```sh
 cargo test -p pod-relay --all-features --test http_road_layer
 ```
+
+## Done
+
+2026-11-16. The client of a link of the layer on the HTTP road, with no
+break of an API that a consumer uses (C771): `http_road::client::open_layer`
+opens `OPEN_LAYER` (`/v1/http/open-layer/HOST/PORT`) or `ONE_LAYER` in the
+forms of the road; `layer_route` names them, and `route` gives `None`, so
+that a role with no layer on the road answers `404`.
+`forward_layer::Dialer::link_or_road` takes the road for a link once the
+way refused the upgrade of a link (`way_refusal::upgrade_refused`, moved
+from `pod-piping`, which takes it from here), with the token as the
+WebSocket road gets one; each later link of the session goes on it, a new
+session of the road each. `forward_layer::Link` is the WebSocket link or
+the road's stream, whose failed end gives its words on the read after the
+last byte. `carry_or_road` carries a session with such links; `link` and
+`carry` stay the upgrade alone. Tests: `tests/http_road_layer.rs` (a
+session of the layer over the split, serial and one-POST forms against a
+stand-in role in memory whose far end keeps the sessions, a large write,
+a cut of each session of the road, and the resume on a new one; a refused
+token is final with the role's words); unit tests of the cue and of the end
+of a road link. Plants `relay-layer-road-forward-path`,
+`relay-layer-way-refusal-ignored`, `relay-layer-road-end-silent`. podssh's
+role serves the two opens at its take; its `relay_layer.rs` then calls
+`link_or_road` and `carry_or_road`.
 
 # T-802: `pod-turn`: a NAT probe (the mapping, the filtering and the port of RFC 5780) on the caller's datagrams (GitHub #212)
 

@@ -94,6 +94,7 @@ pub mod stream;
 #[cfg(test)]
 mod testing;
 pub mod token;
+pub mod way_refusal;
 
 pub use budget::RelayBudget;
 pub use context::Context;

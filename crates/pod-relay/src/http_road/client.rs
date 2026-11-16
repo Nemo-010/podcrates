@@ -20,7 +20,10 @@ use super::answer::Head;
 use super::conn::{ALPN_OFFER, BoxIo, Conn, Dial, DialAlpn, Dialed, Dialing, DialingAlpn, request};
 use super::one::{self, Learned};
 use super::window::Refusal;
-use super::{DOWN_MAX, Form, Forms, KEY, ONE, OPEN, REFUSE, SESSION, TOTAL, Tuning, WAIT_MAX, is_id, is_key};
+use super::{
+    DOWN_MAX, Form, Forms, KEY, ONE, ONE_LAYER, OPEN, OPEN_LAYER, REFUSE, SESSION, TOTAL, Tuning, WAIT_MAX, is_id,
+    is_key,
+};
 use crate::context::Context;
 use crate::relay::Relay;
 
@@ -320,10 +323,12 @@ pub(super) async fn gather_more<R: AsyncRead + Unpin>(from: &mut R, buf: &mut [u
     (n, false)
 }
 
-/// The path of the open of `target`, checked as the forward road's.
-fn open_path(target: &Target<'_>) -> Result<String, ConnectError> {
+/// The path of the open of `target`, checked as the forward road's; of a
+/// link of the layer where `layer`.
+fn open_path(target: &Target<'_>, layer: bool) -> Result<String, ConnectError> {
     let forward = crate::relay::forward_path(target.host, target.port).map_err(ConnectError::Config)?;
-    let mut path = forward.replacen("/connect/", OPEN, 1);
+    let open = if layer { OPEN_LAYER } else { OPEN };
+    let mut path = forward.replacen("/connect/", open, 1);
     if let Some(family) = target.family {
         path.push_str(&format!("?family={family}"));
     }
@@ -342,16 +347,41 @@ pub async fn open(
     form: Option<Form>,
     tuning: Tuning,
 ) -> Result<Opened, ConnectError> {
+    open_at(road, target, token, form, tuning, false).await
+}
+
+/// [`open`] of a link of the resumable layer to `target`
+/// (`OPEN_LAYER`, `ONE_LAYER`, PodUtils/podssh#287): the role gives the
+/// session's bytes to its layer as one link.
+pub async fn open_layer(
+    road: &Road,
+    target: &Target<'_>,
+    token: &str,
+    form: Option<Form>,
+    tuning: Tuning,
+) -> Result<Opened, ConnectError> {
+    open_at(road, target, token, form, tuning, true).await
+}
+
+async fn open_at(
+    road: &Road,
+    target: &Target<'_>,
+    token: &str,
+    form: Option<Form>,
+    tuning: Tuning,
+    layer: bool,
+) -> Result<Opened, ConnectError> {
     if token.contains(['\r', '\n']) {
         return Err(ConnectError::Config("the relay token contains a line break".into()));
     }
-    let path = open_path(target)?;
+    let path = open_path(target, layer)?;
+    let (open, one_path) = if layer { (OPEN_LAYER, ONE_LAYER) } else { (OPEN, ONE) };
     let one_first = match form {
         Some(form) => form == Form::One,
         None => road.forms.is_none_or(|forms| forms.has(Form::One)) && road.learned.held(&road.authority).is_none(),
     };
     if one_first {
-        match one::open(road, &path.replacen(OPEN, ONE, 1), token).await {
+        match one::open(road, &path.replacen(open, one_path, 1), token).await {
             Ok(opened) => return Ok(opened),
             Err(one::Failed::Stop(e)) => return Err(e),
             Err(one::Failed::NotCarried(why)) if form == Some(Form::One) => {
@@ -429,11 +459,13 @@ mod tests {
 
     #[test]
     fn the_open_s_path_is_the_forward_road_s_under_the_road_s_prefix() {
-        let to = |host, port, family| open_path(&Target { host, port, family }).unwrap();
+        let to = |host, port, family| open_path(&Target { host, port, family }, false).unwrap();
         assert_eq!(to("github.com", 22, None), "/v1/http/open/github.com/22");
         assert_eq!(to("2001:db8::1", 22, Some(6)), "/v1/http/open/2001:db8::1/22?family=6");
-        assert!(open_path(&Target { host: "a/b", port: 22, family: None }).is_err());
-        assert!(open_path(&Target { host: "h", port: 0, family: None }).is_err());
+        assert!(open_path(&Target { host: "a/b", port: 22, family: None }, false).is_err());
+        assert!(open_path(&Target { host: "h", port: 0, family: None }, false).is_err());
+        let layer = Target { host: "github.com", port: 22, family: Some(4) };
+        assert_eq!(open_path(&layer, true).unwrap(), "/v1/http/open-layer/github.com/22?family=4");
     }
 
     #[tokio::test(start_paused = true)]

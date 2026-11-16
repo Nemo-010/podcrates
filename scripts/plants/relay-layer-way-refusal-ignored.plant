@@ -1,0 +1,6 @@
+# pod-relay: each refused upgrade, also the relay own refusal and a gateway, sends the links to the HTTP road; the unit test of the cue must fail (T-801, PodUtils/podssh#287).
+ENTRY=T-801
+GROUP=relay
+EXPECT='way_refused'
+RUN='cargo test -p pod-relay --all-features --lib only_the_way_s_refusal_of_the_upgrade_takes_the_road'
+LIMIT=1800

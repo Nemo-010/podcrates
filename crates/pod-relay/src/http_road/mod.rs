@@ -56,6 +56,13 @@
 //!   no `Transfer-Encoding`, its DATA up and the answer's DATA down with no
 //!   chunks; the request's `END_STREAM` is the body's last chunk, the
 //!   answer's is its last chunk, and a reset of the stream is a cut.
+//! - A link of the resumable layer (PodUtils/podssh#287): `POST
+//!   /v1/http/open-layer/HOST/PORT[?family=4|6]` and `POST
+//!   /v1/http/one-layer/HOST/PORT[?family=4|6]` open a session as `open`
+//!   and `one` do, but the role checks the target as `/v1/layer/` does and
+//!   gives the session's bytes to its layer as one link: the bytes up
+//!   start with the layer's handshake, a new session or a resume. Each new
+//!   link is a new session of the road. The rest of the wire is the same.
 //! - Once the session ended, `410` with `X-Close: CODE REASON`, the close
 //!   codes and reasons of the forward road (`docs/relay.md`): `1000 target
 //!   closed` once the client has each byte of a target that ended, with
@@ -85,6 +92,9 @@ pub const OPEN: &str = "/v1/http/open/";
 pub const SESSION: &str = "/v1/http/s/";
 /// The one-POST form's path, before `HOST/PORT`.
 pub const ONE: &str = "/v1/http/one/";
+/// The opens of a link of the resumable layer, before `HOST/PORT`.
+pub const OPEN_LAYER: &str = "/v1/http/open-layer/";
+pub const ONE_LAYER: &str = "/v1/http/one-layer/";
 /// The first bytes of the one-POST form's answer: no hop holds the answer,
 /// nor the request's body.
 pub const MARK: &[u8] = b"podssh-http-one 1\n";
@@ -199,6 +209,16 @@ pub fn route(path: &str) -> Option<Route> {
     Some(Route::Session(id.to_string(), kind))
 }
 
+/// The route of the open of a link of the resumable layer: `Open` for
+/// [`OPEN_LAYER`], `One` for [`ONE_LAYER`]. [`route`] gives `None` for
+/// both, so that a role that serves no layer on the road answers `404`.
+pub fn layer_route(path: &str) -> Option<Route> {
+    if path.starts_with(OPEN_LAYER) {
+        return Some(Route::Open);
+    }
+    path.starts_with(ONE_LAYER).then_some(Route::One)
+}
+
 /// Whether `id` is a session's id: 32 hex digits in lower case.
 pub fn is_id(id: &str) -> bool {
     id.len() == 32 && id.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
@@ -294,6 +314,10 @@ mod tests {
         let id = "0123456789abcdef0123456789abcdef";
         assert_eq!(route("/v1/http/open/github.com/22"), Some(Route::Open));
         assert_eq!(route("/v1/http/one/github.com/22"), Some(Route::One));
+        assert_eq!(route("/v1/http/open-layer/github.com/22"), None);
+        assert_eq!(layer_route("/v1/http/open-layer/github.com/22"), Some(Route::Open));
+        assert_eq!(layer_route("/v1/http/one-layer/github.com/22"), Some(Route::One));
+        assert_eq!(layer_route("/v1/http/open/github.com/22"), None);
         assert_eq!(route(&format!("/v1/http/s/{id}/up")), Some(Route::Session(id.into(), Kind::Up)));
         assert_eq!(route(&format!("/v1/http/s/{id}/down")), Some(Route::Session(id.into(), Kind::Down)));
         assert_eq!(route(&format!("/v1/http/s/{id}/x")), Some(Route::Session(id.into(), Kind::Exchange)));
