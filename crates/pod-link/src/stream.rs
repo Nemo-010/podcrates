@@ -132,7 +132,8 @@ impl State {
         }
         slot.send_credit -= n as u64;
         self.send_credit -= n as u64;
-        self.push_out(Frame::Data(id, bytes[..n].to_vec()));
+        let frame = self.data(id, &bytes[..n]);
+        self.push_out(frame);
         Poll::Ready(Ok(n))
     }
 

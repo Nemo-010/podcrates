@@ -11,7 +11,7 @@ use tokio::task::JoinHandle;
 use tokio::time::{Instant, sleep_until, timeout};
 
 use crate::error::{Error, GoAwayCode};
-use crate::frame::{Decoder, Frame};
+use crate::frame::{Borrowed, Decoder, Frame};
 use crate::settings::Settings;
 use crate::state::{Batch, Role, Shared, State};
 use crate::stream::Stream;
@@ -170,14 +170,14 @@ async fn read_loop<C: AsyncRead>(shared: &Shared, mut reader: ReadHalf<C>) {
         let done = shared.with(|s| {
             s.heard();
             loop {
-                match decoder.next() {
-                    Ok(Some(frame)) => {
-                        if let Err(e) = s.on_frame(frame) {
-                            s.fail(e);
-                        }
-                    }
+                let applied = match decoder.next_borrowed() {
+                    Ok(Some(Borrowed::Data(id, body))) => s.on_data(id, body),
+                    Ok(Some(Borrowed::Frame(frame))) => s.on_frame(frame),
                     Ok(None) => break,
-                    Err(e) => s.fail(e.into()),
+                    Err(e) => Err(e.into()),
+                };
+                if let Err(e) = applied {
+                    s.fail(e);
                 }
                 if s.ended.is_some() {
                     break;

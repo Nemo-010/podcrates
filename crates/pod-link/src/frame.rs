@@ -168,6 +168,22 @@ impl fmt::Display for FrameError {
 
 impl std::error::Error for FrameError {}
 
+/// A frame of [`Decoder::next_borrowed`]: a `DATA` body is a slice of the
+/// buffer of the decoder, with no copy.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Borrowed<'a> {
+    /// A `DATA` frame: the stream id and the body.
+    Data(u32, &'a [u8]),
+    /// Each other frame.
+    Frame(Frame),
+}
+
+/// What [`Decoder::take`] found: a frame, or the place of a `DATA` body.
+enum Taken {
+    Data(u32, std::ops::Range<usize>),
+    Frame(Frame),
+}
+
 /// The decoder of the frames of one direction. Push the bytes as they
 /// come, then take each frame with [`Decoder::next`]. A header gives the
 /// length of its body, so a body over [`MAX_RECORD`] fails at its header,
@@ -216,6 +232,15 @@ impl Decoder {
     /// iterator: an error is not the end.
     #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> Result<Option<Frame>, FrameError> {
+        Ok(self.next_borrowed()?.map(|f| match f {
+            Borrowed::Data(id, body) => Frame::Data(id, body.to_vec()),
+            Borrowed::Frame(f) => f,
+        }))
+    }
+
+    /// As [`Decoder::next`], with the body of a `DATA` frame as a slice of
+    /// the buffer of the decoder: the link copies it once, into its stream.
+    pub fn next_borrowed(&mut self) -> Result<Option<Borrowed<'_>>, FrameError> {
         if let Some(e) = &self.failed {
             return Err(e.clone());
         }
@@ -226,11 +251,13 @@ impl Decoder {
                 self.start = 0;
                 Err(e)
             }
-            ok => ok,
+            Ok(None) => Ok(None),
+            Ok(Some(Taken::Frame(f))) => Ok(Some(Borrowed::Frame(f))),
+            Ok(Some(Taken::Data(id, range))) => Ok(Some(Borrowed::Data(id, &self.buf[range]))),
         }
     }
 
-    fn take(&mut self) -> Result<Option<Frame>, FrameError> {
+    fn take(&mut self) -> Result<Option<Taken>, FrameError> {
         let have = &self.buf[self.start..];
         if self.preface {
             let n = have.len().min(PREFACE.len());
@@ -260,9 +287,13 @@ impl Decoder {
         let body = &have[HEADER..HEADER + len];
         let word = || u32::from_be_bytes([body[0], body[1], body[2], body[3]]);
         let long = || u64::from_be_bytes([body[0], body[1], body[2], body[3], body[4], body[5], body[6], body[7]]);
+        let at = self.start + HEADER;
         let frame = match t {
             kind::OPEN => Frame::Open(id),
-            kind::DATA => Frame::Data(id, body.to_vec()),
+            kind::DATA => {
+                self.start += HEADER + len;
+                return Ok(Some(Taken::Data(id, at..at + len)));
+            }
             kind::WINDOW if word() == 0 => return Err(FrameError::ZeroCredit),
             kind::WINDOW => Frame::Window(id, word()),
             kind::CLOSE => Frame::Close(id),
@@ -272,7 +303,7 @@ impl Decoder {
             _ => Frame::GoAway(word()),
         };
         self.start += HEADER + len;
-        Ok(Some(frame))
+        Ok(Some(Taken::Frame(frame)))
     }
 }
 

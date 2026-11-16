@@ -19,6 +19,13 @@ use crate::settings::{CONTROL_LIMIT, INITIAL_WINDOW, Settings};
 /// that a `WINDOW` or a `PONG` does not wait behind a long run of `DATA`.
 const BATCH: usize = 64 << 10;
 
+/// The bodies of `DATA` frames that the writer keeps for the next writes:
+/// the queue holds at most a few frames, so a few bodies serve each write.
+const SPARE_BODIES: usize = 8;
+
+/// The wakers that [`Shared::with`] wakes with no allocation.
+const WAKE_FEW: usize = 8;
+
 /// Which end of the link this is. The dialer opens streams with odd ids,
 /// the listener with even ids.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -110,6 +117,9 @@ pub(crate) struct State {
     pub queued: usize,
     /// The frames other than `DATA` in both queues.
     control: usize,
+    /// The bodies of the `DATA` frames that the writer sent, for the next
+    /// writes: no allocation for each frame.
+    spare: Vec<Vec<u8>>,
     preface_sent: bool,
     /// The streams whose writer waits for the link's credit or for room.
     blocked: Vec<u32>,
@@ -154,6 +164,7 @@ impl State {
             out: VecDeque::new(),
             queued: 0,
             control: 0,
+            spare: Vec::new(),
             preface_sent: false,
             blocked: Vec::new(),
             send_credit: u64::from(INITIAL_WINDOW),
@@ -184,6 +195,14 @@ impl State {
     /// The most `DATA` bytes that wait for the carrier.
     pub fn queue_limit(&self) -> usize {
         self.settings.queue_limit()
+    }
+
+    /// A `DATA` frame of `bytes`, in a body that a sent frame left.
+    pub fn data(&mut self, id: u32, bytes: &[u8]) -> Frame {
+        let mut body = self.spare.pop().unwrap_or_default();
+        body.clear();
+        body.extend_from_slice(bytes);
+        Frame::Data(id, body)
     }
 
     pub fn push_urgent(&mut self, frame: Frame) {
@@ -228,13 +247,16 @@ impl State {
 
     /// Wake each writer that waits for the link's credit or for room.
     pub fn unblock(&mut self) {
-        for id in std::mem::take(&mut self.blocked) {
+        // The list goes back with its capacity: no allocation at each turn.
+        let mut list = std::mem::take(&mut self.blocked);
+        for id in list.drain(..) {
             if let Some(slot) = self.streams.get_mut(&id) {
                 slot.blocked = false;
                 let w = slot.write_waker.take();
                 self.wake(w);
             }
         }
+        self.blocked = list;
     }
 
     pub fn accepted(&mut self, id: u32) {
@@ -348,14 +370,20 @@ impl State {
         while out.len() < BATCH
             && let Some(f) = self.out.pop_front()
         {
-            match &f {
-                Frame::Data(_, body) => self.queued -= body.len(),
-                _ => self.control -= 1,
-            }
             encode(&f, out);
-            if let Frame::GoAway(_) = f {
-                stop = true;
-                break;
+            match f {
+                Frame::Data(_, body) => {
+                    self.queued -= body.len();
+                    if self.spare.len() < SPARE_BODIES {
+                        self.spare.push(body);
+                    }
+                }
+                Frame::GoAway(_) => {
+                    self.control -= 1;
+                    stop = true;
+                    break;
+                }
+                _ => self.control -= 1,
             }
         }
         if full && self.queued < self.queue_limit() {
@@ -399,9 +427,19 @@ impl Shared {
         let kick = std::mem::take(&mut state.kick);
         let accept = std::mem::take(&mut state.kick_accept);
         let end = std::mem::take(&mut state.kick_end);
-        let woken = std::mem::take(&mut state.woken);
+        // The wakers go out of the lock. A few go through an array, so that
+        // the list keeps its capacity: no allocation at each operation.
+        let mut few: [Option<Waker>; WAKE_FEW] = Default::default();
+        let many = if state.woken.len() <= WAKE_FEW {
+            for (slot, w) in few.iter_mut().zip(state.woken.drain(..)) {
+                *slot = Some(w);
+            }
+            Vec::new()
+        } else {
+            std::mem::take(&mut state.woken)
+        };
         drop(state);
-        for w in woken {
+        for w in few.into_iter().flatten().chain(many) {
             w.wake();
         }
         if kick || end {

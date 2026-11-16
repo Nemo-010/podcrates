@@ -8676,7 +8676,7 @@ gate.
 **Milestone:** M2
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8688,7 +8688,7 @@ encodes the frame into its batch. At the reader, the bytes of the
 carrier go into the decoder's buffer (`Decoder::push`), the decoder
 copies the body into a new `Vec` (`crates/pod-link/src/frame.rs:265`
 says "kind::DATA => Frame::Data(id, body.to_vec()),"), `on_data` copies
-it into the buffer of the stream (`crates/pod-link/src/inbound.rs:119`),
+it into the buffer of the stream (`crates/pod-link/src/inbound.rs:121`),
 and a read copies it into the caller's buffer. The Rust core of zmux
 measured 0.0000 allocations for each frame on its bulk path, and
 0.0005 to 0.0007 over TCP.
@@ -8734,6 +8734,51 @@ host. A planted `to_vec` in `on_data` makes the test of allocations fail.
 ## Start condition
 
 T-777 is done.
+
+## Done
+
+2026-11-16, the commit of the change. Three changes of the data path,
+each measured with `tests/measure.rs` (release mode, the host of the
+baseline of T-777; memory carrier, allocations for each `DATA` frame of
+16 KiB on 1 stream):
+
+1. `Decoder::next_borrowed` gives a `DATA` body as a slice of the buffer
+   of the decoder (`frame::Borrowed`), and the read loop gives it to
+   `State::on_data`, which copies it once into the buffer of the stream.
+   `Decoder::next` stays, with a copy, for the fuzz target and the tests.
+   2.58 to 1.61 allocations for each frame; tcp 5.8 to 4.9.
+2. The writer keeps the bodies of the `DATA` frames that it sent (at most
+   8), and a write of a stream takes one (`State::data`): 1.61 to 0.62.
+3. A probe of the sizes found the rest: two allocations for each read of
+   the carrier, not for each frame. `Shared::with` took the list of the
+   wakers out of the lock with `mem::take`, and `unblock` the list of the
+   writers that wait; each next push allocated again. The wakers now go
+   out through an array of 8 (the list keeps its capacity), and `unblock`
+   gives its list back: 0.62 to 0.00 (about 70 allocations for a run of
+   256 MiB, the harness included).
+
+The result: memory 0.00 allocations and 516 bytes allocated for each
+frame (from 2.58 and 33 KiB), with 8 streams 0.01; tcp 3.2 (from 5.8),
+the rest in the TLS of the carrier (T-798). The throughput did not move
+past the noise of this host: the old code gives a median of bulk-1 of
+2.29, 2.18 and 2.49 GB/s in three sessions of three runs, the new code
+2.20, 2.25 and 1.98 GB/s; bulk-8 2.17, 2.29, 2.15 against 2.18, 2.08,
+2.30. The Prove asks for a median not lower than the baseline: with a
+spread of 12 % between runs of one code, this host cannot show a change
+of 4 %, so the result is "no change that the host can show", not a gain.
+The test `tests/allocations.rs` (one test in its binary, the counting
+allocator of the binary): a bulk run of 64 MiB over the memory carrier on
+a current-thread runtime makes at most 16 allocations after its first 1
+MiB; it makes 0. The plant `link-data-body-copied` (a `to_vec` of the
+body in `on_data`) fails it with "4096 allocations for 4096 DATA frames
+of 16 KiB: over 16". Steps 2 and 3 of the Approach (a read of the carrier
+into the free end of the buffer of the decoder; a byte queue of the
+writer with the header and the bytes of each frame) are not taken: the
+allocations are 0 without them, and each removes a copy whose gain this
+host cannot measure; T-799 holds them. Release notes: `pod-link`: the
+data path allocates nothing for each `DATA` frame at steady state;
+`Decoder::next_borrowed` and `frame::Borrowed` give a `DATA` body with no
+copy.
 
 # T-768: `pod-session`: a spare waits 20 s, not 1 s to 3 s, when the client's writer is held by a full link
 
@@ -8781,3 +8826,91 @@ after the write.
 ```sh
 cargo test -p pod-session --all-features --test session_spare
 ```
+
+# T-798: `pod-link`: the tcp carrier allocates about 3 times for each `DATA` frame
+
+**Source:** T-778 (the measurement of `tests/measure.rs`).
+**Category:** measurement
+**Milestone:** M2
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+After T-778 the link allocates nothing for each `DATA` frame over the
+memory carrier, but a bulk run over the tcp carrier (TLS 1.3 over the
+loopback) makes 3.2 allocations and about 40 KiB of allocations for each
+frame of 16 KiB (`tests/measure.rs`, bulk-1, tcp). The link is the same,
+so the allocations are in the carrier: tokio-rustls, rustls (a record of
+TLS is at most 16 KiB; each encryption and decryption can allocate) or
+the split halves of tokio.
+
+## Premise
+
+- Measured: `tests/measure.rs` in release mode on a cloud session of 4
+  threads: tcp bulk-1 3.18 to 3.44 allocations for each frame, bulk-8 2.90
+  to 3.14.
+- Not measured: which layer allocates.
+
+## Approach
+
+A probe of the sizes and of the call sites of the allocations of a tcp
+run (a counting allocator with a histogram of the sizes, as T-778 did;
+then a backtrace of each size class). Where rustls allocates for each
+record, read whether a setting of rustls (a buffer limit, the
+`unbuffered` API) or a change of the carrier (a write of whole records,
+a reuse of the plain buffer) removes it. Keep a change only when the
+measurement shows fewer allocations and no lower throughput.
+
+## Prove
+
+```sh
+cargo test --release -p pod-link --all-features --test measure -- --ignored --nocapture
+```
+
+# T-799: `pod-link`: two copies less of each byte: a read into the buffer of the decoder, and a writer queue of bytes
+
+**Source:** T-778 (steps 2 and 3 of its Approach, not taken).
+**Category:** feature
+**Milestone:** M2
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+After T-778 each byte of a stream is copied five times inside the
+crate: the writer copies the bytes of a write into a body of a `DATA`
+frame (`State::data`), then the body into its batch (`take_batch`); the
+reader reads the carrier into a buffer of 64 KiB (`read_loop`), pushes it
+into the buffer of the decoder (`Decoder::push`), then copies the body
+into the buffer of the stream (`on_data`), and a read copies it to the
+caller.
+
+## Premise
+
+- Read: `crates/pod-link/src/link.rs` (`read_loop`, `write_loop`),
+  `state.rs` (`data`, `take_batch`), `frame.rs` (`Decoder::push`).
+- Measured (T-778): the bulk throughput of one code varies by 12 % between
+  runs on a cloud session of 4 threads; a change of one copy is under
+  that.
+
+## Approach
+
+(1) The read loop reads from the carrier into the free end of the buffer
+of the decoder (a `Decoder::spare(n) -> &mut [u8]` and a `filled(n)`): no
+second buffer. (2) A write of a stream puts the header and the bytes
+straight into a byte queue of the link, which keeps the bounds of each
+frame and the count of `DATA` bytes; the writer takes whole frames from
+it. Measure on a host with a stable clock (the bulk spread under 3 %, for
+example a runner with fixed CPUs, or `perf stat` cycles for each byte), and
+keep each change only when it shows a gain.
+
+## Prove
+
+```sh
+cargo test --release -p pod-link --all-features --test measure -- --ignored --nocapture
+cargo test -p pod-link --all-features
+```
+

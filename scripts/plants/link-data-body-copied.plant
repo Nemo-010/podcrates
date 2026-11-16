@@ -1,0 +1,7 @@
+# The link copies each DATA body into a new Vec before the buffer of its
+# stream: one allocation for each frame, and the test of allocations must
+# fail.
+ENTRY=T-778
+GROUP=link
+EXPECT='allocations for 4096 DATA frames of 16 KiB: over 16'
+RUN='cargo test -p pod-link --all-features --test allocations'

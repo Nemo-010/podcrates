@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**630 entries: 121 open, 14 partial, 6 blocked, 489 done.**
+**632 entries: 122 open, 14 partial, 6 blocked, 490 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 144 | 163 |
 | P2 | 55 | 3 | 4 | 253 | 315 |
-| P3 | 55 | 3 | 2 | 90 | 150 |
-| **All** | 121 | 14 | 6 | 489 | 630 |
+| P3 | 56 | 3 | 2 | 91 | 152 |
+| **All** | 122 | 14 | 6 | 490 | 632 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -661,7 +661,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-775](relay.md) | P2 | S | M2 | chore | done | `pod-link`: a table of frames in bytes with the result of each, read by one test |
 | [T-776](relay.md) | P2 | M | M2 | chore | done | `pod-link`: scripted cases of a link on a paused clock, and the table of the classes of defects |
 | [T-777](relay.md) | P2 | S | M2 | measurement | done | `pod-link`: a committed measurement of the link: throughput, round trips, allocations for each frame and memory |
-| [T-778](relay.md) | P3 | M | M2 | feature | open | `pod-link`: no allocation for each `DATA` frame, and fewer copies of each byte |
+| [T-778](relay.md) | P3 | M | M2 | feature | done | `pod-link`: no allocation for each `DATA` frame, and fewer copies of each byte |
 | [T-779](upkeep.md) | P3 | S | M5 | chore | open | `pod-identity`: one stack of curve25519 and of SHA-2: take `ed25519-dalek` 3 |
 | [T-780](upkeep.md) | P2 | S | M5 | defect | open | A test reads the pipes of its child only after the child ends: a child that writes more than a pipe holds stops (`pod-term` calibration) |
 | [T-781](upkeep.md) | P2 | S | M5 | chore | open | The findings of the study of zmux for the tests of podssh, podnet and podvm, by COORD issues |
@@ -677,3 +677,5 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-795](upkeep.md) | P1 | S | M5 | chore | done | `pod-manual`: the text fixes of podssh in `data.rs` and `flags.rs` change no form that the crate took |
 | [T-796](fleet.md) | P1 | S | M8 | defect | done | `pod-lab`: the stand-in and the way out ignore SIGPIPE, so that a client that resets does not end them (PodUtils/podvm#455) |
 | [T-797](fleet.md) | P3 | S | M8 | defect | open | `pod-lab`: the certificate file of a way out on a host with no bundle, and an `SSL_CERT_FILE` that cannot be read (PodUtils/podvm#455) |
+| [T-798](relay.md) | P3 | S | M2 | measurement | open | `pod-link`: the tcp carrier allocates about 3 times for each `DATA` frame |
+| [T-799](relay.md) | P3 | M | M2 | feature | open | `pod-link`: two copies less of each byte: a read into the buffer of the decoder, and a writer queue of bytes |

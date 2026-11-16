@@ -247,7 +247,7 @@ let io = split.connect("SHA256:...@link.example", "SHA256:...@https://relay.exam
 | `poll::{ALPN, CONNECT_TIMEOUT, HANDSHAKE_TIMEOUT, ANSWER_TIMEOUT, HOLD, MIN_HOLD, MAX_HOLD, IDLE, MAX_HANDSHAKES, MAX_SESSIONS, MAX_CONNECTIONS, MAX_BYTES, MIN_BYTES, BATCH, SIMPLEX_BATCH, WINDOW, ACK_EVERY, PING_EVERY, BACKOFF_FIRST, BACKOFF_MAX, BUSY_LIMIT}` | the constants of the poll carriers |
 | `Cost` | the overhead class of a carrier in `Facts::cost`: `Low` (unix, memory, tcp, ws, h2), `Medium` (the long poll, a chunked stream), `High` (SSE, icmp), `Highest` (the simplex poll, dns, s3) |
 | `tcp::{Keys, Refusal, refusal}`, `tcp::{NAME, ALPN, CONNECT_TIMEOUT, HANDSHAKE_TIMEOUT, MAX_HANDSHAKES}` | the shared set of client keys, the refusal of a key with the key seen, its finder in an error (from `pod_tls::peer`); the constants |
-| `frame` | `Frame`, `Decoder` (`new`, `with_preface`, `push`, `next`, `buffered`), `FrameError`, `PREFACE`, `HEADER`, `MAX_RECORD`, `kind` |
+| `frame` | `Frame`, `Decoder` (`new`, `with_preface`, `push`, `next`, `next_borrowed`, `buffered`), `Borrowed` (a `DATA` body as a slice of the buffer of the decoder), `FrameError`, `PREFACE`, `HEADER`, `MAX_RECORD`, `kind` |
 | `arq::ArqStream` | the ARQ over a datagram carrier as one ordered byte stream (`AsyncRead` and `AsyncWrite`): `new(datagrams, settings)` starts its task on the current tokio runtime; `handle`. A write is one record; a shutdown sends the `FIN` and returns at its acknowledgement; a drop sends the `FIN`; when its frames are acknowledged, the task answers the peer until the peer is silent for two RTO ceilings (at most 64 s), then ends; an error also ends it |
 | `arq::ArqHandle` | stays when the stream moves into a `Link`: `error`, `stats`, `srtt`, `in_flight`, `rekey_due`, `rekey_wanted` (waits for the ask), `rekeyed` |
 | `arq::Arq` | the ARQ as a state machine with no I/O: `new(settings, mtu)`, `on_datagram`, `poll_transmit`, `poll_timeout`, `on_timeout`, `write`, `read`, `send_record`, `recv_record`, `close`, `closed`, `read_finished`, `idle`, `done`, `rekey_due`, `rekeyed`, `in_flight`, `unacknowledged`, `rto`, `srtt`, `fragment`, `stats`, `error` |
@@ -926,6 +926,14 @@ the code of `996f55d`, release mode.
 | tcp | 1.00 (0.97 to 1.07) | 1.19 (1.13 to 1.21) | 5.8, 6.2 | 71 KiB | 3.6 MiB, 6.5 MiB | 61.3, 111.1 | 232.0, 1148.0 |
 
 The wake latency of that host: p50 19.4 us, p99 59.5 us.
+
+After T-778 (the same host): memory 0.00 allocations and 516 bytes
+allocated for each frame on 1 stream, 0.01 on 8 streams; tcp 3.2
+allocations for each frame, in the TLS of the carrier (T-798). The bulk
+throughput of one code varies by 12 % between runs on that host, and the
+change of T-778 is under it. `tests/allocations.rs` holds the result: a
+bulk run of 64 MiB over the memory carrier makes at most 16 allocations
+after its first 1 MiB.
 
 ## The adoption map
 

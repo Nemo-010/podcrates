@@ -12,7 +12,7 @@ impl State {
     pub fn on_frame(&mut self, frame: Frame) -> Result<(), Error> {
         match frame {
             Frame::Open(id) => self.on_open(id),
-            Frame::Data(id, body) => self.on_data(id, body),
+            Frame::Data(id, body) => self.on_data(id, &body),
             Frame::Window(0, more) => {
                 self.send_credit += u64::from(more);
                 if self.send_credit > MAX_CREDIT {
@@ -92,7 +92,9 @@ impl State {
         Ok(())
     }
 
-    fn on_data(&mut self, id: u32, body: Vec<u8>) -> Result<(), Error> {
+    /// A `DATA` body of the peer: its bytes go into the buffer of the
+    /// stream, the one copy of the reader.
+    pub fn on_data(&mut self, id: u32, body: &[u8]) -> Result<(), Error> {
         let n = body.len();
         if n as u64 > self.recv_left {
             return Err(Error::Protocol(format!("{n} bytes on the stream {id}, past the window of the link")));

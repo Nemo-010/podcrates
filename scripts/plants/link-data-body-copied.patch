@@ -1,0 +1,11 @@
+--- a/crates/pod-link/src/inbound.rs
++++ b/crates/pod-link/src/inbound.rs
+@@ -118,7 +118,7 @@
+             self.discard(n);
+             return Ok(());
+         }
+-        slot.buf.extend(body);
++        slot.buf.extend(body.to_vec());
+         let w = slot.read_waker.take();
+         self.wake(w);
+         Ok(())
