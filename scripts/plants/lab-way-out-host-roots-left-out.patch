@@ -1,0 +1,15 @@
+diff --git a/crates/pod-lab/src/net/standin.rs b/crates/pod-lab/src/net/standin.rs
+index 7a727dd..effb9c8 100644
+--- a/crates/pod-lab/src/net/standin.rs
++++ b/crates/pod-lab/src/net/standin.rs
+@@ -43,9 +43,7 @@ fn write_cert_file(cas: &Cas, net: &Net, host: Option<&str>) -> Result<PathBuf,
+         text.push_str(&cas.of(Ca::Proxy).pem());
+     }
+     // With a way out: the roots of the host after the CAs of the lab.
+-    if let Some(host) = host {
+-        text.push_str(host);
+-    }
++    let _ = host;
+     let path = std::env::temp_dir().join(format!("podlab-ca-{}.pem", k::getpid()));
+     std::fs::OpenOptions::new()
+         .write(true)

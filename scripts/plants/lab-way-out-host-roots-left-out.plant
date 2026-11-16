@@ -1,0 +1,8 @@
+# With a way out, the certificate file of the lab holds the CAs of the lab
+# alone, so a command cannot check a server past the lab; the lab test must
+# fail.
+ENTRY=T-792
+GROUP=lab
+EXPECT='TLS to way-out.test with the roots of the lab'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800
