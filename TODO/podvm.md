@@ -9334,7 +9334,7 @@ A consumer asks for the ids of the plan for a host root.
 
 ## Problem
 
-podvm: "podvm T-1868 adds the virtio-win guest tools to the install of a
+podvm: "podvm PodUtils/podvm@T-1868 adds the virtio-win guest tools to the install of a
 full Windows guest. The catalog pins `virtio-win-0.1.302.iso` from
 `https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/`
 (877 373 440 bytes, with a pinned sha256). [...] The ask: list
@@ -9352,7 +9352,7 @@ host in its list `WAITING` until a tag of podcrates lists it.
   with 877 373 440 bytes; the primary volume descriptor (a range read of
   sector 16) has the volume id `virtio-win-0.1.302`.
 - Not measured: the path that podvm's catalog names under
-  `direct-downloads/` (podvm's main does not hold T-1868 yet); the file of
+  `direct-downloads/` (podvm's main does not hold PodUtils/podvm@T-1868 yet); the file of
   `archive-virtio/` is the one of that name and size.
 
 ## Approach
