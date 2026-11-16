@@ -1,0 +1,7 @@
+# T-767: the far end's line of a resume does not say that it stopped the old
+# link that still carried the session, so the test of a resume while the old
+# link lives at the far end must fail.
+ENTRY=T-767
+GROUP=session
+EXPECT='test a_resume_while_the_old_link_lives_at_the_far_end_stops_it_and_moves_bytes_both_ways \.\.\. FAILED'
+RUN='cargo test -p pod-session --test session_resume_again -- a_resume_while_the_old_link_lives_at_the_far_end_stops_it_and_moves_bytes_both_ways'
