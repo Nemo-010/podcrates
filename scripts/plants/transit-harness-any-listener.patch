@@ -1,11 +1,13 @@
---- a/crates/pod-transit/tests/transit_server/mod.rs
-+++ b/crates/pod-transit/tests/transit_server/mod.rs
-@@ -152,7 +152,7 @@
+diff --git a/crates/pod-testkit/src/listener.rs b/crates/pod-testkit/src/listener.rs
+index 05ddd56c..c7e02988 100644
+--- a/crates/pod-testkit/src/listener.rs
++++ b/crates/pod-testkit/src/listener.rs
+@@ -57,7 +57,7 @@ pub fn own_listener(child: &mut Child, at: SocketAddr, limit: Duration) -> Resul
          if let Ok(Some(status)) = child.try_wait() {
              return Err(format!("it ended ({status}) before it listened at {at}"));
          }
--        if holds_listener(child.id(), at) {
-+        if std::net::TcpStream::connect_timeout(&at, Duration::from_millis(200)).is_ok() {
-             return Ok(());
-         }
-         if Instant::now() >= deadline {
+-        match holds_listener(child.id(), at) {
++        match std::net::TcpStream::connect_timeout(&at, Duration::from_millis(200)).is_ok().then_some(true) {
+             Some(true) => return Ok(()),
+             Some(false) => return Err(format!("another process listens at {at} with it")),
+             None if Instant::now() >= deadline => {

@@ -1,0 +1,9 @@
+# pod_testkit::listener::start gives up after the first child that does
+# not hold its port, and takes no new port: a test whose port another
+# test took then fails. The test of the start must fail. It needs python3
+# alone.
+ENTRY=T-732
+GROUP=transit
+EXPECT='test a_start_takes_a_new_port_when_its_child_does_not_listen_on_its_own \.\.\. FAILED'
+RUN='cargo test -p pod-testkit --test listener -- a_start_takes_a_new_port_when_its_child_does_not_listen_on_its_own --exact'
+LIMIT=1800

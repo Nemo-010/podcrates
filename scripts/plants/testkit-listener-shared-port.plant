@@ -1,0 +1,9 @@
+# pod_testkit::listener::own_listener takes a port that the child shares
+# with another process (SO_REUSEPORT, as CoreDNS binds): the kernel then
+# gives part of the test's connections to the other test's server. The
+# test of a shared port must fail. It needs python3 alone.
+ENTRY=T-732
+GROUP=transit
+EXPECT='test a_port_that_another_process_shares_is_not_the_child_s \.\.\. FAILED'
+RUN='cargo test -p pod-testkit --test listener -- a_port_that_another_process_shares_is_not_the_child_s --exact'
+LIMIT=1800

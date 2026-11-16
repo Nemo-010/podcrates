@@ -1,0 +1,13 @@
+diff --git a/crates/pod-testkit/src/listener.rs b/crates/pod-testkit/src/listener.rs
+index 05ddd56c..0e4977df 100644
+--- a/crates/pod-testkit/src/listener.rs
++++ b/crates/pod-testkit/src/listener.rs
+@@ -30,7 +30,7 @@ pub fn free_port() -> u16 {
+ /// why the last try failed.
+ pub fn start(limit: Duration, mut spawn: impl FnMut(u16) -> Child) -> Result<(Child, u16), String> {
+     let mut why = String::new();
+-    for _ in 0..TRIES {
++    for _ in 0..1 {
+         let port = free_port();
+         let mut child = spawn(port);
+         match own_listener(&mut child, SocketAddr::from((Ipv4Addr::LOCALHOST, port)), limit) {

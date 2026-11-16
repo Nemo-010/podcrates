@@ -1,0 +1,13 @@
+diff --git a/crates/pod-testkit/src/listener.rs b/crates/pod-testkit/src/listener.rs
+index 05ddd56c..55849eb7 100644
+--- a/crates/pod-testkit/src/listener.rs
++++ b/crates/pod-testkit/src/listener.rs
+@@ -59,7 +59,7 @@ pub fn own_listener(child: &mut Child, at: SocketAddr, limit: Duration) -> Resul
+         }
+         match holds_listener(child.id(), at) {
+             Some(true) => return Ok(()),
+-            Some(false) => return Err(format!("another process listens at {at} with it")),
++            Some(false) => return Ok(()),
+             None if Instant::now() >= deadline => {
+                 return Err(format!("it did not listen at {at} within {} s", limit.as_secs()));
+             }
