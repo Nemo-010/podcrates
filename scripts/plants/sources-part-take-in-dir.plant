@@ -1,0 +1,9 @@
+# The check reads each file of a dir at the commit of the dir's take, also
+# a file that an earlier part take names. pod-egress's part take names
+# three files of parts 2 and 3: the check must read them before that take,
+# and find no change. All reads are at fixed commits of podssh.
+ENTRY=T-793
+GROUP=network
+EXPECT='^pod-egress: changed PodUtils/podssh:crates/podssh-ws/src/vless/xhttp.rs'
+RUN='d=$(mktemp -d) && git clone -q --filter=blob:none https://github.com/PodUtils/podssh "$d/podssh" && python3 -I scripts/check-sources.py --clone PodUtils/podssh="$d/podssh" pod-egress; rc=$?; rm -rf "$d"; exit $rc'
+LIMIT=300

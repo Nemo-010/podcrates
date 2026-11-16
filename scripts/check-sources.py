@@ -267,7 +267,11 @@ def compare(b: Block, source) -> list[str]:
     for d in b.dirs:
         seen.update(source.tree(d, rev(d)))
     for rel in b.files:
-        if not any(rel == d or rel.startswith(d + "/") for d in b.dirs):
+        home = [d for d in b.dirs if rel == d or rel.startswith(d + "/")]
+        # A part take can name a file of a dir that a later take reads at
+        # another commit: read the file at its own commit.
+        if not home or any(rev(d) != rev(rel) for d in home):
+            seen.pop(rel, None)
             seen.update(source.tree(rel, rev(rel)))
     lines = []
     for rel, (blob, local) in sorted(b.files.items()):

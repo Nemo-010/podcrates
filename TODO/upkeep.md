@@ -2846,3 +2846,142 @@ cargo run -q -p pod-services-watch -- --service syncthing-relay
 2026-11-16; the fact of its device id has the same read date. The consumers
 read it at the next tag. Here: `cargo test -p pod-services --all-features`
 passes. The next scheduled run of `services.yml` checks the watch.
+
+
+# T-793: `check-sources.py` reads a file that a part take names at the commit of the take of its dir: `pod-egress` shows 3 changes
+
+**Source:** `upstream.yml`, job `sources`, red each day since 2026-11-13 (runs 43712799629 and 43872758011, at `a2ee305`).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The job `sources` prints:
+
+```
+pod-egress: changed PodUtils/podssh:crates/podssh-ws/src/shadowsocks/ws.rs -> crates/pod-egress/src/shadowsocks/ws.rs
+pod-egress: changed PodUtils/podssh:crates/podssh-ws/src/vless/packet.rs -> crates/pod-egress/src/vless/packet.rs
+pod-egress: changed PodUtils/podssh:crates/podssh-ws/src/vless/xhttp.rs -> crates/pod-egress/src/vless/xhttp.rs
+check-sources: pod-egress: PodUtils/podssh at 2ffb7cd, taken at 3f6a9fe (22 paths), taken at 94ee6ac: 91 files, 3 changes
+```
+
+The part take of `crates/pod-egress/SOURCES` at `3f6a9fe` names the three
+files, because that take changed them. The take of the whole block at
+`94ee6ac` is later. The check reads each `dir` at the commit of the dir's
+take (`94ee6ac^`) and reads a file of a dir only from that read: the
+three files come from `94ee6ac^`, which holds the change of `3f6a9fe`.
+
+## Premise
+
+- Read: `compare` in `scripts/check-sources.py`; the blob ids of the three
+  files in a clone of podssh at `2ffb7cd`, `3f6a9fe^`, `3f6a9fe` and
+  `94ee6ac^`. At `3f6a9fe^` each blob is the recorded one; at `94ee6ac^`
+  each is the blob of `3f6a9fe`. No commit of podssh between `2ffb7cd`
+  and `3f6a9fe^` touches them.
+- Not measured: a run of the check through the mirror after the fix (the
+  rev of each path is the same in the two readers).
+
+## Approach
+
+In `compare`, read a file of a dir again at its own commit when its take
+differs from the take of its dir. A file that is not at that commit is
+`removed`. Plant: the old read of the file from its dir.
+
+## Prove
+
+```sh
+python3 -I scripts/check-sources.py --clone PodUtils/podssh=CLONE pod-egress
+sh scripts/plant-each.sh sources-part-take-in-dir
+```
+
+The first command exits 0 with a clone of podssh.
+
+
+# T-794: `pod-manual`: podnet took the crate at `9217b0b`; the `taken` line is not in `SOURCES`
+
+**Source:** `upstream.yml`, job `sources` (run 43872758011, at `a2ee305`).
+**Category:** chore
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The job `sources` prints 9 changes of the block of podnet of
+`crates/pod-manual/SOURCES`: PodUtils/podnet:src/manual/model.rs,
+`pager.rs`, `roff.rs`, `text.rs` and PodUtils/podnet:scripts/gen-llms.py
+are removed; PodUtils/podnet:src/manual/mod.rs, `facts.rs`,
+`inventory.rs` and PodUtils/podnet:tests/cli/manual.rs changed, by
+`9217b0b`, `13b1514`, `3aa1ee7` and `dd903e3` of podnet.
+
+## Premise
+
+- Read: the log of podnet from `78a3911` on these paths, in a clone.
+  `9217b0b` (PodUtils/podnet@T-359, 2026-11-15) adds `pod-manual` at tag
+  `v0.54.0` to its `Cargo.toml` and removes `model.rs`, `text.rs`,
+  `roff.rs` and `pager.rs`: it is the take. `13b1514`, `3aa1ee7` and
+  `dd903e3` are after it. No commit between `78a3911` and `9217b0b^`
+  touches the paths. `TODO/PROGRESS.md` says that the help and the manual
+  of podnet come from `pod-manual`.
+- `adoption/podnet/` holds no trial of `pod-manual`.
+
+## Approach
+
+Add `taken 9217b0b` to the block of podnet (`docs/maintenance.md`, "The
+take of a consumer"). T-700 stays partial: the takes of podssh, podvm and
+podrunner wait.
+
+## Prove
+
+```sh
+python3 -I scripts/check-sources.py --clone PodUtils/podnet=CLONE --clone PodUtils/podssh=CLONE2 pod-manual
+```
+
+The command exits 0 with the clones.
+
+
+# T-795: `pod-manual`: the text fixes of podssh in `data.rs` and `flags.rs` change no form that the crate took
+
+**Source:** `upstream.yml`, job `sources` (run 43872758011, at `a2ee305`).
+**Category:** chore
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The job `sources` prints 2 changes of the block of podssh of
+`crates/pod-manual/SOURCES`:
+`PodUtils/podssh:crates/podssh-cli/src/flags.rs` (`8a8e72cc`) and
+`PodUtils/podssh:crates/podssh-cli/src/man/data.rs` (`d0ef9738`,
+`8a8e72cc`), both of PodUtils/podssh@T-790.
+
+## Premise
+
+- Read: `git diff cfc3ae3 5340fbb` of the two files in a clone of podssh.
+  Each changed line is in a string of podssh's own tables: no work id, and
+  no sentence past 25 words (the rules of `pod-manual`). The form that the
+  crate took (`Code` of `data.rs`; `FlagKind` and `FlagRow` of
+  `flags.rs`) did not change. The crate holds no text of these tables.
+- podssh did not take the crate: its `Cargo.toml` has no `pod-manual`,
+  and `man/model.rs`, `roff.rs`, `text.rs` and `pager.rs` are still there.
+  PodUtils/podssh@T-790 is partial.
+
+## Approach
+
+No port. Move the block of podssh to `5340fbb` with the new blob ids of
+the two files, and say in its comment that only the form of the two files
+is frozen (call C763).
+
+## Prove
+
+```sh
+python3 -I scripts/check-sources.py --clone PodUtils/podnet=CLONE --clone PodUtils/podssh=CLONE2 pod-manual
+```
+
+The command exits 0 with the clones.

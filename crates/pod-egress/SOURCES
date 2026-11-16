@@ -10,9 +10,10 @@ repo PodUtils/podssh 2ffb7cd77731e24a98e93c106ca7db7c5c4bd472
 # are the shared parts of each road here (src/carry.rs, src/end.rs). Part 2
 # of T-035 adds vless/, vmess/, trojan/ and shadowsocks/; part 3 adds eice/
 # and iap/.
-# podssh took part 1 at 3f6a9fe with v0.51.0 (PodUtils/podssh#260); parts 2
-# and 3 stay frozen. adoption/podssh/pod-egress.patch stays: the trials of
-# parts 2 and 3 apply it first (their .needs).
+# podssh took part 1 at 3f6a9fe with v0.51.0 (PodUtils/podssh#260). The
+# take changed three files of parts 2 and 3 (shadowsocks/ws.rs,
+# vless/packet.rs, vless/xhttp.rs): this line names them, so that the check
+# reads them before that take, not before the take of parts 2 and 3.
 taken 3f6a9fed90bea2fe090f8b6f927249288f9cc998 crates/podssh-ws/src/via crates/podssh-ws/src/forwarder crates/podssh-ws/src/wstunnel crates/podssh-ws/src/wisp crates/podssh-ws/src/meek crates/podssh-ws/src/meek.rs crates/podssh-ws/src/webtunnel.rs crates/podssh-ws/src/pt.rs crates/podssh-ws/src/cloudflare.rs crates/podssh-ws/tests/via.rs crates/podssh-ws/tests/forwarder.rs crates/podssh-ws/tests/live_forwarder.rs crates/podssh-ws/tests/meek.rs crates/podssh-ws/tests/webtunnel.rs crates/podssh-ws/tests/wisp.rs crates/podssh-ws/tests/wisp_support crates/podssh-ws/tests/wstunnel.rs crates/podssh-ws/tests/cloudflare_access.rs crates/podssh-ws/tests/common/talker.rs crates/podssh-ws/src/shadowsocks/ws.rs crates/podssh-ws/src/vless/packet.rs crates/podssh-ws/src/vless/xhttp.rs
 # podssh took parts 2 and 3 at 94ee6ac with v0.52.0 (PodUtils/podssh#263):
 # the whole crate is taken.
