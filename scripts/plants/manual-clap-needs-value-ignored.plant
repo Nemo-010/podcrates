@@ -1,0 +1,5 @@
+# pod-manual: the probe of requires does not give the possible values of a flag, so the rule of requires_if is lost; the test of the rules of requires must fail.
+ENTRY=T-726
+GROUP=manual
+EXPECT='test the_reader_gives_each_rule_of_requires \.\.\. FAILED'
+RUN='cargo test -p pod-manual --all-features --test clap -- the_reader_gives_each_rule_of_requires --exact'

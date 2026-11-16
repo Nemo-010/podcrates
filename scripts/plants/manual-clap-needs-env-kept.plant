@@ -1,0 +1,5 @@
+# pod-manual: the probe of requires keeps the variables of clap, so a variable of the caller gives a needed flag; the test of the rules of requires must fail.
+ENTRY=T-726
+GROUP=manual
+EXPECT='test the_reader_gives_each_rule_of_requires \.\.\. FAILED'
+RUN='cargo test -p pod-manual --all-features --test clap -- the_reader_gives_each_rule_of_requires --exact'

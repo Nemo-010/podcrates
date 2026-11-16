@@ -1,0 +1,13 @@
+diff --git a/crates/pod-manual/src/clap/needs.rs b/crates/pod-manual/src/clap/needs.rs
+index 6a2bd140..e72728b4 100644
+--- a/crates/pod-manual/src/clap/needs.rs
++++ b/crates/pod-manual/src/clap/needs.rs
+@@ -94,7 +94,7 @@ fn values(arg: &::clap::Arg) -> (Vec<String>, bool) {
+     if !arg.is_positional() && !super::takes_value(arg) {
+         return (vec![String::new()], false);
+     }
+-    let shown = super::values(arg);
++    let shown: Vec<String> = Vec::new();
+     if shown.is_empty() { (SAMPLES.iter().map(|s| s.to_string()).collect(), false) } else { (shown, true) }
+ }
+ 

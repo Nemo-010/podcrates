@@ -1,0 +1,12 @@
+diff --git a/crates/pod-manual/src/clap.rs b/crates/pod-manual/src/clap.rs
+index f1ac76dc..8b2a1eb9 100644
+--- a/crates/pod-manual/src/clap.rs
++++ b/crates/pod-manual/src/clap.rs
+@@ -85,7 +85,6 @@ fn rules(cmd: &::clap::Command, probe: &mut needs::Probe, path: &[String]) -> Ve
+             }
+         }
+     }
+-    out.extend(needs::rules(probe, path));
+     out
+ }
+ 

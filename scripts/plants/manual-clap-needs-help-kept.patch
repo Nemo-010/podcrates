@@ -1,0 +1,12 @@
+diff --git a/crates/pod-manual/src/clap/needs.rs b/crates/pod-manual/src/clap/needs.rs
+index 6a2bd140..5fb29a72 100644
+--- a/crates/pod-manual/src/clap/needs.rs
++++ b/crates/pod-manual/src/clap/needs.rs
+@@ -27,7 +27,6 @@ fn probe_tree(cmd: Command) -> Command {
+     let groups: Vec<String> = cmd.get_groups().map(|g| g.get_id().to_string()).collect();
+     let mut c = cmd
+         .mut_args(|a| a.env(None).required(false))
+-        .arg_required_else_help(false)
+         .subcommand_required(false)
+         .ignore_errors(false);
+     for g in groups {
