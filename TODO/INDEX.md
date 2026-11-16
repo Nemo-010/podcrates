@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**640 entries: 127 open, 14 partial, 6 blocked, 493 done.**
+**640 entries: 126 open, 14 partial, 6 blocked, 494 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 12 | 8 | 0 | 145 | 165 |
-| P2 | 59 | 3 | 4 | 254 | 320 |
+| P2 | 58 | 3 | 4 | 255 | 320 |
 | P3 | 56 | 3 | 2 | 92 | 153 |
-| **All** | 127 | 14 | 6 | 493 | 640 |
+| **All** | 126 | 14 | 6 | 494 | 640 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -83,7 +83,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-034](roads.md) | P2 | S | M4 | feature | done | `pod-acme`: the ACME client |
 | [T-035](roads.md) | P2 | L | M4 | feature | done | `pod-egress`: the other roads out (via, VLESS, wstunnel, Wisp, Shadowsocks and more) |
 | [T-036](roads.md) | P2 | L | M4 | feature | open | `pod-relay-serve`: the relay role and its mailbox |
-| [T-037](roads.md) | P2 | M | M4 | feature | open | `pod-iroh`: the iroh road |
+| [T-037](roads.md) | P2 | M | M4 | feature | done | `pod-iroh`: the iroh road |
 | [T-038](roads.md) | P3 | S | M4 | feature | done | `pod-tor`: the Tor road through arti |
 | [T-039](roads.md) | P2 | L | M4 | feature | open | `pod-ts`: a Tailscale node in the process |
 | [T-040](upkeep.md) | P2 | S | M5 | chore | partial | The trial of podvm |

@@ -2,8 +2,11 @@
 resolver = "3"
 members = ["crates/*", "examples/*"]
 # The fuzz targets are a workspace of their own (fuzz/Cargo.toml): the
-# library crates do not build libFuzzer's C++.
-exclude = ["fuzz"]
+# library crates do not build libFuzzer's C++. A fork of vendor/ is a
+# package of its own, which [patch.crates-io] below puts in its place:
+# excluded, it is no member, and its tests and their dependencies are not
+# the workspace's.
+exclude = ["fuzz", "vendor/iroh-relay"]
 
 [workspace.package]
 version = "0.64.0"
@@ -44,6 +47,7 @@ pod-guest = { path = "crates/pod-guest", version = "0.64.0" }
 pod-hold = { path = "crates/pod-hold", version = "0.64.0" }
 pod-hostprobe = { path = "crates/pod-hostprobe", version = "0.64.0" }
 pod-identity = { path = "crates/pod-identity", version = "0.64.0" }
+pod-iroh = { path = "crates/pod-iroh", version = "0.64.0" }
 pod-incus = { path = "crates/pod-incus", version = "0.64.0" }
 pod-job = { path = "crates/pod-job", version = "0.64.0" }
 pod-lab = { path = "crates/pod-lab", version = "0.64.0" }
@@ -213,6 +217,16 @@ snow = { version = "0.10", default-features = false, features = [
     "use-getrandom",
     "risky-raw-split",
 ] }
+
+# iroh's relay client with the patch of vendor/patches/iroh-relay/: its relay
+# dial speaks SOCKS5 too, where iroh-relay 1.4.1 speaks HTTP CONNECT only,
+# and iroh's HTTPS probe of the relays gets reqwest's SOCKS5
+# (crates/pod-iroh/README.md, "The fork of iroh-relay"). vendor/iroh-relay is
+# the crate as crates.io publishes it, and the patch. Only pod-iroh builds
+# it. An iroh that asks for another iroh-relay leaves this patch unused, and
+# cargo says so: carry the patch to that version first.
+[patch.crates-io]
+iroh-relay = { path = "vendor/iroh-relay" }
 
 # Debug builds keep line tables for the crates of the workspace and no
 # debug info for dependencies: test binaries link with less memory and
