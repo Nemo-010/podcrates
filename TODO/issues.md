@@ -202,6 +202,7 @@ kinds and the rules.
 | #195 | request | [gh action] requested: the gates of main at 93bf133 and the release v0.56.0 | open | T-723 |
 | #196 | request | [gh action] requested: the gates of main at 0d6421c, a dry run of issue-sync.yml, and the release v0.57.0 | closed (ci 43771483683 failed in pod-transit: T-731; adoption 43771488468 passed; replaced by #197) | T-724, T-731 |
 | #197 | request | [gh action] requested: ci and a dry run of issue-sync.yml at 0d6421c again, and the release v0.57.0 | closed (ci 43773301549, issue-sync dry run 43773304717, release 43775650432, publish 43775667576) | T-724 |
-| #198 | request | [gh action] requested: the gates of main at f84fb23 and the release v0.58.0 | open | T-725, T-737, T-731, T-702 |
+| #198 | request | [gh action] requested: the gates of main at f84fb23 and the release v0.58.0 | closed (ci 43779481815 failed: shellcheck in install, two stale plants in lint; adoption 43779485406 passed; replaced by #199) | T-725, T-737, T-731, T-702 |
+| #199 | request | [gh action] requested: the gates of main at ca1107f and the release v0.58.0 | open | T-725, T-737, T-731, T-702 |
 
 #79 to #81 are pull requests.
