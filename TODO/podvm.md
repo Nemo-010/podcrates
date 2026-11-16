@@ -8903,7 +8903,7 @@ sh scripts/ci/root-enter-confine-tests.sh
 **Milestone:** M6
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8923,4 +8923,111 @@ A `GuestRoot` of two layers for the checks before the fork: each component reads
 ```sh
 cargo test -p pod-enter --all-features
 sh scripts/ci/root-enter-confine-tests.sh
+```
+
+## Done
+
+2026-11-16, commits d539fc08, ee3794c9, 1cba940a (local branch `fix750`);
+call C738. Found: T-755.
+
+- Cause: `launch::spawn_with` enters an overlay root with the lower
+  directory as its root, and the two checks before the fork
+  (`ns_volume::check_workdir` and `confine::compile`) read that root
+  alone; the upper directory of `Upper::Dir` reached only the options of
+  the mount.
+- Fix: `ns_upper::View`, a `GuestRoot` of the volumes over the two layers:
+  each component reads the upper directory first (a character device 0:0
+  is a missing entry; `trusted.overlay.opaque` or `user.overlay.opaque`
+  set to `y` hides the lower directory, as `pod-rootfs` reads a root of
+  two layers), then the lower one; a volume hides both. `GuestRoot::hidden`
+  (default `false`) tells `abi::walk_in` that a host path that exists is
+  missing in the guest view. `check_workdir` and `confine::compile` (through
+  `compile_by` and `open_through`, now generic) take the view where the plan
+  has volumes or the root has an upper directory; a refused working
+  directory names the upper layer. The upper directory comes from
+  `NsEntry::upper`: `OverlayMount::upper_dir` for an own entry, and
+  `Root::upper_dir` for a join (`NsEntry::Join` carries it). `Upper::Tmpfs`
+  keeps the lower layer. `pod-extract` writes no whiteout into a tree (it
+  applies the `.wh.` entries of a layer by removal); the upper directory
+  holds the whiteouts of overlayfs (a character device 0:0), which the
+  view reads.
+- Tests: `ns_upper::tests` (an upper directory alone, a merged directory,
+  a whiteout of a file and of a directory, an opaque directory, a file of
+  the upper layer over a directory, a link of the upper layer, a volume
+  over both layers, the working directory and its refusal, the opener of
+  a rule); `tests/userns.rs`
+  `the_checks_read_the_upper_layer_of_an_overlay_root` (`tests/userns/upper.rs`)
+  as root and as uid 65534 over the flagged tmpfs, under the lock of T-713:
+  `-w` on a directory of the upper layer alone runs there; a write rule on
+  it is accepted and holds (the write lands in the upper directory, and a
+  write outside the rules fails); `-w` and a rule on a path that a whiteout
+  removes are refused by name before the banner; a volume over a directory
+  of the upper layer wins for `-w` and a rule; a joined exec takes `-w` of
+  the upper layer alone. Here (root, kernel 6.18, Landlock,
+  `PODVM_T486_BUSYBOX=/tmp/bbx/busybox`): `cargo test -p pod-enter
+  --all-features` (222 unit tests), `sh scripts/ci/userns-tests.sh` and
+  `sh scripts/ci/root-enter-confine-tests.sh` pass.
+- Plants (group `enter`): `enter-upper-workdir-in-the-lower`,
+  `enter-upper-rule-in-the-lower`, `enter-upper-join-in-the-lower` (the
+  live test), `enter-upper-hidden-read`, `enter-upper-volume-under-the-layers`,
+  `enter-upper-whiteout-read`, `enter-upper-opaque-read` (the unit tests).
+  The patches of `enter-ns-join-skipped`, `enter-overlay-join-as-tree`,
+  `enter-confine-volume-in-the-image` and
+  `enter-confine-volume-missing-accepted` follow the change of the code.
+  `sh scripts/plant-each.sh --group enter`: 30 caught, 0 missed or stale; `--apply`: 0 stale.
+- For the release notes: on the overlay root with an upper directory of
+  the caller (`Root::Overlay { upper: Upper::Dir { .. } }`), podvm's `-w`
+  and the paths of its confinement profile are checked before the fork in
+  the view of the payload: a directory or a file that only the upper
+  directory holds (a write of an earlier run, or `pod_rootfs::complete`
+  with `Settings::upper`) is accepted, a path that a whiteout or an opaque
+  directory of the upper directory removes is refused by name before the
+  fork (it was refused by the child), and a volume still hides both
+  layers. Also for `spawn_joined_root`. No change of the API for podvm:
+  `abi::GuestRoot` has the new method `hidden` (a default; an
+  implementation of a caller builds as before).
+
+# T-755: `pod-enter`: the opaque attribute that overlayfs reads on an overlay root in a user namespace is not measured
+
+**Source:** T-750 (a finding of its work).
+**Category:** measurement
+**Milestone:** M6
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The check before the fork (`ns_upper::View`, T-750) takes a directory of
+the upper layer with `trusted.overlay.opaque` or `user.overlay.opaque` set
+to `y` as opaque, as `pod-rootfs` reads a root of two layers. The overlay
+mount of the namespace rung has no `userxattr` option, so overlayfs reads
+`trusted.overlay.opaque` alone. A caller with no capabilities mounts the
+overlay in a user namespace (`ns_user`), where `trusted.` attributes need
+`CAP_SYS_ADMIN` in the first user namespace: there overlayfs can read no
+opaque attribute. Where the check and the kernel disagree, a path that the
+payload sees is refused before the fork (a false refusal, never a false
+pass).
+
+## Premise
+
+- Read: `crates/pod-enter/src/ns_overlay.rs` (`overlay_options`: no
+  `userxattr`), `crates/pod-rootfs/src/write/layers.rs` (`OPAQUE`).
+- Not measured: which attribute overlayfs reads, and whether it makes an
+  opaque directory, in a user namespace with no `userxattr` (kernel 6.18).
+
+## Approach
+
+Measure, as root and as uid 65534 through the rung: a directory of the
+upper layer with each attribute over a lower directory with a file, and
+what the payload sees. Then make the check read what the mount reads (the
+mount as root: `trusted.`; in a user namespace: `user.` with a `userxattr`
+mount, or none), or give the mount `userxattr` in a user namespace. A test
+for each case.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+sh scripts/ci/userns-tests.sh
 ```

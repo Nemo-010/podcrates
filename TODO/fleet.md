@@ -4159,6 +4159,7 @@ cargo test -p pod-manual --all-features --test clap
   Breaking: `Rule::Needs` has the new field `value` (a pattern or a
   struct literal names it, or `..`). podnet can read its about 20 rules of
   `requires` in its manual with no glue.
+- Finding: T-756 (a `requires` of a group has no form in the model).
 
 # T-737: `podlab run --allow-connect PORT`: the way out to a proxy in `bind-denied` (PodUtils/podssh#278)
 
@@ -4191,3 +4192,42 @@ sh scripts/plant-each.sh lab-allow-connect-dropped
 ## Done
 
 2026-11-16. `hold::landlock_tcp(connect)` adds a `LANDLOCK_RULE_NET_PORT` rule with `LANDLOCK_ACCESS_NET_CONNECT_TCP` for each port; the lab process takes the ports as an argument. `tests/lab.rs` (`bind_denied`): a listener outside the lab, a run with its port: the connect to it works, a connect to port 1 and a bind give `EACCES`, as root and as uid 65534. The plant `lab-allow-connect-dropped` is caught. `crates/pod-lab/LANES.md` names the option for podssh.
+
+# T-756: `pod-manual`: the model has no rule "needs one of" for clap's `requires` of a group
+
+**Source:** T-726 (a finding of its work).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+clap's `requires` can name a group (`Arg::requires("out")` with the group
+`out` of `--json` and `--text`): the flag then needs one argument of the
+group. `pod_manual::clap::read` finds the rule (T-726), but the model has
+no form for it (`Rule::Needs` needs each of its names), so the reader
+leaves it out and the help, the text and the man page do not name it.
+
+## Premise
+
+- Read: `crates/pod-manual/src/clap/needs.rs` (a missing argument that
+  matches no single argument is left out), `crates/pod-manual/src/model.rs`
+  (`Rule`).
+- Not measured: the count of such rules in podnet, podssh and podvm.
+
+## Approach
+
+A rule of the model for a need of one of several names (a field of
+`Rule::Needs`, or a new form), its sentence ("--audit needs one of --json,
+--text."), its check in `check::model`, and its JSON field with a default
+(schema 1). The probe maps clap's text of a group (`<--json|--text>`) to
+the arguments of the group. A test with a `requires` of a group, and a
+plant.
+
+## Prove
+
+```sh
+cargo test -p pod-manual --all-features --test clap
+```

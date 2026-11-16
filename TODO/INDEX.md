@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**594 entries: 121 open, 12 partial, 6 blocked, 455 done.**
+**596 entries: 122 open, 12 partial, 6 blocked, 456 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 7 | 0 | 131 | 149 |
-| P2 | 58 | 2 | 4 | 236 | 300 |
-| P3 | 52 | 3 | 2 | 86 | 143 |
-| **All** | 121 | 12 | 6 | 455 | 594 |
+| P2 | 57 | 2 | 4 | 237 | 300 |
+| P3 | 54 | 3 | 2 | 86 | 145 |
+| **All** | 122 | 12 | 6 | 456 | 596 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -640,4 +640,6 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-745](fleet.md) | P2 | M | M8 | feature | open | `pod-hostprobe`: the probe rows of the network classes (a CONNECT through the proxy, the CA of a handshake, a lookup, a direct connect, a ClientHello) |
 | [T-746](fleet.md) | P2 | M | M8 | feature | open | `pod-lab`: a way out through the stand-in proxy of a proxy class, for the live lanes of the consumers |
 | [T-747](fleet.md) | P3 | M | M8 | feature | open | `pod-lab`: the direct network classes on each address: an SNI filter by `nf_tables`, an IPv6 device with a default route |
-| [T-750](podvm.md) | P2 | M | M6 | defect | open | `pod-enter`: on an overlay root with an upper directory, the working directory and the paths of the rules are checked in the lower layer alone |
+| [T-750](podvm.md) | P2 | M | M6 | defect | done | `pod-enter`: on an overlay root with an upper directory, the working directory and the paths of the rules are checked in the lower layer alone |
+| [T-755](podvm.md) | P3 | S | M6 | measurement | open | `pod-enter`: the opaque attribute that overlayfs reads on an overlay root in a user namespace is not measured |
+| [T-756](fleet.md) | P3 | S | M8 | feature | open | `pod-manual`: the model has no rule "needs one of" for clap's `requires` of a group |
