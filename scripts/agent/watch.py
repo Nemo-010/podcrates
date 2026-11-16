@@ -52,6 +52,7 @@ import json
 import os
 import random
 import sys
+import http.client
 import time
 import urllib.error
 import urllib.parse
@@ -81,7 +82,8 @@ def get(path, opener=None):
         except urllib.error.HTTPError as e:
             if e.code not in TRANSIENT:
                 return None
-        except (urllib.error.URLError, TimeoutError, ValueError, OSError):
+        # A cut answer (http.client.IncompleteRead) is a failure to try again.
+        except (urllib.error.URLError, http.client.HTTPException, TimeoutError, ValueError, OSError):
             pass
     return None
 

@@ -140,5 +140,18 @@ def self_test():
     check("the options", options(["me", "--every", "60", "--runs", "O/a", "--runs", "O/b"]),
           {"me": "me", "state": ".work/agent", "every": 60, "runs": ["O/a", "O/b"], "org": "PodUtils"})
     check("no ME is an error", options(["--every", "60"]), None)
+    # A cut answer of the mirror is a failure to try again, not the end of
+    # the watcher.
+    import http.client
+    import watch
+
+    def cut(req, timeout):
+        raise http.client.IncompleteRead(b"{", 10)
+
+    sleep, watch.time.sleep = watch.time.sleep, lambda s: None
+    try:
+        check("a cut answer gives no document", watch.get("repos/O/me/issues", opener=cut), None)
+    finally:
+        watch.time.sleep = sleep
     print("watch self-test:", "passed" if ok else "FAILED")
     return 0 if ok else 1
