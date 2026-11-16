@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**643 entries: 128 open, 14 partial, 6 blocked, 495 done.**
+**643 entries: 127 open, 14 partial, 6 blocked, 496 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 12 | 8 | 0 | 145 | 165 |
-| P2 | 59 | 3 | 4 | 256 | 322 |
+| P2 | 58 | 3 | 4 | 257 | 322 |
 | P3 | 57 | 3 | 2 | 92 | 154 |
-| **All** | 128 | 14 | 6 | 495 | 643 |
+| **All** | 127 | 14 | 6 | 496 | 643 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -689,4 +689,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-807](fleet.md) | P2 | M | M5 | feature | open | `pod-manual`: four forms that podssh's manual needs before its text, help and JSON move to the crate (PodUtils/podssh#288) |
 | [T-808](roads.md) | P2 | S | M4 | defect | done | `pod-iroh`: the fork of iroh-relay sends the name of the relay to a `socks5://` proxy (T-037) |
 | [T-809](roads.md) | P3 | M | M4 | feature | open | `pod-iroh`: the relay dial of iroh takes a proxy URL, not the caller's dialer (T-037) |
-| [T-810](roads.md) | P2 | M | M4 | chore | open | `pod-iroh`: the adoption trial of podssh (T-037) |
+| [T-810](roads.md) | P2 | M | M4 | chore | done | `pod-iroh`: the adoption trial of podssh (T-037) |

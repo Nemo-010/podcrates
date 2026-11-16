@@ -1716,7 +1716,7 @@ cargo test -p pod-iroh --all-features
 **Milestone:** M4
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1748,3 +1748,51 @@ the build, clippy and the tests of the CLI with the feature
 ```sh
 sh scripts/adoption.sh podssh pod-iroh
 ```
+
+## Done
+
+2026-11-16, `2c9cc64`. `adoption/podssh/pod-iroh.patch`
+(podssh at `0370b0b`, `pod-iroh.commit`): crates/podssh-iroh leaves
+podssh, with its tests, its four plants and podssh's copy of iroh-relay
+(`vendor/iroh-relay`, `vendor/patches/iroh-relay`, its section of
+`PodUtils/podssh:vendor/README.md`, its watch in `check-vendored.py`). podssh-cli takes
+`pod-iroh` with its feature `iroh` (`iroh-test` takes `test-relay`),
+`pod-ws` for the type of the way, and `iroh` with no TLS feature. The new
+`src/iroh_way.rs` of podssh-cli gives the crate podssh's TLS context
+(`podssh_ws::tls::context`), its resolver (`podssh_ws::resolve::resolver`),
+the proxy of the environment (`podssh_ws::dial::settings`) and the way out
+(`podssh_ws::client::way`), and reads `PODSSH_IROH_RELAY`, `_PKARR`, `_UDP`
+and `_QUIC` by name; a unit test compares the names with pod-iroh's
+constants, and the test of the manual's facts reads that file only with the
+feature. The words of a refused version stay podssh's (`REMEDY`). The
+Pinggy address of a record goes to podssh's own parser. Each podcrates tag
+moves to `v0.65.0`. The root `[patch.crates-io]` names
+`iroh-relay = { git = "https://github.com/PodUtils/podcrates", tag =
+"v0.65.0" }`; `scripts/repo_scans.py` of podssh takes the lock's git
+source of that patch (with a plant and a control in `check-repo.py`). The
+gate, the listeners' allowance, AGENTS.md and the docs that named the crate
+name `pod-iroh`.
+
+Measured: cargo takes a package from a git repository whose workspace
+excludes it: a project with `[patch.crates-io] iroh-relay = { git =
+"https://github.com/PodUtils/podcrates", rev = "6a965ef" }` locked
+`iroh-relay 1.4.1` from `git+https://github.com/PodUtils/podcrates?rev=6a965ef`
+(the fork in `vendor/iroh-relay`), with no warning. `scripts/adoption.sh`
+now points each other `NAME = { git = podcrates, tag }` of a manifest to
+the directory of NAME under `vendor/`, as it points each crate to its directory under `crates/`.
+
+The run, each step passed (`sh scripts/adoption.sh podssh pod-iroh`):
+`check-repo.py`; no `PodUtils/podssh:crates/podssh-iroh` and no copy of iroh-relay; no
+manifest names podssh-iroh; the patch of iroh-relay is the path of this
+tree; the build with `iroh`; pod-iroh and the fork of this tree in its
+tree; clippy with `iroh` and with `iroh-test`; the library's tests with
+`iroh` (1,173 passed, 1 ignored); with `iroh-test`, `iroh_road` (4, 1
+ignored: live), `iroh_cli` (6), `chat_iroh` (1), `pipe_iroh` (2),
+`pipe_iroh_record` (2), `pinggy_road` (8), `opentunnel_road` (5),
+`man_page` (11); the format of podssh-cli; the toolchains and the test
+targets of podssh's gate; the musl binary with `iroh` by zig, which
+`check-static.sh` passes. The four plants of podssh's crate are pod-iroh's
+now (`scripts/plants/iroh-record-no-derp.plant`, and `iroh-record-name-not-read`,
+`iroh-quic-unset`, `iroh-share-while-made` beside it), each caught by its run
+here. The README's
+adoption map names each change above.

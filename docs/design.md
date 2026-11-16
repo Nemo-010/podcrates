@@ -483,7 +483,8 @@ Each crate is one record entry, or more for a large merge. Its commits:
    (or of `adoption/CONSUMER/CRATE.commit`, for a patch on a later commit),
    applies `adoption/CONSUMER/pod-X.patch` (the glue: the paths, the
    settings, the events), points the git source of podcrates to the
-   checkout of the push, and runs: the tests of the replaced module; the
+   checkout of the push (each crate, and each fork of `vendor/` that a
+   `[patch]` of the consumer names), and runs: the tests of the replaced module; the
    consumer's integration tests that use it (podssh
    `crates/podssh-cli/tests`; podnet `tests/egress.rs`, `tests/tls.rs`,
    `tests/relay_reverse.rs` and the exit codes of `tests/cli.rs`); the

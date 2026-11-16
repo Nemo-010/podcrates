@@ -1,0 +1,7 @@
+# The parser of a node's record drops its OpenTunnel name, so a client has no
+# OpenTunnel road of the record: the test of a record of a name must fail
+# (podssh's t611-name-not-read).
+ENTRY=T-037
+GROUP=link
+EXPECT='test pkarr::record::tests::a_record_of_an_opentunnel_name_names_it_and_sets_a_bad_name_aside \.\.\. FAILED'
+RUN='cargo test -p pod-iroh --all-features --lib -- pkarr::record::tests::a_record_of_an_opentunnel_name_names_it_and_sets_a_bad_name_aside'
