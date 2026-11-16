@@ -17,8 +17,9 @@
     of 200 MiB), with the release asset of `podlab`; `pod-manual` is
     PodUtils/podssh@T-790; its installer on the core is
     PodUtils/podssh@T-793.
-  - podnet: `v0.59.0` (PodUtils/podnet#597; its T-380 and T-381 done with
-    T-742 and T-743): its help and manual
+  - podnet: `v0.60.0` (`ad8abd4`, PodUtils/podnet#597; its T-380 and T-381
+    done with T-742 and T-743; T-726 gives it 9 `requires` rules with no
+    glue): its help and manual
     come from `pod-manual` with no workaround of T-725; it runs the one
     watcher and the sync of the issues; its installer on
     `scripts/install/core.sh` is PodUtils/podnet@T-360.
