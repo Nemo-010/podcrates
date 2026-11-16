@@ -139,14 +139,14 @@ source = { url = "https://relays.syncthing.net/endpoint/full", read = 2026-11-12
 [[endpoint]]
 name = "relay-dvwou27"
 scheme = "tls"
-host = "1.168.114.174"
+host = "1.168.112.83"
 port = 443
-source = { url = "https://relays.syncthing.net/endpoint/full", read = 2026-11-12, note = "relay://1.168.114.174:443 of the device DVWOU27: up 23 days, per-session-rate 0, global-rate 3000000 (bytes/s), location TW" }
+source = { url = "https://relays.syncthing.net/endpoint/full", read = 2026-11-16, note = "relay://1.168.112.83:443 of the device DVWOU27 (until 2026-11-12 at 1.168.114.174): global-rate 3000000 (bytes/s), per-session-rate 0, location TW" }
 
 [[fact]]
 name = "device-id-relay-dvwou27"
 value = "DVWOU27-FLWTZ6S-3VP2OCD-M26EHKW-3O4K3D3-ZUOK372-3YAUMM6-LAD2AQD"
-source = { url = "https://relays.syncthing.net/endpoint/full", read = 2026-11-12, note = "the id of the URL of the relay at 1.168.114.174" }
+source = { url = "https://relays.syncthing.net/endpoint/full", read = 2026-11-16, note = "the id of the URL of the relay at 1.168.112.83" }
 
 [[endpoint]]
 name = "relay-gexmi7x"

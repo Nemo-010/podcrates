@@ -2790,3 +2790,46 @@ event, not a fixed sleep.
 ```sh
 cargo test -p pod-wormhole --all-features --test board
 ```
+
+# T-790: `pod-services`: the Syncthing relay of the device DVWOU27 moved to 1.168.112.83
+
+**Source:** `services.yml` run 43842385221 (scheduled, at `b6b1f47`).
+**Category:** chore
+**Milestone:** M5
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+The watch `http-json` of `syncthing-relay` gave: "MOVED syncthing-relay
+http-json: services/syncthing-relay.toml endpoint relay-dvwou27 is
+1.168.114.174; the service gives host "1.168.112.83" (source: url
+https://relays.syncthing.net/endpoint/full, read 2026-11-12)".
+
+## Premise
+
+- Read: `https://relays.syncthing.net/endpoint/full` on 2026-11-16 through
+  `fetch.web.pkgforge.dev`: the relay of the device DVWOU27 (the same id,
+  the same global rate of 3000000 bytes/s, provided by the same operator)
+  is at `relay://1.168.112.83:443`.
+
+## Approach
+
+Change the host of the endpoint `relay-dvwou27` in
+`crates/pod-services/services/syncthing-relay.toml`, with the new read
+date of its source and of its device id.
+
+## Prove
+
+```sh
+cargo test -p pod-services --all-features
+cargo run -q -p pod-services-watch -- --service syncthing-relay
+```
+
+## Done
+
+2026-11-16. The endpoint `relay-dvwou27` is `1.168.112.83:443`, read
+2026-11-16; the fact of its device id has the same read date. The consumers
+read it at the next tag. Here: `cargo test -p pod-services --all-features`
+passes. The next scheduled run of `services.yml` checks the watch.
