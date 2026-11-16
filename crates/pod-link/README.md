@@ -889,6 +889,44 @@ pipes under a switch, and the ARQ over the `Lossy` shim at 3 % loss):
   `--up-carrier` and `--down-carrier` and the router's split tests are
   podnet's.
 
+## Measurement
+
+`tests/measure.rs` measures the link (T-777). It is an ignored test with
+no gate, and it adds no dependency:
+
+```sh
+cargo test --release -p pod-link --all-features --test measure -- --ignored --nocapture
+```
+
+It writes one line for each result, `MEASURE scen=NAME key=value ...`.
+Each scenario runs on the memory carrier and, with the feature `tcp`, on
+the tcp carrier over the loopback, with the default settings. A stream
+gives its role in its first byte.
+
+| Scenario | What |
+| --- | --- |
+| `host` | `cpus`: the threads of the host; `debug`: true for a debug build, whose numbers do not count |
+| `wake` | the time from `Notify::notify_one` to the run of the task that waits (`p50_us`, `p99_us`): the speed of the host, for a later gate on latency |
+| `bulk-1`, `bulk-8` | 256 MiB on 1 stream or on 8 streams, three runs and a `summary` (`median_gb_s`, `min_gb_s`, `max_gb_s`). A byte counts when the far reader took it and sent back the count at the end of the stream |
+| `rtt-idle`, `rtt-bulk` | 2000 round trips of 64 bytes on one stream (`p50_us`, `p99_us`), on an idle link and beside a bulk stream (`bulk_bytes`) |
+
+The keys of a bulk run: `bytes`, `secs`, `gb_s` (10^9 bytes each
+second), `frames` (the `DATA` frames of `frame_size` that the bytes
+need), `allocs` and `alloc_bytes_per_frame` (the allocations of the
+process from the start to the end of the run, both ends and the runtime,
+counted by the allocator of the test binary alone), `allocs_per_frame`,
+and `peak_live` (the peak of the live heap above its level at the start).
+
+The baseline: a cloud session of 4 threads (x86_64, Linux 6.18), 2026-11-16,
+the code of `996f55d`, release mode.
+
+| Carrier | bulk-1 GB/s | bulk-8 GB/s | allocs for each frame (1, 8) | alloc bytes for each frame | peak live (1, 8) | rtt-idle p50, p99 us | rtt-bulk p50, p99 us |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| memory | 2.29 (2.24 to 2.38) | 2.17 (2.17 to 2.22) | 2.58, 2.81 | 33 KiB | 4.5 MiB, 9.4 MiB | 36.5, 212.3 | 60.8, 463.7 |
+| tcp | 1.00 (0.97 to 1.07) | 1.19 (1.13 to 1.21) | 5.8, 6.2 | 71 KiB | 3.6 MiB, 6.5 MiB | 61.3, 111.1 | 232.0, 1148.0 |
+
+The wake latency of that host: p50 19.4 us, p99 59.5 us.
+
 ## The adoption map
 
 | podnet | pod-link |

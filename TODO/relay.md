@@ -8559,7 +8559,7 @@ T-774 gives the ids of the rules.
 **Milestone:** M2
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8617,6 +8617,29 @@ cargo test --release -p pod-link --all-features --test measure -- --ignored --no
 
 The output has one `MEASURE` line for each scenario and run, each with
 the allocations for each frame and the peak of the live bytes.
+
+## Done
+
+2026-11-16, the commit of the change. `crates/pod-link/tests/measure.rs`
+(one ignored test, `measure`, no new dependency) writes `MEASURE` lines
+for the scenarios of the entry: `wake`, `bulk-1` and `bulk-8` (256 MiB,
+three runs and a summary with the median and the range), `rtt-idle` and
+`rtt-bulk` (2000 round trips of 64 bytes), on the memory carrier and on
+the tcp carrier over the loopback. A stream gives its role in its first
+byte; a bulk byte counts when the far reader sent back the count at the
+end of the stream. The counting allocator is the `#[global_allocator]`
+of the test binary. The README of the crate has the section
+"Measurement": the command, the keys and the baseline of a cloud session
+of 4 threads (release mode, the code of `996f55d`): memory bulk-1 2.29
+GB/s (2.24 to 2.38), bulk-8 2.17 GB/s, 2.58 and 2.81 allocations and 33
+KiB of allocations for each `DATA` frame of 16 KiB, a peak of 4.5 and 9.4
+MiB of live heap, round trips p50 36.5 us idle and 60.8 us under bulk;
+tcp bulk-1 1.00 GB/s, bulk-8 1.19 GB/s, 5.8 and 6.2 allocations for each
+frame, round trips p50 61.3 us idle and 232.0 us under bulk; the wake
+latency p50 19.4 us, p99 59.5 us. The frames count is the frames of
+`frame_size` that the bytes need, not a count of the link: the link has
+no counter of frames. T-778 takes the allocations for each frame as its
+gate.
 
 # T-778: `pod-link`: no allocation for each `DATA` frame, and fewer copies of each byte
 
