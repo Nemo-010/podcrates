@@ -202,7 +202,12 @@ of a proxy for the command.
 
 * `src/table/tests.rs`: each profile of the asks, a part and an
   observation in each, each row name a row of `pod-hostprobe`, each
-  errno one that a filter can give, the filter of each profile compiles.
+  errno one that a filter can give, the filter of each profile compiles,
+  each network class is one network lab, each part that podnet marked
+  assumed says so.
+* `src/net/wire.rs`, `src/net/setup.rs`: the head of an HTTP message, the
+  server name of a ClientHello of rustls, the line `hosts:` of
+  `/etc/nsswitch.conf`.
 * `src/check/tests.rs`: `check` against made-up findings and a report.
 * `src/text.rs`: each printed text and each string literal of the code:
   the rules of `pod_manual::rules`.

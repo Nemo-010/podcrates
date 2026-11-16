@@ -95,7 +95,6 @@ fn https_get(lab: &Started, extra: &str) -> Result<u16, String> {
 
 fn issuer(fact: NetFact, lab: &Started, name: &str, ca: Ca) -> Seen {
     let other = if ca == Ca::Proxy { Ca::Server } else { Ca::Proxy };
-    let mut each = Vec::new();
     for (trust, want) in [(ca, true), (other, false)] {
         let (code, tcp) = match via_proxy(&format!("{name}:{TLS_PORT}"), true) {
             Ok(r) => r,
@@ -105,16 +104,13 @@ fn issuer(fact: NetFact, lab: &Started, name: &str, ca: Ca) -> Seen {
             return fails(fact, format!("the CONNECT got {code}"));
         }
         let r = handshake(tcp, name, &[lab.cas.of(trust).der.clone()], true);
-        each.push(match (r, want) {
-            (Ok(_), true) | (Err(_), false) => continue,
-            (Err(e), true) => format!("with {} alone: {e}", trust.name()),
-            (Ok(_), false) => format!("{} alone also takes the chain", trust.name()),
-        });
+        match (r, want) {
+            (Ok(_), true) | (Err(_), false) => {}
+            (Err(e), true) => return fails(fact, format!("with {} alone: {e}", trust.name())),
+            (Ok(_), false) => return fails(fact, format!("{} alone also takes the chain", trust.name())),
+        }
     }
-    match each.first() {
-        None => holds(fact, format!("the chain ends at {}", ca.name())),
-        Some(why) => fails(fact, why.clone()),
-    }
+    holds(fact, format!("the chain ends at {}", ca.name()))
 }
 
 fn silent(fact: NetFact, port: u16) -> Seen {

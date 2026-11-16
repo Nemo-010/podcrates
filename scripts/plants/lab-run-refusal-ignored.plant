@@ -2,5 +2,5 @@
 # profile that the lab cannot hold must fail.
 ENTRY=T-692
 GROUP=lab
-EXPECT='ran with no proxy part|ran a command with a part that does not hold'
+EXPECT='ran with no lab of its part|ran a command with a part that does not hold'
 RUN='cargo test -p pod-lab --all-features --test lab'

@@ -3694,6 +3694,8 @@ Podnet's data (PodUtils/podnet#592): `PodUtils/podnet:docs/lab-profiles/` at `db
 
 ```sh
 cargo test -p pod-lab --all-features
+sh scripts/ci/userns-tests.sh
+sh scripts/plant-each.sh --group lab
 ```
 
 # T-745: `pod-hostprobe`: the probe rows of the network classes (a CONNECT through the proxy, the CA of a handshake, a lookup, a direct connect, a ClientHello)
