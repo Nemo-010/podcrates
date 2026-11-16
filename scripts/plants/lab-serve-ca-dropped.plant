@@ -1,0 +1,7 @@
+# The lab process drops the file of the roots of the served ports; the
+# case of ws-upgrade-refused with a served port must fail.
+ENTRY=T-759
+GROUP=lab
+EXPECT='ws-upgrade-refused with a served port: payload serve-tls'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

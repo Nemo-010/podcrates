@@ -4492,7 +4492,7 @@ cargo test -p pod-manual --all-features --test clap
 **Milestone:** M8
 **Priority:** P1
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -4542,6 +4542,50 @@ only by the path of the class.
 ```sh
 cargo test -p pod-lab --all-features --test lab
 ```
+
+## Done
+
+2026-11-16. `podlab run --serve PORT` (`Options::serve`, once for each
+port) and `--serve-ca FILE` (`Options::serve_ca`). The lab process gets
+them as two arguments after `way-out` or `closed` (a strict parse of each
+argument), loads the roots before the mounts, and passes one
+`net::Local { ports, roots }` through `net::start` and the stand-in
+process to `proxy::proxy` and `proxy::server` (`proxy::Ends`, beside the
+way out). After each rule of the class (the credential, the ports, 504, the
+reset of a literal, the silent port), the stand-in proxy sends a `CONNECT`
+to a name of the lab at a served port to `127.0.0.1:PORT`:
+`relay::connect` with `Upstream::Local` or `Upstream::Out` (the way out),
+which splices, or, for a name that the class terminates, shows a leaf of
+the CA of the proxy, checks the server of the command with the roots of
+`--serve-ca` (502 with the reason where there are none, C749) and refuses
+an upgrade where the class does. In `sni-allowlist` the stand-in server
+splices a ClientHello with a listed name to the first served port (the
+peeked record stays in the stream), and answers itself where nothing
+listens (C748). `podlab` refuses the ports 0, 443 and 3128, `--serve`
+with no network lab, `--serve-ca` with no `--serve` and a file of roots
+that does not read (exit 2); `run` makes the same checks. A fix in place:
+a splice clears the read time limit of the handshake, which ended a
+stream of the way out after 30 s with no byte. The calls C747 to C749. The
+help, the manual (an example), `README.md` ("The servers of the command")
+and `LANES.md` name the options.
+
+Tests: `net::proxy::tests` (a served port reached by each name of the lab,
+407, the silent port, the stand-in for another name and port; 502 with no
+roots, the leaf of the proxy, the request to the command and 403 for an
+upgrade with roots; a listed ClientHello to the served port, a reset for
+the others, the stand-in where nothing listens), `net::local::tests` (the
+ports and the roots), `net::relay::tests` (an idle splice), the binary and
+`tests/cli.rs` (the rules of the parser, the usage errors), and
+`tests/lab/serve.rs`: `proxy-only` with `--serve 8443`, `proxy-tls-reterminate`
+with no roots, `sni-allowlist` and `ws-upgrade-refused` with a CA of the
+test, each with a payload server on the loopback of the lab. Here (root):
+`cargo test -p pod-lab --all-features` (60 unit tests, the binary 7, `cli`
+6, `lab` each case ok as root and as uid 65534 from a copy of the binary
+in a directory of mode 755). Plants: `lab-serve-port-ignored`,
+`lab-serve-tls-unchecked`, `lab-serve-sni-any-name`,
+`lab-serve-port-of-a-stand-in`, `lab-splice-idle-cut` (unit tests) and
+`lab-serve-ports-dropped`, `lab-serve-ca-dropped` (the lab, through
+`scripts/ci/userns-tests.sh`).
 
 # T-760: `pod-lab`: a network lab keeps the other proxy variables of the host (PodUtils/podssh#282)
 

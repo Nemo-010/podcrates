@@ -1,11 +1,13 @@
-//! The bytes between the command and the real network, through the way
-//! out (`out`): after the rules of the class, the stand-in proxy asks the
-//! way out for a stream to the target and answers 200. Then it splices the
-//! two streams, or, where the proxy of the class terminates TLS, it
-//! terminates the TLS of the command with a leaf of its own CA for the
-//! name, checks the real server with the roots of the host, and passes the
-//! plain text between the two. Where the class refuses an upgrade, the
-//! first request of the command with `Upgrade` gets 403.
+//! The bytes between the command and a server that the stand-in proxy
+//! dials after the rules of the class: the real network through the way
+//! out (`out`), or a server of the command on the loopback of the lab
+//! (`local`). The stand-in proxy dials the server and answers 200. Then it
+//! splices the two streams, or, where the proxy of the class terminates
+//! TLS, it terminates the TLS of the command with a leaf of its own CA for
+//! the name, checks the server with the roots of the host (or of
+//! `serve_ca`), and passes the plain text between the two. Where the class
+//! refuses an upgrade, the first request of the command with `Upgrade`
+//! gets 403.
 
 use std::io::{ErrorKind, Read, Write};
 use std::net::{Shutdown, TcpStream};
@@ -16,6 +18,7 @@ use std::time::Duration;
 use pod_hostprobe::sys as k;
 use rustls::Connection;
 
+use super::local::{self, Local};
 use super::out::WayOut;
 use super::proxy::answer;
 use super::tls::{Cas, server_name};
@@ -27,31 +30,65 @@ const WAIT: Duration = Duration::from_secs(30);
 /// A stream with no byte in either direction for this long ends.
 const IDLE_MS: i64 = 10 * 60 * 1000;
 
-/// A `CONNECT` to `host:port` of the real network, which the rules of the
-/// class passed.
-pub fn outside(cas: &Cas, rules: &Proxy, mut tcp: TcpStream, out: &WayOut, host: &str, port: u16) {
-    let up = match out.ask(host, port) {
+/// The server of a `CONNECT` that the rules of the class passed.
+#[derive(Clone, Copy)]
+pub enum Upstream<'a> {
+    /// The real network, through the way out.
+    Out(&'a WayOut),
+    /// A server of the command on the loopback of the lab.
+    Local(&'a Local),
+}
+
+/// A `CONNECT` to `host:port` that the rules of the class passed, to the
+/// server of `to`.
+pub fn connect(cas: &Cas, rules: &Proxy, mut tcp: TcpStream, to: Upstream, host: &str, port: u16) {
+    // The proxy terminates each name of the real network where its class
+    // terminates one: such a name is not on the list of the lab. A served
+    // port keeps the list of the class.
+    let (terminate, roots) = match to {
+        Upstream::Out(out) => (!rules.reterminate.is_empty(), out.roots.as_ref()),
+        Upstream::Local(l) => (rules.reterminate.contains(&host), l.roots.as_ref()),
+    };
+    let roots = match (terminate, roots) {
+        (false, _) => None,
+        (true, Some(r)) => Some(r),
+        (true, None) => {
+            let why = format!(
+                "pod-lab: the proxy of the class terminates TLS for {host}; the lab has no roots to check the server of the command (serve_ca, --serve-ca)\n"
+            );
+            answer(&mut tcp, "502 Bad Gateway", &why);
+            return;
+        }
+    };
+    let up = match to {
+        Upstream::Out(out) => out.ask(host, port).map_err(|why| format!("the way out: {why}")),
+        Upstream::Local(_) => local::dial(port).map_err(|e| format!("the served port {port}: {e}")),
+    };
+    let up = match up {
         Ok(s) => s,
         Err(why) => {
-            answer(&mut tcp, "502 Bad Gateway", &format!("pod-lab: the way out: {why}\n"));
+            answer(&mut tcp, "502 Bad Gateway", &format!("pod-lab: {why}\n"));
             return;
         }
     };
     if tcp.write_all(b"HTTP/1.1 200 Connection established\r\n\r\n").is_err() {
         return;
     }
-    match (&out.roots, rules.reterminate.is_empty()) {
-        (_, true) => splice(tcp, up),
-        (Some(roots), false) => {
+    match roots {
+        None => splice(tcp, up),
+        Some(roots) => {
             let _ = reterminate(cas, tcp, up, host, rules.refuse_upgrade, roots);
         }
-        (None, false) => {}
     }
 }
 
 /// Copy each direction in a thread of its own, and shut the write side
-/// at the end of the other.
+/// at the end of the other. A stream of a splice has no time limit: a
+/// session can be idle for a long time.
 pub fn splice(a: TcpStream, b: TcpStream) {
+    for s in [&a, &b] {
+        let _ = s.set_read_timeout(None);
+    }
     let (Ok(a2), Ok(b2)) = (a.try_clone(), b.try_clone()) else { return };
     let one = std::thread::Builder::new().spawn(move || {
         let (mut from, mut to) = (a2, b2);
@@ -172,7 +209,7 @@ fn close(s: &mut Side) {
 }
 
 /// The TLS of the command, terminated with a leaf of the CA of the proxy
-/// for `host`; the real server, checked with `roots`.
+/// for `host`; the server, checked with `roots`.
 fn reterminate(
     cas: &Cas,
     tcp: TcpStream,
@@ -207,7 +244,7 @@ fn reterminate(
     r
 }
 
-/// A TLS client of the real server `host` that trusts `roots`.
+/// A TLS client of the server `host` that trusts `roots`.
 fn client(roots: &Arc<rustls::RootCertStore>, host: &str) -> Result<Connection, String> {
     let config = rustls::ClientConfig::builder_with_provider(Arc::new(pod_tls::crypto::provider()))
         .with_safe_default_protocol_versions()
@@ -216,4 +253,36 @@ fn client(roots: &Arc<rustls::RootCertStore>, host: &str) -> Result<Connection, 
         .with_no_client_auth();
     let conn = rustls::ClientConnection::new(Arc::new(config), server_name(host)?).map_err(|e| e.to_string())?;
     Ok(conn.into())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Read, Write};
+    use std::net::{TcpListener, TcpStream};
+    use std::time::Duration;
+
+    /// A connected pair of TCP streams on the loopback.
+    fn pair() -> (TcpStream, TcpStream) {
+        let l = TcpListener::bind("127.0.0.1:0").unwrap();
+        let a = TcpStream::connect(l.local_addr().unwrap()).unwrap();
+        (a, l.accept().unwrap().0)
+    }
+
+    /// A splice keeps an idle stream: the time limit of a read of the
+    /// handshake does not end it.
+    #[test]
+    fn a_splice_keeps_an_idle_stream() {
+        pod_testkit::need_loopback!();
+        let ((mut client, near), (far, mut server)) = (pair(), pair());
+        near.set_read_timeout(Some(Duration::from_millis(20))).unwrap();
+        far.set_read_timeout(Some(Duration::from_millis(20))).unwrap();
+        std::thread::spawn(move || super::splice(near, far));
+        // Idle past the time limit of each side.
+        std::thread::sleep(Duration::from_millis(200));
+        client.write_all(b"late").unwrap();
+        server.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+        let mut got = [0u8; 4];
+        server.read_exact(&mut got).expect("the bytes after an idle time");
+        assert_eq!(&got, b"late");
+    }
 }

@@ -116,4 +116,5 @@ pub fn all() {
     ws_upgrade_refused();
     ipv6_only();
     crate::way_out::all();
+    crate::serve::all();
 }

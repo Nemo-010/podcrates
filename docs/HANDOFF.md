@@ -16,8 +16,7 @@ is done. Git and the record keep finished work.
    to T-765 on the cross targets, windows-2025 and macos-15-intel. A job
    that is still red needs an entry; T-766 (riscv64) is open.
 3. T-767 (`pod-session`, PodUtils/podssh#283, P1): see "Unfinished work".
-4. Then the work order of `TODO/PROGRESS.md`: T-759 (PodUtils/podssh#282),
-   T-747, T-755, T-756, T-766, then the move of podssh (T-038, T-037,
+4. Then the work order of `TODO/PROGRESS.md`: T-773, T-747, T-755, T-756, T-766, then the move of podssh (T-038, T-037,
    T-029, T-030, T-039, T-036), then T-526.
 
 ## The rules that cost the most time

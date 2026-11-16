@@ -1,0 +1,6 @@
+# The stand-in proxy sends a CONNECT to a served port to the stand-in
+# server, not to the server of the command; the test must fail.
+ENTRY=T-759
+GROUP=lab
+EXPECT='test net::proxy::tests::a_connect_to_a_name_of_the_lab_at_a_served_port_reaches_the_command \.\.\. FAILED'
+RUN='cargo test -p pod-lab --all-features --lib -- net::proxy::tests::a_connect_to_a_name_of_the_lab_at_a_served_port_reaches_the_command --exact'

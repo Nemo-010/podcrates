@@ -5,7 +5,8 @@
 //! waits for each of its children does not wait for it. It holds a pidfd
 //! of the lab process, which is the command after the exec: when the
 //! command ends, the stand-in removes the certificate file and exits. With a
-//! way out (`out`), it keeps the end of the socket pair of the way out.
+//! way out (`out`), it keeps the end of the socket pair of the way out. It
+//! dials the served ports of the command (`local`) on the loopback.
 
 use std::net::TcpListener;
 use std::os::fd::AsRawFd;
@@ -14,7 +15,9 @@ use std::sync::Arc;
 
 use pod_hostprobe::sys as k;
 
+use super::local::Local;
 use super::out::WayOut;
+use super::proxy::Ends;
 use super::tls::Cas;
 use super::{Ca, Net, Ready};
 use crate::hold::words;
@@ -95,18 +98,28 @@ pub fn not_dumpable() {
 const PR_SET_DUMPABLE: u64 = 4;
 
 /// The work of the stand-in process. It does not return.
-fn serve(ready: Ready, net: &'static Net, cas: Arc<Cas>, lab: i64, cert_file: PathBuf, out: Option<WayOut>) -> ! {
+fn serve(
+    ready: Ready,
+    net: &'static Net,
+    cas: Arc<Cas>,
+    lab: i64,
+    cert_file: PathBuf,
+    out: Option<WayOut>,
+    served: Local,
+) -> ! {
     let mut keep: Vec<i64> = ready.servers.iter().map(|l| i64::from(l.as_raw_fd())).collect();
     keep.extend(ready.proxy.iter().map(|l| i64::from(l.as_raw_fd())));
     keep.push(lab);
     keep.extend(out.as_ref().map(WayOut::fd));
     shed(&keep);
-    // Each thread of the stand-in reads the way out until the exit.
+    // Each thread of the stand-in reads the way out and the served ports
+    // until the exit.
     let out: Option<&'static WayOut> = out.map(|w| &*Box::leak(Box::new(w)));
+    let ends = Ends { out, served: Box::leak(Box::new(served)) };
     let accept = |l: TcpListener, is_proxy: bool, cas: Arc<Cas>| {
         let _ = std::thread::Builder::new().spawn(move || {
             for tcp in l.incoming().flatten() {
-                super::proxy::spawn(&cas, net, tcp, is_proxy, out);
+                super::proxy::spawn(&cas, net, tcp, is_proxy, ends);
             }
         });
     };
@@ -129,9 +142,10 @@ fn serve(ready: Ready, net: &'static Net, cas: Arc<Cas>, lab: i64, cert_file: Pa
 }
 
 /// Make the CAs and the certificate file, and start the stand-in process
-/// on the sockets of `ready`. The lab process has one thread, so the
-/// children of the fork may allocate.
-pub fn start(ready: Ready, net: &'static Net, out: Option<WayOut>) -> Result<Started, String> {
+/// on the sockets of `ready`, with the way out `out` and the served ports
+/// of the command. The lab process has one thread, so the children of the
+/// fork may allocate.
+pub fn start(ready: Ready, net: &'static Net, out: Option<WayOut>, served: Local) -> Result<Started, String> {
     let cas = Arc::new(Cas::new()?);
     let cert_file = write_cert_file(&cas, net)?;
     let fail = |why: String| {
@@ -155,7 +169,7 @@ pub fn start(ready: Ready, net: &'static Net, out: Option<WayOut>) -> Result<Sta
         Ok(0) => {
             // SAFETY: as above.
             match unsafe { k::clone_fork(k::SIGCHLD) } {
-                Ok(0) => serve(ready, net, Arc::clone(&cas), lab, cert_file.clone(), out),
+                Ok(0) => serve(ready, net, Arc::clone(&cas), lab, cert_file.clone(), out, served),
                 Ok(_) => k::exit_group(0),
                 Err(_) => k::exit_group(1),
             }
@@ -166,6 +180,7 @@ pub fn start(ready: Ready, net: &'static Net, out: Option<WayOut>) -> Result<Sta
             let _ = k::wait4(pid, &mut status);
             drop(ready);
             drop(out);
+            drop(served);
             if status != 0 {
                 return fail(format!("the stand-in did not start: status {status}"));
             }

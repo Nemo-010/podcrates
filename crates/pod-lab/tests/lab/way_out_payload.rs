@@ -28,7 +28,7 @@ pub fn main(kind: &str) -> Option<Out> {
         "out-per-name" => per_name(),
         "out-reterminate" => reterminate(),
         "out-ws" => ws(),
-        _ => return None,
+        _ => return crate::serve_payload::main(kind),
     })
 }
 

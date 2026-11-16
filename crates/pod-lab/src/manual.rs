@@ -56,6 +56,10 @@ pub fn manual(cmd: clap::Command) -> Manual {
             "podlab run --partial nonroot-nocaps -- id",
             "Run a command in the parts that hold, and name the others.",
         ),
+        example(
+            "podlab run --serve 8443 proxy-only -- ./server --listen 127.0.0.1:8443",
+            "Run a server in a network lab. Its clients reach it through the stand-in proxy with the rules of the class.",
+        ),
         example("podlab man --no-pager check", "Write the section of podlab check, with no pager."),
     ];
     m.see_also =

@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/net/relay.rs b/crates/pod-lab/src/net/relay.rs
+index 0a57102..8dc5adb 100644
+--- a/crates/pod-lab/src/net/relay.rs
++++ b/crates/pod-lab/src/net/relay.rs
+@@ -47,7 +47,7 @@ pub fn connect(cas: &Cas, rules: &Proxy, mut tcp: TcpStream, to: Upstream, host:
+     // port keeps the list of the class.
+     let (terminate, roots) = match to {
+         Upstream::Out(out) => (!rules.reterminate.is_empty(), out.roots.as_ref()),
+-        Upstream::Local(l) => (rules.reterminate.contains(&host), l.roots.as_ref()),
++        Upstream::Local(l) => (false, l.roots.as_ref()),
+     };
+     let roots = match (terminate, roots) {
+         (false, _) => None,

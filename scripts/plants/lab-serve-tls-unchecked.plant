@@ -1,0 +1,7 @@
+# The stand-in proxy splices a served port whose TLS the class terminates:
+# no leaf of the proxy, no check of the server of the command, no 403 for
+# an upgrade; the test must fail.
+ENTRY=T-759
+GROUP=lab
+EXPECT='test net::proxy::tests::a_served_port_that_the_class_terminates_is_checked_with_the_roots_and_refuses_an_upgrade \.\.\. FAILED'
+RUN='cargo test -p pod-lab --all-features --lib -- net::proxy::tests::a_served_port_that_the_class_terminates_is_checked_with_the_roots_and_refuses_an_upgrade --exact'

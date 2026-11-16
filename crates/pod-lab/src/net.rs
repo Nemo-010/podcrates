@@ -7,10 +7,14 @@
 //! but where the caller asks for a way out (`out`): then the stand-in proxy
 //! passes a `CONNECT` to a name that is not of the lab ([`is_lab_name`]) to
 //! the real network, through a process outside the namespace (`relay`).
+//! Where the caller names the ports of servers of the command on the
+//! loopback of the lab (`local`), the stand-ins send a `CONNECT` to a name
+//! of the lab at such a port to that server, with the rules of the class.
 //!
 //! [`Net`] is the data of the stand-ins of a profile; [`NetFact`] is a fact
 //! that the lab measures from inside (`measure`).
 
+mod local;
 mod measure;
 mod out;
 mod pass;
@@ -22,6 +26,8 @@ mod tls;
 pub mod vars;
 mod wire;
 
+pub(crate) use local::Local;
+pub use local::{check_ports as check_served_ports, check_roots as check_served_roots};
 pub use measure::measure;
 pub(crate) use out::{WayOut, start as start_way_out};
 pub use setup::{Ready, prepare};

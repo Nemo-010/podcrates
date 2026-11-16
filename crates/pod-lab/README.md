@@ -27,7 +27,8 @@ must refuse fails its own check.
 | `rows(profile)`, `measure(&hostprobe::Settings, rows)` | the rows that a profile names, and a run of those rows only, each in its probe child |
 | `Verdict`, `PartVerdict`, `Seen`, `State` | the verdict: each part `holds`, `fails` or `unseen`, each observation with its row and errno |
 | `run(&Settings, profile, cmd, Options) -> Result<Ran, RunError>` | a command in a lab of the profile |
-| `Options { partial, stdout, allow_connect }` | run in the parts that hold, and report the others; the output of the command; the TCP ports that a connect may reach where a part refuses each TCP connect |
+| `Options { partial, stdout, allow_connect, way_out, serve, serve_ca }` | run in the parts that hold, and report the others; the output of the command; the TCP ports that a connect may reach where a part refuses each TCP connect; a way out of a network lab; the ports of the servers of the command on the loopback of a network lab, and the PEM file of their roots |
+| `net::check_served_ports`, `net::check_served_roots` | the checks of `serve` and `serve_ca` that `run` makes before the lab |
 | `Settings { hostprobe, lab_flag, profiles }` | the flags of the probe children and of the lab process, and the table that the lab process reads |
 | `dispatch(&Settings)` | the start of a binary that calls `run`: the work of a probe child or of the lab process |
 | `exit_code(status)` | the code of a shell: the code, or 128 and the signal |
@@ -162,7 +163,8 @@ profile with a stand-in proxy alone.
   a socket pair. The way out answers with the descriptor of the connected
   stream (`SCM_RIGHTS`).
 * A name of the lab (`listed.test`, `other.test`, `localhost`, the
-  addresses outside and the loopback) stays with the stand-ins. A direct
+  addresses outside and the loopback) stays with the stand-ins, or goes to
+  a server of the command (`--serve`, below). A direct
   way out refuses a name that the resolver of the host gives a loopback
   or an unspecified address.
 * Where the class terminates TLS for a listed name, the stand-in checks
@@ -171,6 +173,40 @@ profile with a stand-in proxy alone.
 * The command and the arguments of the lab never hold the proxy of the
   host or its credential. `podlab run --way-out` and each process of the
   lab that serves are not dumpable.
+
+#### The servers of the command (`--serve`)
+
+A lane can run its own server in the lab, on the loopback of the lab,
+and reach it through the stand-ins of its class. `podlab run --serve
+PORT PROFILE -- CMD` (`Options::serve`, once for each port) gives it, in
+each network class. The ports 0, 443 and 3128 are refused: the stand-ins
+hold 443 and 3128.
+
+* The stand-in proxy applies the rules of its class first (the
+  credential, the ports, 403, 504, a reset, the silent port). Then it
+  sends a `CONNECT` to a name of the lab (`listed.test`, `other.test`,
+  `localhost`, the addresses outside and the loopback) at a served port to
+  `127.0.0.1:PORT` of the lab. A name that is not of the lab, and a port
+  that is not served, get the stand-ins (or the way out) as before.
+* Where the class terminates TLS for the name (`listed.test` in
+  `proxy-tls-reterminate` and `ws-upgrade-refused`), the proxy shows a
+  leaf of its CA for the name, and checks the TLS server of the command
+  with the roots of `--serve-ca FILE` (`Options::serve_ca`, PEM). The
+  server of the command must show a leaf for that name. With no file, such
+  a `CONNECT` gets 502. In `ws-upgrade-refused`, a request with `Upgrade`
+  gets 403 and does not reach the command. Another name (`other.test`,
+  the loopback) gets the bytes of the command unchanged.
+* In `sni-allowlist`, the stand-in server on `192.0.2.1:443` sends a
+  ClientHello with a listed name to the first served port, with the
+  ClientHello. Another name, or no name, gets a reset. Where nothing listens
+  on the port (the check of the lab before the command), the stand-in
+  server answers.
+* In a class with no proxy and no list of names (`no-proxy-no-dns`,
+  `ipv6-only`), the command reaches its loopback directly: `--serve`
+  changes nothing.
+* A port must be on the port list of the class: `proxy-only` reaches 443,
+  80 and 8443, so a server there listens on 8443.
+* A spliced stream has no time limit of a read: a session can be idle.
 
 ## The profiles
 
@@ -282,6 +318,14 @@ them, in `podlab check` too.
   a class of the machine tier that the run refuses; `tests/lab/net.rs`:
   each network class with a payload that reads `HTTPS_PROXY` and
   `SSL_CERT_FILE` as a program does, then the removal of the certificate
-  file. As root each case runs as root, then again as uid 65534. `scripts/ci/userns-tests.sh` runs it where a
+  file; `tests/lab/serve.rs`: a server of the payload on a served port
+  of `proxy-only`, `proxy-tls-reterminate` (no roots), `sni-allowlist` and
+  `ws-upgrade-refused` (the roots of a CA of the test), reached through
+  the stand-ins with the rules of the class. As root each case runs as
+  root, then again as uid 65534. `scripts/ci/userns-tests.sh` runs it where a
   skip fails.
+* `src/net/proxy/tests.rs`, `src/net/local.rs`, `src/net/relay.rs`: the
+  stand-ins with a served port on the loopback of the test, the checks of
+  the served ports and of their roots, and a splice that keeps an idle
+  stream.
 * Plants: `scripts/plants/lab-*`.

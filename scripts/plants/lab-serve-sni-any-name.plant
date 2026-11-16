@@ -1,0 +1,7 @@
+# With a served port, the stand-in server of sni-allowlist sends a
+# ClientHello of each name to the server of the command; the test must
+# fail.
+ENTRY=T-759
+GROUP=lab
+EXPECT='test net::proxy::tests::a_client_hello_with_a_listed_name_reaches_the_first_served_port \.\.\. FAILED'
+RUN='cargo test -p pod-lab --all-features --lib -- net::proxy::tests::a_client_hello_with_a_listed_name_reaches_the_first_served_port --exact'

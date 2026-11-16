@@ -162,8 +162,23 @@ class. Then it sends a CONNECT to a name outside the lab to the real network.
 It goes directly, or through the proxy of HTTPS_PROXY of this host. The
 command never gets that proxy or its credential.
 .TP
+\fB\-\-serve\fR \fIPORT\fR
+After the rules of the class, send a CONNECT to a name of the lab at this port
+to the command on 127.0.0.1. In a class with a list of TLS names, a
+ClientHello with a listed name goes to the first such port. Give it once for
+each port.
+.TP
+\fB\-\-serve\-ca\fR \fIFILE\fR
+A PEM file of the roots that check the TLS server of the command, where the
+proxy of the class terminates TLS for the name. With no file, such a CONNECT
+gets 502.
+.TP
 \fB\-h\fR, \fB\-\-help\fR
 Print the help of this command.
+.PP
+\fBRules:\fR
+.PP
+\-\-serve\-ca needs \-\-serve.
 .PP
 \fBExamples:\fR
 .PP
@@ -185,6 +200,14 @@ Run a command in the parts that hold, and name the others.
 .RS 4
 .nf
 $ podlab run \-\-partial nonroot\-nocaps \-\- id
+.fi
+.RE
+.PP
+Run a server in a network lab. Its clients reach it through the stand\-in
+proxy with the rules of the class.
+.RS 4
+.nf
+$ podlab run \-\-serve 8443 proxy\-only \-\- ./server \-\-listen 127.0.0.1:8443
 .fi
 .RE
 .SS "podlab man"
@@ -553,6 +576,14 @@ Run a command in the parts that hold, and name the others.
 .RS 4
 .nf
 $ podlab run \-\-partial nonroot\-nocaps \-\- id
+.fi
+.RE
+.PP
+Run a server in a network lab. Its clients reach it through the stand\-in
+proxy with the rules of the class.
+.RS 4
+.nf
+$ podlab run \-\-serve 8443 proxy\-only \-\- ./server \-\-listen 127.0.0.1:8443
 .fi
 .RE
 .PP
