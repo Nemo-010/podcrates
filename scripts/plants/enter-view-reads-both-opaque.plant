@@ -1,0 +1,6 @@
+# pod-enter: the view takes user.overlay.opaque on a mount of a host root,
+# which reads trusted. alone; the test of the view must fail.
+ENTRY=T-755
+GROUP=enter
+EXPECT='test ns_upper::tests::the_view_shows_the_upper_layer_over_the_lower_one \.\.\. FAILED'
+RUN='cargo test -p pod-enter --all-features --lib ns_upper'

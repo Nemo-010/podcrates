@@ -1,0 +1,16 @@
+diff --git a/crates/pod-enter/src/ns_upper.rs b/crates/pod-enter/src/ns_upper.rs
+index 3eb35f8a..2df39da0 100644
+--- a/crates/pod-enter/src/ns_upper.rs
++++ b/crates/pod-enter/src/ns_upper.rs
+@@ -107,7 +107,10 @@ fn opaque(dir: &Path, attr: &str) -> bool {
+         return false;
+     };
+     let mut b = [0u8; 2];
+-    let set = CBuf::new(attr).is_some_and(|c| sys::fgetxattr(fd, &c, &mut b) == Ok(1) && b[0] == b'y');
++    let _ = attr;
++    let set = ["trusted.overlay.opaque", "user.overlay.opaque"]
++        .iter()
++        .any(|n| CBuf::new(n).is_some_and(|c| sys::fgetxattr(fd, &c, &mut b) == Ok(1) && b[0] == b'y'));
+     let _ = sys::close(fd);
+     set
+ }
