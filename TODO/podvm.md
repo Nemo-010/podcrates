@@ -8805,7 +8805,7 @@ sh scripts/ci/userns-tests.sh
 **Milestone:** M6
 **Priority:** P1
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8825,6 +8825,10 @@ A volume moves a podvm run off the namespace rung: the loader family serves it a
 cargo test -p pod-enter --all-features
 sh scripts/ci/userns-tests.sh
 ```
+
+## Done
+
+2026-11-16, commit 039dd7f5 and the plants in commit a9647c73; calls C720 to C722. `pod-enter`: `Plan::volumes: Vec<VolumeBind { host, guest, read_only }>` and the module `ns_volume`. Before the banner and the fork, the entry refuses by name a guest path that is not absolute and normal or is `/` (`volume_guest_parts`), a guest path of two volumes, a host path that is not absolute or does not exist, and more than `VOLUMES_MOST` (255) volumes; the chroot rung, the ladder and the entry with no chroot refuse a plan with a volume, and the fallback of the namespace rung to chroot refuses it too. In the child, after the device binds and before the chroot, as root and through a user namespace: the root opens by its path, each component of the guest path opens with `openat2(RESOLVE_IN_ROOT | RESOLVE_NO_SYMLINKS)` and is made where it is missing (a directory, or an empty file for a host side that is not a directory), then `mount(host, /proc/self/fd/N, MS_BIND | MS_REC)`; a read-only volume opens again through the bind and is remounted `MS_REMOUNT | MS_BIND | MS_RDONLY` with the flags of `fstatfs` of that mount (`volume_remount_flags`: `nosuid`, `nodev`, `noexec`, the atime flags, `nosymfollow`). The steps are `NS_VOLUME_POINT_STEP` 33, `NS_VOLUME_LINK_STEP` 34 ("the guest path of a volume crosses a symbolic link of the image"), `NS_VOLUME_BIND_STEP` 35 and `NS_VOLUME_REMOUNT_STEP` 36; a refused one is `Error::Runtime` with `HOST:GUEST[:ro]`, the step and the errno, with no fallback. A join binds no volume; a working directory in a volume resolves in its host side before the fork (`Maps::of_binds`). `pod-hostprobe`: `sys::fstatfs` (the `statfs` code moves to `sys/statfs.rs`), `MS_NOATIME`, `MS_NODIRATIME`, `MS_RELATIME`, `MS_NOSYMFOLLOW`, `ST_NOSYMFOLLOW`. `pod-testkit`: `nobody::again_over_a_flagged_tmpfs`. Tests: `ns_volume::tests` (the checks before the fork, the refusal of the chroot rung before the banner, the words of each step, the flags of the remount, the walk with no mount, the working directory in a volume); `tests/userns.rs` `the_namespace_rung_binds_the_volumes_of_a_plan` as root and as uid 65534 over a tmpfs with `nosuid,nodev,noexec,noatime`: a volume read and written (the host sees the write), a read-only volume (`EROFS`; its mount holds `ro` and the four flags), a guest path that the image does not hold (made), a file volume, a guest path through a link of the image (refused with the step), a host path that does not exist (refused before the banner). Here (root, kernel 6.18, static busybox): `cargo test -p pod-enter --all-features` and `sh scripts/ci/userns-tests.sh` pass. The plants `enter-volume-skipped`, `enter-volume-ro-writable`, `enter-volume-through-a-link` and `enter-volume-flags-dropped` are caught. Breaking, for the release notes: `pod_enter::Plan` has the new field `volumes`, and a plan built with a struct literal names it (`volumes: Vec::new()`). podvm: for `run -d` and `create`, fill `Plan::volumes` from `-v HOST:GUEST[:ro]` and stop the userland rewrite of those volumes on the namespace rung; keep its own binds of the foreground `run` or move them here; keep `unmount_under` before each removal of a tree (the binds are in the mount namespace of the payload, and the image keeps each mount point that the child made).
 
 # T-744: `pod-hostprobe`: the row `chroot(/tmp) in unshare(NEWUSER+maps)`, the chroot of a driver with no root (PodUtils/podrunner#191)
 
