@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**619 entries: 127 open, 13 partial, 6 blocked, 473 done.**
+**620 entries: 127 open, 14 partial, 6 blocked, 473 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 12 | 7 | 0 | 139 | 158 |
-| P2 | 58 | 3 | 4 | 245 | 310 |
+| P1 | 11 | 8 | 0 | 139 | 158 |
+| P2 | 59 | 3 | 4 | 245 | 311 |
 | P3 | 57 | 3 | 2 | 87 | 149 |
-| **All** | 127 | 13 | 6 | 473 | 619 |
+| **All** | 127 | 14 | 6 | 473 | 620 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -654,7 +654,8 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-764](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `1739b5f` is red on windows-2025: the lower bound of a silence of `pod-link`'s split test does not allow the tick of the timer of Windows |
 | [T-765](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `1739b5f` is red on macos-15-intel: a dial of `pod-proxy` to a freed port gets a reset, not a refusal |
 | [T-766](upkeep.md) | P2 | S | M5 | defect | open | The nightly at `1739b5f` is red on riscv64: two time limits of tests that the emulation of QEMU outruns |
-| [T-767](relay.md) | P1 | M | M2 | defect | open | `pod-session`: a resume that the client calls done, after which the session never moves (PodUtils/podssh#283) |
+| [T-767](relay.md) | P1 | M | M2 | defect | partial | `pod-session`: a resume that the client calls done, after which the session never moves (PodUtils/podssh#283) |
+| [T-768](relay.md) | P2 | S | M2 | defect | open | `pod-session`: a spare waits 20 s, not 1 s to 3 s, when the client's writer is held by a full link |
 | [T-773](fleet.md) | P2 | S | M8 | defect | open | the installer core: a tree copy with no pins stops on a host with cosign (PodUtils/podnet#597) |
 | [T-774](relay.md) | P2 | S | M2 | docs | open | `pod-link`: a normative document of the wire, with the order of the checks and the rule of the timers, held to the code by a test |
 | [T-775](relay.md) | P2 | S | M2 | chore | open | `pod-link`: a table of frames in bytes with the result of each, read by one test |

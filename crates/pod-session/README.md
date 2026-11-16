@@ -29,10 +29,10 @@ handshake and what the layer defends against.
 | `secret` | `SessionId`, `Nonce`, `Proof`, `Secret`, `derive`, `prove`, `verify`; `Entropy`, `OsEntropy`, `NoRandom` of `pod-core` |
 | `handshake` | `ClientHandshake`, `FarHandshake`, `Established`, `Ask`, `Step`, `HandshakeError` (sans-IO) |
 | `link` | `Link` (a session past its handshake, record by record), `Event`, `LinkError`, `LinkParts` |
-| `client`, `far` | the two ends over tokio streams: `client::start`, `Client`, `Outcome`, `Rewound` (`Rewound::new(first, link)`: the link with bytes that a router read given back first); `far::accept`, `accept_with_room`, `serve`, `serve_admitted`, `Accepted`, `FarError` |
+| `client`, `far` | the two ends over tokio streams: `client::start`, `Client`, `Outcome`, `Rewound` (`Rewound::new(first, link)`: the link with bytes that a router read given back first); `far::accept`, `accept_with_room`, `serve`, `serve_admitted`, `serve_admitted_by` (the link named for the line of a resume), `Accepted` (`by(name)`, `link_name`), `FarError` |
 | `pump` | one link of a session: `run`, `Carry`, `Watch`, `End`, `Ended`, `PING_EVERY`, `DEAD_AFTER` |
 | `resume`, `beside`, `race` | the client's session across links (`resume::run`, `Next`, `Note`, `RESUME_DEADLINE`, `MOVE_BYTES`, `MOVE_AGE`); the spare link (`spare_after`, `SpareWait`, `Position`, `SPARE_AFTER`, `SPARE_SOONEST`, `SPARE_QUIET`, `SPARE_EVERY`); the race of roads to one far end (`race`, `in_turn`, `each_timed`) |
-| `keep`, `budget`, `sessions` | `Keeper` (the far end's sessions across links: `new`, `with_tell`, `census`, `admit`, `run_new`, `run_resumed`, `hand_over`, `hand_over_with`, `take_over`); `Census`, `Told`, `Tell`, `refusal`, `filling`, `holders` |
+| `keep`, `budget`, `sessions` | `Keeper` (the far end's sessions across links: `new`, `with_tell`, `census`, `admit`, `run_new`, `run_resumed`, `hand_over`, `hand_over_with`, `take_over`), `keep::RESUME` (the kind of the line of each resume); `Census`, `Told`, `Tell`, `refusal`, `filling`, `holders` |
 | `deadline`, `hearing`, `round_trip`, `once`, `half_close` | the deadline of each end, what the client heard, the round trip of a link, `once.v1`, `end.v1` |
 | `handover` | `LayerState::{encode, decode}`, `Handed`, `Moved`, `Movable` (for `tokio::net::TcpStream`), `Moving`, `scope`, `current` |
 | `udp` | `codec` (`framed`, `encode`, `Decoder`, `Frames`, `MAX_DATAGRAM`), `flow` (`connect`, `probe`, `carry`, `NoFlow`, `FlowEnd`, `IDLE`) |
@@ -61,9 +61,43 @@ state, except the task-local id of `handover::scope`.
 | The limits of the relay: the window of the pair's road (1 MiB held for a slow receiver), the bytes (64 MiB) and the age (12 h) of a session | `Settings::pair_window`, `move_bytes`, `move_age` |
 | The value of the replay buffer of the consumer (podssh's `PODSSH_REPLAY_BUFFER`) | `replay::capacity(Option<&str>)` |
 | Where the budget's lines go, and the words of what changes the budget | `Keeper::with_tell(Tell::new(events, change))`: the events `session.budget.refused` and `session.budget.filling` |
+| Where the line of each resume goes | the same sink: the event `session.resume` (level `Info`), below |
 | The resolver of a UDP flow | `udp::flow::connect(&dyn Resolve, ..)`, `probe(&dyn Resolve, ..)` |
 | The move of a target at a handover | `Movable` for a TCP stream, or `Keeper::hand_over_with(move_out)` |
 | The random bytes | an `Entropy` to each handshake |
+
+## The line of each resume
+
+The far end sends one event of the kind `session.resume` (`keep::RESUME`,
+level `Info`) to the sink of `Keeper::with_tell` at each resume that
+`Keeper::run_resumed` runs (PodUtils/podssh#283). A resume that takes its
+session says:
+
+```text
+session 0187db18: resume 2 on relay session ID: the client has 1441792 bytes of this side, and this side sends 622592 bytes again; this side has 1671168 bytes of the client (1671168 in its ACCEPT), 0 of them not yet written to the target; it stopped the link of resume 1
+```
+
+* `resume N`: the number of the resume, in the order of the handshakes of
+  the far end (`Sessions`).
+* `on NAME`: the caller's name of the link (`Accepted::by`,
+  `far::serve_admitted_by`); pod-relay's node names the relay session.
+  Absent when the caller gives none.
+* `the client has X bytes of this side`: the client's received offset in
+  its `PROOF`; `this side sends Y bytes again` from it.
+* `this side has R bytes of the client (A in its ACCEPT)`: the far end's
+  received offset when the resume took the session, and the offset that its
+  `ACCEPT` gave the client. The client sends again from `A`, and its line
+  "N bytes sent again" is its sent offset less `A`. `R` is more than `A`
+  when the old link read on after the `ACCEPT`.
+* `H of them not yet written to the target`: the bytes that wait for the
+  target.
+* The end: `no link carried the session`, `it stopped the first link`, or
+  `it stopped the link of resume M`.
+
+A resume that does not take its session says `resume N on NAME did not take
+it:` and why: `a newer link resumed the session (resume M); this resume gave
+way`, `the session ended on its old link`, `the old link of the session did
+not stop`, or the offsets that the far end no longer keeps.
 
 ## Parity
 
@@ -128,7 +162,12 @@ lines through `Keeper::with_tell` to podnet's events.
 files of podssh on duplex pipes and the loopback (a stand-in relay,
 targets on `127.0.0.1:0`, the paused clock of tokio for the heartbeat and
 the deadlines), and `tests/session_budget.rs` (what a closing session and
-a closed one hold of the budget), and `tests/session_spare_backoff.rs` (a
+a closed one hold of the budget), `tests/session_resume_again.rs` and
+`tests/session_resume_twice.rs` (the cases of PodUtils/podssh#283: a first
+new link that ends before the greeting, then a resume about 1.1 s later,
+with the old link ended or still alive at the far end; a spare beside a
+stopped relay host, then a reset of each open link and a second resume at
+once; bytes both ways, whole, and the far end's line of each resume), and `tests/session_spare_backoff.rs` (a
 spare on a road that answers the handshake at once and holds each other
 byte for 5 s or 13 s: the wait of the next spare doubles until a link
 carries the bytes). The plants of podssh's layer are

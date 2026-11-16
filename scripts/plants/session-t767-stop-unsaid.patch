@@ -1,0 +1,13 @@
+diff --git a/crates/pod-session/src/keep.rs b/crates/pod-session/src/keep.rs
+index 4d930e6..14d1df0 100644
+--- a/crates/pod-session/src/keep.rs
++++ b/crates/pod-session/src/keep.rs
+@@ -342,7 +342,7 @@ where
+                     }
+                     Some(Slot::Live { watch, done, state, admitted, number: older }) => {
+                         watch.stop.notify_one();
+-                        stopped = Some(older);
++                        stopped = None::<u64>.filter(|_| older > 0);
+                         slots.insert(*id, Slot::Live { watch, done: done.clone(), state, admitted, number: older });
+                         Some(done)
+                     }

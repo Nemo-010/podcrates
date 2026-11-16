@@ -287,7 +287,7 @@ Against podssh `crates/podssh-relay` at `75a5031`:
 | `reverse/wire.rs`: `serve::reverse::carrier::Door` | [x] the trait `reverse::wire::Door` (`Carrier::of`) |
 | `reverse/tcp.rs`: the dial of the environment's proxy | [x] the caller's `pod_proxy::Dialer` (`TcpHandler::dialer`, `Routes::dialer`) |
 | `reverse/udp.rs`: podssh's process resolver | [x] `UdpHandler::resolve` |
-| `reverse/layered.rs`: the budget's lines to podssh's sink | [x] `Layered::telling` |
+| `reverse/layered.rs`: the budget's lines to podssh's sink | [x] `Layered::telling`; the same sink takes the line of each resume (`session.resume` of `pod-session`), which names its relay session |
 | `blocking/` | [x] `blocking`; `Config::new(ctx)` |
 | `tls_groups.rs` | stays in podssh: it gives `pod-tls` the file of its cache |
 | the tests of these files | [x] 370 of 380 with their names; 7 of the cache's places are `pod-core`'s, 3 of magic-wormhole's Python peer `pod-wormhole`'s |

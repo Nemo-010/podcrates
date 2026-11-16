@@ -86,6 +86,9 @@ pub struct Accepted<L> {
     /// A resume's number, in the order of the handshakes; 0 for a new
     /// session.
     resume: u64,
+    /// The caller's name of the link, for the line of a resume: empty, or
+    /// as `relay session ID`.
+    by: String,
 }
 
 /// Greet the client on `link`, and accept the session that it opens or
@@ -134,7 +137,7 @@ where
         Ok(result) => result?,
         Err(_) => return Err(FarError::Timeout),
     };
-    Ok(Accepted { link, decoder, established, settings, resume })
+    Ok(Accepted { link, decoder, established, settings, resume, by: String::new() })
 }
 
 async fn shake<L>(
@@ -252,8 +255,30 @@ pub async fn serve_admitted<L, A, O, F>(
     O: FnOnce() -> F,
     F: Future<Output = Result<A, String>>,
 {
+    serve_admitted_by(link, String::new(), role, settings, keeper, budget, open, admitted).await;
+}
+
+/// [`serve_admitted`] on a link that the caller names `by` (as `relay
+/// session ID`): the far end's line of a resume names it
+/// ([`crate::keep::RESUME`]).
+#[allow(clippy::too_many_arguments)]
+pub async fn serve_admitted_by<L, A, O, F>(
+    link: L,
+    by: String,
+    role: Role,
+    settings: Settings,
+    keeper: &Keeper<A>,
+    budget: usize,
+    open: O,
+    admitted: Admitted,
+) where
+    L: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    A: AsyncRead + AsyncWrite + Unpin + Send,
+    O: FnOnce() -> F,
+    F: Future<Output = Result<A, String>>,
+{
     let accepted = match accept(link, role, settings, &keeper.sessions, &mut OsEntropy).await {
-        Ok(accepted) => accepted,
+        Ok(accepted) => accepted.by(by),
         // A link that never completed its handshake: nothing to keep.
         Err(_) => return,
     };
@@ -317,6 +342,18 @@ where
     /// session.
     pub(crate) fn resume(&self) -> u64 {
         self.resume
+    }
+
+    /// This link, named `by` for the far end's line of a resume (as
+    /// `relay session ID`).
+    pub fn by(mut self, by: impl Into<String>) -> Accepted<L> {
+        self.by = by.into();
+        self
+    }
+
+    /// The caller's name of the link: empty when it gave none.
+    pub fn link_name(&self) -> &str {
+        &self.by
     }
 
     /// End the session at once, with `reason` in a `CLOSE` (its target could
