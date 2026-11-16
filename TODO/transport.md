@@ -7247,3 +7247,48 @@ test -p pod-turn --all-features`: no failure. Plants, each caught by
 hand: `turn-xturn-sha256-unchecked` (the client does not check
 MESSAGE-INTEGRITY-SHA256: the test of the changed answer fails),
 `turn-xturn-skip-fails`. `sh scripts/plant-each.sh --apply`: 0 stale.
+
+# T-757: `pod-term`: the tmux oracle of the calibration test fails at random with "server exited unexpectedly"
+
+**Source:** the check before a push of T-751 (a finding of its work).
+**Category:** defect
+**Milestone:** M1
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+`the_model_and_tmux_show_the_same_screens` of `crates/pod-term/tests/calibration.rs`
+failed once in five runs of `cargo test --workspace`: `tmux ["new-session", ... "c32" ...]: server exited unexpectedly`.
+Each case makes a session and kills it after the look. tmux ends a server
+with no session, so the next `new-session` can meet the server of the last
+case in its exit.
+
+## Premise
+
+- Read: the oracle `Tmux` of the test (`show`, `kill-session` after each
+  case, `kill-server` at its drop).
+- Measured: the failure in one full run of the workspace here; three runs
+  of the test alone passed.
+- Not measured: the rate of the failure on a runner of CI.
+
+## Approach
+
+The oracle starts the server with one idle session (`keep`) for its life,
+so the server never has no session between two cases. The drop kills the
+server, as before.
+
+## Prove
+
+```sh
+cargo test -p pod-term --all-features --test calibration
+```
+
+## Done
+
+2026-11-16. `Tmux::keep` makes the session `keep` (`exec sleep 600`) before
+the first case; the screen test calls it. The test of the scratch directory
+(a program that does not exist) starts no server. Here: `cargo test -p
+pod-term --all-features --test calibration` passed five times in a row
+(3 tests each), and no tmux server stays after the runs.

@@ -143,6 +143,13 @@ impl Tmux {
         Tmux { program, dir }
     }
 
+    /// Start the server with one idle session for its life: tmux ends a
+    /// server with no session, and a `new-session` that meets a server in
+    /// its exit fails with "server exited unexpectedly".
+    fn keep(&self) {
+        self.call(&["new-session", "-d", "-s", "keep", "exec sleep 600"]).unwrap();
+    }
+
     fn socket(&self) -> PathBuf {
         self.dir.join("sock")
     }
@@ -243,6 +250,7 @@ fn the_model_and_tmux_show_the_same_screens() {
         return;
     };
     let tmux = Tmux::new(program);
+    tmux.keep();
     let mut differ = Vec::new();
     for (i, case) in corpus().iter().enumerate() {
         let (rows, cursor, (height, width)) = tmux.show(i, case);
