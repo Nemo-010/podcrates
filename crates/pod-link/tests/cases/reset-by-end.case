@@ -1,0 +1,12 @@
+# A reset of the end sends RESET; the DATA of the peer on the way is dropped.
+role: listener
+rules: W-14
+class: close
+expect Window(0, 8372224)
+send Open(1)
+accept 1
+reset 1 9
+expect Reset(1, 9)
+send Data(1, 41*100)
+expect-quiet
+read-fails 1 ConnectionReset

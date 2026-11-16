@@ -1,0 +1,13 @@
+# An OPEN over the limit gets RESET REFUSED; its id is used, and its DATA is dropped.
+role: listener
+settings: max_streams=1
+rules: W-11 W-15
+class: streams
+expect Window(0, 8372224)
+send Open(1)
+send Open(3)
+expect Reset(3, 1)
+send Data(3, 41)
+expect-quiet
+send Open(5)
+expect Reset(5, 1)

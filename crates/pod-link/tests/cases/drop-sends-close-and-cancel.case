@@ -1,0 +1,15 @@
+# The drop of a stream with both sides open sends CLOSE and RESET CANCEL;
+# a later frame of the stream is dropped.
+role: listener
+rules: W-15 W-16
+class: streams
+expect Window(0, 8372224)
+send Open(1)
+accept 1
+drop 1
+expect Close(1)
+expect Reset(1, 0)
+send Data(1, 41)
+send Window(1, 100)
+send Close(1)
+expect-quiet

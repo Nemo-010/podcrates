@@ -1,0 +1,8 @@
+# A credit of the link over MAX_CREDIT ends the link.
+role: listener
+rules: W-19 W-24
+class: credit
+expect Window(0, 8372224)
+send Window(0, 4294967295)
+expect-end Protocol("the credit of the link is over 4 GiB")
+expect GoAway(1)

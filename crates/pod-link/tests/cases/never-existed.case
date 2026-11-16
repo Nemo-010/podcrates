@@ -1,0 +1,8 @@
+# A frame of a stream that never existed ends the link.
+role: listener
+rules: W-15 W-24
+class: streams
+expect Window(0, 8372224)
+send Window(7, 1)
+expect-end Protocol("WINDOW on the stream 7, which was never opened")
+expect GoAway(1)

@@ -1,0 +1,14 @@
+# CLOSE ends one direction: the end reads the end of the stream and still writes.
+role: listener
+rules: W-13
+class: close
+expect Window(0, 8372224)
+send Open(1)
+send Close(1)
+accept 1
+read-end 1
+write 1 1
+expect Data(1, 61)
+close 1
+expect Close(1)
+expect-quiet

@@ -1,0 +1,8 @@
+# GOAWAY with another code ends the link with that code.
+role: dialer
+rules: W-07 W-22
+class: close
+expect Window(0, 8372224)
+send GoAway(77)
+expect-end PeerGoAway(GoAwayCode(77))
+expect-eof

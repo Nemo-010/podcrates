@@ -1,0 +1,8 @@
+# An OPEN with the parity of the end ends the link.
+role: listener
+rules: W-09 W-24
+class: streams
+expect Window(0, 8372224)
+send Open(2)
+expect-end Protocol("an OPEN of the stream 2: a wrong parity or an id used before")
+expect GoAway(1)

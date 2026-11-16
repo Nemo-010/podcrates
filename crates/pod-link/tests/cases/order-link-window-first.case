@@ -1,0 +1,9 @@
+# DATA that breaks the window of the link and is on a stream that never
+# existed gives the error of the window: the link checks it first.
+role: listener
+settings: stream_window=16384 link_window=16384
+rules: W-15 W-18
+class: credit
+send Data(9, 61*16385)
+expect-end Protocol("16385 bytes on the stream 9, past the window of the link")
+expect GoAway(1)

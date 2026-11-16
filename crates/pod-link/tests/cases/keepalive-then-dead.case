@@ -1,0 +1,19 @@
+# PING after each keepalive of silence; the link is dead at dead_after.
+role: dialer
+settings: keepalive=2s dead_after=5s
+rules: W-28 W-29 W-33 W-34 W-35
+class: time
+expect Window(0, 8372224)
+advance 1999ms
+expect-quiet
+advance 1ms
+expect Ping(0)
+advance 1999ms
+expect-quiet
+advance 1ms
+expect Ping(1)
+advance 999ms
+expect-quiet
+advance 1ms
+expect-end Dead(5s)
+expect-eof

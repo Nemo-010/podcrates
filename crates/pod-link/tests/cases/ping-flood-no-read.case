@@ -1,0 +1,8 @@
+# A peer that sends PINGs and reads nothing ends the link at CONTROL_LIMIT
+# frames that wait: the answers cannot fill the memory.
+role: listener
+ring: 1024
+rules: W-30 W-24
+class: memory
+send-many 9000 Ping(1)
+expect-end Protocol("more than 8192 frames wait for the peer: it sends and does not read")

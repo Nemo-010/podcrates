@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**628 entries: 121 open, 14 partial, 6 blocked, 487 done.**
+**628 entries: 120 open, 14 partial, 6 blocked, 488 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 143 | 162 |
-| P2 | 56 | 3 | 4 | 252 | 315 |
+| P2 | 55 | 3 | 4 | 253 | 315 |
 | P3 | 54 | 3 | 2 | 90 | 149 |
-| **All** | 121 | 14 | 6 | 487 | 628 |
+| **All** | 120 | 14 | 6 | 488 | 628 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -659,7 +659,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-773](fleet.md) | P2 | S | M8 | defect | done | the installer core: a tree copy with no pins stops on a host with cosign (PodUtils/podnet#597) |
 | [T-774](relay.md) | P2 | S | M2 | docs | done | `pod-link`: a normative document of the wire, with the order of the checks and the rule of the timers, held to the code by a test |
 | [T-775](relay.md) | P2 | S | M2 | chore | done | `pod-link`: a table of frames in bytes with the result of each, read by one test |
-| [T-776](relay.md) | P2 | M | M2 | chore | open | `pod-link`: scripted cases of a link on a paused clock, and the table of the classes of defects |
+| [T-776](relay.md) | P2 | M | M2 | chore | done | `pod-link`: scripted cases of a link on a paused clock, and the table of the classes of defects |
 | [T-777](relay.md) | P2 | S | M2 | measurement | done | `pod-link`: a committed measurement of the link: throughput, round trips, allocations for each frame and memory |
 | [T-778](relay.md) | P3 | M | M2 | feature | open | `pod-link`: no allocation for each `DATA` frame, and fewer copies of each byte |
 | [T-779](upkeep.md) | P3 | S | M5 | chore | open | `pod-identity`: one stack of curve25519 and of SHA-2: take `ed25519-dalek` 3 |

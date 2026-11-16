@@ -1,0 +1,11 @@
+# One byte past the window of a stream ends the link.
+role: listener
+rules: W-18 W-24
+class: credit
+expect Window(0, 8372224)
+send Open(1)
+send Data(1, 61*16384)
+send Data(1, 01)
+expect-end Protocol("1 bytes on the stream 1, past its window")
+expect GoAway(1)
+expect-eof

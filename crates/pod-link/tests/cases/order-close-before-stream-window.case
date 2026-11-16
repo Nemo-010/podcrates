@@ -1,0 +1,11 @@
+# DATA after CLOSE and past the window of the stream gives the error of the
+# CLOSE: the link checks it first.
+role: listener
+rules: W-13 W-18
+class: close
+expect Window(0, 8372224)
+send Open(1)
+send Close(1)
+send Data(1, 61*16385)
+expect-end Protocol("DATA on the stream 1 after its CLOSE")
+expect GoAway(1)

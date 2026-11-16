@@ -1,0 +1,13 @@
+# A RESET of the peer fails the reads; its DATA after the reset is dropped.
+role: listener
+rules: W-14 W-16
+class: close
+expect Window(0, 8372224)
+send Open(1)
+accept 1
+send Reset(1, 7)
+read-fails 1 ConnectionReset
+send Data(1, 41)
+expect-quiet
+drop 1
+expect-quiet

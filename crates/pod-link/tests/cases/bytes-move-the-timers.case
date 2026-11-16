@@ -1,0 +1,20 @@
+# A byte of the peer starts both timers again.
+role: dialer
+settings: keepalive=2s dead_after=5s
+rules: W-34
+class: time
+expect Window(0, 8372224)
+advance 1500ms
+send Pong(9)
+advance 1999ms
+expect-quiet
+advance 1ms
+expect Ping(0)
+advance 1999ms
+expect-quiet
+advance 1ms
+expect Ping(1)
+advance 999ms
+expect-quiet
+advance 1ms
+expect-end Dead(5s)

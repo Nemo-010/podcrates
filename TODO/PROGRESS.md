@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 628 entries: 121 open, 14 partial, 6 blocked, 487 done.
+`TODO/INDEX.md` holds 628 entries: 120 open, 14 partial, 6 blocked, 488 done.
 
 ## State
 
@@ -136,7 +136,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
    it; then T-189, T-192, T-193 (the proposals of PodUtils/podnet#437 for
    `pod-proxy` and `pod-core`).
 6. **M2, the relay:** the contract of `pod-link` from the study of zmux
-   (`docs/research/zmux.md`): T-776, then T-778; T-212; T-290 (the layer of
+   (`docs/research/zmux.md`): T-778; T-212; T-290 (the layer of
    `pod-relay` as a feature); then T-204 (a random failure of
    `pod-session`); then
    T-124 (the failover of the reverse road across the relays of several

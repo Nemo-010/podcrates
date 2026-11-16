@@ -1,0 +1,11 @@
+# DATA after the CLOSE of the peer ends the link.
+role: listener
+rules: W-13 W-24
+class: close
+expect Window(0, 8372224)
+send Open(1)
+send Close(1)
+send Data(1, 41)
+expect-end Protocol("DATA on the stream 1 after its CLOSE")
+expect GoAway(1)
+expect-eof

@@ -1,0 +1,11 @@
+# GOAWAY NORMAL of the peer ends the link; an open stream fails.
+role: listener
+rules: W-22
+class: close
+expect Window(0, 8372224)
+send Open(1)
+accept 1
+send GoAway(0)
+expect-end Closed { by_peer: true }
+expect-eof
+read-fails 1 ConnectionAborted

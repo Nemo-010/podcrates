@@ -8476,7 +8476,7 @@ hand went, as the cases hold each of them.
 **Milestone:** M2
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8551,6 +8551,34 @@ names a case that exists or an invariant.
 ## Start condition
 
 T-774 gives the ids of the rules.
+
+## Done
+
+2026-11-16, the commit of the change. `crates/pod-link/tests/cases/`
+holds 24 cases (`NAME.case`, the form in its `README.md`, the count in
+`count`), and `tests/cases.rs` runs them: each case on a fresh
+current-thread runtime with a paused clock, against a peer of raw bytes
+over the memory carrier. The runner polls each operation once and never
+waits, so the clock moves only at `advance`; before each check it gives
+the bytes of the peer and the writes that wait for credit, and lets the
+end run until nothing moves for 64 rounds. After the end of the link only
+`expect` steps can follow until an `expect-end`; an end that no
+`expect-end` covers fails. Two steps more than the entry: `expect-eof`
+(the end ended its carrier) and `drop` (the drop of the handle of a
+stream), and the header key `ring` (the size of the carrier, for the case
+of a peer that does not read). The cases: the 20 of the entry, with the
+order of two errors in two forms (the window of the link before a stream
+that never existed; a `CLOSE` before the window of the stream), and the
+timers moved by a byte of the peer and an overflow of credit. The
+helpers of the text forms are in `tests/common/wire.rs`, shared with
+`wire_frames`. `WIRE.md` has the section "The classes of defects": 22
+rows in 5 classes, each with its cases, or with the invariant of the
+code (the queue of `DATA`, the length at the header); a test checks that
+each case of a row exists. A wrong `expect` fails with
+"window-doubles.case: line 13 (expect Window(1, 16384)): the end sent
+Window(1, 24576)"; a count of 24 for 23 cases fails with
+"tests/cases/count says 24, the directory has 23 cases". No case found a
+defect of the link.
 
 # T-777: `pod-link`: a committed measurement of the link: throughput, round trips, allocations for each frame and memory
 

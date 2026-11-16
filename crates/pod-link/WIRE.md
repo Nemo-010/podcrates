@@ -199,6 +199,39 @@ error.
 - **W-35** (this crate) When both timers fire at the same moment, the end
   first applies `dead_after`: the link ends, and no `PING` goes.
 
+## The classes of defects
+
+Each class of defect that a multiplexer can have, with the cases of
+`tests/cases/` that catch it, or the invariant of the code that makes it
+impossible. A fix of a defect of the link adds a case and its row in the
+same commit. The test `tests/cases.rs` checks that each case of a row
+exists.
+
+| Class | Defect | Cases or invariant |
+| --- | --- | --- |
+| credit | the bytes of a gone or a reset stream do not go back to the link | `data-of-gone-stream-gives-credit` |
+| credit | a window that runs out does not come back | `window-runs-out-and-comes-back` |
+| credit | a window of a stream does not grow | `window-doubles` |
+| credit | the end takes bytes past a window | `data-past-stream-window`, `data-past-link-window` |
+| credit | a credit wraps | `credit-overflow` |
+| streams | the bytes of a stream do not move in a direction | `open-data-both-ways` |
+| streams | a stream never ends after the drop of its handle | `drop-sends-close-and-cancel` |
+| streams | a late frame of a gone stream ends the link | `drop-sends-close-and-cancel`, `limit-of-streams` |
+| streams | a frame of a stream that never existed opens it | `never-existed` |
+| streams | an id of the wrong parity or used again opens a stream | `wrong-parity`, `id-used-again` |
+| streams | the streams of the peer have no limit | `limit-of-streams` |
+| close | a half close ends both directions | `half-close` |
+| close | `DATA` after `CLOSE` is taken | `data-after-close`, `order-close-before-stream-window` |
+| close | a reset does not reach the reader, or a reset stream takes bytes | `reset-by-peer`, `reset-by-end` |
+| close | streams stay open after `GOAWAY` | `goaway-with-streams-open`, `goaway-error-code` |
+| time | a timer fires one step early or late | `keepalive-then-dead` |
+| time | a live link ends as dead | `bytes-move-the-timers` |
+| time | a `PING` gets no answer | `ping-pong` |
+| memory | the answers to a peer that does not read fill the memory | `ping-flood-no-read` |
+| memory | the queue of `DATA` grows with no limit | invariant: a write takes at most the room under `queue_limit`, and else waits (W-31; `State::write` in `src/stream.rs`) |
+| memory | the decoder holds a large body before it fails | invariant: the length is checked at the header (W-05); `data-too-long-header` of `tests/wire/frames.txt` |
+| memory | the unread bytes of the streams grow with no limit | `data-past-link-window` |
+
 ## Constants
 
 ### Frame types

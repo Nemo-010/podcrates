@@ -1,0 +1,16 @@
+# The reader that empties the stream when credit goes back doubles its window.
+role: listener
+rules: W-17 W-21
+class: credit
+expect Window(0, 8372224)
+send Open(1)
+accept 1
+send Data(1, 61*16384)
+read 1 8192
+expect Window(1, 8192)
+expect Window(0, 8192)
+read 1 8192
+expect Window(1, 24576)
+expect Window(0, 8192)
+send Data(1, 62*32768)
+expect-quiet

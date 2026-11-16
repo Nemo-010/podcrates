@@ -1,0 +1,9 @@
+# PING gets PONG with its value; a PONG of no PING is no error.
+role: listener
+rules: W-26
+class: time
+expect Window(0, 8372224)
+send Ping(5)
+expect Pong(5)
+send Pong(99)
+expect-quiet

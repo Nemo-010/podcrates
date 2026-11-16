@@ -20,6 +20,7 @@ pub mod quic;
 pub mod tcp;
 #[cfg(feature = "udp")]
 pub mod udp;
+pub mod wire;
 #[cfg(feature = "ws")]
 pub mod ws;
 

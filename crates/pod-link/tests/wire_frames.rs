@@ -3,6 +3,9 @@
 //! failure names the case. Each case that decodes also encodes: the
 //! frames give the bytes of the case again.
 
+mod common;
+
+use common::wire::{compact, show, unhex};
 use pod_link::frame::PREFACE;
 use pod_link::{Decoder, Frame};
 
@@ -15,61 +18,6 @@ struct Case<'a> {
     split: usize,
     bytes: Vec<u8>,
     result: &'a str,
-}
-
-/// The bytes of a HEX field: pieces joined by a dot, each hex digits with
-/// an optional `*N`.
-fn unhex(text: &str) -> Result<Vec<u8>, String> {
-    let mut out = Vec::new();
-    for piece in text.split('.') {
-        let (digits, times) = match piece.split_once('*') {
-            Some((d, n)) => (d, n.parse::<usize>().map_err(|_| format!("the count of {piece:?}"))?),
-            None => (piece, 1),
-        };
-        if digits.is_empty() || digits.len() % 2 == 1 {
-            return Err(format!("the piece {piece:?} is not whole bytes"));
-        }
-        let one = (0..digits.len())
-            .step_by(2)
-            .map(|i| u8::from_str_radix(&digits[i..i + 2], 16).map_err(|_| format!("the piece {piece:?}")))
-            .collect::<Result<Vec<u8>, String>>()?;
-        for _ in 0..times {
-            out.extend_from_slice(&one);
-        }
-    }
-    Ok(out)
-}
-
-/// The bytes in the form of HEX: a run of 4 or more equal bytes is one
-/// piece `bb*N`, and the other bytes join into pieces of hex digits.
-fn compact(bytes: &[u8]) -> String {
-    let mut pieces: Vec<String> = Vec::new();
-    let mut literal = String::new();
-    let mut i = 0;
-    while i < bytes.len() {
-        let run = bytes[i..].iter().take_while(|&&b| b == bytes[i]).count();
-        if run >= 4 {
-            if !literal.is_empty() {
-                pieces.push(std::mem::take(&mut literal));
-            }
-            pieces.push(format!("{:02x}*{run}", bytes[i]));
-            i += run;
-        } else {
-            literal.push_str(&format!("{:02x}", bytes[i]));
-            i += 1;
-        }
-    }
-    if !literal.is_empty() {
-        pieces.push(literal);
-    }
-    pieces.join(".")
-}
-
-fn show(frame: &Frame) -> String {
-    match frame {
-        Frame::Data(id, body) => format!("Data({id}, {})", compact(body)),
-        other => format!("{other:?}"),
-    }
 }
 
 fn parse(line: &str) -> Result<Case<'_>, String> {

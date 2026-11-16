@@ -1,0 +1,15 @@
+# A write past the credit waits for WINDOW of the stream and of the link.
+role: dialer
+rules: W-17 W-18 W-19
+class: credit
+expect Window(0, 8372224)
+open 1
+write 1 20000
+expect Open(1)
+expect Data(1, 61*16384)
+expect-quiet
+send Window(1, 4096)
+expect-quiet
+send Window(0, 65536)
+expect Data(1, 61*3616)
+expect-quiet
