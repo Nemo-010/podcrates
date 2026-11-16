@@ -9090,7 +9090,7 @@ that carries it, `v0.61.0`.
 **Milestone:** M6
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -9130,6 +9130,31 @@ no capability; the default stays 0.
 cargo test -p pod-enter --all-features
 sh scripts/ci/userns-tests.sh
 ```
+
+## Done
+
+2026-11-16, commit 518ce97. `Plan::userns_ids: Option<(u32, u32)>`
+(`None` is 0): on the namespace rung through a user namespace of its own
+the maps are `<uid> <caller-uid> 1` and `<gid> <caller-gid> 1`
+(`pod_hostprobe::userns::map_line(inside, id)`, `Maps::with_inside`,
+`Maps::of_caller_inside`); the probe legs keep `Maps::of_caller`, the map
+to 0. `u32::MAX` is refused before the fork. Checked for uid 0: the child
+sets no ids and calls no `setuid`; the mounts, the device binds, the
+volumes, the UTS namespace and the check of the working directory run
+with the capabilities of the namespace, the same for each id inside; the
+chown of the root of an overlay sets the caller's ids or keeps them
+(C758); the `HOME=/root` of `Plan::env_for` is the caller's to replace
+(C758); a join keeps the map of the run, and a root caller keeps its ids
+(C757, T-787). Tests: `cargo test -p pod-enter --all-features` (223 unit
+tests, 7 tests of `tests/userns.rs`), `cargo test -p pod-hostprobe
+--all-features` (175 unit tests); `sh scripts/ci/userns-tests.sh` as root
+(uid 65534 in the test) passed with no skip: with 1001:1001 the payload
+sees `id -u` and `id -g` 1001, the maps, a file of the caller as
+1001:1001, a file in `/tmp` as 1001, the host name, `CapEff` and `CapPrm`
+0; with no ids it is 0 with its capabilities; an exec that joins the run
+is 1001 with no capability. The plant `enter-userns-ids-ignored` is
+caught (`left: Ok(21)`); the plants `enter-userns-banner-twice` and
+`enter-userns-not-tried` follow the new lines.
 
 # T-787: `pod-enter`: the ids of the plan for a caller that makes the namespace rung with no user namespace (root)
 
