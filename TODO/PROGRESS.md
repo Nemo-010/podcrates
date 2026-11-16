@@ -12,7 +12,7 @@
   the run on the tag 43957966587): T-767 (partial), T-792, T-747, T-755,
   T-793 to T-796, T-774 to T-778, T-800, T-804, T-038 (`pod-tor`), T-037
   (`pod-iroh`). The hand-off is COORD-124 (#214).
-- On `main` for the next tag: T-808 (a `socks5://` proxy of `pod-iroh`),
+- In release: `v0.65.0` (`docs/releases/v0.65.0.md`): T-808 (a `socks5://` proxy of `pod-iroh`),
   T-806 (the PID namespace of the namespace rung, `Plan::pid_namespace`,
   PodUtils/podvm#457; the banner of podvm names it), T-805
   (`Settings::lost_hold` of a node of `pod-relay`, PodUtils/podnet#604;
