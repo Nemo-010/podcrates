@@ -1,13 +1,13 @@
 diff --git a/crates/pod-manual/src/clap/needs.rs b/crates/pod-manual/src/clap/needs.rs
-index 6a2bd140..68b8a15c 100644
+index b2fcbd2..88f1f7f 100644
 --- a/crates/pod-manual/src/clap/needs.rs
 +++ b/crates/pod-manual/src/clap/needs.rs
-@@ -180,7 +180,7 @@ fn shape(args: &[::clap::Arg], found: &[(usize, Found)]) -> Vec<Rule> {
-     let of = |i: usize| plain.iter().find(|(j, _)| *j == i).map(|(_, s)| s.clone()).unwrap_or_default();
-     let direct = |needs: &BTreeSet<usize>, all: &BTreeSet<usize>| -> Vec<String> {
+@@ -237,7 +237,7 @@ fn shape(args: &[::clap::Arg], keys: &Keys, found: &[(usize, Found)]) -> Vec<Rul
+     let hidden = |c: &usize| keys.members[*c].iter().any(|i| args[*i].is_hide_set());
+     let direct = |needs: &BTreeSet<usize>, all: &BTreeSet<usize>| -> Vec<Vec<String>> {
          let given = |c: &usize| all.iter().any(|b| b != c && of(*b).contains(c) && !of(*c).contains(b));
--        let shown = needs.iter().filter(|c| !args[**c].is_hide_set() && !given(c));
-+        let shown = needs.iter().filter(|c| !args[**c].is_hide_set());
-         shown.map(|c| super::spelling(&args[*c])).collect()
+-        let shown = needs.iter().filter(|c| !hidden(c) && !given(c));
++        let shown = needs.iter().filter(|c| !hidden(c));
+         shown.map(|c| keys.members[*c].iter().map(|i| super::spelling(&args[*i])).collect()).collect()
      };
      let mut out = Vec::new();
