@@ -574,7 +574,7 @@ T-031 is done.
 **Milestone:** M4
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -600,6 +600,37 @@ sh scripts/agent/check.sh
 ## Start condition
 
 T-035 is done.
+
+## Done
+
+2026-11-16, the commits from the import (`63204a7`) to the trial. The
+study: podssh builds arti 0.48 with `static-sqlite`, so SQLite's C is
+built in; the static probe (`examples/static-probe/src/tor.rs`) links
+arti and its SQLite for x86_64 musl with zig, and its binary passes
+`check-static.sh` (34.8 MB); CI builds it on each target. The import:
+the crate podssh-tor of podssh at `0370b0b` whole, and `scripts/tor-net.sh`
+(`SOURCES`); its edition was 2024 already. The adaptation: the way out is
+a `pod_ws::Way` (the relays through its `pod_core::Dial`, the transports
+through `pod_egress::pt::Reach`, meek_lite and WebTunnel of `pod-egress`),
+the trust is `pod_tls::Trust`; a stream of a dial is wrapped in
+`sync_wrapper::SyncWrapper`, as Arti asks for a `Sync` stream; podssh's
+ids in the comments are `PodUtils/podssh@T-NNN`; the variables of the
+tests are `POD_TEST_TOR_NETWORK`, `POD_TEST_TOR_BRIDGES` and
+`POD_TEST_TOR_ONION_LIVE`. `deny.toml` takes the crates of arti that it
+needs, each named, and ignores two advisories that only `pod-tor` brings
+(call C766). Tests: 11 unit tests, `tests/proxied_tcp.rs` (3),
+`tests/transports.rs` (4: Arti's own client of a transport against the
+sentinels), and `tests/private_network.rs` and `tests/onion_service.rs`,
+which say that no network is there and pass here; `tor.yml` (new) starts
+chutney's private network on the runner and runs them, and runs the live
+onion service by hand (rows L55, L56 of `docs/live-calls.md`). The
+README has the API, the settings, the parity list and the adoption map.
+The trial `adoption/podssh/pod-tor.patch`: the crate podssh-tor leaves
+podssh, podssh-cli takes `pod-tor` with its feature `tor` and gives it
+`podssh_ws::client::way`; its build, clippy, library tests and
+`tor_private` pass here. Release notes: `pod-tor` (new): the road through
+Tor with Arti, each first hop and each transport of a bridge through the
+caller's way out, and an onion service.
 
 # T-039: `pod-ts`: a Tailscale node in the process
 

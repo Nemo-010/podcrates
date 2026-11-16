@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 636 entries: 125 open, 14 partial, 6 blocked, 491 done.
+`TODO/INDEX.md` holds 636 entries: 124 open, 14 partial, 6 blocked, 492 done.
 
 ## State
 
@@ -80,7 +80,7 @@ PodUtils/podssh#262, on `main`). Then the ruling "Discipline": T-692
 done, then the take of each consumer; its findings T-704 and T-705),
 T-767 (a stalled resume of `pod-session`, PodUtils/podssh#283; partial: the far end's lines of each resume and of each wait that holds are in, the cause is open) with its finding T-768 (a late spare), T-703 (the issues against
 the record) and T-702 (the installer). Then the move of podssh's waves 3 and 4 (the
-ruling "The move of podssh", PodUtils/podssh#248): T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2
+ruling "The move of podssh", PodUtils/podssh#248): T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
 
 1. **The defects and asks of the consumers:** T-801 (a link of the layer over the HTTP road, PodUtils/podssh#287); T-797 (the certificate file of a way out with no bundle of the host, PodUtils/podvm#455); T-378 (`pod-devtunnel`, GitHub #94 and
@@ -147,7 +147,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
 7. **M3, the adapters:** T-028, T-029, T-030.
 8. **M4, the roads:** T-131 (a defect of `pod-gsr` on Windows ARM64)
    first; then T-036, T-037,
-   T-038, T-039.
+   T-039.
 9. **M5, the upkeep:** T-789 (the nightly at `f309b07`), T-766, T-780 (a test that reads the pipes of its child
    after the child ends), T-781 (the findings of the study of zmux for the
    consumers), T-779; T-312 (a
