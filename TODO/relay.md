@@ -8107,3 +8107,60 @@ cargo test -p pod-hold --all-features
 2026-11-16, the commit of the fix. The premise is not complete: an `AF_UNIX` socket takes only the ioctls of `dev_ioctl` (its family has no ioctl, so `sock_do_ioctl` gives the rest to `dev_ioctl`). Measured in a user and a network namespace with a TUN on kernel 6.18: `AF_UNIX` (datagram and stream) and `AF_NETLINK` give `SIOCSIFFLAGS` and `SIOCSIFMTU`, and `ENOTTY` for `SIOCSIFADDR`, `SIOCSIFNETMASK` and `SIOCADDRT`; `AF_INET` of the stream and of the datagram type, and `AF_PACKET`, give each of the five. The fix (call C723): `control` of `crates/pod-hold/src/netns/tun.rs` opens `AF_INET` of the stream type, else of the datagram type, and a failure of both names both. Test: `tests/hold.rs`, `a_namespace_makes_its_wire_where_udp_sockets_are_refused`: a child installs a seccomp filter that refuses `socket(AF_INET or AF_INET6, SOCK_DGRAM)` with `EPERM` (as the lab `udp-denied`), checks the refusal, enters a network namespace, brings up `lo` and opens the wire (`WireChoice::Auto`); exit 20 when the interfaces fail. Before the fix it fails with podnet's error, `socket() for the interfaces: Operation not permitted (os error 1)`. It passes as root (the TUN) and as uid 65534 (the veth wire); `scripts/root-netns-tests.sh` runs it as root in CI, where a skip fails. The plant `hold-interfaces-need-udp` (the datagram type alone) is caught. podnet can drop its wait on PodUtils/podnet@T-381 and take the tag. Release notes: `pod-hold`: the netns hold works where the host refuses UDP sockets (the lab `udp-denied`): the interface ioctls use a TCP socket.
 
 2026-11-16: `ci.yml` run 43788174436 at `5792f06` failed in the job `test`: as a normal user on the runner, the namespace of the test held no `CAP_NET_ADMIN`, so `SIOCSIFFLAGS` on `lo` gave `EPERM`, and the test took that for the defect. The test now takes only "socket() for the interfaces" (the refused socket) for the defect, and an ioctl that gives `EPERM` for the host, as a skip; `scripts/root-netns-tests.sh` runs it as root and fails on a skip. The plant `hold-interfaces-need-udp` is still caught.
+
+# T-767: `pod-session`: a resume that the client calls done, after which the session never moves (PodUtils/podssh#283)
+
+**Source:** PodUtils/podssh#283 (COORD-091 of podssh; PodUtils/podssh@T-780).
+**Category:** defect
+**Milestone:** M2
+**Priority:** P1
+**Effort:** M
+**Status:** open
+
+## Problem
+
+podssh: the m6 step of its gate (`cargo test -p podssh-cli --features
+podssh-cli/iroh-test --test m6_exit -- --ignored --test-threads 1`) failed
+six times since 2026-11-13; each time one test hangs to its limit of 600 s,
+a different test each time, and its rerun passes. In the newest failure (run
+43823925587 of podssh, at podcrates `v0.60.0`, test
+`the_layer_survives_a_stopped_relay_host`) the client said "the new link
+ended before the far end greeted; trying again in 1.1 s", then "the session
+resumed after 1.2 s, 65536 bytes sent again"; after it, nothing for 600 s:
+no loss of the new link (its heartbeat was answered), no session byte
+moved, and the node's own link to the relay came back. In another failure
+the client said "a spare link answered; resuming the session", then "the
+session resumed after 0.0 s, 688128 bytes sent again". The replay of the
+sixth failure was 64 KiB, below a pair's window of 768 KiB. podssh read
+`pump/up.rs`, `pump/down.rs`, `pump/outbox.rs`, `link.rs`, `keep.rs`
+(`run_resumed`, `take`) and `resume.rs` (`resume_loop`) and found no wait
+that holds with no `ACK` due.
+
+The asks: (1) a line of the far end at each resume, at the node's default
+level or behind a setting, with its number, the offsets of both ends, the
+bytes sent again, and whether an old link was stopped or an older resume
+gave way; (2) a look at the case of the sixth failure: a new link that the
+relay takes and ends before the far end greets, then a second link that
+resumes 1.1 s later, at the same resume deadline.
+
+## Premise
+
+- Read: PodUtils/podssh#283.
+- Not measured: the failure here; podssh saw none in about 40 runs on a
+  cloud host.
+
+## Approach
+
+(1) The far end writes one event at each resume (`session.resume` of the
+caller's sink): its number, the offset that each end acknowledged, the
+bytes that it sends again, and whether it stopped an old link or an older
+resume gave way. (2) A test of `pod-session` that reproduces the sixth
+case on the loopback: a first resume whose link ends before the greeting
+of the far end, a second resume 1.1 s later, then bytes both ways; and the
+same with the old link still alive. Fix the cause that the test shows.
+
+## Prove
+
+```sh
+cargo test -p pod-session --all-features
+```
