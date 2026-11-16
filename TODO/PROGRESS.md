@@ -25,8 +25,9 @@
     come from `pod-manual` with no workaround of T-725; it runs the one
     watcher and the sync of the issues; its installer on
     `scripts/install/core.sh` is PodUtils/podnet@T-360.
-  - podvm: `v0.62.0` (`e62a7dc1`, PodUtils/podvm#449; `Plan::userns_ids` for
-    `run -d` and `create`: `USER runner` gives `uid_map` `1001 1000 1`).
+  - podvm: `v0.63.0` (PodUtils/podvm#453; a foreground `run` and `run -d`
+    fill `Plan::userns_ids`: `USER runner` gives `1001 0 1` in the
+    foreground; its installer core is still of `v0.58.0`, PodUtils/podvm@T-1925).
   - podrunner: `v0.52.0` (`45bd964`, PodUtils/podrunner#169).
 - Takes that wait: podvm's check of T-208 against `lambda-al2023`, and
   its module set of T-206 with PodUtils/podvm@T-1662 (after `pod-netlab`,
