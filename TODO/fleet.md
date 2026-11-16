@@ -4475,3 +4475,102 @@ plant.
 ```sh
 cargo test -p pod-manual --all-features --test clap
 ```
+
+# T-759: `pod-lab`: the stand-in proxy of a network lab reaches a server of the command on the loopback of the lab, with the rules of its class (PodUtils/podssh#282)
+
+**Source:** PodUtils/podssh#282 (COORD-090 of podssh; PodUtils/podssh@T-791).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P1
+**Effort:** M
+**Status:** open
+
+## Problem
+
+podssh ran `podlab run PROFILE -- podssh doctor --quick` in each network
+lab of `v0.60.0`: "the stand-in proxy sends each CONNECT to the lab's own
+stand-in TLS server, whatever the host and port. A CONNECT to
+`127.0.0.1:8443`, where the command itself listened, got 200, and the
+listener got no byte. The stand-in is not a relay, so podssh never reaches
+the steps that tell these classes apart: the WebSocket upgrade
+(`ws-upgrade-refused`); a re-terminated certificate on the relay's name
+(`proxy-tls-reterminate`); the filter of SNI (`sni-allowlist`)." Commands
+2 to 6 of podssh's lane (`release-short.sh --net`, ssh, cp, serve, pipe, a
+session after a kill of its link) cannot run in the network labs. The ask:
+"make the lab's proxy reach a server that the command runs inside the lab
+[...] The class then acts on the bytes, with each lab's rule applied: the
+upgrade refused; TLS re-terminated with the proxy's CA; SNI filtered; no
+DNS." podssh then runs its relay role (`podssh relay serve --listen
+127.0.0.1:PORT --cert ... --allow-private`) and a throwaway sshd on the
+loopback, and its whole lane in each lab with no network.
+
+## Premise
+
+- Read: PodUtils/podssh#282; `crates/pod-lab/src/net/proxy.rs` (a
+  `CONNECT` to a name of the lab, the loopback included, gets the stand-in
+  server); `crates/pod-lab/src/net/relay.rs` (the splice and the
+  re-termination of T-746, with the roots of the host).
+- Not measured: a relay of podssh behind the stand-in proxy.
+
+## Approach
+
+An option of `podlab run` (`--serve PORT`, more than one) and of
+`Options`: a `CONNECT` to `127.0.0.1:PORT`, `localhost:PORT` or a name of
+the lab at such a port goes to the listener of the command on the loopback
+of the lab, after the rules of the class (the credential, the ports, 403,
+504, a reset, the silent port). On the bytes: in `ws-upgrade-refused` the
+proxy re-terminates and refuses a request with `Upgrade: websocket` (403);
+in `proxy-tls-reterminate` the proxy re-terminates a listed name with its
+CA and checks the server of the command with a CA that the caller gives
+(`--serve-ca FILE`), else with no check of the chain; in `sni-allowlist`
+the stand-in server on `192.0.2.1:443` passes a ClientHello with a listed
+name to the port of the command (one `--serve` port) and resets the others.
+A test runs a TLS echo server of the test in each class and reaches it
+only by the path of the class.
+
+## Prove
+
+```sh
+cargo test -p pod-lab --all-features --test lab
+```
+
+# T-760: `pod-lab`: a network lab keeps the other proxy variables of the host (PodUtils/podssh#282)
+
+**Source:** PodUtils/podssh#282 (a note of COORD-090 of podssh).
+**Category:** defect
+**Milestone:** M8
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+podssh: "Inside a lab, the host's other proxy variables stay set:
+`GLOBAL_AGENT_HTTPS_PROXY`, `DOCKER_HTTPS_PROXY`, `npm_config_https_proxy`,
+`YARN_HTTPS_PROXY`, `CLOUDSDK_PROXY_*`, `JAVA_TOOL_OPTIONS`'s proxy.
+podssh reads none of them, but a tool that does reaches past the lab's
+proxy (or fails on the host's port). The manual says that the lab removes
+`ALL_PROXY` and `NO_PROXY`; it says nothing of these."
+
+## Premise
+
+- Read: `crates/pod-lab/src/net.rs` (`PROXY_VARIABLES`: the eight
+  variables of curl), `crates/pod-lab/src/lab.rs` (`environment`).
+- Not measured: the tools that read each variable.
+
+## Approach
+
+The lab removes each variable of a proxy of a known tool, by a list with
+the tool of each (the `GLOBAL_AGENT_*`, `DOCKER_*`, `npm_config_*`,
+`YARN_*`, `CLOUDSDK_PROXY_*` forms), and sets the HTTPS and HTTP forms to
+its stand-in proxy where the class has one, as for curl's. A
+`JAVA_TOOL_OPTIONS` or `JDK_JAVA_OPTIONS` with `-Dhttps.proxyHost` or
+`-Dhttp.proxyHost` loses those options alone. The manual and the README
+list the variables. A test sets each of them for the lab process alone
+(a new start of the test binary) and reads the environment of the command.
+
+## Prove
+
+```sh
+cargo test -p pod-lab --all-features --test lab
+```

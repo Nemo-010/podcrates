@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 599 entries: 115 open, 15 partial, 6 blocked, 463 done.
+`TODO/INDEX.md` holds 601 entries: 117 open, 15 partial, 6 blocked, 463 done.
 
 ## State
 
@@ -14,7 +14,7 @@
   `install-os`).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
-  - podssh: `v0.58.0` (`043f32c`, PodUtils/podssh#279): it runs the one
+  - podssh: `v0.60.0` (`cbef76d`, PodUtils/podssh#281; no patch): it runs the one
     watcher and the sync of the issues; its lane passes in the ten labs
     that hold its classes (`podssh doctor`, `release-short.sh`, `ssh`, `cp`
     of 200 MiB), with the release asset of `podlab`; `pod-manual` is
@@ -72,7 +72,7 @@ First: the next tag (the fixes of
 PodUtils/podssh#262, on `main`). Then the ruling "Discipline": T-692
 (`pod-lab`, part 1), T-700 (`pod-manual`, PodUtils/podnet#584; part 1
 done, then the take of each consumer; its findings T-704 and T-705),
-T-747 (the direct network
+T-759 and T-760 (podssh's lane in the network labs, PodUtils/podssh#282), T-747 (the direct network
 classes on each address), T-703 (the issues against
 the record) and T-702 (the installer; then T-717 and T-718). Then the move of podssh's waves 3 and 4 (the
 ruling "The move of podssh", PodUtils/podssh#248): T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2

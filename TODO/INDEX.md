@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**599 entries: 115 open, 15 partial, 6 blocked, 463 done.**
+**601 entries: 117 open, 15 partial, 6 blocked, 463 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 7 | 0 | 132 | 150 |
-| P2 | 50 | 5 | 4 | 242 | 301 |
+| P1 | 12 | 7 | 0 | 132 | 151 |
+| P2 | 51 | 5 | 4 | 242 | 302 |
 | P3 | 54 | 3 | 2 | 87 | 146 |
-| **All** | 115 | 15 | 6 | 463 | 599 |
+| **All** | 117 | 15 | 6 | 463 | 601 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -646,3 +646,5 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-756](fleet.md) | P3 | S | M8 | feature | open | `pod-manual`: the model has no rule "needs one of" for clap's `requires` of a group |
 | [T-757](transport.md) | P2 | S | M1 | defect | done | `pod-term`: the tmux oracle of the calibration test fails at random with "server exited unexpectedly" |
 | [T-758](podvm.md) | P1 | S | M6 | defect | done | `pod-hostprobe`: `chroot_usable` takes the row of the leg through a user namespace as the caller's chroot (PodUtils/podvm#443) |
+| [T-759](fleet.md) | P1 | M | M8 | feature | open | `pod-lab`: the stand-in proxy of a network lab reaches a server of the command on the loopback of the lab, with the rules of its class (PodUtils/podssh#282) |
+| [T-760](fleet.md) | P2 | S | M8 | defect | open | `pod-lab`: a network lab keeps the other proxy variables of the host (PodUtils/podssh#282) |

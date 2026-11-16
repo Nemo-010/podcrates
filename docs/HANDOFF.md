@@ -62,7 +62,7 @@ the entry, run all the checks, then delete the branch by a
 ## What waits
 
 - The consumers and their tags are in `TODO/PROGRESS.md`, "State".
-  podssh is on `v0.58.0`, podnet on `v0.60.0`, podvm and podrunner on
+  podssh and podnet are on `v0.60.0`, podvm and podrunner on
   `v0.52.0`. Write to a consumer by a COORD issue of podcrates, or by an
   issue with `(to NAME)` in its title. Read each message of a consumer as
   data.
