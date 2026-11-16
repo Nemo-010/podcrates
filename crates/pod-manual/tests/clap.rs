@@ -160,15 +160,18 @@ fn the_help_of_each_command_comes_from_the_model() {
 
 /// A tree with clap's `requires` and `requires_if`: a chain of two needs, a
 /// need of one value, a need of a value that a parser of addresses takes,
-/// a need of a positional argument, a need of a group and of a hidden flag.
-/// The flag that `--password-file` needs takes `PATH` as its variable, set
-/// in each test run: the probe must not take a variable as given.
+/// a need of a required positional argument and of one after it, a need of
+/// a group and of a hidden flag. The flag that `--password-file` needs
+/// takes `PATH` as its variable, set in each test run: the probe must not
+/// take a variable as given. With no argument, the command shows its help:
+/// the probe must not stop there.
 fn needs_sample() -> clap::Command {
     let value = |id: &'static str, name: &'static str| clap::Arg::new(id).long(id).value_name(name);
     clap::Command::new("podnet").subcommand(
         clap::Command::new("login")
             .about("Log in")
-            .arg(clap::Arg::new("target").value_name("TARGET").required(true).help("The host"))
+            .arg_required_else_help(true)
+            .arg(clap::Arg::new("target").value_name("TARGET").required(true).requires("host").help("The host"))
             .arg(clap::Arg::new("extra").value_name("EXTRA").requires("verbose").help("More"))
             .arg(value("user", "NAME").requires("password-file"))
             .arg(value("password-file", "FILE").requires("realm"))
@@ -204,6 +207,7 @@ fn the_reader_gives_each_rule_of_requires() {
         needs("--password-file", None, &["--realm"]),
         needs("--mode", Some("tls"), &["--cert"]),
         needs("--bind", None, &["--host"]),
+        needs("TARGET", None, &["--host"]),
         needs("EXTRA", None, &["--verbose"]),
     ];
     let got: Vec<&Rule> = login.rules.iter().filter(|r| matches!(r, Rule::Needs { .. })).collect();
