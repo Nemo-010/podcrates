@@ -9,8 +9,9 @@
   43858596199, adoption 43858611730, plants 43858616695, the release dry
   run 43862209733): T-787, T-773, T-756, T-788. The hand-off is COORD-123
   (#211).
-- In release: `v0.64.0` (`docs/releases/v0.64.0.md`): T-767 (partial: the
-  line of each wait that holds), T-792, T-747, T-793 to T-795.
+- In release: `v0.64.0` (`docs/releases/v0.64.0.md`; the version is in
+  `Cargo.toml` since `2204ec2`; no tag yet): T-767 (partial: the line of
+  each wait that holds), T-792, T-747, T-755, T-793 to T-795.
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.63.0` (`5340fbb`, PodUtils/podssh#286, with the installer
