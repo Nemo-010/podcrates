@@ -9054,6 +9054,18 @@ root does not see a file of the image under an opaque directory of the
 upper layer, and a rule on that path is refused before the fork. Plants
 `enter-overlay-no-userxattr`, `enter-view-reads-both-opaque`.
 
+2026-11-16: the plant `enter-overlay-no-userxattr` was missed in `plants.yml`
+(runs 43894085749 and 43905557327, shard 5): the kernel of the Ubuntu
+runner reads an opaque directory of an overlay in a user namespace, and
+shows `userxattr` in `/proc/self/mountinfo`, with no such option, so the
+planted defect has no effect there. The choice of the options is now one
+function, `OverlayMount::attempts` (with `userxattr` first in a user
+namespace, then the plain options; a host root: the plain options alone),
+with the unit test `the_mount_in_a_user_namespace_tries_userxattr_first`;
+the plant patches it and the unit test catches it on each kernel. The live
+test also reads the option in the mountinfo of the payload, which holds on
+a kernel with no patch of its own.
+
 # T-758: `pod-hostprobe`: `chroot_usable` takes the row of the leg through a user namespace as the caller's chroot (PodUtils/podvm#443)
 
 **Source:** PodUtils/podvm#443 (COORD-150 of podvm; PodUtils/podvm@T-1921).
