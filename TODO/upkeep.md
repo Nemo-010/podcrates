@@ -2277,7 +2277,7 @@ sh scripts/plant-each.sh enter-userns-dev-no-remount
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2309,6 +2309,10 @@ cargo zigbuild -p pod-lab --all-features --test lab --target i686-unknown-linux-
 
 Then run the binary for i686 from `crates/pod-lab`. The next nightly proves the targets under qemu-user.
 
+## Done
+
+2026-11-16, commit `6f6bb0a`. `crates/pod-lab/tests/lab/filter.rs` (`refused_here`) ends each case of `hosts.rs`, `net.rs` and `way_out.rs` (a new start of the binary exits with its own code) where the lab cannot hold its filter: a target with `socketcall(2)` must refuse, a host whose `seccomp(2)` gives `ENOSYS` gets a skip line. `cargo test -p pod-lab --all-features`: passed (x86_64, as root; uid 65534 cannot reach the scratch target here). The binary for i686-unknown-linux-musl, natively as root: it failed at `listen-denied` before the fix; after it, each case passes, with `listen-denied`, `udp-denied`, `raw-denied` and `proxy-only` (and `proxy-only` with a way out) "refused where the kernel has socketcall(2)". A planted `SOCKETCALL = false` in `crates/pod-lab/src/hold.rs` makes that binary fail: "listen-denied: no refusal where the kernel has socketcall(2)". No plant in `scripts/plants/`: the runners of `plants.yml` are x86_64, where the path is not taken. The next nightly proves the targets under qemu-user.
+
 # T-762: The nightly at `1739b5f` is red under qemu-user: the test of the rows of `pod-hostprobe` expects no value of a mount flag that the kernel did not fill
 
 **Source:** `nightly.yml` run 43817142905 at `1739b5f` (jobs `cross` of armv7 133131677398, arm 133131677473, aarch64 133131677451, loongarch64 133131677416 and powerpc64le 133131677401).
@@ -2316,7 +2320,7 @@ Then run the binary for i686 from `crates/pod-lab`. The next nightly proves the 
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2349,6 +2353,10 @@ cargo test -p pod-hostprobe --all-features --test host_rows
 
 The next nightly proves the targets under qemu-user.
 
+## Done
+
+2026-11-16, commit `6f6bb0a`. `flag_text` of `crates/pod-hostprobe/tests/host_rows/rows.rs` gives `unknown` for a flag with no `ST_VALID`, as the crate does; the checks of `noexec` of `HOME` and `rdonly` of `/etc/ssl` use it. `cargo test -p pod-hostprobe --all-features`: passed. No test fails here without the fix, and no plant: the path needs a kernel with no `ST_VALID` (qemu-user). The next nightly proves the targets under qemu-user.
+
 # T-763: The nightly at `1739b5f` is red on windows-2025: a test of `pod-link` writes a POST on TLS and reads the answer with no flush
 
 **Source:** `nightly.yml` run 43817142905 at `1739b5f` (job `test (windows-2025)` 133131677537).
@@ -2356,7 +2364,7 @@ The next nightly proves the targets under qemu-user.
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2381,6 +2389,10 @@ sh scripts/plant-each.sh link-poll-tls-write-unflushed
 
 The next nightly proves windows-2025.
 
+## Done
+
+2026-11-16, commits `6f6bb0a` and `a4b7c73`. The test flushes after the write of the POST again; its second POST goes through `connect_narrow` (a pipe of 4 KiB to the socket); `ask_on` flushes. Before the fix, with `connect_narrow`, the test fails here after 30 s: "the answer in time: Elapsed(())", as on windows-2025; after it, 20 runs of 20 pass. `cargo test -p pod-link --all-features`: 225 passed. `sh scripts/plant-each.sh link-poll-tls-write-unflushed`: caught (exit 101). The next nightly proves windows-2025.
+
 # T-764: The nightly at `1739b5f` is red on windows-2025: the lower bound of a silence of `pod-link`'s split test does not allow the tick of the timer of Windows
 
 **Source:** `nightly.yml` run 43817142905 at `1739b5f` (job `test (windows-2025)` 133131677537).
@@ -2388,7 +2400,7 @@ The next nightly proves windows-2025.
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2413,6 +2425,10 @@ sh scripts/plant-each.sh link-split-silence-early
 
 The next nightly proves windows-2025.
 
+## Done
+
+2026-11-16, commits `6f6bb0a` and `3301197`. The lower bound is `lost_after - 2 * beat`, with the tick of the timer of Windows in its comment. `cargo test -p pod-link --all-features --test split`: 6 passed. `sh scripts/plant-each.sh link-split-silence-early`: caught (exit 101). No test fails here without the fix: the timer of this host has 1 ms. The next nightly proves windows-2025.
+
 # T-765: The nightly at `1739b5f` is red on macos-15-intel: a dial of `pod-proxy` to a freed port gets a reset, not a refusal
 
 **Source:** `nightly.yml` run 43817142905 at `1739b5f` (job `test (macos-15-intel)` 133131677450).
@@ -2420,7 +2436,7 @@ The next nightly proves windows-2025.
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2445,3 +2461,8 @@ sh scripts/agent/check-macos.sh
 ```
 
 The next nightly proves macOS.
+
+## Done
+
+2026-11-16, commit `6f6bb0a` (call C742). On macOS `closed::port` of `pod-proxy`, `common::dead()` of `pod-warp` and the refused port of `cuts` of `pod-dns` are `127.0.0.1:1`. `cargo test --all-features`: `pod-proxy` 210 passed, `pod-dns` 77, `pod-warp` 209. `sh scripts/agent/check-macos.sh`: 0 faults. No test fails here without the fix, and no plant: the change is in the path of macOS alone. The next nightly proves macOS.
+

@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**604 entries: 120 open, 15 partial, 6 blocked, 463 done.**
+**604 entries: 115 open, 15 partial, 6 blocked, 468 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 16 | 7 | 0 | 132 | 155 |
+| P1 | 11 | 7 | 0 | 137 | 155 |
 | P2 | 50 | 5 | 4 | 242 | 301 |
 | P3 | 54 | 3 | 2 | 87 | 146 |
-| **All** | 120 | 15 | 6 | 463 | 604 |
+| **All** | 115 | 15 | 6 | 468 | 604 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -646,8 +646,8 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-756](fleet.md) | P3 | S | M8 | feature | open | `pod-manual`: the model has no rule "needs one of" for clap's `requires` of a group |
 | [T-757](transport.md) | P2 | S | M1 | defect | done | `pod-term`: the tmux oracle of the calibration test fails at random with "server exited unexpectedly" |
 | [T-758](podvm.md) | P1 | S | M6 | defect | done | `pod-hostprobe`: `chroot_usable` takes the row of the leg through a user namespace as the caller's chroot (PodUtils/podvm#443) |
-| [T-761](upkeep.md) | P1 | S | M5 | defect | open | The nightly at `1739b5f` is red on each cross target: the lab test of `pod-lab` expects a seccomp lab to run where its filter cannot hold |
-| [T-762](upkeep.md) | P1 | S | M5 | defect | open | The nightly at `1739b5f` is red under qemu-user: the test of the rows of `pod-hostprobe` expects no value of a mount flag that the kernel did not fill |
-| [T-763](upkeep.md) | P1 | S | M5 | defect | open | The nightly at `1739b5f` is red on windows-2025: a test of `pod-link` writes a POST on TLS and reads the answer with no flush |
-| [T-764](upkeep.md) | P1 | S | M5 | defect | open | The nightly at `1739b5f` is red on windows-2025: the lower bound of a silence of `pod-link`'s split test does not allow the tick of the timer of Windows |
-| [T-765](upkeep.md) | P1 | S | M5 | defect | open | The nightly at `1739b5f` is red on macos-15-intel: a dial of `pod-proxy` to a freed port gets a reset, not a refusal |
+| [T-761](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `1739b5f` is red on each cross target: the lab test of `pod-lab` expects a seccomp lab to run where its filter cannot hold |
+| [T-762](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `1739b5f` is red under qemu-user: the test of the rows of `pod-hostprobe` expects no value of a mount flag that the kernel did not fill |
+| [T-763](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `1739b5f` is red on windows-2025: a test of `pod-link` writes a POST on TLS and reads the answer with no flush |
+| [T-764](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `1739b5f` is red on windows-2025: the lower bound of a silence of `pod-link`'s split test does not allow the tick of the timer of Windows |
+| [T-765](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `1739b5f` is red on macos-15-intel: a dial of `pod-proxy` to a freed port gets a reset, not a refusal |
