@@ -1,0 +1,5 @@
+# pod-manual: the probe of requires writes the key of a group with no angle brackets, so no error of clap matches it and the need of one of a group is lost; the test of the needs of a group must fail.
+ENTRY=T-756
+GROUP=manual
+EXPECT='test the_reader_gives_a_need_of_one_of_a_group \.\.\. FAILED'
+RUN='cargo test -p pod-manual --all-features --test clap -- the_reader_gives_a_need_of_one_of_a_group --exact'

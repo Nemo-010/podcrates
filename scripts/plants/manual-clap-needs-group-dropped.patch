@@ -1,0 +1,13 @@
+diff --git a/crates/pod-manual/src/clap/needs.rs b/crates/pod-manual/src/clap/needs.rs
+index b2fcbd2..06587f8 100644
+--- a/crates/pod-manual/src/clap/needs.rs
++++ b/crates/pod-manual/src/clap/needs.rs
+@@ -89,7 +89,7 @@ impl Keys {
+         for g in cmd.get_groups() {
+             let at = group_args(g, args);
+             let shown: Vec<String> = at.iter().map(|i| group_form(&args[*i])).collect();
+-            let key = format!("<{}>", shown.join("|"));
++            let key = shown.join("|");
+             // A group of one positional shows as that positional, and two
+             // groups of the same arguments are one need.
+             if !text.contains(&key) {
