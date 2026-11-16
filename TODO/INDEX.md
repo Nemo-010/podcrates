@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**643 entries: 124 open, 14 partial, 6 blocked, 499 done.**
+**643 entries: 123 open, 14 partial, 6 blocked, 500 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 146 | 165 |
 | P2 | 56 | 3 | 4 | 259 | 322 |
-| P3 | 57 | 3 | 2 | 92 | 154 |
-| **All** | 124 | 14 | 6 | 499 | 643 |
+| P3 | 56 | 3 | 2 | 93 | 154 |
+| **All** | 123 | 14 | 6 | 500 | 643 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -676,7 +676,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-794](upkeep.md) | P1 | S | M5 | chore | done | `pod-manual`: podnet took the crate at `9217b0b`; the `taken` line is not in `SOURCES` |
 | [T-795](upkeep.md) | P1 | S | M5 | chore | done | `pod-manual`: the text fixes of podssh in `data.rs` and `flags.rs` change no form that the crate took |
 | [T-796](fleet.md) | P1 | S | M8 | defect | done | `pod-lab`: the stand-in and the way out ignore SIGPIPE, so that a client that resets does not end them (PodUtils/podvm#455) |
-| [T-797](fleet.md) | P3 | S | M8 | defect | open | `pod-lab`: the certificate file of a way out on a host with no bundle, and an `SSL_CERT_FILE` that cannot be read (PodUtils/podvm#455) |
+| [T-797](fleet.md) | P3 | S | M8 | defect | done | `pod-lab`: the certificate file of a way out on a host with no bundle, and an `SSL_CERT_FILE` that cannot be read (PodUtils/podvm#455) |
 | [T-798](relay.md) | P3 | S | M2 | measurement | open | `pod-link`: the tcp carrier allocates about 3 times for each `DATA` frame |
 | [T-799](relay.md) | P3 | M | M2 | feature | open | `pod-link`: two copies less of each byte: a read into the buffer of the decoder, and a writer queue of bytes |
 | [T-800](podvm.md) | P2 | S | M6 | feature | done | `pod-services`: the host of the virtio-win guest tools, fedorapeople.org (PodUtils/podvm#456) |

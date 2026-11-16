@@ -5039,6 +5039,7 @@ dependencies = [
  "rustls",
  "rustls-pki-types",
  "serde_json",
+ "webpki-root-certs",
 ]
 
 [[package]]

@@ -1,0 +1,6 @@
+# pod-lab: an SSL_CERT_FILE that does not read gives an empty certificate file with no word; the unit test of the certificate file must fail (T-797, PodUtils/podvm#455).
+ENTRY=T-797
+GROUP=lab
+EXPECT='called `Result::unwrap_err\(\)` on an `Ok` value'
+RUN='cargo test -p pod-lab --all-features --lib the_certificate_file_of_a_way_out_takes_the_file_a_bundle_or_the_built_in_roots'
+LIMIT=1800

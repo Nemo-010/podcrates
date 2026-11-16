@@ -167,6 +167,7 @@ smoltcp = { version = "0.14", default-features = false, features = [
 # The compiled-in Mozilla roots. pod_tls::ROOTS_VERSION names the version
 # that Cargo.lock holds, and a test compares them.
 webpki-roots = "1"
+webpki-root-certs = "1"
 
 # The pure-Rust crypto of pod-tls (feature pure), with the features of
 # podssh. `zeroize` wipes the state of each hash, HMAC, AEAD and block

@@ -214,24 +214,44 @@ const PEM_MOST: u64 = 8 << 20;
 
 /// The PEM text of the certificates that the host trusts: the file of
 /// `SSL_CERT_FILE` where it is set, else the first system bundle that
-/// reads and holds a certificate, as `pod_tls::roots::load` takes it. The
-/// certificate blocks alone; empty where there is none.
-fn host_pem() -> String {
-    use std::io::Read as _;
+/// reads and holds a certificate, as `pod_tls::roots::load` takes it, else
+/// the built-in roots of `webpki-root-certs`, which `pod_tls` takes too
+/// (a host with no bundle: a scratch or a distroless image). The
+/// certificate blocks alone. An `SSL_CERT_FILE` that does not read, or
+/// that holds no certificate, is an error, as `host_roots` gives one.
+fn host_pem() -> Result<String, String> {
     let file = std::env::var_os(super::CERT_VARIABLE).filter(|v| !v.is_empty()).map(std::path::PathBuf::from);
-    let paths: Vec<std::path::PathBuf> = match file {
-        Some(f) => vec![f],
-        None => pod_tls::SYSTEM_BUNDLES.iter().map(std::path::PathBuf::from).collect(),
-    };
-    for p in paths {
+    let system: Vec<std::path::PathBuf> = pod_tls::SYSTEM_BUNDLES.iter().map(std::path::PathBuf::from).collect();
+    host_pem_from(file.as_deref(), &system)
+}
+
+/// [`host_pem`] for the file `file` of `SSL_CERT_FILE` and the system
+/// bundles `system`, in their order.
+pub(super) fn host_pem_from(file: Option<&std::path::Path>, system: &[std::path::PathBuf]) -> Result<String, String> {
+    use std::io::Read as _;
+    let read = |p: &std::path::Path| -> std::io::Result<String> {
         let mut text = String::new();
-        let read = std::fs::File::open(&p).and_then(|f| f.take(PEM_MOST).read_to_string(&mut text));
+        std::fs::File::open(p).and_then(|f| f.take(PEM_MOST).read_to_string(&mut text))?;
+        Ok(text)
+    };
+    if let Some(f) = file {
+        let shown = f.display();
+        let text = read(f).map_err(|e| format!("{} names {shown}, which does not read: {e}", super::CERT_VARIABLE))?;
         let blocks = certificate_blocks(&text);
-        if read.is_ok() && !blocks.is_empty() {
-            return blocks;
+        if blocks.is_empty() {
+            return Err(format!("{} names {shown}, which holds no certificate", super::CERT_VARIABLE));
+        }
+        return Ok(blocks);
+    }
+    for p in system {
+        if let Ok(text) = read(p) {
+            let blocks = certificate_blocks(&text);
+            if !blocks.is_empty() {
+                return Ok(blocks);
+            }
         }
     }
-    String::new()
+    Ok(webpki_root_certs::TLS_SERVER_ROOT_CERTS.iter().map(|c| crate::net::tls::pem("CERTIFICATE", c)).collect())
 }
 
 /// The `CERTIFICATE` blocks of a PEM text, each one whole.
@@ -267,7 +287,7 @@ fn host_roots() -> Result<Arc<rustls::RootCertStore>, String> {
 pub fn start(reterminate: bool) -> Result<WayOut, String> {
     let up = upstream()?;
     let roots = if reterminate { Some(host_roots()?) } else { None };
-    let pem = host_pem();
+    let pem = host_pem()?;
     let (ctl, theirs) = pass::pair().map_err(|e| words("socketpair(AF_UNIX, SOCK_SEQPACKET)", e))?;
     // SAFETY: the lab process has one thread; each child allocates only
     // its own memory.

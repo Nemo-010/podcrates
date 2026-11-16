@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use std::net::TcpListener;
 
-use super::{Upstream, dial, proxy_of};
+use super::{Upstream, certificate_blocks, dial, host_pem_from, proxy_of};
 use crate::net::is_lab_name;
 
 /// A made-up credential of the tests (`.github/secrets-allow.txt`).
@@ -141,6 +141,37 @@ fn the_certificate_blocks_of_a_pem_text() {
     let text = format!(
         "# a bundle\n{one}\n-----BEGIN PRIVATE KEY-----\nKKKK\n-----END PRIVATE KEY-----\n{two}\n-----BEGIN CERTIFICATE-----\nCCCC"
     );
-    assert_eq!(super::certificate_blocks(&text), format!("{one}\n{two}\n"));
+    assert_eq!(certificate_blocks(&text), format!("{one}\n{two}\n"));
     assert_eq!(super::certificate_blocks("no certificate"), "");
+}
+
+/// An `SSL_CERT_FILE` that does not read, or that holds no certificate, is
+/// an error that names it; with none, the first system bundle that holds a
+/// certificate gives its blocks; with no bundle, the built-in roots, each a
+/// whole PEM block of a DER of `webpki-root-certs`.
+#[test]
+fn the_certificate_file_of_a_way_out_takes_the_file_a_bundle_or_the_built_in_roots() {
+    use base64::Engine as _;
+    let dir = std::env::temp_dir().join(format!("pod-lab-host-pem-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let (missing, empty, bundle) = (dir.join("missing.pem"), dir.join("empty.pem"), dir.join("bundle.pem"));
+    std::fs::write(&empty, "# no certificate\n").unwrap();
+    let block = "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n";
+    std::fs::write(&bundle, format!("# a bundle\n{block}")).unwrap();
+    let e = host_pem_from(Some(&missing), &[]).unwrap_err();
+    assert!(e.starts_with(&format!("SSL_CERT_FILE names {}, which does not read: ", missing.display())), "{e}");
+    let e = host_pem_from(Some(&empty), std::slice::from_ref(&bundle)).unwrap_err();
+    assert_eq!(e, format!("SSL_CERT_FILE names {}, which holds no certificate", empty.display()));
+    assert_eq!(host_pem_from(Some(&bundle), &[]).unwrap(), block);
+    let system = [missing.clone(), empty.clone(), bundle.clone()];
+    assert_eq!(host_pem_from(None, &system).unwrap(), block);
+    let built_in = host_pem_from(None, &[missing, empty]).unwrap();
+    let roots = webpki_root_certs::TLS_SERVER_ROOT_CERTS;
+    assert!(roots.len() > 100, "{}", roots.len());
+    assert_eq!(built_in.matches("-----BEGIN CERTIFICATE-----").count(), roots.len());
+    let first = certificate_blocks(&built_in);
+    let body: String = first.lines().skip(1).take_while(|l| !l.starts_with("-----END")).collect();
+    let der = base64::engine::general_purpose::STANDARD.decode(body).unwrap();
+    assert_eq!(der.as_slice(), roots[0].as_ref(), "the first block is the first root");
+    let _ = std::fs::remove_dir_all(&dir);
 }

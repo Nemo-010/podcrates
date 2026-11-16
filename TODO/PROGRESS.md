@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 643 entries: 124 open, 14 partial, 6 blocked, 499 done.
+`TODO/INDEX.md` holds 643 entries: 123 open, 14 partial, 6 blocked, 500 done.
 
 ## State
 
@@ -18,7 +18,9 @@
   (`Settings::lost_hold` of a node of `pod-relay`, PodUtils/podnet#604;
   podssh keeps its wait with `lost_hold: rejoin`), T-801 (a link of the
   layer on the HTTP road, PodUtils/podssh#287; podssh's role serves
-  `OPEN_LAYER` and `ONE_LAYER`).
+  `OPEN_LAYER` and `ONE_LAYER`), T-797 (the built-in roots in the
+  certificate file of a way out, and the refusal of an `SSL_CERT_FILE`
+  that does not read, PodUtils/podvm#455).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.63.0` (`5340fbb`, PodUtils/podssh#286, with the installer
@@ -89,7 +91,7 @@ the record) and T-702 (the installer). Then the move of podssh's waves 3 and 4 (
 ruling "The move of podssh", PodUtils/podssh#248): T-029, T-030, T-039; T-036. Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
 
-1. **The defects and asks of the consumers:** T-797 (the certificate file of a way out with no bundle of the host, PodUtils/podvm#455); T-378 (`pod-devtunnel`, GitHub #94 and
+1. **The defects and asks of the consumers:** T-378 (`pod-devtunnel`, GitHub #94 and
    PodUtils/podssh#216: partial: the client side is in `v0.33.0` for
    PodUtils/podssh@T-755; the second part is the creation of tunnels, the
    logins and the token store; then T-386 and T-385); T-330 (podvm's pair

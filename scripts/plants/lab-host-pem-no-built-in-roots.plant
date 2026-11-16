@@ -1,0 +1,6 @@
+# pod-lab: a host with no bundle gives an empty certificate file, so a class that splices the real chain fails with UnknownIssuer; the unit test of the certificate file must fail (T-797, PodUtils/podvm#455).
+ENTRY=T-797
+GROUP=lab
+EXPECT='left: 0'
+RUN='cargo test -p pod-lab --all-features --lib the_certificate_file_of_a_way_out_takes_the_file_a_bundle_or_the_built_in_roots'
+LIMIT=1800

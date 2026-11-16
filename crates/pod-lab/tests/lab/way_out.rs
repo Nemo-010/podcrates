@@ -194,6 +194,28 @@ fn case(profile: &str, kind: &str, line: &str, proxy: u16, roots: &std::path::Pa
     println!("{profile} with a way out: ok");
 }
 
+/// A host whose `SSL_CERT_FILE` names a file that does not read: the lab
+/// with a way out refuses to start, and names the file, as the roots of a
+/// way out that terminates TLS do.
+fn unread_roots(proxy: u16, missing: &std::path::Path) {
+    if !crate::net::userns_here("proxy-only") {
+        return;
+    }
+    let mut c = std::process::Command::new("/proc/self/exe");
+    c.args([CASE, "proxy-only", "out-proxy-only"]);
+    for v in PROXY_VARIABLES {
+        c.env_remove(v);
+    }
+    c.env("https_proxy", format!("http://{USER}:{SECRET}@127.0.0.1:{proxy}/"));
+    c.env("SSL_CERT_FILE", missing);
+    let out = c.output().expect("a new start of the test");
+    let text = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+    assert!(!out.status.success(), "a way out with no roots to read started: {text}");
+    let words = format!("the way out: SSL_CERT_FILE names {}, which does not read", missing.display());
+    assert!(text.contains(&words), "{text}");
+    println!("proxy-only with an SSL_CERT_FILE that does not read: refused");
+}
+
 /// The work of a new start of this binary ([`CASE`]): the run of one lab
 /// with a way out. It does not return.
 pub fn one(profile: &str, kind: &str) -> ! {
@@ -237,5 +259,6 @@ pub fn all() {
     );
     case("proxy-tls-reterminate", "out-reterminate", "out by the proxy CA and reached, port 22 silent", proxy, &roots);
     case("ws-upgrade-refused", "out-ws", "out get reached, upgrade 403", proxy, &roots);
+    unread_roots(proxy, &roots.with_extension("missing"));
     let _ = std::fs::remove_file(&roots);
 }

@@ -49,6 +49,9 @@ p256 = { workspace = true }
 rcgen = { version = "0.14", default-features = false }
 # The credential of the stand-in proxy, and the PEM of a CA.
 base64 = { workspace = true }
+# The roots of the certificate file of a way out on a host with no bundle,
+# as DER (`webpki-roots` holds trust anchors, which give no PEM).
+webpki-root-certs = { workspace = true }
 
 [dev-dependencies]
 pod-testkit = { workspace = true }

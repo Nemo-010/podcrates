@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/net/out.rs b/crates/pod-lab/src/net/out.rs
+--- a/crates/pod-lab/src/net/out.rs
++++ b/crates/pod-lab/src/net/out.rs
+@@ -236,7 +236,8 @@ pub(super) fn host_pem_from(file: Option<&std::path::Path>, system: &[std::path:
+     };
+     if let Some(f) = file {
+         let shown = f.display();
+-        let text = read(f).map_err(|e| format!("{} names {shown}, which does not read: {e}", super::CERT_VARIABLE))?;
++        let Ok(text) = read(f) else { return Ok(String::new()) };
++        let _ = shown;
+         let blocks = certificate_blocks(&text);
+         if blocks.is_empty() {
+             return Err(format!("{} names {shown}, which holds no certificate", super::CERT_VARIABLE));

@@ -173,8 +173,11 @@ profile with a stand-in proxy alone.
 * The certificate file of the lab (`SSL_CERT_FILE` of the command) holds
   the certificates that the host trusts for its way out after the CAs of
   the lab: the file of the host's `SSL_CERT_FILE`, else its first system
-  bundle. So a command checks a real server through a spliced `CONNECT`,
-  also behind a proxy of the host that signs TLS again.
+  bundle, else the built-in roots of `webpki-root-certs` (a host with no
+  bundle). So a command checks a real server through a spliced `CONNECT`,
+  also behind a proxy of the host that signs TLS again. An `SSL_CERT_FILE`
+  of the host that does not read, or that holds no certificate, refuses
+  the way out with its name.
 * The command and the arguments of the lab never hold the proxy of the
   host or its credential. `podlab run --way-out` and each process of the
   lab that serves are not dumpable.

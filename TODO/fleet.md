@@ -4912,7 +4912,7 @@ starts the lab with SIGPIPE at its default needs no handler.
 **Milestone:** M8
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -4950,6 +4950,20 @@ list of paths as an argument).
 ```sh
 cargo test -p pod-lab --all-features
 ```
+
+## Done
+
+2026-11-16. `host_pem` (`net/out.rs`) is `host_pem_from(file, bundles)`:
+the file of `SSL_CERT_FILE`, else the first system bundle that holds a
+certificate, else the built-in roots of `webpki-root-certs` as PEM (the
+DER of each root, the crate that `deny.toml` takes under
+CDLA-Permissive-2.0; some 150 roots in `podlab`). An `SSL_CERT_FILE` that
+does not read, or that holds no certificate, is an error that names it,
+and `start` gives it as the error of the way out. Tests: the unit test of
+the four sources (`net/out/tests.rs`), and the lab case of a run with a
+way out whose `SSL_CERT_FILE` names no file (`tests/lab/way_out.rs`:
+refused, with the name), as root and as uid 65534. Plants
+`lab-host-pem-unread-file-empty`, `lab-host-pem-no-built-in-roots`.
 
 # T-807: `pod-manual`: four forms that podssh's manual needs before its text, help and JSON move to the crate (PodUtils/podssh#288)
 

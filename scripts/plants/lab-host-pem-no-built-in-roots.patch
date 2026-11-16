@@ -1,0 +1,12 @@
+diff --git a/crates/pod-lab/src/net/out.rs b/crates/pod-lab/src/net/out.rs
+--- a/crates/pod-lab/src/net/out.rs
++++ b/crates/pod-lab/src/net/out.rs
+@@ -251,7 +251,7 @@ pub(super) fn host_pem_from(file: Option<&std::path::Path>, system: &[std::path:
+             }
+         }
+     }
+-    Ok(webpki_root_certs::TLS_SERVER_ROOT_CERTS.iter().map(|c| crate::net::tls::pem("CERTIFICATE", c)).collect())
++    Ok(String::new())
+ }
+ 
+ /// The `CERTIFICATE` blocks of a PEM text, each one whole.
