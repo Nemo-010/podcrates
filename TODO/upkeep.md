@@ -2491,6 +2491,22 @@ target of the run:
   "the bytes within the limit: Elapsed(())" (the echo of the session in
   `LIMIT * 2`).
 
+The nightly run 43842885011 at `b6b1f47` (job 133215680847) failed the
+same two, and two more of the same class:
+
+- `crates/pod-link/tests/poll.rs`,
+  `a_proxy_that_cuts_idle_connections_holds_no_push_back` (the chunked
+  form): "the dial: CarrierError { carrier: \"chunked\", kind:
+  Io(BrokenPipe), text: \"the acceptance of the listener at ...\" }". The
+  proxy of the test cuts a connection that is idle for 2 s
+  (`dialing.hold`); under the emulation the TLS handshake of the dial
+  holds the connection idle longer.
+- `crates/pod-relay/tests/http_road_one_h2.rs`,
+  `the_one_form_carries_4_mib_each_way_on_one_stream_of_h2`: "the
+  session's end in time: Elapsed(())" (4 MiB each way in its limit).
+
+armv7 (T-789) passed in that run.
+
 ## Premise
 
 - Read: the log of the job (the two tests, the panics at
@@ -2506,13 +2522,18 @@ deadline grows until the stand-in gave each frame and one more, with a
 bound. The VLESS test takes its limit from one setting of the test kit
 for a slow target (the scale of the timers of QEMU, as the other cross
 jobs read it), with the reason in a comment. No check of the main target
-grows weaker.
+grows weaker. The same for the h2 road of `pod-relay` (its limit) and
+the hold of the cutting proxy of the poll test of `pod-link` (the hold
+grows with the scale, so that a handshake under the emulation is not a
+cut).
 
 ## Prove
 
 ```sh
 cargo test -p pod-guest --all-features --lib -- ready::tests
 cargo test -p pod-egress --all-features --test vless
+cargo test -p pod-link --all-features --test poll
+cargo test -p pod-relay --all-features --test http_road_one_h2
 ```
 
 # T-779: `pod-identity`: one stack of curve25519 and of SHA-2: take `ed25519-dalek` 3
