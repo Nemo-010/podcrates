@@ -24,7 +24,7 @@
     come from `pod-manual` with no workaround of T-725; it runs the one
     watcher and the sync of the issues; its installer on
     `scripts/install/core.sh` is PodUtils/podnet@T-360.
-  - podvm: `v0.60.0` (`959af827`, PodUtils/podvm#445).
+  - podvm: `v0.61.0` (`013e76a1`, PodUtils/podvm#446; it dropped its shadow of `chroot_usable`).
   - podrunner: `v0.52.0` (`45bd964`, PodUtils/podrunner#169).
 - Takes that wait: podvm's check of T-208 against `lambda-al2023`, and
   its module set of T-206 with PodUtils/podvm@T-1662 (after `pod-netlab`,
