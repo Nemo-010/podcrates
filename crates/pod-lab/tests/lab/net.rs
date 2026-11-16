@@ -70,7 +70,11 @@ pub fn proxy_per_name() {
 }
 
 pub fn sni_allowlist() {
-    case("sni-allowlist", "sni", "listed.test passes, other.test reset, no name reset");
+    case(
+        "sni-allowlist",
+        "sni",
+        "listed.test passes, other.test reset, no name reset; at 198.51.100.7: listed.test passes, no name reset",
+    );
 }
 
 pub fn no_proxy_no_dns() {
@@ -103,7 +107,7 @@ pub fn ipv6_only() {
         return;
     }
     drop(v6);
-    case("ipv6-only", "v6", "no IPv4 route, the loopback and IPv6 reach");
+    case("ipv6-only", "v6", "no IPv4 route, the loopback and IPv6 reach, an IPv6 default route");
 }
 
 pub fn all() {

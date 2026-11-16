@@ -183,12 +183,12 @@ fn per_name() -> Out {
     Ok(format!("{LISTED} {a}, {OTHER} {b}, a literal gets {literal}"))
 }
 
-fn hello(name: Option<&str>) -> String {
-    let tcp = match connect("192.0.2.1:443") {
+fn hello(at: &str, name: Option<&str>) -> String {
+    let tcp = match connect(&format!("{at}:443")) {
         Ok(t) => t,
         Err(e) => return format!("no connect: {e}"),
     };
-    match tls(tcp, name.unwrap_or("192.0.2.1"), name.is_some()) {
+    match tls(tcp, name.unwrap_or(at), name.is_some()) {
         Ok(_) => "passes".to_string(),
         Err(e) if e.kind() == ErrorKind::ConnectionReset => "reset".to_string(),
         Err(e) => format!("{e}"),
@@ -199,7 +199,16 @@ fn sni() -> Out {
     if std::env::var_os("HTTPS_PROXY").is_some() {
         return Err("HTTPS_PROXY is set".to_string());
     }
-    Ok(format!("{LISTED} {}, {OTHER} {}, no name {}", hello(Some(LISTED)), hello(Some(OTHER)), hello(None)))
+    let lab = "192.0.2.1";
+    let out = format!(
+        "{LISTED} {}, {OTHER} {}, no name {}",
+        hello(lab, Some(LISTED)),
+        hello(lab, Some(OTHER)),
+        hello(lab, None)
+    );
+    // The filter is on each address, not on the addresses of the lab alone.
+    let other = "198.51.100.7";
+    Ok(format!("{out}; at {other}: {LISTED} {}, no name {}", hello(other, Some(LISTED)), hello(other, None)))
 }
 
 fn nodns() -> Out {
@@ -229,7 +238,19 @@ fn v6() -> Out {
     no_route()?;
     connect("127.0.0.1:443").map_err(|e| format!("127.0.0.1:443: {e}"))?;
     connect("[fd00:6c61:62::1]:443").map_err(|e| format!("the IPv6 address: {e}"))?;
-    Ok("no IPv4 route, the loopback and IPv6 reach".to_string())
+    // A program reads the routes: the IPv6 default route is on a device
+    // that is not the loopback.
+    let routes = std::fs::read_to_string("/proc/net/ipv6_route").map_err(|e| format!("/proc/net/ipv6_route: {e}"))?;
+    if !pod_dns_default(&routes) {
+        return Err(format!("no IPv6 default route on a device: {routes}"));
+    }
+    Ok("no IPv4 route, the loopback and IPv6 reach, an IPv6 default route".to_string())
+}
+
+/// The test of `pod_dns::route::default_route_in` for IPv6: `::/0` on a
+/// device that is not the loopback.
+fn pod_dns_default(text: &str) -> bool {
+    text.lines().any(|l| l.starts_with("00000000000000000000000000000000 00 ") && !l.ends_with(" lo"))
 }
 
 /// The variables of a proxy of other tools than curl name the stand-in

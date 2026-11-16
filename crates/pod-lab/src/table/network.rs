@@ -76,7 +76,7 @@ static RETERMINATE: Net = Net { proxy: Some(Proxy { reterminate: &[LISTED], sile
 
 static PER_NAME: Net = Net { proxy: Some(Proxy { timeout: &[OTHER], reset_literals: true, ..OPEN }), ..NO_PROXY };
 
-static SNI: Net = Net { outside_v4: true, sni: Some(&[LISTED]), ..NO_PROXY };
+static SNI: Net = Net { outside_v4: true, each_v4: true, sni: Some(&[LISTED]), ..NO_PROXY };
 
 static NO_DNS: Net = Net { outside_v4: true, no_resolver: true, ..NO_PROXY };
 
@@ -178,6 +178,8 @@ pub(super) const SNI_PARTS: &[Part] = &[
             lab_check(NetFact::Hello { name: Some(LISTED), passes: true }),
             lab_check(NetFact::Hello { name: Some(OTHER), passes: false }),
             lab_check(NetFact::Hello { name: None, passes: false }),
+            lab_check(NetFact::HelloElsewhere { name: Some(LISTED), passes: true }),
+            lab_check(NetFact::HelloElsewhere { name: None, passes: false }),
         ],
         &SNI,
     ),
@@ -223,12 +225,14 @@ pub(super) const IPV6_ONLY: &[Part] = &[
         &[NO_ROUTE_V4, row("connect(127.0.0.1:1)", Expect::Allowed), lab_check(NetFact::NoRouteV4)],
         &V6,
     ),
-    // A row of a default route of IPv6 waits for a lab that holds one:
-    // the address of the lab is on its loopback.
     part(
         "ipv6-reaches",
         "a TCP connect to an IPv6 address succeeds. Assumed: the stand-in server of the lab",
-        &[sends(TLS_LITERAL, "hello", "1"), lab_check(NetFact::V6Reaches)],
+        &[
+            row(ROUTE6, Expect::Value { key: "default", value: "1" }),
+            sends(TLS_LITERAL, "hello", "1"),
+            lab_check(NetFact::V6Reaches),
+        ],
         &V6,
     ),
 ];

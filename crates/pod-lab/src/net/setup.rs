@@ -61,20 +61,27 @@ fn outside_v4_up(fd: i64) -> Result<(), String> {
     ioctl(fd, SIOCSIFADDR, &mut r).map_err(|e| words("ioctl(SIOCSIFADDR, lo:1, 192.0.2.1)", e))
 }
 
-/// The IPv6 address of the lab on the loopback, with a prefix of 128.
+/// The index of the device `name`.
+fn index(fd: i64, name: &str) -> Result<i32, String> {
+    let mut r = ifreq(name);
+    ioctl(fd, SIOCGIFINDEX, &mut r).map_err(|e| words(&format!("ioctl(SIOCGIFINDEX, {name})"), e))?;
+    Ok(i32::from_ne_bytes([r[16], r[17], r[18], r[19]]))
+}
+
+/// The IPv6 address of the lab on the loopback, with a prefix of 128, and
+/// the dummy device with the IPv6 default route.
 fn outside_v6_up() -> Result<(), String> {
     let fd = k::socket(k::AF_INET6, k::SOCK_DGRAM | k::SOCK_CLOEXEC, 0)
         .map_err(|e| format!("no IPv6 here: {}", words("socket(AF_INET6)", e)))?;
     let out = (|| {
-        let mut r = ifreq("lo");
-        ioctl(fd, SIOCGIFINDEX, &mut r).map_err(|e| words("ioctl(SIOCGIFINDEX, lo)", e))?;
-        let index = i32::from_ne_bytes([r[16], r[17], r[18], r[19]]);
+        let index_lo = index(fd, "lo")?;
         // struct in6_ifreq: the address, the prefix length, the index.
         let mut a = [0u8; 24];
         a[..16].copy_from_slice(&outside_v6().octets());
         a[16..20].copy_from_slice(&128u32.to_ne_bytes());
-        a[20..24].copy_from_slice(&index.to_ne_bytes());
-        ioctl(fd, SIOCSIFADDR, &mut a).map_err(|e| words("ioctl(SIOCSIFADDR, lo, the IPv6 address)", e))
+        a[20..24].copy_from_slice(&index_lo.to_ne_bytes());
+        ioctl(fd, SIOCSIFADDR, &mut a).map_err(|e| words("ioctl(SIOCSIFADDR, lo, the IPv6 address)", e))?;
+        super::link::v6_default_route(|name| index(fd, name))
     })();
     let _ = k::close(fd);
     out
@@ -120,7 +127,9 @@ fn no_resolver() -> Result<(), String> {
 /// stand-ins.
 pub fn prepare(net: &Net) -> Result<Ready, String> {
     let fd = k::socket(k::AF_INET, k::SOCK_DGRAM | k::SOCK_CLOEXEC, 0).map_err(|e| words("socket(AF_INET)", e))?;
-    let up = loopback_up(fd).and_then(|_| if net.outside_v4 { outside_v4_up(fd) } else { Ok(()) });
+    let up = loopback_up(fd)
+        .and_then(|_| if net.outside_v4 { outside_v4_up(fd) } else { Ok(()) })
+        .and_then(|_| if net.each_v4 { super::link::each_v4_local(index(fd, "lo")?) } else { Ok(()) });
     let _ = k::close(fd);
     up?;
     if net.outside_v6 {

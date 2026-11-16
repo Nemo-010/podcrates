@@ -9,7 +9,7 @@ use rustls_pki_types::CertificateDer;
 
 use super::tls::{client, server_name};
 use super::wire::{read_head, status};
-use super::{Ca, LISTED, NetFact, OUTSIDE_V4, PROXY_PORT, Started, TLS_PORT, credential, outside_v6};
+use super::{Ca, ELSEWHERE_V4, LISTED, NetFact, OUTSIDE_V4, PROXY_PORT, Started, TLS_PORT, credential, outside_v6};
 use crate::check::{Seen, State};
 
 /// The time of a connect and of each read of the check.
@@ -135,12 +135,14 @@ fn silent(fact: NetFact, port: u16) -> Seen {
     }
 }
 
-fn hello(fact: NetFact, lab: &Started, name: Option<&str>, passes: bool) -> Seen {
-    let tcp = match connect(outside_v4()) {
+fn hello(fact: NetFact, lab: &Started, at: [u8; 4], name: Option<&str>, passes: bool) -> Seen {
+    let to = SocketAddr::from((at, TLS_PORT));
+    let tcp = match connect(to) {
         Ok(s) => s,
-        Err(e) => return fails(fact, format!("connect(192.0.2.1:443): {e}")),
+        Err(e) => return seen(fact, State::Fails, e.raw_os_error(), format!("connect({to}): {e}")),
     };
-    let r = handshake(tcp, name.unwrap_or("192.0.2.1"), &[lab.cas.of(Ca::Server).der.clone()], name.is_some());
+    let literal = to.ip().to_string();
+    let r = handshake(tcp, name.unwrap_or(&literal), &[lab.cas.of(Ca::Server).der.clone()], name.is_some());
     match (r, passes) {
         (Ok(_), true) => holds(fact, "the handshake completed"),
         (Err(e), true) => fails(fact, format!("the handshake: {e}")),
@@ -218,7 +220,8 @@ pub fn measure(fact: NetFact, lab: Option<&Started>) -> Seen {
                 Err(why) => fails(fact, why),
             }
         }
-        NetFact::Hello { name, passes } => hello(fact, lab, name, passes),
+        NetFact::Hello { name, passes } => hello(fact, lab, OUTSIDE_V4, name, passes),
+        NetFact::HelloElsewhere { name, passes } => hello(fact, lab, ELSEWHERE_V4, name, passes),
         NetFact::NoResolver => no_resolver(fact),
         NetFact::LiteralReaches => match connect(outside_v4()) {
             Err(e) => seen(fact, State::Fails, e.raw_os_error(), format!("connect(192.0.2.1:443): {e}")),

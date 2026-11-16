@@ -483,9 +483,9 @@ podssh, podnet.
 \fBsni\-allowlist\fR
 About: no proxy; TLS is reset for a name not on the list. Parts: no\-proxy,
 sni\-reset. Held by: no\-proxy: a network namespace with no route out, a
-stand\-in server on 192.0.2.0/24, a filter of the TLS server name; sni\-reset:
-a network namespace with no route out, a stand\-in server on 192.0.2.0/24, a
-filter of the TLS server name. Source: podssh, podnet.
+stand\-in server on each IPv4 address, a filter of the TLS server name;
+sni\-reset: a network namespace with no route out, a stand\-in server on each
+IPv4 address, a filter of the TLS server name. Source: podssh, podnet.
 .TP
 \fBno\-proxy\-no\-dns\fR
 About: no proxy and no resolver; only IP literals connect. Parts: no\-proxy,
@@ -506,8 +506,9 @@ podssh, podnet.
 \fBipv6\-only\fR
 About: no IPv4 route; IPv6 reaches out. Parts: no\-ipv4\-route, ipv6\-reaches.
 Held by: no\-ipv4\-route: a network namespace with no route out, a stand\-in
-server on an IPv6 address; ipv6\-reaches: a network namespace with no route
-out, a stand\-in server on an IPv6 address. Source: podnet.
+server on an IPv6 address, an IPv6 default route; ipv6\-reaches: a network
+namespace with no route out, a stand\-in server on an IPv6 address, an IPv6
+default route. Source: podnet.
 .SH "EXIT STATUS"
 .TP
 \fB0\fR (holds)

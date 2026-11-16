@@ -14,6 +14,7 @@
 //! [`Net`] is the data of the stand-ins of a profile; [`NetFact`] is a fact
 //! that the lab measures from inside (`measure`).
 
+mod link;
 mod local;
 mod measure;
 mod out;
@@ -40,6 +41,9 @@ pub const TLS_PORT: u16 = 443;
 /// An address outside: TEST-NET-1 (RFC 5737). A lab of direct connects
 /// puts `192.0.2.0/24` on its loopback; in another lab no route reaches it.
 pub const OUTSIDE_V4: [u8; 4] = [192, 0, 2, 1];
+/// An IPv4 address that is not of `192.0.2.0/24` (TEST-NET-2): in a lab
+/// with [`Net::each_v4`] it reaches the stand-in server.
+pub const ELSEWHERE_V4: [u8; 4] = [198, 51, 100, 7];
 /// The IPv6 address of `ipv6-only` on the loopback: a unique local address.
 pub const OUTSIDE_V6: [u16; 8] = [0xfd00, 0x6c61, 0x62, 0, 0, 0, 0, 1];
 /// The name on the list of a class.
@@ -67,7 +71,13 @@ pub struct Net {
     /// `192.0.2.1/24` on the loopback: a direct connect to an address of
     /// it reaches the stand-in server.
     pub outside_v4: bool,
-    /// [`OUTSIDE_V6`] on the loopback, with the stand-in server there.
+    /// Each IPv4 address but the loopback reaches the stand-in server: a
+    /// local route of `0.0.0.0/0` on the loopback. A connect to another
+    /// port of an address gets `ECONNREFUSED`, not `ENETUNREACH`.
+    pub each_v4: bool,
+    /// [`OUTSIDE_V6`] on the loopback, with the stand-in server there, and
+    /// the dummy device `lab0` with `fd00:6c61:62::2/64` and the IPv6
+    /// default route.
     pub outside_v6: bool,
     /// The names that the stand-in server takes in a ClientHello; another
     /// name, or none, gets a TCP reset. `None`: each name.
@@ -110,7 +120,8 @@ pub const OPEN: Proxy = Proxy {
 };
 
 /// A lab with no proxy and no address outside.
-pub const NO_PROXY: Net = Net { proxy: None, outside_v4: false, outside_v6: false, sni: None, no_resolver: false };
+pub const NO_PROXY: Net =
+    Net { proxy: None, outside_v4: false, each_v4: false, outside_v6: false, sni: None, no_resolver: false };
 
 impl Net {
     /// The mechanism in words, for a verdict and for `podlab list`.
@@ -120,11 +131,13 @@ impl Net {
             let auth = if p.auth { " with a credential" } else { "" };
             w.push(format!("a stand-in proxy on 127.0.0.1:{PROXY_PORT}{auth}"));
         }
-        if self.outside_v4 {
+        if self.each_v4 {
+            w.push("a stand-in server on each IPv4 address".to_string());
+        } else if self.outside_v4 {
             w.push("a stand-in server on 192.0.2.0/24".to_string());
         }
         if self.outside_v6 {
-            w.push("a stand-in server on an IPv6 address".to_string());
+            w.push("a stand-in server on an IPv6 address, an IPv6 default route".to_string());
         }
         if self.sni.is_some() {
             w.push("a filter of the TLS server name".to_string());
@@ -182,6 +195,8 @@ pub enum NetFact {
     /// A ClientHello to `192.0.2.1:443` with this name (or with no name):
     /// a ServerHello comes back where `passes`, else a TCP reset.
     Hello { name: Option<&'static str>, passes: bool },
+    /// The same ClientHello to [`ELSEWHERE_V4`]`:443`.
+    HelloElsewhere { name: Option<&'static str>, passes: bool },
     /// A lookup of a name fails, `/etc/resolv.conf` names no server, and
     /// no server takes a TCP connect on port 53.
     NoResolver,
@@ -209,6 +224,9 @@ impl NetFact {
             NetFact::Hello { name: Some(n), passes: false } => format!("a ClientHello for {n} gets a reset"),
             NetFact::Hello { name: None, passes: true } => "a ClientHello with no name gets a ServerHello".to_string(),
             NetFact::Hello { name: None, passes: false } => "a ClientHello with no name gets a reset".to_string(),
+            NetFact::HelloElsewhere { name, passes } => {
+                format!("{} at 198.51.100.7", NetFact::Hello { name, passes }.name())
+            }
             NetFact::NoResolver => "a lookup of a name fails, and no name server answers".to_string(),
             NetFact::LiteralReaches => "TLS to 192.0.2.1:443 checks the address in the certificate".to_string(),
             NetFact::V6Reaches => "connect([fd00:6c61:62::1]:443) reaches the stand-in server".to_string(),
