@@ -67,8 +67,9 @@ fn a_held_lost_socket_ends_the_node_at_its_hold() {
     assert!(since >= Duration::from_secs(2), "the node tried again for its 2 s: {since:?}");
     let lines = lines.lock().unwrap();
     let last = lines.last().cloned().unwrap_or_default();
-    assert!(last.starts_with("the relay still holds the node's lost socket after "), "{lines:?}");
-    assert!(last.ends_with("the node stops on this route (take a new pair, or another relay)"), "{lines:?}");
+    let held = last.starts_with("the relay still holds the node's lost socket after ")
+        && last.ends_with("the node stops on this route (take a new pair, or another relay)");
+    assert!(held, "no line of a held socket at the end: {lines:?}");
     assert_eq!(lines.iter().filter(|l| l.contains("after") && l.contains("s of 409")).count(), 1, "{lines:?}");
 }
 
