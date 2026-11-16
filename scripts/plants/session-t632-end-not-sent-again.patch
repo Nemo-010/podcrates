@@ -1,9 +1,11 @@
+diff --git a/crates/pod-session/src/pump/up.rs b/crates/pod-session/src/pump/up.rs
+index 90d242f0..f96c24d6 100644
 --- a/crates/pod-session/src/pump/up.rs
 +++ b/crates/pod-session/src/pump/up.rs
-@@ -71,7 +71,7 @@
-     }
+@@ -75,7 +75,7 @@ where
      // An input that ended may not end twice (a terminal waits again).
      if ended {
+         waits.up(UpWait::Done);
 -        return None;
 +        return std::future::pending().await;
      }
