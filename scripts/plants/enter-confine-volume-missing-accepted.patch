@@ -1,20 +1,20 @@
 diff --git a/crates/pod-enter/src/confine.rs b/crates/pod-enter/src/confine.rs
-index dd9a40ef..a9a94c95 100644
+index 9c405318..2faab8c6 100644
 --- a/crates/pod-enter/src/confine.rs
 +++ b/crates/pod-enter/src/confine.rs
-@@ -59,11 +59,10 @@ pub(crate) fn compile(plan: &Plan, root: Option<&RootDir>) -> Result<Option<Comp
+@@ -62,11 +62,10 @@ pub(crate) fn compile(plan: &Plan, root: Option<&RootDir>, upper: Option<&str>)
  /// child opens the made directory. A path in neither the image nor a
  /// volume gives `ENOENT`, which the compile refuses by name.
- fn open_through(maps: &Maps, root: &RootDir, guest: &str) -> std::result::Result<i64, Errno> {
--    let (host, parts) = crate::abi::walk_in(maps, guest).map_err(|k| match k {
+ pub(crate) fn open_through<G: GuestRoot>(view: &G, root: &RootDir, guest: &str) -> std::result::Result<i64, Errno> {
+-    let (host, parts) = crate::abi::walk_in(view, guest).map_err(|k| match k {
 -        ResolveKind::Absent => sys::ENOENT,
 -        ResolveKind::Loop => sys::ELOOP,
 -        ResolveKind::Escapes => sys::EXDEV,
 -    })?;
-+    let (host, parts) = match crate::abi::walk_in(maps, guest) {
++    let (host, parts) = match crate::abi::walk_in(view, guest) {
 +        Ok(v) => v,
 +        Err(_) => return sys::fcntl(root.fd(), sys::F_DUPFD_CLOEXEC, 0),
 +    };
      let path = CBuf::from_bytes(host.as_os_str().as_bytes()).ok_or(sys::EINVAL)?;
      match sys::open(&path, sys::O_PATH | sys::O_CLOEXEC, 0) {
-         Err(e) if e == sys::ENOENT && maps.above_mount(&parts) => sys::fcntl(root.fd(), sys::F_DUPFD_CLOEXEC, 0),
+         Err(e) if e == sys::ENOENT && view.above_mount(&parts) => sys::fcntl(root.fd(), sys::F_DUPFD_CLOEXEC, 0),
