@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**606 entries: 117 open, 14 partial, 6 blocked, 469 done.**
+**606 entries: 117 open, 13 partial, 6 blocked, 470 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 12 | 7 | 0 | 137 | 156 |
-| P2 | 51 | 4 | 4 | 243 | 302 |
+| P2 | 51 | 3 | 4 | 244 | 302 |
 | P3 | 54 | 3 | 2 | 87 | 146 |
-| **All** | 117 | 14 | 6 | 469 | 606 |
+| **All** | 117 | 13 | 6 | 470 | 606 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -622,7 +622,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-714](fleet.md) | P2 | S | M8 | feature | done | `pod-hostprobe`: the rows of the socket classes of podssh and podnet (bind alone, listen, UDP, raw and packet sockets, the loopback) |
 | [T-715](fleet.md) | P2 | S | M8 | feature | done | `pod-hostprobe`: the rows of the file classes of podssh (absent paths, the terminal, the lines of the ids, `HOME`, read-only mounts) |
 | [T-716](fleet.md) | P2 | M | M8 | feature | done | `pod-lab`: the labs of the network classes of podssh and podnet (podnet's hand-off) |
-| [T-717](fleet.md) | P2 | S | M8 | feature | partial | the installer core: a signature of the release assets, checked where `cosign` is there |
+| [T-717](fleet.md) | P2 | S | M8 | feature | done | the installer core: a signature of the release assets, checked where `cosign` is there |
 | [T-718](fleet.md) | P2 | S | M8 | feature | done | the installer core: the test on macOS and Windows |
 | [T-723](fleet.md) | P1 | S | M8 | feature | done | `pod-todo`: a kind `reference` for an issue that holds no work (PodUtils/podvm#435) |
 | [T-724](fleet.md) | P1 | S | M8 | defect | done | `issue-sync.yml` builds `pod-todo` under the caller's `.cargo/config.toml` (PodUtils/podvm#437) |

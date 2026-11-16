@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 606 entries: 117 open, 14 partial, 6 blocked, 469 done.
+`TODO/INDEX.md` holds 606 entries: 117 open, 13 partial, 6 blocked, 470 done.
 
 ## State
 
@@ -10,8 +10,8 @@
   #205): T-716, T-714, T-715, T-745, T-726, T-750. The hand-off is
   COORD-119 (#206).
 - In release: `v0.61.0` (`docs/releases/v0.61.0.md`): T-746, T-751, T-757, T-758;
-  T-718 (`install-os` passed in nightly 43817142905); T-717 (partial: the
-  first run of the signature).
+  T-718 (`install-os` passed in nightly 43817142905), T-717 (the signature
+  of the run on the tag, 43828067548).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.60.0` (`cbef76d`, PodUtils/podssh#281; no patch): it runs the one
@@ -74,7 +74,7 @@ PodUtils/podssh#262, on `main`). Then the ruling "Discipline": T-692
 done, then the take of each consumer; its findings T-704 and T-705),
 T-759 and T-760 (podssh's lane in the network labs, PodUtils/podssh#282), T-747 (the direct network
 classes on each address), T-703 (the issues against
-the record) and T-702 (the installer; then T-717). Then the move of podssh's waves 3 and 4 (the
+the record) and T-702 (the installer). Then the move of podssh's waves 3 and 4 (the
 ruling "The move of podssh", PodUtils/podssh#248): T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
 

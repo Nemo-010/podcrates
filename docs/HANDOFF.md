@@ -53,8 +53,7 @@ the entry, run all the checks, then delete the branch by a
 
 - `wip/T-717-installer-sign` (T-717, T-718) and `wip/T-746-way-out`
   (T-746, T-751): their work is on `main`; #208 asks for the delete of
-  both and of the two branches below. T-717 stays `partial` until the
-  first run of the signature of `release.yml` (`v0.61.0`).
+  both and of the two branches below.
 - `wip/egress-part2` and `wip/egress-part3` hold work that is already on
   `main`; delete them by a request.
 
@@ -72,7 +71,7 @@ the entry, run all the checks, then delete the branch by a
 - `pod-git` (T-217 to T-220) is blocked (`PodUtils/podforge`, deferred).
   M8 waits (the ruling "Priority").
 - Partial entries: T-028 and T-339 (`pod-warp`), T-040, T-207, T-351,
-  T-378, T-526, T-693, T-717.
+  T-378, T-526, T-693.
 
 ## Channels
 

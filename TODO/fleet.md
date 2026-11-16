@@ -3328,7 +3328,7 @@ and Windows).
 **Milestone:** M8
 **Priority:** P2
 **Effort:** S
-**Status:** partial
+**Status:** done
 
 ## Problem
 
@@ -3412,8 +3412,14 @@ sh scripts/install/test.sh
   `scripts/check-workflows.py`, `check-size.py`, `check-design-paths.py`:
   0 faults.
 
-Left: the first run of `release.yml` on a tag (the keyless signature in
-the run, and the published installer that checks it with `cosign`).
+2026-11-16, the first run on a tag: `release.yml` run 43828067548 on
+`v0.61.0` (`cbbd016`). `cosign sign-blob` wrote `SHA256SUMS.sigstore.json`
+with the identity `.github/workflows/release.yml@refs/tags/v0.61.0`;
+`cosign verify-blob` gave "Verified OK", and refused a changed copy
+("invalid signature") and the identity of `refs/heads/main` ("no matching
+CertificateIdentity"). The published installer printed "the signature of
+SHA256SUMS: ok (cosign, ...release.yml@refs/tags/v0.61.0)". The release
+holds `SHA256SUMS` and `SHA256SUMS.sigstore.json`.
 
 # T-718: the installer core: the test on macOS and Windows
 
