@@ -11,13 +11,16 @@ is done. Git and the record keep finished work.
 
 1. Start the watcher under the Monitor tool and keep it running:
    `python3 -I scripts/agent/watch.py podcrates --state STATE_DIR --every 120`.
-   Read the open COORD issues `(to podcrates)`.
-2. Read the nightly at `f309b07` (run 43829527325): it must prove T-761
-   to T-765 on the cross targets, windows-2025 and macos-15-intel. A job
-   that is still red needs an entry; T-766 (riscv64) is open.
-3. T-767 (`pod-session`, PodUtils/podssh#283, P1): see "Unfinished work".
-4. Then the work order of `TODO/PROGRESS.md`: T-773, T-747, T-755, T-756, T-766, then the move of podssh (T-038, T-037,
-   T-029, T-030, T-039, T-036), then T-526.
+   Read the open COORD issues `(to podcrates)`; record each take of
+   `v0.62.0` on #210.
+2. Read the scheduled nightly at `b6b1f47`: T-788 (ppc64le), T-789
+   (armv7) and T-766 (riscv64) are the jobs that stayed red; a new red
+   job needs an entry.
+3. T-767 (PodUtils/podssh#283, P1, partial): wait for podssh's next stall
+   with the line `session.resume`, then find the cause; T-768 beside it.
+4. Then the work order of `TODO/PROGRESS.md`: T-773, T-747, T-755, T-756,
+   the contract of `pod-link` (T-774 to T-778), then the move of podssh
+   (T-038, T-037, T-029, T-030, T-039, T-036), then T-526.
 
 ## The rules that cost the most time
 
@@ -47,11 +50,6 @@ is done. Git and the record keep finished work.
 
 ## Unfinished work
 
-- T-767: an agent of the session works it on the local branch `t767`
-  (worktree `.claude/worktrees/t767`). If the session ends first, the
-  branch goes to `wip/T-767`. The entry has the report of podssh and the
-  two asks (a line of the far end at each resume; a test of the case of a
-  link that ends before the greeting, then a second resume).
 - #208 asks the owner's agent to delete the four merged `wip/` branches
   (`wip/T-717-installer-sign`, `wip/T-746-way-out`, `wip/egress-part2`,
   `wip/egress-part3`); the proxy of a cloud session drops

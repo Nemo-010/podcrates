@@ -214,5 +214,6 @@ kinds and the rules.
 | #207 | coord | COORD-120: the owner's ruling "Web access": use the services of web.pkgforge.dev first for each web or git search and read (to all) | open | none |
 | #208 | request | [gh action] requested: the delete of the four `wip/` branches whose work is on main | open | T-717, T-718, T-746, T-751 |
 | #209 | coord | COORD-121: v0.61.0: podlab run --way-out, the rows that send a packet out, the fix of chroot_usable (podvm#443), the signed installer (to all) | open | T-746, T-751, T-758, T-717, T-718 |
+| #210 | coord | COORD-122: v0.62.0: the servers of the command in a network lab (podssh#282), the ids inside the user namespace (podvm#447), the line of each resume (podssh#283) (to all) | open | T-759, T-760, T-786, T-767 |
 
 #79 to #81 are pull requests.
