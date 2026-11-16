@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**628 entries: 129 open, 14 partial, 6 blocked, 479 done.**
+**628 entries: 126 open, 14 partial, 6 blocked, 482 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 14 | 8 | 0 | 140 | 162 |
+| P1 | 11 | 8 | 0 | 143 | 162 |
 | P2 | 59 | 3 | 4 | 249 | 315 |
 | P3 | 56 | 3 | 2 | 88 | 149 |
-| **All** | 129 | 14 | 6 | 479 | 628 |
+| **All** | 126 | 14 | 6 | 482 | 628 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -672,6 +672,6 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-790](upkeep.md) | P2 | S | M5 | chore | done | `pod-services`: the Syncthing relay of the device DVWOU27 moved to 1.168.112.83 |
 | [T-791](podvm.md) | P3 | S | M6 | feature | open | `pod-enter`: the ids of the plan for a host root (a change of ids with no user namespace) |
 | [T-792](fleet.md) | P2 | S | M8 | feature | done | `pod-lab`: with a way out, the certificate file of the lab holds the roots that the host trusts for its way out (PodUtils/podssh#285) |
-| [T-793](upkeep.md) | P1 | S | M5 | defect | open | `check-sources.py` reads a file that a part take names at the commit of the take of its dir: `pod-egress` shows 3 changes |
-| [T-794](upkeep.md) | P1 | S | M5 | chore | open | `pod-manual`: podnet took the crate at `9217b0b`; the `taken` line is not in `SOURCES` |
-| [T-795](upkeep.md) | P1 | S | M5 | chore | open | `pod-manual`: the text fixes of podssh in `data.rs` and `flags.rs` change no form that the crate took |
+| [T-793](upkeep.md) | P1 | S | M5 | defect | done | `check-sources.py` reads a file that a part take names at the commit of the take of its dir: `pod-egress` shows 3 changes |
+| [T-794](upkeep.md) | P1 | S | M5 | chore | done | `pod-manual`: podnet took the crate at `9217b0b`; the `taken` line is not in `SOURCES` |
+| [T-795](upkeep.md) | P1 | S | M5 | chore | done | `pod-manual`: the text fixes of podssh in `data.rs` and `flags.rs` change no form that the crate took |

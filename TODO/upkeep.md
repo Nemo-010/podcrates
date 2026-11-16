@@ -2855,7 +2855,7 @@ passes. The next scheduled run of `services.yml` checks the watch.
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2899,6 +2899,18 @@ sh scripts/plant-each.sh sources-part-take-in-dir
 
 The first command exits 0 with a clone of podssh.
 
+## Done
+
+2026-11-16, commit `d757d9e1`. `compare` reads a file of a dir again
+at the commit of its own take when that differs from the take of its dir;
+a file that is not at that commit is `removed`. Before, with clones of
+podssh, podnet, podvm and podrunner: `pod-egress` 3 changes. After:
+`check-sources: pod-egress: PodUtils/podssh at 2ffb7cd, taken at 3f6a9fe
+(22 paths), taken at 94ee6ac: 91 files, 0 changes`, and each of the 59
+blocks has 0 changes (exit 0). The mirror answered 403 here; the job
+reads clones. Plant `sources-part-take-in-dir`: caught, exit 1
+(`plant-each: 1 caught, 0 missed or stale`; `--apply`: 0 stale).
+
 
 # T-794: `pod-manual`: podnet took the crate at `9217b0b`; the `taken` line is not in `SOURCES`
 
@@ -2907,7 +2919,7 @@ The first command exits 0 with a clone of podssh.
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2943,6 +2955,14 @@ python3 -I scripts/check-sources.py --clone PodUtils/podnet=CLONE --clone PodUti
 
 The command exits 0 with the clones.
 
+## Done
+
+2026-11-16, commit `d757d9e1`. The block of podnet has `taken
+9217b0b` with its comment. Before: 9 changes. After:
+`check-sources: pod-manual: PodUtils/podnet at 78a3911, taken at 9217b0b:
+9 files, 0 changes`. No trial file of `pod-manual` was in `adoption/`.
+T-700 stays partial for the takes of podssh, podvm and podrunner.
+
 
 # T-795: `pod-manual`: the text fixes of podssh in `data.rs` and `flags.rs` change no form that the crate took
 
@@ -2951,7 +2971,7 @@ The command exits 0 with the clones.
 **Milestone:** M5
 **Priority:** P1
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2985,3 +3005,12 @@ python3 -I scripts/check-sources.py --clone PodUtils/podnet=CLONE --clone PodUti
 ```
 
 The command exits 0 with the clones.
+
+## Done
+
+2026-11-16, commit `d757d9e1`. No port: each changed line is text of
+podssh's own tables. The block of podssh moved to `5340fbb`, with the
+blobs `581b5b7` (`flags.rs`) and `31d7949` (`data.rs`); its comment names
+the frozen form (call C763). Before: 2 changes. After:
+`check-sources: pod-manual: PodUtils/podssh at 5340fbb: 10 files, 0
+changes`.
