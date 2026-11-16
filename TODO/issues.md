@@ -218,5 +218,6 @@ kinds and the rules.
 | #211 | coord | COORD-123: v0.63.0: the ids of the plan for a foreground podvm run (podvm#452), the installer for a copy of a tree (podnet#597), the rule "needs one of" of pod-manual (to all) | open | T-787, T-773, T-756, T-788 |
 | #212 | report | pod-turn has no STUN client, so the NAT probe lives in podssh | open | T-802 |
 | #213 | report | the pod-link ARQ has no forward erasure code | open | T-803 |
+| #214 | coord | COORD-124: v0.64.0: pod-tor and pod-iroh (the move of podssh), the SIGPIPE of the lab (podvm#455), the wire of pod-link, the line of each stall (podssh#283) (to all) | open | T-767, T-792, T-747, T-755, T-796, T-774, T-775, T-776, T-777, T-778, T-800, T-804, T-038, T-037 |
 
 #79 to #81 are pull requests.

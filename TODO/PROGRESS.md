@@ -5,14 +5,13 @@
 ## State
 
 - `docs/HANDOFF.md` has what is in flight and what waits.
-- Last release: `v0.63.0` at `d21fd63` (`docs/releases/v0.63.0.md`; ci
-  43858596199, adoption 43858611730, plants 43858616695, the release dry
-  run 43862209733): T-787, T-773, T-756, T-788. The hand-off is COORD-123
-  (#211).
-- In release: `v0.64.0` (`docs/releases/v0.64.0.md`; the version is in
-  `Cargo.toml` since `2204ec2`; no tag yet): T-767 (partial: the line of
-  each wait that holds), T-792, T-747, T-755, T-793 to T-795, T-796,
-  T-774 to T-778, T-800, T-038 (`pod-tor`), T-804, T-037 (`pod-iroh`).
+- Last release: `v0.64.0` at `6a965ef` (`docs/releases/v0.64.0.md`; ci
+  43947532211 (its third attempt: GitHub had no macOS arm64 runner for the
+  first two), plants 43947532424, adoption 43925110051 and tor 43925110011
+  at `c5fa726`, the release dry run 43957002027, the release 43957490821,
+  the run on the tag 43957966587): T-767 (partial), T-792, T-747, T-755,
+  T-793 to T-796, T-774 to T-778, T-800, T-804, T-038 (`pod-tor`), T-037
+  (`pod-iroh`). The hand-off is COORD-124 (#214).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.63.0` (`5340fbb`, PodUtils/podssh#286, with the installer

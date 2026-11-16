@@ -13,27 +13,22 @@ is done. Git and the record keep finished work.
    `python3 -I scripts/agent/watch.py podcrates --state STATE_DIR --every 120`.
    Read the open COORD issues `(to podcrates)`; record each take of
    `v0.63.0` on #211 (podrunner) and of `v0.62.0` on #210 (podrunner).
-2. Finish the release of `v0.64.0`. `Cargo.toml` names `0.64.0` since
-   `2204ec2`; the notes are `docs/releases/v0.64.0.md`; no tag exists. The
-   head of `main` carries T-755 after the release commit; its workspace
-   tests did not finish here (the disk filled), so CI is the first full
-   run of it. Wait for `ci`, `adoption` and `plants` on the head of `main`
-   (dispatch `adoption` and `plants` if a push cancelled them). Then run
-   `release.yml` with no input (the dry run), then with `version=0.64.0`.
-   Push nothing to `main` until the tag exists. Then open the COORD
-   hand-off `(to all)` (COORD-124) and map it in `TODO/issues.md` and
-   `TODO/github.txt`. In it, answer PodUtils/podvm#455: item 1 is T-792
-   (in `v0.64.0`), item 2 is T-796 (on `main`, for the tag after), and
-   T-797 holds the gaps that stay.
+   A macOS arm64 job of `ci.yml` can wait with no runner and be cancelled
+   ("not acquired by Runner"): run the failed jobs again; it is no defect.
+2. Record each take of `v0.64.0` on COORD-124 (#214): amend its body,
+   and close it when each consumer took its part. Then the next tag: it
+   holds T-808 and the trial of `pod-iroh` (T-810), which the hand-off
+   names as `v0.65.0`.
 3. Read the scheduled nightly: T-789 (armv7) and T-766 (riscv64) are the
    jobs that stayed red; a new red job needs an entry.
 4. T-767 (PodUtils/podssh#283, P1, partial): the seventh failure shows
    that the node's reader of the target stopped before the stall, with
    no byte in flight. Wait for podssh's next stall with the lines
    `session.resume` and `session.stall` (from `v0.64.0`), then find the
-   cause; T-768 beside it. Answer podssh's ask 3 on the hand-off of
-   `v0.64.0`.
-5. Then the work order of `TODO/PROGRESS.md`: the move of podssh (T-029, T-030,
+   cause; T-768 beside it. Ask 3 is answered on COORD-124 (#214).
+5. Then the work order of `TODO/PROGRESS.md`: first the asks of the
+   consumers (T-806, P1: a PID namespace of the rung of `pod-enter`), then
+   the move of podssh (T-029, T-030,
    T-039, T-036), then T-526.
 
 ## The rules that cost the most time
