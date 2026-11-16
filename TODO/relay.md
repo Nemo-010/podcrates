@@ -8914,3 +8914,58 @@ cargo test --release -p pod-link --all-features --test measure -- --ignored --no
 cargo test -p pod-link --all-features
 ```
 
+
+# T-801: `pod-relay`: a link of the resumable layer over the HTTP road, where the way refuses the upgrade of a link (PodUtils/podssh#287)
+
+**Source:** PodUtils/podssh#287 (COORD-095 of podssh, PodUtils/podssh@T-798).
+**Category:** feature
+**Milestone:** M2
+**Priority:** P2
+**Effort:** M
+**Status:** open
+
+## Problem
+
+podssh: "In `ws-upgrade-refused` the session itself reaches podssh's relay
+role over the HTTP road (PodUtils/podssh@T-319), but each link of the layer is a WebSocket
+upgrade, so the first link is refused and the session goes on with no
+resume: the cut ends it. That class is a cloud container's, where a lost
+link is most common." The ask: in the client of `pod-relay`, a link of the
+layer (`forward_layer::client`) over the HTTP road where the way refused
+the upgrade of the link: the road opened to the endpoint of the layer of a
+session (a target that names the layer, the id of the session and its
+resume, beside `http_road::client::Target` of a host and a port), each new
+link a new session of the road, in the forms of the road (one-POST, split,
+serial), in a form of the request that the role can tell from a forward
+session. podssh's role then gives such a session to its layer as one link.
+
+## Premise
+
+- Read: PodUtils/podssh#287; `crates/pod-relay/src/forward_layer/client.rs`
+  (`Dialer::link`: each link is a WebSocket upgrade to `/v1/layer/HOST/PORT`,
+  and a `pod_session::ws_link::Link` over it); `crates/pod-relay/src/http_road/client.rs`
+  (`Target`, the open and the forms).
+- Not measured: whether `pod_session::ws_link::Link` takes a byte stream
+  of the road (it starts from a WebSocket session).
+
+## Approach
+
+A target of the road for the layer: `http_road::client::Target` gets the
+form of a layer (`/v1/layer/HOST/PORT` as the target of the open, so the
+role tells it from a forward session by its path, as it does for the
+upgrade), and `forward_layer::client::Dialer::link` opens it in the form of
+the road that the run learned, when the upgrade of a link is refused (an
+answer of the way that is not 101, as the class `ws-upgrade-refused`
+gives). The link of the layer runs over the byte stream of the road
+session: where `ws_link::Link` needs a WebSocket, a link over a byte stream
+in `pod-session` with the same records. A test: a link of the layer over
+each form of the road, behind a stand-in that refuses each upgrade, and a
+resume after a cut of the road's connections; the stand-in role of the
+tests serves the layer on the road. Name the tag on the hand-off; podssh's
+role then takes the session as one link.
+
+## Prove
+
+```sh
+cargo test -p pod-relay --all-features --test http_road_layer
+```
