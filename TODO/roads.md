@@ -1751,7 +1751,7 @@ sh scripts/adoption.sh podssh pod-iroh
 
 ## Done
 
-2026-11-16, the commit of the trial (T-810). `adoption/podssh/pod-iroh.patch`
+2026-11-16, `2c9cc64`. `adoption/podssh/pod-iroh.patch`
 (podssh at `0370b0b`, `pod-iroh.commit`): crates/podssh-iroh leaves
 podssh, with its tests, its four plants and podssh's copy of iroh-relay
 (`vendor/iroh-relay`, `vendor/patches/iroh-relay`, its section of
