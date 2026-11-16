@@ -13,8 +13,9 @@
 set -u
 [ "$#" -gt 0 ] || { echo "usage: check-static.sh BINARY..." >&2; exit 2; }
 
-# The libraries of macOS that a binary may name.
-MACOS_OK='^(/usr/lib/libSystem\.B\.dylib|/usr/lib/libiconv\.2\.dylib|/usr/lib/libresolv\.9\.dylib|/usr/lib/libc\+\+\.1\.dylib|/usr/lib/libobjc\.A\.dylib|/System/Library/Frameworks/(CoreFoundation|Security|SystemConfiguration|CoreServices|IOKit)\.framework/.*)$'
+# The libraries of macOS that a binary may name: each one is part of each
+# installation of macOS (Foundation: iroh of pod-iroh, call C768).
+MACOS_OK='^(/usr/lib/libSystem\.B\.dylib|/usr/lib/libiconv\.2\.dylib|/usr/lib/libresolv\.9\.dylib|/usr/lib/libc\+\+\.1\.dylib|/usr/lib/libobjc\.A\.dylib|/System/Library/Frameworks/(CoreFoundation|Foundation|Security|SystemConfiguration|CoreServices|IOKit)\.framework/.*)$'
 # The DLLs of the C runtime that a static Windows binary must not name.
 WINDOWS_CRT='^(vcruntime[0-9]*\.dll|msvcp[0-9]*\.dll|ucrtbase\.dll|api-ms-win-crt-.*\.dll|libgcc_s.*\.dll|libwinpthread.*\.dll)$'
 

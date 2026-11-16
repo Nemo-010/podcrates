@@ -634,6 +634,12 @@ record, size, paths and static pass; doc passes after `125c5c0`, which
 repairs a link of `pod-tor` to its private module. The adoption trial of
 podssh is the main session's.
 
+2026-11-16: `ci.yml` run 43925109993 at `c5fa726` failed the step "The
+probe is static" on `aarch64-apple-darwin` and `x86_64-apple-darwin`: the
+probe names `Foundation.framework`, which iroh links on macOS and which
+`check-static.sh` did not list. Foundation is a framework of the system;
+the check takes it (call C768).
+
 # T-038: `pod-tor`: the Tor road through arti
 
 **Source:** `docs/design.md`, section 4 (M4).
