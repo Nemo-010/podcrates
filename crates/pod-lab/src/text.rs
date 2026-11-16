@@ -51,7 +51,7 @@ fn each_text_of_each_profile_keeps_the_rules() {
                 match o {
                     Observe::Row { row, .. } => check(&at, row),
                     Observe::Identity(f) => check(&at, f.name()),
-                    Observe::Lab(f) => check(&at, &f.name()),
+                    Observe::Lab(f) | Observe::LabCheck(f) => check(&at, &f.name()),
                     Observe::Nothing { needs, .. } => check(&at, needs),
                 }
             }
@@ -64,20 +64,8 @@ fn each_text_of_each_profile_keeps_the_rules() {
         LabFact::TmpdirAtMost(1),
         LabFact::FdsOpen { last: 9 },
         LabFact::Inet6BindRefused,
-        LabFact::InetConnectRefused,
         LabFact::UnixAllowed,
         LabFact::GetsocknameRefused,
-        LabFact::BindAllowed,
-        LabFact::ListenRefused,
-        LabFact::UdpRefused,
-        LabFact::RawRefused,
-        LabFact::NoLoopback,
-        LabFact::Absent("/dev/pts"),
-        LabFact::NoControllingTerminal,
-        LabFact::TtyOpens,
-        LabFact::NoPasswdEntry,
-        LabFact::HomeNoexec,
-        LabFact::ReadOnlyMount("/etc/ssl"),
     ] {
         check("lab fact", &f.name());
         check("lab fact", &crate::check::unseen_fact(f).detail);
@@ -99,7 +87,6 @@ fn each_text_of_each_profile_keeps_the_rules() {
         NetFact::Hello { name: None, passes: false },
         NetFact::NoResolver,
         NetFact::LiteralReaches,
-        NetFact::LoopbackReaches,
         NetFact::V6Reaches,
     ] {
         check("network fact", &LabFact::Net(f).name());
@@ -171,7 +158,6 @@ fn each_fixed_message_of_the_crate_keeps_the_rules() {
         ("check.rs", include_str!("check.rs")),
         ("hold.rs", include_str!("hold.rs")),
         ("mounts.rs", include_str!("mounts.rs")),
-        ("facts.rs", include_str!("facts.rs")),
         ("table/parts.rs", include_str!("table/parts.rs")),
         ("table/network.rs", include_str!("table/network.rs")),
         ("net.rs", include_str!("net.rs")),

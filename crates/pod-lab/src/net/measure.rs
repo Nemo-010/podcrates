@@ -227,7 +227,6 @@ pub fn measure(fact: NetFact, lab: Option<&Started>) -> Seen {
                 Err(e) => fails(fact, format!("the handshake: {e}")),
             },
         },
-        NetFact::LoopbackReaches => reaches(fact, SocketAddr::from(([127, 0, 0, 1], TLS_PORT))),
         NetFact::V6Reaches => reaches(fact, SocketAddr::from((outside_v6(), TLS_PORT))),
     }
 }

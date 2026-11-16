@@ -28,9 +28,9 @@ s390x; mips and 32-bit powerpc refuse to compile).
 | `run(&Settings, candidates) -> Findings` | the whole set: one child for each row of `probes::PROBES`, the identity, the write probes |
 | `run_child(name, &mut dyn Write) -> i32` | the work of a child: the binary calls it when its first argument is `Settings::child_flag` |
 | `Findings` | the rows, `identity`, `writable`, `self_exe` |
-| `verdict` | `Verdict` (`Ok`, `Denied`, `Skip`), `Outcome`, the wire line `pod-hostprobe/1` (`encode`, `decode`), `Outcome::row` (the row format of the Go reference instrument) |
+| `verdict` | `Verdict` (`Ok`, `Denied`, `Skip`), `Outcome` (`value(key)`: an item of the reason of a row of a fact), `items` (the reason of a row of a fact: `KEY VALUE` items with `; ` between them), the wire line `pod-hostprobe/1` (`encode`, `decode`), `Outcome::row` (the row format of the Go reference instrument) |
 | `child` | `Spawner`: `clone_accepted`, `run_probe` |
-| `probes` | `PROBES` (67 rows: census, attribution, machine, supervise), `Kind`, `Group`, `find`, `USERNS_LEG` (the namespace rung through a user namespace: the sequence of `userns::enter`, then `unshare(CLONE_NEWNS)`, `/` private and a tmpfs on `/tmp`; the denial names the refused call), `MACHINE_LEGS`, `SUPERVISE_LEGS`, `SUPERVISION_LEGS`, `chroot_usable`, `ptmx_usable`, `fuse_usable`, `PTMX`, `FUSE` |
+| `probes` | `PROBES` (88 rows: census, attribution, machine, supervise), `Kind` (`Clone`, `Child`, and `Here`: the body in the probe process, for `readlink(/proc/self/exe)` alone), `Probe::measure` (runs a row as its kind says), `Group`, `find`, `USERNS_LEG` (the namespace rung through a user namespace: the sequence of `userns::enter`, then `unshare(CLONE_NEWNS)`, `/` private and a tmpfs on `/tmp`; the denial names the refused call), `MACHINE_LEGS`, `SUPERVISE_LEGS`, `SUPERVISION_LEGS`, `chroot_usable`, `ptmx_usable`, `fuse_usable`, `PTMX`, `FUSE` |
 | `select` | `Rung` (`word`, `requirement`, `must_never_claim`), `Strictness`, `Rejection`, `Selection` (`choose`, `meets`, `exit_code`, `STRICT_FLOOR`), `Provides`, `control_rows`. The namespace rung needs a mount namespace and a mount in the user namespace of the caller, or the leg `USERNS_LEG`; `Provides::namespaces` is `mount-only`, or `user+mount` where only the leg passes |
 | `userns` | `Maps` (`new(uid, gid)`, `of_caller`, `uid_line`, `gid_line`), `map_line`, `enter(&Maps)`, `Step` (`name`): the user namespace of a caller with no capabilities, as `unshare -Ur` makes it, async-signal-safe after the fork; the namespace rung of `pod-enter` and the leg call the one sequence |
 | `report` (feature `report`) | `write(&Findings, &Selection) -> String`, `read(&str) -> Result<(Findings, Selection), ReadError>`, `SCHEMA`, `ReadError` (`Form`, `Version`, `UnknownRow`, `DuplicateRow`, `Word`, `DenialWithoutErrno`); `schema() -> serde_json::Value` and `SCHEMA_ID` (feature `schema`): the JSON object of one run and its JSON Schema (see "The report") |
@@ -51,10 +51,41 @@ A failure of `space` and `exec` is a `pod_core::Failure` at
 for no space or an unknown free space, the class of the I/O error
 otherwise.
 
-The crate reads no variable of the environment. The caller gives the
-named directories of the write probe (`writable::candidates`), and a
-function that tells which variables are set (`interp::detect`). A probe
-child gets the environment of its parent as it is.
+The crate reads no variable of the environment for its own work. The
+caller gives the named directories of the write probe
+(`writable::candidates`), and a function that tells which variables are
+set (`interp::detect`). A probe child gets the environment of its parent
+as it is. Three rows measure a variable, as a program of the host reads
+it: `creat($HOME/.pod-hostprobe)` reads `HOME`, `getenv(HTTPS_PROXY)`
+reads `https_proxy`, `HTTPS_PROXY`, `all_proxy` and `ALL_PROXY` (the order
+of curl), and `getenv(SSL_CERT_FILE)+read` reads `SSL_CERT_FILE`.
+
+## The rows of the host classes
+
+The rows of the classes of podssh and podnet (T-714, T-715, T-745) are
+census rows, each in its own probe child. None sends a packet past the
+loopback. A row of a fact gives `ok` with items `KEY VALUE` in its reason
+(`Outcome::value` reads one). A reason holds no path of the user, no host
+of a proxy and no credential.
+
+| Row | What it reads | The items or the denial |
+| --- | --- | --- |
+| `bind(127.0.0.1:0)` | a TCP bind alone | the errno of `bind` |
+| `listen after bind(127.0.0.1:0)` | `listen(2)` after the bind | the errno of `listen`; a skip where the bind fails |
+| `socket(AF_INET, SOCK_DGRAM)+connect`, `socket(AF_INET6, SOCK_DGRAM)+connect` | a UDP socket and its connect to the loopback (no packet) | the errno of the step that failed (`EAFNOSUPPORT` with no IPv6) |
+| `socket(AF_INET, SOCK_RAW)`, `socket(AF_PACKET, SOCK_RAW)` | a raw ICMP socket and a packet socket of protocol 0 | the errno |
+| `connect(127.0.0.1:1)` | a TCP connect that waits at most 2 s | `ok` with `ECONNREFUSED` in the reason (the loopback answers); `ENETUNREACH` or `EACCES`; a skip with no answer |
+| `stat(/dev/pts)` | the path | the kind and the mode; `ENOENT` |
+| `readlink(/proc/self/exe)` | in the probe process (`Kind::Here`): a host with no `/proc` starts no child | `ENOENT` |
+| `tty_nr of /proc/self/stat` | the controlling terminal of the probe | `tty_nr N` |
+| `open(/dev/tty, O_NONBLOCK)+poll` | an open with no wait and a poll with no wait: no byte is read | `read waits` or `read ready`; `ENXIO` with no controlling terminal |
+| `line of getuid() in /etc/passwd`, `line of getgid() in /etc/group` | the lines whose third field is the id | `uid N; lines K` (`file absent` where there is no file) |
+| `creat($HOME/.pod-hostprobe)` | `statfs` of `HOME`, then a new file in it, removed | `noexec 1` or `0`; the errno of the file; a skip with no `HOME` |
+| `statfs(/etc/ssl)` | the mount flags | `rdonly 1; noexec 0` |
+| `getenv(HTTPS_PROXY)` | the first variable of a proxy that is set | `set 0`, or `set 1; variable V; scheme S; credential 0; port P` |
+| `getenv(SSL_CERT_FILE)+read` | the certificate file | `set 0`, or `set 1; certificates N`; the errno of the read |
+| `read(/etc/resolv.conf)` | the `nameserver` lines; with none, a TCP connect to `127.0.0.1:53` | `nameservers N`, with `127.0.0.1:53 refused`, `answers`, `silent` or the errno |
+| `read(/proc/net/route)`, `read(/proc/net/ipv6_route)` | a default route that is up (no reject route) in the main table | `default 1` or `0`; `ipv6 absent` where the kernel has no IPv6 |
 
 ## The report
 
@@ -108,7 +139,7 @@ integer `errno`, and an object has no other field. Only a row name that
 comes two times passes the schema and fails `read`. A test holds the file
 to the types: after a change of a wire type, write it again with
 `POD_HOSTPROBE_WRITE_SCHEMAS=1 cargo test -p pod-hostprobe --all-features
-schema`. `tests/examples/report/` has two valid reports and ten invalid
+schema`. `tests/examples/report/` has three valid reports (`valid-host-classes.json` holds each row of the host classes) and ten invalid
 ones; `tests/examples/expect.json` gives the reason of each, and each
 example gets the same verdict from `read` and from a validator of JSON
 Schema (boon).
@@ -122,7 +153,7 @@ Against podvm `crates/podvm-probe`, `crates/podvm-image/src/space.rs` and
 | --- | --- |
 | [x] One disposable child for each probe, the line and the exit status cross-checked | `child` |
 | [x] The three states, the wire line | `verdict` (magic `pod-hostprobe/1`) |
-| [x] The probe table and the bodies (66 rows; 67 with the leg `USERNS_LEG` of T-670) | `probes` |
+| [x] The probe table and the bodies (66 rows; 67 with the leg `USERNS_LEG` of T-670) | `probes`, with the rows of T-744, T-714, T-715 and T-745 (88 rows) |
 | [x] The selection of the rung, `Strictness`, the controls, `Provides` | `select` |
 | [x] `BANNER_ROWS`, `banner_cell` | stay in podvm, with its report |
 | [x] Create, configure, attach and use of a mount | `mounts` |
@@ -183,6 +214,19 @@ sentence of each value of the `noexec` flag, and the plant
 `the_noexec_flag_agrees_with_the_mount_table` checks the flag against
 `/proc/self/mounts`, and `a_noexec_mount_is_named_by_the_probe` (root)
 probes a `noexec` tmpfs.
+`tests/host_rows.rs` (no libtest) runs each row of the host classes
+against what the test reads itself (the terminal, the lines of the ids,
+the mount of `HOME`, the variables of a proxy and of the certificate file,
+the resolver), and as root again as uid 65534, where a raw socket gives
+`EPERM` and a file in a `HOME` of root gives `EACCES`;
+`scripts/ci/userns-tests.sh` runs it too. The unit tests of
+`probes/files.rs` and `probes/network/tests.rs` hold the parsers (the
+field `tty_nr`, the lines of an id, the items of a proxy URL with no host
+and no credential, the `nameserver` lines, the default routes). The plants
+`hostprobe-listen-row-measures-the-bind`, `hostprobe-connect-reset-denied`,
+`hostprobe-tty-nr-field-shifted`, `hostprobe-proxy-host-in-reason`,
+`hostprobe-route-reject-default` and `hostprobe-proc-row-in-a-child`
+prove them.
 `machine::tests::the_legs_of_a_refusal_are_separated_where_a_reason_ends`
 and `supervise::tests::the_refusal_names_every_missing_leg_in_run_order`
 check that `; ` separates the legs of a refusal and that the verdict comes

@@ -58,3 +58,9 @@ harness = false
 [[test]]
 name = "userns_leg"
 harness = false
+
+# The rows of the classes of podssh and podnet as this user, and as root
+# again as uid 65534: probe children of this binary, so no libtest.
+[[test]]
+name = "host_rows"
+harness = false

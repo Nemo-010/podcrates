@@ -10,6 +10,8 @@ const INET: u32 = k::AF_INET as u32;
 const INET6: u32 = k::AF_INET6 as u32;
 const DGRAM: u32 = k::SOCK_DGRAM as u32;
 const RAW: u32 = k::SOCK_RAW as u32;
+const EAFNOSUPPORT: i32 = e::EAFNOSUPPORT as i32;
+const ENETUNREACH: i32 = e::ENETUNREACH as i32;
 
 /// A ring makes a socket with no `socket(2)`: a rule on `socket` holds
 /// only with no ring.
@@ -81,31 +83,39 @@ const NNP: &[Call] = &[
 pub(super) const BIND_ALLOWED: Part = Part {
     name: "bind-allowed",
     about: "a TCP bind of 127.0.0.1:0 succeeds",
-    observe: &[Observe::Lab(LabFact::BindAllowed)],
+    observe: &[row("bind(127.0.0.1:0)", Expect::Allowed)],
     hold: Hold::Host,
 };
 
 pub(super) const LISTEN_REFUSED: Part = Part {
     name: "listen-refused",
     about: "listen after a bind gives EACCES or EPERM",
-    observe: &[
-        row("bind(127.0.0.1:0)+listen", Expect::Refused(&[EACCES, EPERM])),
-        Observe::Lab(LabFact::ListenRefused),
-    ],
+    // The row of the bind alone and the row of a listen after it: a row of
+    // both steps cannot tell a refused bind from a refused listen.
+    observe: &[row("listen after bind(127.0.0.1:0)", Expect::Refused(&[EACCES, EPERM]))],
     hold: Hold::Seccomp(LISTEN),
 };
 
 pub(crate) const UDP_REFUSED: Part = Part {
     name: "udp-refused",
     about: "a UDP socket of AF_INET and AF_INET6 gives EPERM",
-    observe: &[Observe::Lab(LabFact::UdpRefused)],
+    // A host with no IPv6 refuses the socket of the family: no UDP of it
+    // can pass.
+    observe: &[
+        row("socket(AF_INET, SOCK_DGRAM)+connect", Expect::Refused(&[EPERM, EACCES])),
+        row("socket(AF_INET6, SOCK_DGRAM)+connect", Expect::Refused(&[EPERM, EACCES, EAFNOSUPPORT])),
+    ],
     hold: Hold::Seccomp(UDP),
 };
 
 pub(super) const RAW_REFUSED: Part = Part {
     name: "raw-refused",
     about: "a raw socket and a packet socket give EPERM",
-    observe: &[Observe::Lab(LabFact::RawRefused)],
+    // A kernel with no packet family refuses the socket with EAFNOSUPPORT.
+    observe: &[
+        row("socket(AF_INET, SOCK_RAW)", Expect::Refused(&[EPERM])),
+        row("socket(AF_PACKET, SOCK_RAW)", Expect::Refused(&[EPERM, EAFNOSUPPORT])),
+    ],
     hold: Hold::Seccomp(RAW_CALLS),
 };
 
@@ -115,7 +125,7 @@ pub(super) const PTMX_ABSENT: Part = Part {
     observe: &[
         row("stat(/dev/ptmx)", Expect::Refused(&[ENOENT])),
         row("open(/dev/ptmx, O_RDWR)", Expect::Refused(&[ENOENT])),
-        Observe::Lab(LabFact::Absent("/dev/pts")),
+        row("stat(/dev/pts)", Expect::Refused(&[ENOENT])),
     ],
     hold: Hold::DevNoPty,
 };
@@ -123,28 +133,31 @@ pub(super) const PTMX_ABSENT: Part = Part {
 pub(super) const NO_CTTY: Part = Part {
     name: "no-ctty",
     about: "the process has no controlling terminal",
-    observe: &[Observe::Lab(LabFact::NoControllingTerminal)],
+    observe: &[row("tty_nr of /proc/self/stat", Expect::Value { key: "tty_nr", value: "0" })],
     hold: Hold::NoCtty,
 };
 
 pub(super) const TTY_OPENS: Part = Part {
     name: "tty-opens",
     about: "/dev/tty opens, and a read of it waits",
-    observe: &[Observe::Lab(LabFact::TtyOpens)],
+    observe: &[row("open(/dev/tty, O_NONBLOCK)+poll", Expect::Value { key: "read", value: "waits" })],
     hold: Hold::DevNoPty,
 };
 
 pub(super) const NO_ID_LINES: Part = Part {
     name: "no-id-lines",
     about: "/etc/passwd has no line of the uid, and /etc/group none of the gid",
-    observe: &[Observe::Lab(LabFact::NoPasswdEntry)],
+    observe: &[
+        row("line of getuid() in /etc/passwd", Expect::Value { key: "lines", value: "0" }),
+        row("line of getgid() in /etc/group", Expect::Value { key: "lines", value: "0" }),
+    ],
     hold: Hold::NoPasswdEntry,
 };
 
 pub(super) const HOME_NOEXEC: Part = Part {
     name: "home-noexec",
     about: "HOME is writable and on a noexec mount",
-    observe: &[Observe::Lab(LabFact::HomeNoexec)],
+    observe: &[row("creat($HOME/.pod-hostprobe)", Expect::Value { key: "noexec", value: "1" })],
     hold: Hold::NoexecHome,
 };
 
@@ -158,7 +171,9 @@ pub(super) const TMP_EXEC: Part = Part {
 pub(super) const PROC_ABSENT: Part = Part {
     name: "proc-absent",
     about: "no /proc: the path of the running binary is not known",
-    observe: &[Observe::Lab(LabFact::Absent("/proc/self/exe"))],
+    // The row runs in the probe process: a host with no /proc starts no
+    // probe child.
+    observe: &[row("readlink(/proc/self/exe)", Expect::Refused(&[ENOENT]))],
     hold: Hold::NoProc,
 };
 
@@ -207,7 +222,7 @@ pub(super) const NO_NET_ADMIN: Part = Part {
 pub(super) const ETC_SSL_READ_ONLY: Part = Part {
     name: "etc-ssl-read-only",
     about: "/etc/ssl is on a read-only mount",
-    observe: &[Observe::Lab(LabFact::ReadOnlyMount("/etc/ssl"))],
+    observe: &[row("statfs(/etc/ssl)", Expect::Value { key: "rdonly", value: "1" })],
     hold: Hold::ReadOnly { path: "/etc/ssl" },
 };
 
@@ -216,7 +231,7 @@ pub(super) const LOOPBACK_ABSENT: Part = Part {
     about: "the loopback is down: a connect to 127.0.0.1 fails",
     // A fresh network namespace still takes a bind of 127.0.0.1: no row of
     // a bind shows the class.
-    observe: &[Observe::Lab(LabFact::NoLoopback)],
+    observe: &[row("connect(127.0.0.1:1)", Expect::Refused(&[ENETUNREACH]))],
     hold: Hold::NetNs,
 };
 

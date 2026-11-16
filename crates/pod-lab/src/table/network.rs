@@ -5,6 +5,13 @@
 //! `crate::net` on its loopback. A part that podnet did not measure says
 //! "Assumed:" in its text, with what is assumed: the lab holds the form of
 //! the class that podssh or podnet named, and a real network can differ.
+//!
+//! A row of `pod-hostprobe` sees what a host shows of its way out with no
+//! packet out: the variable of a proxy, the certificate file, the resolver
+//! and the default routes. Those facts are parts of their own, so that a
+//! check of a report gives them a verdict. A fact that needs a packet
+//! through a proxy or to a server stays a lab fact: a check of a report
+//! cannot see it.
 
 use super::parts::UDP_REFUSED;
 use super::*;
@@ -12,6 +19,36 @@ use crate::net::{Ca, LISTED, NO_PROXY, Net, NetFact, OPEN, OTHER, Proxy};
 
 const fn fact(f: NetFact) -> Observe {
     Observe::Lab(LabFact::Net(f))
+}
+
+/// A fact that the lab checks of its own stand-ins, beside the rows.
+const fn lab_check(f: NetFact) -> Observe {
+    Observe::LabCheck(LabFact::Net(f))
+}
+
+const PROXY: &str = "getenv(HTTPS_PROXY)";
+const ROUTE4: &str = "read(/proc/net/route)";
+const ROUTE6: &str = "read(/proc/net/ipv6_route)";
+const RESOLVER: &str = "read(/etc/resolv.conf)";
+
+/// The variable of a proxy names an HTTP proxy.
+const PROXY_SET: &[Observe] =
+    &[row(PROXY, Expect::Value { key: "set", value: "1" }), row(PROXY, Expect::Value { key: "scheme", value: "http" })];
+
+/// No variable names a proxy.
+const NO_PROXY_SET: &[Observe] = &[row(PROXY, Expect::Value { key: "set", value: "0" })];
+
+/// No default route of IPv4. The main table alone: a host can refuse a
+/// route out with a filter, and a route of another table is not in the
+/// file. The lab checks its own namespace with a connect out.
+const NO_ROUTE_V4: Observe = row(ROUTE4, Expect::Shows { key: "default", value: "0" });
+
+const fn proxy_variable(net: &'static Net) -> Part {
+    part("proxy-variable", "HTTPS_PROXY names an HTTP proxy", PROXY_SET, net)
+}
+
+const fn no_proxy(net: &'static Net) -> Part {
+    part("no-proxy", "no variable names a proxy", NO_PROXY_SET, net)
 }
 
 const fn part(name: &'static str, about: &'static str, observe: &'static [Observe], net: &'static Net) -> Part {
@@ -39,9 +76,10 @@ pub(super) const PROXY_ONLY_PARTS: &[Part] = &[
     part(
         "direct-refused",
         "a direct TCP connect to an address outside fails",
-        &[fact(NetFact::NoRouteV4)],
+        &[NO_ROUTE_V4, row(ROUTE6, Expect::Shows { key: "default", value: "0" }), lab_check(NetFact::NoRouteV4)],
         &PROXY_ONLY,
     ),
+    proxy_variable(&PROXY_ONLY),
     part(
         "proxy-reaches",
         "a CONNECT through the proxy with its credential reaches a TLS server",
@@ -62,6 +100,13 @@ pub(super) const PROXY_ONLY_PARTS: &[Part] = &[
 ];
 
 pub(super) const TLS_RETERMINATED: &[Part] = &[
+    proxy_variable(&RETERMINATE),
+    part(
+        "cert-file",
+        "SSL_CERT_FILE names a file of certificates",
+        &[row("getenv(SSL_CERT_FILE)+read", Expect::Shows { key: "set", value: "1" })],
+        &RETERMINATE,
+    ),
     part(
         "tls-reterminated",
         "the proxy shows its own CA for a listed name, and passes another name. Assumed: the names that a real proxy terminates",
@@ -76,30 +121,49 @@ pub(super) const TLS_RETERMINATED: &[Part] = &[
     ),
 ];
 
-pub(super) const PER_NAME_PARTS: &[Part] = &[part(
-    "answer-per-name",
-    "the proxy answers 200 for one name, 504 for another, and a reset for an IP literal. Assumed: the 504",
-    &[
-        fact(NetFact::Connect { host: LISTED, port: 443, status: 200 }),
-        fact(NetFact::Connect { host: OTHER, port: 443, status: 504 }),
-        fact(NetFact::LiteralReset),
-    ],
-    &PER_NAME,
-)];
+pub(super) const PER_NAME_PARTS: &[Part] = &[
+    proxy_variable(&PER_NAME),
+    part(
+        "answer-per-name",
+        "the proxy answers 200 for one name, 504 for another, and a reset for an IP literal. Assumed: the 504",
+        &[
+            fact(NetFact::Connect { host: LISTED, port: 443, status: 200 }),
+            fact(NetFact::Connect { host: OTHER, port: 443, status: 504 }),
+            fact(NetFact::LiteralReset),
+        ],
+        &PER_NAME,
+    ),
+];
 
-pub(super) const SNI_PARTS: &[Part] = &[part(
-    "sni-reset",
-    "a ClientHello with a name not on the list, or with no name, is reset. Assumed: the whole class",
-    &[
-        fact(NetFact::Hello { name: Some(LISTED), passes: true }),
-        fact(NetFact::Hello { name: Some(OTHER), passes: false }),
-        fact(NetFact::Hello { name: None, passes: false }),
-    ],
-    &SNI,
-)];
+pub(super) const SNI_PARTS: &[Part] = &[
+    no_proxy(&SNI),
+    part(
+        "sni-reset",
+        "a ClientHello with a name not on the list, or with no name, is reset. Assumed: the whole class",
+        &[
+            fact(NetFact::Hello { name: Some(LISTED), passes: true }),
+            fact(NetFact::Hello { name: Some(OTHER), passes: false }),
+            fact(NetFact::Hello { name: None, passes: false }),
+        ],
+        &SNI,
+    ),
+];
 
 pub(super) const NO_DNS_PARTS: &[Part] = &[
-    part("no-resolver", "a lookup of a name fails", &[fact(NetFact::NoResolver)], &NO_DNS),
+    no_proxy(&NO_DNS),
+    // With no nameserver line, the C libraries ask 127.0.0.1:53. A server
+    // of the file can be out of reach: the rows show the class, and the
+    // lab checks a lookup of its own.
+    part(
+        "no-resolver",
+        "a lookup of a name fails",
+        &[
+            row(RESOLVER, Expect::Shows { key: "nameservers", value: "0" }),
+            row(RESOLVER, Expect::Shows { key: "127.0.0.1:53", value: "refused" }),
+            lab_check(NetFact::NoResolver),
+        ],
+        &NO_DNS,
+    ),
     part(
         "literal-reaches",
         "a TCP connect to an IP literal reaches out. Assumed: the stand-in server of the lab",
@@ -108,20 +172,25 @@ pub(super) const NO_DNS_PARTS: &[Part] = &[
     ),
 ];
 
-pub(super) const WS_PARTS: &[Part] = &[part(
-    "upgrade-refused",
-    "the proxy passes a plain request and refuses the WebSocket upgrade. Assumed: the whole class",
-    &[fact(NetFact::GetPasses), fact(NetFact::UpgradeRefused)],
-    &WS,
-)];
+pub(super) const WS_PARTS: &[Part] = &[
+    proxy_variable(&WS),
+    part(
+        "upgrade-refused",
+        "the proxy passes a plain request and refuses the WebSocket upgrade. Assumed: the whole class",
+        &[fact(NetFact::GetPasses), fact(NetFact::UpgradeRefused)],
+        &WS,
+    ),
+];
 
 pub(super) const IPV6_ONLY: &[Part] = &[
     part(
         "no-ipv4-route",
         "a TCP connect to an IPv4 address outside fails; the loopback stays",
-        &[fact(NetFact::NoRouteV4), fact(NetFact::LoopbackReaches)],
+        &[NO_ROUTE_V4, row("connect(127.0.0.1:1)", Expect::Allowed), lab_check(NetFact::NoRouteV4)],
         &V6,
     ),
+    // A row of a default route of IPv6 waits for a lab that holds one:
+    // the address of the lab is on its loopback.
     part(
         "ipv6-reaches",
         "a TCP connect to an IPv6 address succeeds. Assumed: the stand-in server of the lab",

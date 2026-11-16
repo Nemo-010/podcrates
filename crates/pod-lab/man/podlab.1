@@ -263,16 +263,18 @@ getsockname\-refused: seccomp: getsockname. Source: podrunner.
 .TP
 \fBproxy\-only\fR
 About: no direct connection out; only an HTTP proxy with a credential reaches
-out; no UDP. Parts: direct\-refused, proxy\-reaches, proxy\-credential,
-port\-refused, udp\-refused. Held by: direct\-refused: a network namespace
-with no route out, a stand\-in proxy on 127.0.0.1:3128 with a credential;
-proxy\-reaches: a network namespace with no route out, a stand\-in proxy on
-127.0.0.1:3128 with a credential; proxy\-credential: a network namespace with
-no route out, a stand\-in proxy on 127.0.0.1:3128 with a credential;
-port\-refused: a network namespace with no route out, a stand\-in proxy on
-127.0.0.1:3128 with a credential; udp\-refused: seccomp: socket(AF_INET,
-SOCK_DGRAM), socket(AF_INET6, SOCK_DGRAM), io_uring_setup. Source: podrunner,
-podssh, podnet.
+out; no UDP. Parts: direct\-refused, proxy\-variable, proxy\-reaches,
+proxy\-credential, port\-refused, udp\-refused. Held by: direct\-refused: a
+network namespace with no route out, a stand\-in proxy on 127.0.0.1:3128 with
+a credential; proxy\-variable: a network namespace with no route out, a
+stand\-in proxy on 127.0.0.1:3128 with a credential; proxy\-reaches: a network
+namespace with no route out, a stand\-in proxy on 127.0.0.1:3128 with a
+credential; proxy\-credential: a network namespace with no route out, a
+stand\-in proxy on 127.0.0.1:3128 with a credential; port\-refused: a network
+namespace with no route out, a stand\-in proxy on 127.0.0.1:3128 with a
+credential; udp\-refused: seccomp: socket(AF_INET, SOCK_DGRAM),
+socket(AF_INET6, SOCK_DGRAM), io_uring_setup. Source: podrunner, podssh,
+podnet.
 .TP
 \fBsmall\-tmp\fR
 About: TMPDIR on a tmpfs of 1 GiB. Parts: tmpdir\-small. Held by:
@@ -395,33 +397,43 @@ unix\-allowed. Held by: loopback\-absent: a network namespace with no
 loopback; unix\-allowed: the host. Source: podnet.
 .TP
 \fBproxy\-tls\-reterminate\fR
-About: the proxy shows its own CA for some names. Parts: tls\-reterminated,
-ssh\-port\-silent. Held by: tls\-reterminated: a network namespace with no
-route out, a stand\-in proxy on 127.0.0.1:3128; ssh\-port\-silent: a network
+About: the proxy shows its own CA for some names. Parts: proxy\-variable,
+cert\-file, tls\-reterminated, ssh\-port\-silent. Held by: proxy\-variable: a
+network namespace with no route out, a stand\-in proxy on 127.0.0.1:3128;
+cert\-file: a network namespace with no route out, a stand\-in proxy on
+127.0.0.1:3128; tls\-reterminated: a network namespace with no route out, a
+stand\-in proxy on 127.0.0.1:3128; ssh\-port\-silent: a network namespace with
+no route out, a stand\-in proxy on 127.0.0.1:3128. Source: podssh, podnet.
+.TP
+\fBproxy\-per\-name\fR
+About: the proxy answers each name in its own way. Parts: proxy\-variable,
+answer\-per\-name. Held by: proxy\-variable: a network namespace with no route
+out, a stand\-in proxy on 127.0.0.1:3128; answer\-per\-name: a network
 namespace with no route out, a stand\-in proxy on 127.0.0.1:3128. Source:
 podssh, podnet.
 .TP
-\fBproxy\-per\-name\fR
-About: the proxy answers each name in its own way. Parts: answer\-per\-name.
-Held by: answer\-per\-name: a network namespace with no route out, a stand\-in
-proxy on 127.0.0.1:3128. Source: podssh, podnet.
-.TP
 \fBsni\-allowlist\fR
-About: no proxy; TLS is reset for a name not on the list. Parts: sni\-reset.
-Held by: sni\-reset: a network namespace with no route out, a stand\-in server
-on 192.0.2.0/24, a filter of the TLS server name. Source: podssh, podnet.
+About: no proxy; TLS is reset for a name not on the list. Parts: no\-proxy,
+sni\-reset. Held by: no\-proxy: a network namespace with no route out, a
+stand\-in server on 192.0.2.0/24, a filter of the TLS server name; sni\-reset:
+a network namespace with no route out, a stand\-in server on 192.0.2.0/24, a
+filter of the TLS server name. Source: podssh, podnet.
 .TP
 \fBno\-proxy\-no\-dns\fR
-About: no proxy and no resolver; only IP literals connect. Parts:
-no\-resolver, literal\-reaches. Held by: no\-resolver: a network namespace
-with no route out, a stand\-in server on 192.0.2.0/24, no name server;
-literal\-reaches: a network namespace with no route out, a stand\-in server on
-192.0.2.0/24, no name server. Source: podssh, podnet.
+About: no proxy and no resolver; only IP literals connect. Parts: no\-proxy,
+no\-resolver, literal\-reaches. Held by: no\-proxy: a network namespace with
+no route out, a stand\-in server on 192.0.2.0/24, no name server;
+no\-resolver: a network namespace with no route out, a stand\-in server on
+192.0.2.0/24, no name server; literal\-reaches: a network namespace with no
+route out, a stand\-in server on 192.0.2.0/24, no name server. Source: podssh,
+podnet.
 .TP
 \fBws\-upgrade\-refused\fR
-About: the proxy refuses the WebSocket upgrade. Parts: upgrade\-refused. Held
-by: upgrade\-refused: a network namespace with no route out, a stand\-in proxy
-on 127.0.0.1:3128. Source: podssh, podnet.
+About: the proxy refuses the WebSocket upgrade. Parts: proxy\-variable,
+upgrade\-refused. Held by: proxy\-variable: a network namespace with no route
+out, a stand\-in proxy on 127.0.0.1:3128; upgrade\-refused: a network
+namespace with no route out, a stand\-in proxy on 127.0.0.1:3128. Source:
+podssh, podnet.
 .TP
 \fBipv6\-only\fR
 About: no IPv4 route; IPv6 reaches out. Parts: no\-ipv4\-route, ipv6\-reaches.

@@ -20,9 +20,12 @@
 //! A binary that calls [`run`] calls [`dispatch`] first in `main`: the lab
 //! process and the probe children are new starts of that binary.
 //!
-//! The crate prints nothing. Only the lab process reads the environment:
-//! `HOME` and `TMPDIR` for the mounts of a profile. In a network lab it
-//! sets `SSL_CERT_FILE` and the variables of a proxy for the command. Linux only:
+//! The crate prints nothing. The lab process reads `HOME` and `TMPDIR` for
+//! the mounts of a profile. In a network lab it sets `SSL_CERT_FILE` and
+//! the variables of a proxy in its own environment before it measures the
+//! profile, so that the rows read them and the command inherits them. The
+//! rows of `pod-hostprobe` read `HOME`, `SSL_CERT_FILE` and the variables
+//! of a proxy of the process that runs them. Linux only:
 //! on another target the crate is empty, except [`codes`]. The module
 //! `manual` (feature `cli`) is the manual of `podlab`.
 #![forbid(unsafe_op_in_unsafe_fn)]
@@ -31,8 +34,6 @@ pub mod codes;
 
 #[cfg(target_os = "linux")]
 mod check;
-#[cfg(target_os = "linux")]
-mod facts;
 #[cfg(target_os = "linux")]
 mod hold;
 #[cfg(target_os = "linux")]

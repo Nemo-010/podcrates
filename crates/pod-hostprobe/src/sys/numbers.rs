@@ -56,6 +56,17 @@ impl Errno {
             // have, and a file that a Landlock rule cannot name.
             e::EAFNOSUPPORT => "EAFNOSUPPORT",
             e::EBADFD => "EBADFD",
+            // The answers of a connect, and of an open of `/dev/tty` with
+            // no controlling terminal.
+            e::ENXIO => "ENXIO",
+            e::ENETUNREACH => "ENETUNREACH",
+            e::EHOSTUNREACH => "EHOSTUNREACH",
+            e::ECONNREFUSED => "ECONNREFUSED",
+            e::EINPROGRESS => "EINPROGRESS",
+            e::EISCONN => "EISCONN",
+            e::ETIMEDOUT => "ETIMEDOUT",
+            e::EPROTONOSUPPORT => "EPROTONOSUPPORT",
+            e::ESOCKTNOSUPPORT => "ESOCKTNOSUPPORT",
             _ => return format!("E{}", self.0),
         };
         n.to_string()
@@ -97,6 +108,20 @@ pub const ELOOP: Errno = errno(e::ELOOP);
 /// `LOCK_NB` returns it for "somebody else holds this". It is named here for
 /// the reader, because "try again later" and "in use" are different sentences.
 pub const EWOULDBLOCK: Errno = errno(e::EWOULDBLOCK);
+/// `ENXIO`: an open of `/dev/tty` by a process with no controlling
+/// terminal.
+pub const ENXIO: Errno = errno(e::ENXIO);
+/// `EAFNOSUPPORT`: a socket of a family that the kernel does not have (IPv6
+/// turned off).
+pub const EAFNOSUPPORT: Errno = errno(e::EAFNOSUPPORT);
+/// `ENETUNREACH`: no route, also to the loopback where it is down.
+pub const ENETUNREACH: Errno = errno(e::ENETUNREACH);
+/// `ECONNREFUSED`: the peer answered with a reset; no listener on the port.
+pub const ECONNREFUSED: Errno = errno(e::ECONNREFUSED);
+/// `EINPROGRESS`: a connect of a socket that does not wait.
+pub const EINPROGRESS: Errno = errno(e::EINPROGRESS);
+/// `EISCONN`: a second connect of a socket that is connected.
+pub const EISCONN: Errno = errno(e::EISCONN);
 
 pub const O_RDONLY: u64 = g::O_RDONLY as u64;
 pub const O_WRONLY: u64 = g::O_WRONLY as u64;

@@ -133,7 +133,7 @@ pub static PROFILES: &[Profile] = &[
             Part {
                 name: "tcp-connect-refused",
                 about: "a TCP connect gives EACCES",
-                observe: &[Observe::Lab(LabFact::InetConnectRefused)],
+                observe: &[row("connect(127.0.0.1:1)", Expect::Refused(&[EACCES]))],
                 hold: Hold::LandlockTcp,
             },
             Part {

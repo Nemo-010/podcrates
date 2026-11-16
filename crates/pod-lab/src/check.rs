@@ -91,9 +91,10 @@ impl Verdict {
 
 /// Check `profile` against `findings`. A fact that no row measures
 /// ([`Observe::Lab`], [`Observe::Nothing`]) is [`State::Unseen`], with the
-/// entry that adds its row.
+/// entry that adds its row. A fact that a lab checks beside the rows
+/// ([`Observe::LabCheck`]) is left out.
 pub fn check(profile: &Profile, findings: &Findings) -> Verdict {
-    check_with(profile, findings, &|fact| unseen_fact(fact))
+    parts(profile, findings, None)
 }
 
 /// Check `profile` against the JSON report of `pod_hostprobe::report`.
@@ -103,9 +104,13 @@ pub fn check_report(profile: &Profile, report: &str) -> Result<Verdict, pod_host
     Ok(check(profile, &findings))
 }
 
-/// [`check`], with `lab` for each [`Observe::Lab`]: a lab measures these
-/// inside itself.
+/// [`check`], with `lab` for each [`Observe::Lab`] and
+/// [`Observe::LabCheck`]: a lab measures these inside itself.
 pub fn check_with(profile: &Profile, findings: &Findings, lab: &dyn Fn(LabFact) -> Seen) -> Verdict {
+    parts(profile, findings, Some(lab))
+}
+
+fn parts(profile: &Profile, findings: &Findings, lab: Option<&dyn Fn(LabFact) -> Seen>) -> Verdict {
     let parts = profile
         .parts
         .iter()
@@ -113,8 +118,8 @@ pub fn check_with(profile: &Profile, findings: &Findings, lab: &dyn Fn(LabFact) 
             let seen = part
                 .observe
                 .iter()
-                .map(|o| match *o {
-                    Observe::Row { row, expect } => match findings.get(row) {
+                .filter_map(|o| match *o {
+                    Observe::Row { row, expect } => Some(match findings.get(row) {
                         Some(outcome) => judge(row, expect, outcome),
                         None => Seen {
                             what: row.to_string(),
@@ -122,15 +127,16 @@ pub fn check_with(profile: &Profile, findings: &Findings, lab: &dyn Fn(LabFact) 
                             errno: None,
                             detail: "the findings have no such row".to_string(),
                         },
-                    },
-                    Observe::Identity(fact) => identity(fact, &findings.identity),
-                    Observe::Lab(fact) => lab(fact),
-                    Observe::Nothing { needs, .. } => Seen {
+                    }),
+                    Observe::Identity(fact) => Some(identity(fact, &findings.identity)),
+                    Observe::Lab(fact) => Some(lab.map_or_else(|| unseen_fact(fact), |m| m(fact))),
+                    Observe::LabCheck(fact) => lab.map(|m| m(fact)),
+                    Observe::Nothing { needs, .. } => Some(Seen {
                         what: needs.to_string(),
                         state: State::Unseen,
                         errno: None,
                         detail: "nothing measures it here".to_string(),
-                    },
+                    }),
                 })
                 .collect();
             PartVerdict::new(part.name, seen)
@@ -197,6 +203,27 @@ pub fn judge(row: &str, expect: Expect, outcome: &Outcome) -> Seen {
                 None => seen(State::Unseen, format!("the row gave no ABI: {:?}", outcome.reason)),
             }
         }
+        Expect::Value { key, value } => match (refused, errno, outcome.value(key)) {
+            (true, Some(e), _) => {
+                seen(State::Fails, format!("refused with {}; the profile wants {key} {value}", errno_words(e)))
+            }
+            (true, None, _) => seen(State::Fails, format!("refused; the profile wants {key} {value}")),
+            (false, _, Some(v)) if v == value => seen(State::Holds, format!("{key} {v}")),
+            (false, _, Some(v)) => seen(State::Fails, format!("{key} {v}; the profile wants {key} {value}")),
+            (false, _, None) => seen(State::Unseen, format!("the row gave no {key}: {:?}", outcome.reason)),
+        },
+        Expect::Shows { key, value } => match (refused, errno, outcome.value(key)) {
+            (false, _, Some(v)) if v == value => seen(State::Holds, format!("{key} {v}")),
+            (false, _, Some(v)) => seen(
+                State::Unseen,
+                format!("{key} {v}: the host can hold the class in a way that the row does not read"),
+            ),
+            (false, _, None) => seen(State::Unseen, format!("the row gave no {key}: {:?}", outcome.reason)),
+            (true, Some(e), _) => {
+                seen(State::Unseen, format!("refused with {}: the row shows nothing", errno_words(e)))
+            }
+            (true, None, _) => seen(State::Unseen, "refused: the row shows nothing".to_string()),
+        },
     }
 }
 
@@ -231,5 +258,7 @@ pub fn identity(fact: IdFact, id: &Identity) -> Seen {
     Seen { what: fact.name().to_string(), state, errno: None, detail }
 }
 
+#[cfg(test)]
+mod rows;
 #[cfg(test)]
 mod tests;

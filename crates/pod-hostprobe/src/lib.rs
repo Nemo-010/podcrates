@@ -95,16 +95,7 @@ impl Findings {
 /// [`writable::candidates`] gives them.
 pub fn run(settings: &Settings, candidates: &[(String, String)]) -> Findings {
     let spawner = child::Spawner::new(settings);
-    let rows = probes::PROBES
-        .iter()
-        .map(|p| {
-            let outcome = match p.kind {
-                probes::Kind::Clone(flags) => spawner.clone_accepted(flags),
-                probes::Kind::Child { ns_flags, .. } => spawner.run_probe(p.name, ns_flags),
-            };
-            (p.name, outcome)
-        })
-        .collect();
+    let rows = probes::PROBES.iter().map(|p| (p.name, p.measure(&spawner))).collect();
     Findings {
         rows,
         identity: identity::read(),
@@ -123,7 +114,7 @@ pub fn run_child(name: &str, out: &mut dyn std::io::Write) -> i32 {
     let outcome = match probes::find(name) {
         None => Outcome::skip(None, format!("no probe named {name:?}")),
         Some(probe) => match probe.kind {
-            probes::Kind::Child { body, .. } => body(),
+            probes::Kind::Child { body, .. } | probes::Kind::Here { body } => body(),
             // The measurement of a `Clone` probe is the clone of the
             // parent, so a child has nothing to run. The parent and the
             // table do not agree: that is a defect, not a denial.

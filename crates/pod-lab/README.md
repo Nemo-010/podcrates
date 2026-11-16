@@ -19,7 +19,7 @@ must refuse fails its own check.
 | Item | What |
 | --- | --- |
 | `PROFILES`, `find(profiles, name)` | the table, and a profile by its name |
-| `Profile`, `Part`, `Observe`, `Expect`, `IdFact`, `LabFact`, `Hold`, `Call`, `When` | the data of a profile |
+| `Profile`, `Part`, `Observe`, `Expect`, `IdFact`, `LabFact`, `Hold`, `Call`, `When` | the data of a profile. `Observe`: a row, a fact of the identity, a `LabFact` that no row measures, a `LabCheck` that the lab measures beside the rows, or nothing. `Expect`: refused with one of the errno numbers, allowed, a Landlock ABI below a version, `Value` (an item `KEY VALUE` of the reason of a row of a fact) or `Shows` (the same, where another answer is unseen) |
 | `Net`, `Proxy`, `NetFact`, `Ca`; module `net` | the stand-ins of a network lab, the facts that the lab measures through them, and their addresses, names and ports |
 | `check(profile, &Findings) -> Verdict` | each part against the findings of `pod-hostprobe` |
 | `check_report(profile, json)` (feature `report`) | the same against the JSON report of `pod_hostprobe::report` |
@@ -40,7 +40,11 @@ A row that did not run (a skip of `pod-hostprobe`) never holds a part:
 the part is `unseen`. A part holds only when each observation holds. One
 observation that fails makes the part fail. A row that the findings do
 not have, a `LabFact` and an `Observe::Nothing` are `unseen` in a check
-of findings.
+of findings; a `LabCheck` is left out. `Expect::Value` holds where the row
+is `ok` and its item has the value, and fails on another value or a
+refusal. `Expect::Shows` holds the same way, and is `unseen` on another
+answer: a host can hold the class in a way that the row does not read (a
+filter in place of no route, a server of the file that does not answer).
 
 ### `run`
 
@@ -69,8 +73,10 @@ thread. The lab process:
 7. installs one seccomp filter, from the BPF program of `pod-confine`,
    after `no_new_privs` (a rule can test an argument: the family and the
    type of `socket(2)`);
-8. measures the profile from inside: each row in its own probe child
-   (which inherits the lab), the identity, and each `LabFact`;
+8. in a network lab, sets the variables of a proxy and `SSL_CERT_FILE` of
+   the class in its own environment; then measures the profile from
+   inside: each row in its own probe child (which inherits the lab), the
+   identity, each `LabFact` and each `LabCheck`;
 9. replaces itself with the command when each part holds (or with
    `partial`). Else it exits 125, and the command does not run.
 
@@ -101,7 +107,8 @@ comes from a stand-in.
   the name of the ClientHello (or for the address that it reached), and
   answers each request with 200 and `pod-lab stand-in`.
 * The stand-in proxy listens on `127.0.0.1:3128`. `HTTPS_PROXY`,
-  `https_proxy`, `HTTP_PROXY` and `http_proxy` of the command name it;
+  `https_proxy`, `HTTP_PROXY` and `http_proxy` of the lab process name
+  it, before the lab measures the profile, and the command inherits them;
   in a class with no proxy, the lab removes each variable of a proxy.
   After a 200, the proxy is the server of the target itself.
 * The names: `listed.test` is on the list of a class, `other.test` is not
@@ -131,9 +138,9 @@ lab with no root:
 | Profile | Parts | Observed by | Held by |
 | --- | --- | --- | --- |
 | `userns-off` | `userns-refused` | `unshare(CLONE_NEWUSER)`, `clone(CLONE_NEWUSER)` and the user namespace leg refused (EPERM, ENOSPC) | seccomp |
-| `bind-denied` | `tcp-bind-refused`, `tcp-connect-refused`, `unix-allowed` | `bind(127.0.0.1:0)+listen` EACCES; inside the lab: bind of `[::1]:0` and connect EACCES, AF_UNIX socket, bind and connect allowed | Landlock (ABI 4); the host |
+| `bind-denied` | `tcp-bind-refused`, `tcp-connect-refused`, `unix-allowed` | `bind(127.0.0.1:0)+listen` EACCES; `connect(127.0.0.1:1)` EACCES; inside the lab: bind of `[::1]:0` EACCES, AF_UNIX socket, bind and connect allowed | Landlock (ABI 4); the host |
 | `getsockname-denied` | `getsockname-refused` | inside the lab: EOPNOTSUPP | seccomp (not on targets with `socketcall`) |
-| `proxy-only` | `direct-refused`, `proxy-reaches`, `proxy-credential`, `port-refused`, `udp-refused` | inside the lab: `connect(192.0.2.1:443)` ENETUNREACH; `CONNECT listed.test:443` 200 and TLS to the CA of the server; 407 with no credential; 403 for port 22; as `udp-denied` | a network lab with the stand-in proxy; seccomp |
+| `proxy-only` | `direct-refused`, `proxy-variable`, `proxy-reaches`, `proxy-credential`, `port-refused`, `udp-refused` | `read(/proc/net/route)` and `read(/proc/net/ipv6_route)` show no default route (inside the lab also: `connect(192.0.2.1:443)` ENETUNREACH); `getenv(HTTPS_PROXY)` set, scheme `http`; inside the lab: `CONNECT listed.test:443` 200 and TLS to the CA of the server; 407 with no credential; 403 for port 22; as `udp-denied` | a network lab with the stand-in proxy; seccomp |
 | `small-tmp` | `tmpdir-small` | inside the lab: `statfs` of `/tmp`, at most 1 GiB | tmpfs |
 | `root-unreadable` | `root-list-refused`, `open-by-name` | `readdir(/)` EACCES; `open(/bin, O_RDONLY) by name` allowed | Landlock; the host |
 | `nonroot-nocaps` | `not-root`, `no-caps`, `no-new-privs`, `seccomp-filter` | the identity; `setuid(0)`, `mknod(chr 1:3 /tmp/nodprobe)`, `ptrace(PTRACE_TRACEME)` EPERM | a caller that is not root; `no_new_privs`; the default list of `pod-confine` |
@@ -146,33 +153,33 @@ lab with no root:
 | `landlock-old` | `landlock-below-4` | `landlock_create_ruleset(VERSION)`: no Landlock or ABI below 4 | seccomp (`ENOSYS`: the form with no Landlock) |
 | `proc-masked` | `proc-hidden` | `open /proc/self/mem O_RDONLY` ENOENT or EACCES | Landlock |
 | `noexec-tmp` | `tmp-noexec` | `exec(/tmp/execprobe)` EACCES | tmpfs with `MS_NOEXEC` |
-| `listen-denied` | `bind-allowed`, `listen-refused` | inside the lab: bind allowed; `bind(127.0.0.1:0)+listen` EACCES or EPERM, and inside the lab: listen after bind EACCES or EPERM | the host; seccomp of `listen` (EACCES) |
-| `udp-denied` | `udp-refused` | inside the lab: a UDP socket of each family, or its connect, EPERM or EACCES | seccomp of `socket(AF_INET or AF_INET6, SOCK_DGRAM)` (EPERM), `io_uring_setup` |
-| `raw-denied` | `raw-refused` | inside the lab: `socket(AF_INET, SOCK_RAW)` and `socket(AF_PACKET)` EPERM | seccomp of the raw and packet sockets (EPERM), `io_uring_setup` |
-| `no-ptmx` | `ptmx-absent`, `no-ctty`, `tty-opens` | `stat(/dev/ptmx)` and `open(/dev/ptmx, O_RDWR)` ENOENT; inside the lab: `/dev/pts` ENOENT, `tty_nr` 0, `/dev/tty` opens and a read has no data | a tmpfs on `/dev`; a new session |
-| `no-passwd-entry` | `no-id-lines` | inside the lab: no line of the uid in `/etc/passwd`, of the gid in `/etc/group` | binds of the two files |
-| `noexec-home` | `home-noexec`, `tmp-exec` | inside the lab: `HOME` writable and noexec; `exec(/tmp/execprobe)` allowed | a bind of `HOME` with `noexec`; the host |
-| `no-proc` | `proc-absent` | inside the lab: `/proc/self/exe` ENOENT | an empty tmpfs on `/proc` |
+| `listen-denied` | `bind-allowed`, `listen-refused` | `bind(127.0.0.1:0)` allowed; `listen after bind(127.0.0.1:0)` EACCES or EPERM | the host; seccomp of `listen` (EACCES) |
+| `udp-denied` | `udp-refused` | `socket(AF_INET, SOCK_DGRAM)+connect` EPERM or EACCES; `socket(AF_INET6, SOCK_DGRAM)+connect` EPERM, EACCES or EAFNOSUPPORT | seccomp of `socket(AF_INET or AF_INET6, SOCK_DGRAM)` (EPERM), `io_uring_setup` |
+| `raw-denied` | `raw-refused` | `socket(AF_INET, SOCK_RAW)` EPERM; `socket(AF_PACKET, SOCK_RAW)` EPERM or EAFNOSUPPORT | seccomp of the raw and packet sockets (EPERM), `io_uring_setup` |
+| `no-ptmx` | `ptmx-absent`, `no-ctty`, `tty-opens` | `stat(/dev/ptmx)`, `open(/dev/ptmx, O_RDWR)` and `stat(/dev/pts)` ENOENT; `tty_nr of /proc/self/stat` `tty_nr 0`; `open(/dev/tty, O_NONBLOCK)+poll` `read waits` | a tmpfs on `/dev`; a new session |
+| `no-passwd-entry` | `no-id-lines` | `line of getuid() in /etc/passwd` and `line of getgid() in /etc/group` `lines 0` | binds of the two files |
+| `noexec-home` | `home-noexec`, `tmp-exec` | `creat($HOME/.pod-hostprobe)` allowed with `noexec 1`; `exec(/tmp/execprobe)` allowed | a bind of `HOME` with `noexec`; the host |
+| `no-proc` | `proc-absent` | `readlink(/proc/self/exe)` ENOENT, in the probe process | an empty tmpfs on `/proc` |
 | `seccomp-nonewprivs` | `no-new-privs`, `no-caps`, `calls-refused` | the identity; `mknod(chr 1:3 /tmp/nodprobe)`, `unshare(CLONE_NEWUSER)`, `unshare(CLONE_NEWNS)`, `mount(2) bogus target`, `chroot(/tmp)`, `ptrace(PTRACE_TRACEME)` EPERM | `no_new_privs`; the drop of the capabilities (also for root); seccomp |
 | `no-tun` | `tun-absent` | `open(/dev/net/tun, O_RDWR)` ENOENT or EACCES | Landlock |
 | `no-net-admin` | `no-net-admin`, `tun-absent` | the identity (`CapEff` with no bit 12); as `no-tun` | the drop of the capabilities; Landlock |
-| `ro-etc-ssl` | `etc-ssl-read-only` | inside the lab: `statfs(/etc/ssl)` `ST_RDONLY` | a read-only bind |
-| `no-loopback` | `loopback-absent`, `unix-allowed` | inside the lab: `connect(127.0.0.1:1)` ENETUNREACH; AF_UNIX allowed | a network namespace; the host |
-| `proxy-tls-reterminate` | `tls-reterminated`, `ssh-port-silent` | no row (T-716) | the network labs of podnet (part 2) |
-| `proxy-per-name` | `answer-per-name` | no row (T-716) | the network labs of podnet (part 2) |
-| `sni-allowlist` | `sni-reset` | no row (T-716) | the network labs of podnet (part 2) |
-| `no-proxy-no-dns` | `no-resolver`, `literal-reaches` | no row (T-716) | the network labs of podnet (part 2) |
-| `ws-upgrade-refused` | `upgrade-refused` | no row (T-716) | the network labs of podnet (part 2) |
-| `ipv6-only` | `no-ipv4-route`, `ipv6-reaches` | no row (T-716) | the network labs of podnet (part 2) |
+| `ro-etc-ssl` | `etc-ssl-read-only` | `statfs(/etc/ssl)` `rdonly 1` | a read-only bind |
+| `no-loopback` | `loopback-absent`, `unix-allowed` | `connect(127.0.0.1:1)` ENETUNREACH; inside the lab: AF_UNIX allowed | a network namespace; the host |
+| `proxy-tls-reterminate` | `proxy-variable`, `cert-file`, `tls-reterminated`, `ssh-port-silent` | `getenv(HTTPS_PROXY)` set, scheme `http`; `getenv(SSL_CERT_FILE)+read` shows `set 1`; inside the lab: the CA of each name through the proxy, port 22 silent | a network lab |
+| `proxy-per-name` | `proxy-variable`, `answer-per-name` | `getenv(HTTPS_PROXY)` set, scheme `http`; inside the lab: 200, 504 and a reset | a network lab |
+| `sni-allowlist` | `no-proxy`, `sni-reset` | `getenv(HTTPS_PROXY)` `set 0`; inside the lab: a ServerHello or a reset for each name | a network lab |
+| `no-proxy-no-dns` | `no-proxy`, `no-resolver`, `literal-reaches` | `getenv(HTTPS_PROXY)` `set 0`; `read(/etc/resolv.conf)` shows `nameservers 0` and `127.0.0.1:53 refused` (inside the lab also: a lookup fails); inside the lab: TLS to `192.0.2.1:443` | a network lab |
+| `ws-upgrade-refused` | `proxy-variable`, `upgrade-refused` | `getenv(HTTPS_PROXY)` set, scheme `http`; inside the lab: `GET` 200, upgrade 403 | a network lab |
+| `ipv6-only` | `no-ipv4-route`, `ipv6-reaches` | `read(/proc/net/route)` shows no default route and `connect(127.0.0.1:1)` allowed (inside the lab also: `connect(192.0.2.1:443)` ENETUNREACH); inside the lab: `[fd00:6c61:62::1]:443` reaches | a network lab |
 
-The facts that no row of `pod-hostprobe` measures: the network rows and
-`getsockname` (T-693); the size of `TMPDIR` and the inherited
-descriptors (T-694); the machine of `uname(2)`, the cgroup version and
-the `hidepid` form of `/proc` (T-695); the socket facts of `listen-denied`,
-`udp-denied`, `raw-denied` and `no-loopback` (T-714); the file facts of
-`no-ptmx`, `no-passwd-entry`, `noexec-home`, `no-proc` and `ro-etc-ssl`
-(T-715); the facts of the network classes (T-745). The printed texts name
-no entry.
+The facts that no row of `pod-hostprobe` measures: the bind of `[::1]`,
+AF_UNIX and `getsockname` (T-693); the size of `TMPDIR` and the inherited
+descriptors (T-694); the machine of `uname(2)`, the cgroup version and the
+`hidepid` form of `/proc` (T-695); the facts of the network classes that
+need a packet through a proxy or to a server (T-751). The rows of the
+socket and file classes (T-714, T-715) and what a host shows of its way
+out with no packet out (T-745) observe each other part of the classes of
+podssh and podnet. The printed texts name no entry.
 
 ## Features
 
@@ -192,11 +199,14 @@ no entry.
 
 `Settings::default()`: the probe child flag `--podlab-probe-child`, the
 lab flag `--podlab-lab`, the table `PROFILES`. The crate prints nothing;
-`podlab` prints. Only the lab process reads the environment: `HOME` (the
-bind of `noexec-home`) and `TMPDIR` (the new files of `no-passwd-entry`,
-of the resolver of `no-proxy-no-dns`, and the certificate file of a
-network lab). In a network lab it sets `SSL_CERT_FILE` and the variables
-of a proxy for the command.
+`podlab` prints. The lab process reads `HOME` (the bind of
+`noexec-home`) and `TMPDIR` (the new files of `no-passwd-entry`, of the
+resolver of `no-proxy-no-dns`, and the certificate file of a network
+lab). In a network lab it sets `SSL_CERT_FILE` and the variables of a
+proxy in its own environment before it measures the profile, and the
+command inherits them. The rows of `pod-hostprobe` read `HOME`,
+`SSL_CERT_FILE` and the variables of a proxy of the process that runs
+them, in `podlab check` too.
 
 ## Tests
 
@@ -204,11 +214,16 @@ of a proxy for the command.
   observation in each, each row name a row of `pod-hostprobe`, each
   errno one that a filter can give, the filter of each profile compiles,
   each network class is one network lab, each part that podnet marked
-  assumed says so.
+  assumed says so, a row sees each part of the socket and file classes
+  and the host parts of the network classes, a `LabCheck` stands beside a
+  row.
 * `src/net/wire.rs`, `src/net/setup.rs`: the head of an HTTP message, the
   server name of a ClientHello of rustls, the line `hosts:` of
   `/etc/nsswitch.conf`.
 * `src/check/tests.rs`: `check` against made-up findings and a report.
+  `src/check/rows.rs`: made-up reports of each part that a row of the
+  socket, file and network classes sees, through the JSON of the report;
+  a `LabCheck` counts in a lab alone.
 * `src/text.rs`: each printed text and each string literal of the code:
   the rules of `pod_manual::rules`.
 * `src/bin/podlab/tests.rs`: the checks of `pod-manual` over the manual of

@@ -38,6 +38,12 @@ pub enum Observe {
     /// inside itself before the command; a check of a report cannot
     /// observe it. [`LabFact::entry`] names the entry that adds the row.
     Lab(LabFact),
+    /// A fact that a lab measures inside itself beside the rows of the
+    /// part, to check its own stand-ins where a row reads less than the
+    /// fact (the routes of the main table, not a connect out). A check of
+    /// a report leaves it out: the rows of the part see the class on a
+    /// host.
+    LabCheck(LabFact),
     /// A fact that nothing in this crate measures: `needs` names the
     /// probe, `entry` the number of the entry of the record that adds it
     /// (692: T-692). The number is not printed.
@@ -54,6 +60,15 @@ pub enum Expect {
     /// The row `landlock_create_ruleset(VERSION)`: no Landlock (`ENOSYS`,
     /// `EOPNOTSUPP`), or an ABI below this one.
     LandlockBelow(u32),
+    /// A row of a fact: `ok`, and the item `key` of its reason is `value`
+    /// (`pod_hostprobe::verdict::Outcome::value`). Another value, or a
+    /// refusal, contradicts the part.
+    Value { key: &'static str, value: &'static str },
+    /// A row of a fact that shows the class where the item `key` is
+    /// `value`. Another answer does not contradict the part, as the host
+    /// can hold the class in a way that the row does not read (a filter in
+    /// place of no route): the observation is then unseen.
+    Shows { key: &'static str, value: &'static str },
 }
 
 /// A fact of the identity of a process (`/proc/self/status` and the ids).
@@ -93,39 +108,11 @@ pub enum LabFact {
     FdsOpen { last: i32 },
     /// A TCP bind of `[::1]:0` fails with `EACCES`.
     Inet6BindRefused,
-    /// A TCP connect of `127.0.0.1` fails with `EACCES`.
-    InetConnectRefused,
     /// An AF_UNIX `socket`, a `bind` of an abstract name and a `connect`
     /// to it succeed.
     UnixAllowed,
     /// `getsockname(2)` of a TCP socket fails with `EOPNOTSUPP`.
     GetsocknameRefused,
-    /// A TCP bind of `127.0.0.1:0` succeeds.
-    BindAllowed,
-    /// After a TCP bind of `127.0.0.1:0`, `listen(2)` fails with `EACCES`
-    /// or `EPERM`.
-    ListenRefused,
-    /// A UDP socket of `AF_INET` and of `AF_INET6` fails with `EPERM` or
-    /// `EACCES`, or its connect does.
-    UdpRefused,
-    /// A raw socket of `AF_INET` and a packet socket fail with `EPERM`.
-    RawRefused,
-    /// A TCP connect of `127.0.0.1` fails with `ENETUNREACH`: no loopback.
-    NoLoopback,
-    /// The path does not exist (`ENOENT`).
-    Absent(&'static str),
-    /// The process has no controlling terminal (`tty_nr` of
-    /// `/proc/self/stat` is 0).
-    NoControllingTerminal,
-    /// `/dev/tty` opens, and a read finds no data (a blocking read waits).
-    TtyOpens,
-    /// `/etc/passwd` has no line for the uid, and `/etc/group` none for the
-    /// gid.
-    NoPasswdEntry,
-    /// `HOME` is writable, on a mount with `noexec`.
-    HomeNoexec,
-    /// The path is on a read-only mount.
-    ReadOnlyMount(&'static str),
     /// A fact of a network class, through the stand-ins of the lab.
     Net(NetFact),
 }
@@ -137,20 +124,8 @@ impl LabFact {
             LabFact::TmpdirAtMost(n) => format!("TMPDIR holds at most {n} bytes"),
             LabFact::FdsOpen { last } => format!("descriptors 3 to {last} open, not close-on-exec"),
             LabFact::Inet6BindRefused => "bind([::1]:0) gives EACCES".to_string(),
-            LabFact::InetConnectRefused => "connect(127.0.0.1:1) gives EACCES".to_string(),
             LabFact::UnixAllowed => "socket, bind and connect of AF_UNIX succeed".to_string(),
             LabFact::GetsocknameRefused => "getsockname(TCP socket) gives EOPNOTSUPP".to_string(),
-            LabFact::BindAllowed => "bind(127.0.0.1:0) succeeds".to_string(),
-            LabFact::ListenRefused => "listen after bind(127.0.0.1:0) gives EACCES or EPERM".to_string(),
-            LabFact::UdpRefused => "a UDP socket of AF_INET and AF_INET6 gives EPERM or EACCES".to_string(),
-            LabFact::RawRefused => "a raw socket and a packet socket give EPERM".to_string(),
-            LabFact::NoLoopback => "connect(127.0.0.1:1) gives ENETUNREACH".to_string(),
-            LabFact::Absent(path) => format!("{path} does not exist"),
-            LabFact::NoControllingTerminal => "no controlling terminal".to_string(),
-            LabFact::TtyOpens => "/dev/tty opens and has no data".to_string(),
-            LabFact::NoPasswdEntry => "no line of the uid in /etc/passwd and of the gid in /etc/group".to_string(),
-            LabFact::HomeNoexec => "HOME is writable and noexec".to_string(),
-            LabFact::ReadOnlyMount(path) => format!("{path} is on a read-only mount"),
             LabFact::Net(f) => f.name(),
         }
     }
@@ -161,22 +136,8 @@ impl LabFact {
     pub fn entry(self) -> u32 {
         match self {
             LabFact::TmpdirAtMost(_) | LabFact::FdsOpen { .. } => 694,
-            LabFact::Inet6BindRefused
-            | LabFact::InetConnectRefused
-            | LabFact::UnixAllowed
-            | LabFact::GetsocknameRefused => 693,
-            LabFact::BindAllowed
-            | LabFact::ListenRefused
-            | LabFact::UdpRefused
-            | LabFact::RawRefused
-            | LabFact::NoLoopback => 714,
-            LabFact::Absent(_)
-            | LabFact::NoControllingTerminal
-            | LabFact::TtyOpens
-            | LabFact::NoPasswdEntry
-            | LabFact::HomeNoexec
-            | LabFact::ReadOnlyMount(_) => 715,
-            LabFact::Net(_) => 745,
+            LabFact::Inet6BindRefused | LabFact::UnixAllowed | LabFact::GetsocknameRefused => 693,
+            LabFact::Net(_) => 751,
         }
     }
 }

@@ -2916,6 +2916,9 @@ host with no IPv6 gives `EAFNOSUPPORT` on the socket: a denial, not a
 skip. Then move the `LabFact`s of these parts to `Observe::Row` in
 `crates/pod-lab/src/table.rs`, and keep the measurement of a lab through
 the rows. The JSON Schema of the report takes the new names.
+`connect(127.0.0.1:1)` is a row since T-714 (C732), and
+`tcp-connect-refused` reads it; the rows of `[::1]`, of AF_UNIX and of
+`getsockname` wait.
 
 ## Prove
 
@@ -3909,12 +3912,64 @@ and `nf_tables` rules redirect each TCP connect to port 443 to the
 stand-in filter (`NFT_MSG_NEWTABLE`, a `nat` chain of the hook `output`).
 Where the kernel refuses `nf_tables` in a user namespace, the part says so
 and the lab keeps the filter at its own addresses. A test connects to an
-address that is not of the lab and gets the reset of the filter.
+address that is not of the lab and gets the reset of the filter. With
+the default route in the lab, `ipv6-reaches` also reads the row
+`read(/proc/net/ipv6_route)` with `Expect::Value { key: "default", value:
+"1" }` beside its lab fact (C735): the lab cannot hold that row now.
 
 ## Prove
 
 ```sh
 cargo test -p pod-lab --all-features --test lab
+```
+
+# T-751: `pod-hostprobe`: the rows of the network classes that send a packet out, behind a setting of the caller that is off by default
+
+**Source:** T-745 (C735: no row reaches the network by default).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+A check of a report gives `unseen` for each part of a network class whose
+fact needs a packet out: `proxy-reaches`, `proxy-credential` and
+`port-refused` of `proxy-only`, `tls-reterminated` and `ssh-port-silent`,
+`answer-per-name`, `sni-reset`, `literal-reaches`, `upgrade-refused` and
+`ipv6-reaches`. The rows of T-745 read what a host shows with no packet
+out (the variable of a proxy, the certificate file, the resolver, the
+default routes). The lab measures the other facts through its stand-ins
+(`LabFact::Net`). A host of a user cannot show them in a report.
+
+## Premise
+
+- Read: `crates/pod-lab/src/net/measure.rs` (the facts through the
+  stand-ins), `crates/pod-hostprobe/src/probes/network.rs` (the rows with
+  no packet out), C735.
+- Not measured: a row through a real proxy, a real resolver or a real SNI
+  filter.
+
+## Approach
+
+A setting of the caller (`Settings::network`, off by default) with the
+names, the ports and the addresses of the rows, as a real host needs real
+ones. With it, rows of the census, each in its child with a time limit:
+a `CONNECT` through `HTTPS_PROXY` to a name and a port, with its status;
+the same with no credential; the issuer of the leaf of a TLS handshake
+through the proxy (the name of the CA, not the chain); a lookup of a name;
+a TCP connect to an IPv4 and an IPv6 literal, with the errno; a
+ClientHello with a name and with none. With no setting, each row is a skip
+that names the setting. `podlab check` takes the setting as an option, and
+the parts of the network classes read the rows; the lab keeps its
+stand-ins as `Observe::LabCheck`.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features
+cargo test -p pod-lab --all-features
 ```
 
 # T-723: `pod-todo`: a kind `reference` for an issue that holds no work (PodUtils/podvm#435)

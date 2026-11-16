@@ -211,6 +211,9 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
     };
 
     let (set, net) = setup(profile, &connect);
+    if let Some(lab) = &net {
+        environment(lab);
+    }
     let findings = inside::measure(&settings.hostprobe, &inside::rows(profile));
     let mut verdict = check_with(profile, &findings, &|fact| match fact {
         LabFact::Net(f) => crate::net::measure(f, net.as_ref()),
@@ -236,29 +239,31 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
     if profile.parts.iter().any(|p| matches!(p.hold, Hold::Tmpfs { .. })) {
         c.env("TMPDIR", "/tmp");
     }
-    if let Some(lab) = &net {
-        environment(&mut c, lab);
-    }
     let e = c.exec();
     let errno = e.raw_os_error().unwrap_or(0);
     say(&format!("exec-failed\t{errno}\n"));
     std::process::exit(if errno == k::ENOENT.0 { crate::codes::EXIT_NOT_FOUND } else { crate::codes::EXIT_CANNOT_EXEC })
 }
 
-/// The environment of the command in a network lab: no proxy of the
-/// caller, the stand-in proxy where the class has one, and the certificate
-/// file of the lab.
-fn environment(c: &mut Command, lab: &Started) {
-    for v in PROXY_VARIABLES {
-        c.env_remove(v);
-    }
-    if let Some(p) = &lab.net.proxy {
-        let url = crate::net::proxy_url(p);
-        for v in &PROXY_VARIABLES[..4] {
-            c.env(v, &url);
+/// The environment of the lab process in a network lab, before it
+/// measures the profile: no proxy of the caller, the stand-in proxy where
+/// the class has one, and the certificate file of the lab. The rows of the
+/// profile read it, and the command inherits it.
+fn environment(lab: &Started) {
+    // SAFETY: the lab process has one thread; the stand-ins are another
+    // process.
+    unsafe {
+        for v in PROXY_VARIABLES {
+            std::env::remove_var(v);
         }
+        if let Some(p) = &lab.net.proxy {
+            let url = crate::net::proxy_url(p);
+            for v in &PROXY_VARIABLES[..4] {
+                std::env::set_var(v, &url);
+            }
+        }
+        std::env::set_var(CERT_VARIABLE, &lab.cert_file);
     }
-    c.env(CERT_VARIABLE, &lab.cert_file);
 }
 
 /// Set each part, in the order: the mount namespace (and the stand-ins of

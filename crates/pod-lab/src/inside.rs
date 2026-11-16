@@ -1,14 +1,14 @@
 //! The measurements of a lab inside itself, before the command: the rows of
-//! `pod-hostprobe` that the parts name, each in its own probe child, the
-//! identity, and the facts that no row measures ([`LabFact`]).
+//! `pod-hostprobe` that the parts name, each in its own probe child (or in
+//! this process, as the kind of the row says), the identity, and the facts
+//! that no row measures ([`LabFact`]).
 
 use pod_hostprobe::child::Spawner;
-use pod_hostprobe::probes::{self, Kind};
+use pod_hostprobe::probes;
 use pod_hostprobe::sys::{self as k, Errno};
 use pod_hostprobe::{Findings, Settings, identity};
 
 use crate::check::{Seen, State};
-use crate::facts;
 use crate::profile::{LabFact, Observe, Profile};
 
 /// The rows that `profile` names, each once, in the order of the profile.
@@ -24,17 +24,15 @@ pub fn rows(profile: &Profile) -> Vec<&'static str> {
     out
 }
 
-/// Run `rows`, each in its own probe child of `settings`, and read the
-/// identity of this process. A name that no probe has is a skip.
+/// Run `rows`, each as `pod_hostprobe::probes::Probe::measure` runs it
+/// (a probe child of `settings`), and read the identity of this process.
+/// A name that no probe has is a skip.
 pub fn measure(settings: &Settings, rows: &[&'static str]) -> Findings {
     let spawner = Spawner::new(settings);
     let mut f = Findings::empty();
     for &name in rows {
         let outcome = match probes::find(name) {
-            Some(p) => match p.kind {
-                Kind::Clone(flags) => spawner.clone_accepted(flags),
-                Kind::Child { ns_flags, .. } => spawner.run_probe(p.name, ns_flags),
-            },
+            Some(p) => p.measure(&spawner),
             None => pod_hostprobe::verdict::Outcome::skip(None, format!("no probe named {name:?}")),
         };
         f.rows.push((name, outcome));
@@ -44,11 +42,11 @@ pub fn measure(settings: &Settings, rows: &[&'static str]) -> Findings {
     f
 }
 
-pub(crate) fn seen(fact: LabFact, state: State, errno: Option<Errno>, detail: impl Into<String>) -> Seen {
+fn seen(fact: LabFact, state: State, errno: Option<Errno>, detail: impl Into<String>) -> Seen {
     Seen { what: fact.name(), state, errno: errno.map(|e| e.0), detail: detail.into() }
 }
 
-pub(crate) fn errno_words(e: Errno) -> String {
+fn errno_words(e: Errno) -> String {
     format!("{} ({})", e.name(), e.0)
 }
 
@@ -67,7 +65,7 @@ fn refused(fact: LabFact, call: &str, r: Result<i64, Errno>, want: Errno) -> See
 }
 
 /// A TCP socket of `family`, or the seen of its refusal.
-pub(crate) fn tcp_socket(fact: LabFact, family: u64) -> Result<i64, Seen> {
+fn tcp_socket(fact: LabFact, family: u64) -> Result<i64, Seen> {
     k::socket(family, k::SOCK_STREAM | k::SOCK_CLOEXEC, 0)
         .map_err(|e| seen(fact, State::Unseen, Some(e), format!("socket(2) failed: {}", errno_words(e))))
 }
@@ -114,26 +112,7 @@ pub fn lab_fact(fact: LabFact) -> Seen {
             let _ = k::close(fd);
             refused(fact, "bind([::1]:0)", r, EACCES)
         }
-        LabFact::InetConnectRefused => {
-            let fd = match tcp_socket(fact, k::AF_INET) {
-                Ok(fd) => fd,
-                Err(s) => return s,
-            };
-            let r = k::connect(fd, &k::sockaddr_in([127, 0, 0, 1], 1));
-            let _ = k::close(fd);
-            refused(fact, "connect(127.0.0.1:1)", r, EACCES)
-        }
         LabFact::UnixAllowed => unix(fact),
-        LabFact::BindAllowed | LabFact::ListenRefused => facts::listen(fact),
-        LabFact::UdpRefused => facts::udp(fact),
-        LabFact::RawRefused => facts::raw(fact),
-        LabFact::NoLoopback => facts::no_loopback(fact),
-        LabFact::Absent(path) => facts::absent(fact, path),
-        LabFact::NoControllingTerminal => facts::no_ctty(fact),
-        LabFact::TtyOpens => facts::tty_opens(fact),
-        LabFact::NoPasswdEntry => facts::no_passwd_entry(fact),
-        LabFact::HomeNoexec => facts::home_noexec(fact),
-        LabFact::ReadOnlyMount(path) => facts::read_only(fact, path),
         // The lab process measures it through its stand-ins.
         LabFact::Net(f) => crate::net::measure(f, None),
         LabFact::GetsocknameRefused => {

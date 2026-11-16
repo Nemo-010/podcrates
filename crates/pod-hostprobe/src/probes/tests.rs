@@ -74,7 +74,7 @@ fn the_propagation_change_is_only_ever_probed_inside_a_mount_namespace() {
                 Kind::Child { ns_flags, .. } => {
                     assert_eq!(ns_flags & sys::CLONE_NEWNS, sys::CLONE_NEWNS, "{}", p.name)
                 }
-                Kind::Clone(_) => panic!("{} must run a body", p.name),
+                Kind::Clone(_) | Kind::Here { .. } => panic!("{} must run a body in a child", p.name),
             }
         }
     }
@@ -150,7 +150,7 @@ fn the_fuse_row_opens_the_node_outside_any_namespace() {
         Kind::Child { ns_flags, .. } => {
             assert_eq!(ns_flags, 0, "{} runs outside any namespace", p.name)
         }
-        Kind::Clone(_) => panic!("{} is not a child probe", p.name),
+        Kind::Clone(_) | Kind::Here { .. } => panic!("{} is not a child probe", p.name),
     }
 }
 #[test]
@@ -164,7 +164,7 @@ fn the_root_listing_block_is_three_outer_legs_in_order() {
                 Kind::Child { ns_flags, .. } => {
                     assert_eq!(ns_flags, 0, "{} runs outside any namespace", p.name)
                 }
-                Kind::Clone(_) => panic!("{} is not a child probe", p.name),
+                Kind::Clone(_) | Kind::Here { .. } => panic!("{} is not a child probe", p.name),
             }
             at += 1;
         }
@@ -184,4 +184,53 @@ fn the_user_namespace_leg_is_a_census_row_of_its_own() {
     let p = find(USERNS_CHROOT).expect("the row exists");
     assert!(p.group == Group::Census);
     assert!(matches!(p.kind, Kind::Child { ns_flags: 0, .. }));
+}
+
+/// The rows of the classes of podssh and podnet: census rows, each in a
+/// child with no namespace flag, but the row of `/proc/self/exe`, which
+/// runs in the probe process: a host with no `/proc` starts no child.
+#[test]
+fn the_rows_of_the_host_classes_are_census_rows() {
+    let rows = [
+        "bind(127.0.0.1:0)",
+        "listen after bind(127.0.0.1:0)",
+        "socket(AF_INET, SOCK_DGRAM)+connect",
+        "socket(AF_INET6, SOCK_DGRAM)+connect",
+        "socket(AF_INET, SOCK_RAW)",
+        "socket(AF_PACKET, SOCK_RAW)",
+        "connect(127.0.0.1:1)",
+        "stat(/dev/pts)",
+        "readlink(/proc/self/exe)",
+        "tty_nr of /proc/self/stat",
+        "open(/dev/tty, O_NONBLOCK)+poll",
+        "line of getuid() in /etc/passwd",
+        "line of getgid() in /etc/group",
+        "creat($HOME/.pod-hostprobe)",
+        "statfs(/etc/ssl)",
+        "getenv(HTTPS_PROXY)",
+        "getenv(SSL_CERT_FILE)+read",
+        "read(/etc/resolv.conf)",
+        "read(/proc/net/route)",
+        "read(/proc/net/ipv6_route)",
+    ];
+    for name in rows {
+        let p = find(name).unwrap_or_else(|| panic!("no row {name}"));
+        assert!(p.group == Group::Census, "{name}");
+        match p.kind {
+            Kind::Here { .. } => assert_eq!(name, "readlink(/proc/self/exe)"),
+            Kind::Child { ns_flags, .. } => assert_eq!(ns_flags, 0, "{name}"),
+            Kind::Clone(_) => panic!("{name} is not a child probe"),
+        }
+    }
+    let here: Vec<&str> = PROBES.iter().filter(|p| matches!(p.kind, Kind::Here { .. })).map(|p| p.name).collect();
+    assert_eq!(here, ["readlink(/proc/self/exe)"]);
+}
+
+/// The rows that read the host in the probe process read the same as a
+/// child: the body changes nothing.
+#[test]
+fn the_row_of_the_running_binary_reads_it_here() {
+    let o = p_readlink_exe();
+    assert_eq!(o.verdict, crate::verdict::Verdict::Ok, "{o:?}");
+    assert!(o.reason.is_empty(), "the path of the binary is in the reason: {}", o.reason);
 }

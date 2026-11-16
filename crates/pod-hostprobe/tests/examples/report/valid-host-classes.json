@@ -1,0 +1,164 @@
+{
+  "schema": 1,
+  "findings": {
+    "rows": [
+      {
+        "name": "bind(127.0.0.1:0)",
+        "verdict": "ok",
+        "errno": null,
+        "reason": ""
+      },
+      {
+        "name": "listen after bind(127.0.0.1:0)",
+        "verdict": "denied",
+        "errno": 13,
+        "reason": ""
+      },
+      {
+        "name": "socket(AF_INET, SOCK_DGRAM)+connect",
+        "verdict": "denied",
+        "errno": 1,
+        "reason": "socket(2) refused"
+      },
+      {
+        "name": "socket(AF_INET6, SOCK_DGRAM)+connect",
+        "verdict": "denied",
+        "errno": 97,
+        "reason": "socket(2) refused"
+      },
+      {
+        "name": "socket(AF_INET, SOCK_RAW)",
+        "verdict": "denied",
+        "errno": 1,
+        "reason": ""
+      },
+      {
+        "name": "socket(AF_PACKET, SOCK_RAW)",
+        "verdict": "denied",
+        "errno": 1,
+        "reason": ""
+      },
+      {
+        "name": "connect(127.0.0.1:1)",
+        "verdict": "ok",
+        "errno": null,
+        "reason": "ECONNREFUSED (111): the loopback answers, and no listener has port 1"
+      },
+      {
+        "name": "stat(/dev/pts)",
+        "verdict": "denied",
+        "errno": 2,
+        "reason": ""
+      },
+      {
+        "name": "readlink(/proc/self/exe)",
+        "verdict": "ok",
+        "errno": null,
+        "reason": ""
+      },
+      {
+        "name": "tty_nr of /proc/self/stat",
+        "verdict": "ok",
+        "errno": null,
+        "reason": "tty_nr 0"
+      },
+      {
+        "name": "open(/dev/tty, O_NONBLOCK)+poll",
+        "verdict": "denied",
+        "errno": 6,
+        "reason": ""
+      },
+      {
+        "name": "line of getuid() in /etc/passwd",
+        "verdict": "ok",
+        "errno": null,
+        "reason": "uid 1000; lines 0"
+      },
+      {
+        "name": "line of getgid() in /etc/group",
+        "verdict": "ok",
+        "errno": null,
+        "reason": "gid 1000; lines 0; file absent"
+      },
+      {
+        "name": "creat($HOME/.pod-hostprobe)",
+        "verdict": "ok",
+        "errno": null,
+        "reason": "noexec 1"
+      },
+      {
+        "name": "statfs(/etc/ssl)",
+        "verdict": "ok",
+        "errno": null,
+        "reason": "rdonly 1; noexec 0"
+      },
+      {
+        "name": "getenv(HTTPS_PROXY)",
+        "verdict": "ok",
+        "errno": null,
+        "reason": "set 1; variable HTTPS_PROXY; scheme http; credential 1; port 3128"
+      },
+      {
+        "name": "getenv(SSL_CERT_FILE)+read",
+        "verdict": "ok",
+        "errno": null,
+        "reason": "set 1; certificates 2"
+      },
+      {
+        "name": "read(/etc/resolv.conf)",
+        "verdict": "ok",
+        "errno": null,
+        "reason": "nameservers 0; 127.0.0.1:53 refused"
+      },
+      {
+        "name": "read(/proc/net/route)",
+        "verdict": "ok",
+        "errno": null,
+        "reason": "default 0"
+      },
+      {
+        "name": "read(/proc/net/ipv6_route)",
+        "verdict": "ok",
+        "errno": null,
+        "reason": "default 0; ipv6 absent"
+      }
+    ],
+    "identity": {
+      "uid": 1000,
+      "gid": 1000,
+      "groups": [],
+      "uid_map": null,
+      "gid_map": null,
+      "setgroups": null,
+      "cap_eff": null,
+      "cap_prm": null,
+      "cap_bnd": null,
+      "seccomp": null,
+      "seccomp_filters": null,
+      "no_new_privs": null,
+      "threads": null,
+      "unreadable": [
+        "/proc/self/status: EACCES"
+      ]
+    },
+    "writable": [],
+    "self_exe": "/proc/self/exe"
+  },
+  "selection": {
+    "rung": "unsupported",
+    "rejected": [
+      {
+        "rung": "namespace",
+        "evidence": "unshare(CLONE_NEWNS): EPERM"
+      },
+      {
+        "rung": "chroot",
+        "evidence": "chroot(/tmp): EPERM"
+      }
+    ],
+    "controls_answered": false,
+    "control_notes": [
+      "kcmp(2) is absent"
+    ]
+  }
+}

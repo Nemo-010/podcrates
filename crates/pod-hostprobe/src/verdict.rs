@@ -91,6 +91,13 @@ impl Outcome {
         self.errno.map(|e| e.name())
     }
 
+    /// The value of the item `key` in the reason of a row of a fact. Such a
+    /// reason is items `KEY VALUE` with `; ` between them (`set 1; scheme
+    /// http`); [`items`] writes it. `None` where no item has the key.
+    pub fn value(&self, key: &str) -> Option<&str> {
+        self.reason.split("; ").find_map(|item| item.strip_prefix(key)?.strip_prefix(' ')).map(str::trim)
+    }
+
     /// The row format of the Go reference instrument (`verification/probe`
     /// of container-research), so that a run of this crate and a run of the
     /// instrument diff against each other line by line.
@@ -176,6 +183,12 @@ pub fn decode(line: &str) -> Result<Outcome, String> {
     Ok(Outcome { verdict, errno, reason })
 }
 
+/// The reason of a row of a fact: each `(key, value)` as `KEY VALUE`, with
+/// `; ` between the items. [`Outcome::value`] reads it back.
+pub fn items(pairs: &[(&str, &str)]) -> String {
+    pairs.iter().map(|(k, v)| format!("{k} {v}")).collect::<Vec<_>>().join("; ")
+}
+
 fn first_token(line: &str) -> &str {
     line.split_whitespace().next().unwrap_or("")
 }
@@ -183,6 +196,20 @@ fn first_token(line: &str) -> &str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_items_of_a_reason_read_back() {
+        let reason = items(&[("set", "1"), ("scheme", "http"), ("127.0.0.1:53", "refused")]);
+        assert_eq!(reason, "set 1; scheme http; 127.0.0.1:53 refused");
+        let o = Outcome::ok_with(reason);
+        assert_eq!(o.value("set"), Some("1"));
+        assert_eq!(o.value("scheme"), Some("http"));
+        assert_eq!(o.value("127.0.0.1:53"), Some("refused"));
+        // A key is a whole word: no match of a prefix, none of a missing key.
+        assert_eq!(o.value("sch"), None);
+        assert_eq!(o.value("port"), None);
+        assert_eq!(Outcome::ok_with("ABI 6").value("ABI"), Some("6"));
+    }
 
     #[test]
     fn a_denial_round_trips_with_its_errno() {

@@ -92,12 +92,7 @@ fn each_fact_with_no_row_names_its_entry() {
                     Observe::Nothing { entry, .. } => *entry,
                     _ => continue,
                 };
-                assert!(
-                    (692..=699).contains(&entry) || (714..=715).contains(&entry) || entry == 745,
-                    "{}/{}: {entry}",
-                    p.name,
-                    part.name
-                );
+                assert!((692..=699).contains(&entry) || entry == 751, "{}/{}: {entry}", p.name, part.name);
             }
         }
     }
@@ -204,6 +199,65 @@ fn the_words_of_each_network_lab() {
             if let Hold::LabNet(n) = part.hold {
                 assert_eq!(part.hold.words().contains("stand-in proxy"), n.proxy.is_some(), "{name}");
                 assert!(part.hold.words().starts_with("a network namespace with no route out"), "{name}");
+            }
+        }
+    }
+}
+
+/// The parts of the socket, file and network classes that a row of
+/// `pod-hostprobe` sees: no lab fact and nothing unseen in a check of a
+/// report.
+#[test]
+fn a_row_sees_each_part_of_the_socket_and_file_classes() {
+    let seen = [
+        ("listen-denied", "bind-allowed"),
+        ("listen-denied", "listen-refused"),
+        ("udp-denied", "udp-refused"),
+        ("raw-denied", "raw-refused"),
+        ("no-ptmx", "ptmx-absent"),
+        ("no-ptmx", "no-ctty"),
+        ("no-ptmx", "tty-opens"),
+        ("no-passwd-entry", "no-id-lines"),
+        ("noexec-home", "home-noexec"),
+        ("no-proc", "proc-absent"),
+        ("ro-etc-ssl", "etc-ssl-read-only"),
+        ("no-loopback", "loopback-absent"),
+        ("bind-denied", "tcp-connect-refused"),
+        ("proxy-only", "direct-refused"),
+        ("proxy-only", "proxy-variable"),
+        ("proxy-only", "udp-refused"),
+        ("proxy-tls-reterminate", "proxy-variable"),
+        ("proxy-tls-reterminate", "cert-file"),
+        ("proxy-per-name", "proxy-variable"),
+        ("sni-allowlist", "no-proxy"),
+        ("no-proxy-no-dns", "no-proxy"),
+        ("no-proxy-no-dns", "no-resolver"),
+        ("ws-upgrade-refused", "proxy-variable"),
+        ("ipv6-only", "no-ipv4-route"),
+    ];
+    for (profile, name) in seen {
+        let p = find(PROFILES, profile).expect("a profile");
+        let part = p.parts.iter().find(|x| x.name == name).unwrap_or_else(|| panic!("{profile}/{name}"));
+        for o in part.observe {
+            assert!(!matches!(o, Observe::Lab(_) | Observe::Nothing { .. }), "{profile}/{name}: {o:?}");
+        }
+    }
+}
+
+/// A fact that a lab checks beside the rows is in a part that a row sees,
+/// and a row of a fact names a key.
+#[test]
+fn a_lab_check_stands_beside_a_row() {
+    for p in PROFILES {
+        for part in p.parts {
+            let rows = part.observe.iter().filter(|o| matches!(o, Observe::Row { .. })).count();
+            if part.observe.iter().any(|o| matches!(o, Observe::LabCheck(_))) {
+                assert!(rows > 0, "{}/{}", p.name, part.name);
+            }
+            for o in part.observe {
+                if let Observe::Row { expect: Expect::Value { key, value } | Expect::Shows { key, value }, .. } = o {
+                    assert!(!key.is_empty() && !value.is_empty() && !key.contains(';'), "{}/{}", p.name, part.name);
+                }
             }
         }
     }

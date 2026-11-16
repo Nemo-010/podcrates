@@ -174,8 +174,6 @@ pub enum NetFact {
     /// A TCP connect to `192.0.2.1:443`, and a TLS handshake that checks
     /// the address in the certificate.
     LiteralReaches,
-    /// A TCP connect to `127.0.0.1:443` reaches the stand-in server.
-    LoopbackReaches,
     /// A TCP connect to the IPv6 address of the lab, port 443, reaches the
     /// stand-in server.
     V6Reaches,
@@ -199,7 +197,6 @@ impl NetFact {
             NetFact::Hello { name: None, passes: false } => "a ClientHello with no name gets a reset".to_string(),
             NetFact::NoResolver => "a lookup of a name fails, and no name server answers".to_string(),
             NetFact::LiteralReaches => "TLS to 192.0.2.1:443 checks the address in the certificate".to_string(),
-            NetFact::LoopbackReaches => "connect(127.0.0.1:443) reaches the stand-in server".to_string(),
             NetFact::V6Reaches => "connect([fd00:6c61:62::1]:443) reaches the stand-in server".to_string(),
         }
     }

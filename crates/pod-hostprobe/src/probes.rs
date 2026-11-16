@@ -40,6 +40,10 @@ pub enum Kind {
     /// the namespaces named by the flags. A clone that the flags make fail is
     /// a failed precondition, so the row is a `skip` carrying its errno.
     Child { ns_flags: u64, body: fn() -> Outcome },
+    /// Run the body in the probe process itself, with no child. Only for a
+    /// row that reads and changes nothing, and that a child cannot give:
+    /// a host with no `/proc` starts no child through `/proc/self/exe`.
+    Here { body: fn() -> Outcome },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -62,6 +66,23 @@ pub struct Probe {
     pub name: &'static str,
     pub group: Group,
     pub kind: Kind,
+}
+
+impl Probe {
+    /// Run the probe as its [`Kind`] says: the clone of `spawner`, a child
+    /// of `spawner`, or the body in this process.
+    pub fn measure(&self, spawner: &crate::child::Spawner) -> Outcome {
+        match self.kind {
+            Kind::Clone(flags) => spawner.clone_accepted(flags),
+            Kind::Child { ns_flags, .. } => spawner.run_probe(self.name, ns_flags),
+            Kind::Here { body } => body(),
+        }
+    }
+}
+
+/// A census row in a child with no namespace flag.
+const fn census(name: &'static str, body: fn() -> Outcome) -> Probe {
+    Probe { name, group: Group::Census, kind: Kind::Child { ns_flags: 0, body } }
 }
 
 const NS: u64 = sys::CLONE_NEWNS;
@@ -184,6 +205,32 @@ pub static PROBES: &[Probe] = &[
     // ptmx pair above it.
     Probe { name: "bind(127.0.0.1:0)+listen", group: Group::Census,
             kind: Kind::Child { ns_flags: 0, body: p_tcp_listen } },
+    // The socket classes of podssh and podnet: each step of a socket on its
+    // own row, none past the loopback.
+    census("bind(127.0.0.1:0)", p_bind),
+    census("listen after bind(127.0.0.1:0)", p_listen_after_bind),
+    census("socket(AF_INET, SOCK_DGRAM)+connect", p_udp4),
+    census("socket(AF_INET6, SOCK_DGRAM)+connect", p_udp6),
+    census("socket(AF_INET, SOCK_RAW)", p_raw_inet),
+    census("socket(AF_PACKET, SOCK_RAW)", p_packet),
+    census("connect(127.0.0.1:1)", p_connect_loopback),
+    // The file classes of podssh. A row of a fact gives `ok` and its value
+    // in its reason (`KEY VALUE` items, `verdict::Outcome::value`).
+    census("stat(/dev/pts)", p_stat_pts),
+    Probe { name: "readlink(/proc/self/exe)", group: Group::Census, kind: Kind::Here { body: p_readlink_exe } },
+    census("tty_nr of /proc/self/stat", p_tty_nr),
+    census("open(/dev/tty, O_NONBLOCK)+poll", p_tty_poll),
+    census("line of getuid() in /etc/passwd", p_uid_line),
+    census("line of getgid() in /etc/group", p_gid_line),
+    census("creat($HOME/.pod-hostprobe)", p_home_creat),
+    census("statfs(/etc/ssl)", p_statfs_ssl),
+    // What a host shows of its way out with no packet out: the variables
+    // of a proxy and of the CAs, the resolver, the default routes.
+    census("getenv(HTTPS_PROXY)", p_proxy_variable),
+    census("getenv(SSL_CERT_FILE)+read", p_cert_file),
+    census("read(/etc/resolv.conf)", p_resolver),
+    census("read(/proc/net/route)", p_route4),
+    census("read(/proc/net/ipv6_route)", p_route6),
 
     // -------------------------------------------------------- attribution
     // A seccomp filter sees the syscall number and six
@@ -311,129 +358,18 @@ pub fn find(name: &str) -> Option<&'static Probe> {
     PROBES.iter().find(|p| p.name == name)
 }
 
-// ---------------------------------------------------------------- helpers
-
-/// A path that cannot exist. A syscall that resolves paths and is not filtered
-/// must answer `ENOENT` for it.
-const BOGUS: &str = "/proc/self/nonexistent-probe-path";
-
-fn c(s: &str) -> CBuf {
-    // Every literal below is NUL-free, so this cannot fail. Constructing it
-    // through the checked path anyway keeps one constructor.
-    CBuf::new(s).expect("probe path literals carry no interior NUL")
-}
-
-fn exists(path: &str) -> bool {
-    std::fs::symlink_metadata(path).is_ok()
-}
-
-/// Create a scratch file the probe owns.
-///
-/// `O_EXCL`. A probe that deletes whatever is in its way has destroyed data
-/// to measure a permission, and the errno it then reports is about a file it
-/// created rather than the one that was there.
-fn make_scratch(path: &str) -> Result<(), Outcome> {
-    match create_exclusive(path, 0o600) {
-        Ok(fd) => {
-            let _ = sys::close(fd);
-            Ok(())
-        }
-        Err(sys::EEXIST) => Err(already_there(path)),
-        Err(e) => Err(Outcome::skip(Some(e), format!("could not create the scratch file {path}"))),
-    }
-}
-
-fn create_exclusive(path: &str, mode: u64) -> Result<i64, Errno> {
-    sys::open(&c(path), sys::O_WRONLY | sys::O_CREAT | sys::O_EXCL, mode)
-}
-
-fn already_there(path: &str) -> Outcome {
-    Outcome::skip(
-        Some(sys::EEXIST),
-        format!("{path} already exists and this probe does not overwrite; remove it and re-run"),
-    )
-}
-
-fn unscratch(path: &str) {
-    let _ = sys::unlink(&c(path));
-}
-
-/// `/bin/sh` is the interpreter both exec probes need. Its absence is a
-/// missing precondition, and the `ENOENT` it would otherwise produce reads
-/// exactly like a denial.
-fn need_sh() -> Result<(), Outcome> {
-    if exists("/bin/sh") {
-        Ok(())
-    } else {
-        Err(Outcome::skip(
-            Some(sys::ENOENT),
-            "/bin/sh is absent, so there is no interpreter for the payload this \
-             probe executes; the exec was not attempted",
-        ))
-    }
-}
-
-/// Run a path as a child process and report what happened to it.
-///
-/// Through [`sys::shed_after_fork`], because here a probe starts a process
-/// with libstd and not with `sys::clone_fork`, and a probe makes one new
-/// child for each probe. With no hook, each lock that another thread holds
-/// is duplicated into this child at the `fork` and outlives the release of
-/// its holder.
-fn run_payload(path: &str) -> Outcome {
-    let mut cmd = std::process::Command::new(path);
-    match sys::shed_after_fork(&mut cmd).status() {
-        Ok(st) if st.success() => Outcome::ok(),
-        Ok(st) => Outcome::skip(None, format!("the payload {path} ran and ended {st}; the exec itself succeeded")),
-        Err(e) => match e.raw_os_error() {
-            Some(n) => Outcome::denied(Errno(n)),
-            None => Outcome::skip(None, format!("spawning {path} failed: {e}")),
-        },
-    }
-}
-
-/// Which of the three calls behind a detached mount answered.
-///
-/// Named, not compared as a string: creation, configuration and attachment
-/// are separate verdicts, and a
-/// caller cannot tell them apart from one errno.
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum Step {
-    Fsopen,
-    Fsconfig,
-    Fsmount,
-}
-
-impl Step {
-    fn label(self) -> &'static str {
-        match self {
-            Step::Fsopen => "fsopen(tmpfs)",
-            Step::Fsconfig => "fsconfig(FSCONFIG_CMD_CREATE)",
-            Step::Fsmount => "fsmount(tmpfs)",
-        }
-    }
-}
-
-/// A detached tmpfs mount fd, or the step that failed and its errno.
-fn detached_tmpfs() -> Result<i64, (Errno, Step)> {
-    let fs = c("tmpfs");
-    let fd = unsafe { sys::sys(sys::SYS_FSOPEN, [fs.ptr(), 0, 0, 0, 0, 0]) }.map_err(|e| (e, Step::Fsopen))?;
-    let r = unsafe { sys::sys(sys::SYS_FSCONFIG, [fd as u64, sys::FSCONFIG_CMD_CREATE, 0, 0, 0, 0]) };
-    if let Err(e) = r {
-        let _ = sys::close(fd);
-        return Err((e, Step::Fsconfig));
-    }
-    let mfd = unsafe { sys::sys(sys::SYS_FSMOUNT, [fd as u64, 0, 0, 0, 0, 0]) };
-    let _ = sys::close(fd);
-    mfd.map_err(|e| (e, Step::Fsmount))
-}
-
-fn precondition(step: &str, e: Errno) -> Outcome {
-    Outcome::skip(Some(e), format!("{step} failed with {} ({}), so this operation was never attempted", e.name(), e.0))
-}
+mod scratch;
+pub use scratch::Step;
+use scratch::*;
 
 mod census;
 use census::*;
+mod files;
+use files::*;
+mod network;
+use network::*;
+mod sockets;
+use sockets::*;
 mod access;
 pub use access::*;
 mod attribution;
