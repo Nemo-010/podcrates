@@ -1,0 +1,6 @@
+# pod-manual: the help and the page of a command of a feature do not say that a build may not have it; the test of a command of a feature must fail (T-807, PodUtils/podssh#288).
+ENTRY=T-807
+GROUP=manual
+EXPECT='a_command_of_a_feature_says_so_in_its_blocks_and_its_json'
+RUN='cargo test -p pod-manual --all-features --lib sections::tests'
+LIMIT=1800

@@ -1,0 +1,11 @@
+diff --git a/crates/pod-manual/src/sections.rs b/crates/pod-manual/src/sections.rs
+--- a/crates/pod-manual/src/sections.rs
++++ b/crates/pod-manual/src/sections.rs
+@@ -91,7 +91,6 @@ pub fn flag_text(f: &Flag) -> String {
+     let mut extra = Vec::new();
+     match &f.kind {
+         FlagKind::Wired => {}
+-        FlagKind::Ignored { why } if why.trim().is_empty() => extra.push("Accepted and ignored.".into()),
+         FlagKind::Ignored { why } => extra.push(sentence(&format!("Accepted and ignored: {why}"), &[])),
+         FlagKind::Refused { instead } if instead.trim().is_empty() => extra.push("Refused.".into()),
+         FlagKind::Refused { instead } => extra.push(sentence(&format!("Refused. Use {instead}"), &[])),

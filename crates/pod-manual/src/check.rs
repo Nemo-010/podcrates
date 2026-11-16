@@ -243,6 +243,31 @@ pub fn model(manual: &Manual) -> Vec<Finding> {
                 out.push(finding(at, format!("the rule of {flag} needs one of less than two names; give two or more")));
             }
         }
+        // Each exit code of the model is a row of the table of exit codes.
+        let exits = &manual.facts.exits;
+        let mut codes: Vec<(String, i32)> = Vec::new();
+        if let crate::model::Availability::Feature { code, .. } = c.availability {
+            codes.push(("the availability".into(), code));
+        }
+        for f in &c.flags {
+            if let crate::model::FlagKind::NotInRelease { code, .. } = f.kind {
+                codes.push((f.spelling(), code));
+            }
+        }
+        for (what, code) in codes.into_iter().filter(|_| !exits.is_empty()) {
+            if !crate::facts::covers(exits, code) {
+                out.push(finding(at, format!("{what} exits {code}, which no row of EXIT STATUS names")));
+            }
+        }
+        for k in &c.topics {
+            if !manual.topics.iter().any(|t| t.key == *k) {
+                out.push(finding(at, format!("the topic {k} is no topic of the manual")));
+            }
+            let owners = manual.commands.iter().filter(|o| o.topics.contains(k)).count();
+            if owners > 1 {
+                out.push(finding(at, format!("the topic {k} is inside {owners} commands")));
+            }
+        }
         if c.groups.is_empty() {
             continue;
         }

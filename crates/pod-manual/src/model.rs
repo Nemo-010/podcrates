@@ -65,6 +65,33 @@ pub struct Command {
     /// first.
     #[serde(default)]
     pub lead: Vec<Example>,
+    /// Whether each build has the command (PodUtils/podssh#288).
+    #[serde(default, skip_serializing_if = "Availability::is_always")]
+    pub availability: Availability,
+    /// The keys of the topics that the writers show inside the section of
+    /// this command, after its options: `-o` keywords of `ssh`. Such a
+    /// topic has no section of its own; `man KEY` selects this command.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub topics: Vec<String>,
+}
+
+/// Whether a build has a command.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "availability", rename_all = "kebab-case")]
+pub enum Availability {
+    /// Each build has it.
+    #[default]
+    Always,
+    /// Only a build with the feature `name` has it. Each other build keeps
+    /// the command in its help with `why`, and exits `code` when it runs.
+    Feature { name: String, why: String, code: i32 },
+}
+
+impl Availability {
+    /// Whether each build has it.
+    pub fn is_always(&self) -> bool {
+        *self == Availability::Always
+    }
 }
 
 /// A group of the commands under one command, by purpose.
@@ -178,6 +205,9 @@ pub enum FlagKind {
     Ignored { why: String },
     /// It parses, and the program refuses it and names what to use.
     Refused { instead: String },
+    /// It parses, and the program exits with `code`: it is not in this
+    /// release, and `why` says what comes (an empty `why`: nothing).
+    NotInRelease { code: i32, why: String },
 }
 
 /// The status of a command or a flag against another tool: podvm against

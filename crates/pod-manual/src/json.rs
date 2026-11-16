@@ -39,7 +39,13 @@ pub fn read(text: &str) -> Result<Manual, String> {
 /// topic as its blocks.
 pub fn section(manual: &Manual, s: &Section) -> Value {
     let body = match (&s.command, s.key.as_str()) {
-        (Some(path), _) => json!({ "command": manual.command(&path.join(" ")) }),
+        (Some(path), _) => {
+            let c = manual.command(&path.join(" "));
+            // The topics inside the section of the command, as their model.
+            let inside: Vec<_> =
+                c.map(|c| manual.topics.iter().filter(|t| c.topics.contains(&t.key)).collect()).unwrap_or_default();
+            if inside.is_empty() { json!({ "command": c }) } else { json!({ "command": c, "topics": inside }) }
+        }
         (None, "environment") => json!({ "variables": manual.facts.variables }),
         (None, "files") => json!({ "files": manual.facts.files }),
         (None, "configuration") => json!({ "config": manual.facts.config }),

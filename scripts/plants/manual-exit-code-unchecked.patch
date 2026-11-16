@@ -1,12 +1,12 @@
 diff --git a/crates/pod-manual/src/check.rs b/crates/pod-manual/src/check.rs
 --- a/crates/pod-manual/src/check.rs
 +++ b/crates/pod-manual/src/check.rs
-@@ -123,7 +123,7 @@
-     let exits = &manual.facts.exits;
-     let mut out = Vec::new();
-     for &code in given {
--        if !exits.iter().any(|e| e.code.holds(code)) {
-+        if code < 0 && !exits.iter().any(|e| e.code.holds(code)) {
-             out.push(finding("the exit codes", format!("the program gives {code}, and no fact names it")));
+@@ -254,7 +254,7 @@ pub fn model(manual: &Manual) -> Vec<Finding> {
+                 codes.push((f.spelling(), code));
+             }
          }
-     }
+-        for (what, code) in codes.into_iter().filter(|_| !exits.is_empty()) {
++        for (what, code) in codes.into_iter().filter(|_| exits.is_empty()) {
+             if !crate::facts::covers(exits, code) {
+                 out.push(finding(at, format!("{what} exits {code}, which no row of EXIT STATUS names")));
+             }

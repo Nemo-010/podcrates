@@ -4972,7 +4972,7 @@ refused, with the name), as root and as uid 65534. Plants
 **Milestone:** M5
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -5016,3 +5016,24 @@ extended. Name the tag on the hand-off.
 ```sh
 cargo test -p pod-manual --all-features
 ```
+
+## Done
+
+2026-11-16. The four forms of PodUtils/podssh#288 in the model and each
+writer: (1) an empty `why` or `instead` writes "Accepted and ignored." or
+"Refused." alone; (2) `FlagKind::NotInRelease { code, why }`: "Not in this
+release: WHY. It exits CODE."; (3) `Command::availability`
+(`Availability::Always`, or `Feature { name, why, code }`): a sentence in
+the blocks of the command (the help, the text, the man page) and a field
+of the command in the JSON, left out for `Always`; (4) `Command::topics`:
+the keys of the topics that the section of the command shows after its
+rules, with no section of their own; `man KEY` selects the command, and
+the JSON section of the command carries them. `check::model` holds each
+exit code of the two forms to EXIT STATUS, each key of `Command::topics`
+to a topic, and a topic to one command; the text rules read the new
+reasons. No struct literal of a consumer breaks: the new fields have a
+default, and each consumer builds `Command` with `..Command::default()`.
+Tests: `src/sections/tests.rs` (each form in the blocks, the text, the man
+page and the JSON, which reads back; each finding of the check). Plants
+`manual-empty-reason-dangles`, `manual-topic-inside-twice`,
+`manual-feature-unsaid`, `manual-exit-code-unchecked`.

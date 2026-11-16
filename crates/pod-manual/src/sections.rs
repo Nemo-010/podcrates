@@ -3,7 +3,7 @@
 //! only, so they show the same content.
 
 use crate::facts::{Code, Use};
-use crate::model::{Arg, Block, Command, Flag, FlagKind, Manual, Span, Topic};
+use crate::model::{Arg, Availability, Block, Command, Flag, FlagKind, Manual, Span, Topic};
 
 /// One section of the manual.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -91,8 +91,17 @@ pub fn flag_text(f: &Flag) -> String {
     let mut extra = Vec::new();
     match &f.kind {
         FlagKind::Wired => {}
+        FlagKind::Ignored { why } if why.trim().is_empty() => extra.push("Accepted and ignored.".into()),
         FlagKind::Ignored { why } => extra.push(sentence(&format!("Accepted and ignored: {why}"), &[])),
+        FlagKind::Refused { instead } if instead.trim().is_empty() => extra.push("Refused.".into()),
         FlagKind::Refused { instead } => extra.push(sentence(&format!("Refused. Use {instead}"), &[])),
+        FlagKind::NotInRelease { code, why } => {
+            let not = match why.trim() {
+                "" => "Not in this release.".to_string(),
+                why => sentence(&format!("Not in this release: {why}"), &[]),
+            };
+            extra.push(sentence(&not, &[format!("It exits {code}.")]));
+        }
     }
     if let Some(p) = &f.parity {
         extra.push(sentence(&format!("Against {}: {}. {}", p.tool, p.status.word(), p.text), &[]));
@@ -176,6 +185,10 @@ pub fn command_blocks(manual: &Manual, c: &Command) -> Vec<Block> {
     if let Some(p) = &c.parity {
         blocks.push(para(sentence(&format!("Against {}: {}. {}", p.tool, p.status.word(), p.text), &[])));
     }
+    if let Availability::Feature { name, why, code } = &c.availability {
+        let only = format!("Only a build with the feature {name} has this command: {why}");
+        blocks.push(para(sentence(&only, &[format!("Each other build exits {code}.")])));
+    }
     blocks.push(Block::Line { spans: vec![plain_span("Usage: "), lit(usage(manual, c))] });
     if !c.lead.is_empty() {
         blocks.push(Block::Sub { text: "Start here".into() });
@@ -194,6 +207,10 @@ pub fn command_blocks(manual: &Manual, c: &Command) -> Vec<Block> {
     if !c.rules.is_empty() {
         blocks.push(Block::Sub { text: "Rules".into() });
         blocks.extend(c.rules.iter().map(|r| para(r.sentence())));
+    }
+    for t in c.topics.iter().filter_map(|k| manual.topics.iter().find(|t| t.key == *k)) {
+        blocks.push(Block::Sub { text: t.heading.clone() });
+        blocks.extend(t.blocks.iter().cloned());
     }
     let own: Vec<_> =
         manual.examples.iter().filter(|e| !c.path.is_empty() && example_of(manual, &e.command, c)).collect();
@@ -295,7 +312,8 @@ pub fn sections(manual: &Manual) -> Vec<Section> {
             blocks: command_blocks(manual, c),
         })
         .collect();
-    out.extend(manual.topics.iter().map(|t: &Topic| Section {
+    let within = |t: &&Topic| manual.commands.iter().any(|c| c.topics.contains(&t.key));
+    out.extend(manual.topics.iter().filter(|t| !within(t)).map(|t: &Topic| Section {
         key: t.key.clone(),
         aliases: t.aliases.clone(),
         heading: t.heading.clone(),
@@ -347,8 +365,17 @@ pub fn find<'a>(manual: &Manual, all: &'a [Section], name: &str) -> Option<&'a S
         return all.iter().find(|s| s.command.as_ref() == Some(&c.path));
     }
     let name = name.trim().replace(' ', "-");
-    all.iter().find(|s| {
-        s.command.is_none()
-            && (s.key.eq_ignore_ascii_case(&name) || s.aliases.iter().any(|a| a.eq_ignore_ascii_case(&name)))
+    let names = |key: &str, aliases: &[String]| {
+        key.eq_ignore_ascii_case(&name) || aliases.iter().any(|a| a.eq_ignore_ascii_case(&name))
+    };
+    let own = all.iter().find(|s| s.command.is_none() && names(&s.key, &s.aliases));
+    // A topic inside the section of a command selects that command.
+    own.or_else(|| {
+        let t = manual.topics.iter().find(|t| names(&t.key, &t.aliases))?;
+        let c = manual.commands.iter().find(|c| c.topics.contains(&t.key))?;
+        all.iter().find(|s| s.command.as_ref() == Some(&c.path))
     })
 }
+
+#[cfg(test)]
+mod tests;

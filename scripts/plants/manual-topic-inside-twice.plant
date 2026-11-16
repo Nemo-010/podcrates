@@ -1,0 +1,6 @@
+# pod-manual: a topic inside a command keeps a section of its own too, so the page shows it twice; the test of a topic inside a command must fail (T-807, PodUtils/podssh#288).
+ENTRY=T-807
+GROUP=manual
+EXPECT='a_topic_inside_a_command_is_in_its_section_alone'
+RUN='cargo test -p pod-manual --all-features --lib sections::tests'
+LIMIT=1800

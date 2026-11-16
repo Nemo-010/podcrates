@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 643 entries: 123 open, 14 partial, 6 blocked, 500 done.
+`TODO/INDEX.md` holds 643 entries: 122 open, 14 partial, 6 blocked, 501 done.
 
 ## State
 
@@ -20,7 +20,8 @@
   layer on the HTTP road, PodUtils/podssh#287; podssh's role serves
   `OPEN_LAYER` and `ONE_LAYER`), T-797 (the built-in roots in the
   certificate file of a way out, and the refusal of an `SSL_CERT_FILE`
-  that does not read, PodUtils/podvm#455).
+  that does not read, PodUtils/podvm#455), T-807 (the four forms of
+  `pod-manual` for podssh's manual, PodUtils/podssh#288).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.63.0` (`5340fbb`, PodUtils/podssh#286, with the installer
@@ -85,7 +86,7 @@ next entry.
 First: the next tag (the fixes of
 PodUtils/podssh#262, on `main`). Then the ruling "Discipline": T-692
 (`pod-lab`, part 1), T-700 (`pod-manual`, PodUtils/podnet#584; part 1
-done, then the take of each consumer; its findings T-704 and T-705; T-807, the four forms of podssh's manual, PodUtils/podssh#288),
+done, then the take of each consumer; its findings T-704 and T-705),
 T-767 (a stalled resume of `pod-session`, PodUtils/podssh#283; partial: the far end's lines of each resume and of each wait that holds are in, the cause is open) with its finding T-768 (a late spare), T-703 (the issues against
 the record) and T-702 (the installer). Then the move of podssh's waves 3 and 4 (the
 ruling "The move of podssh", PodUtils/podssh#248): T-029, T-030, T-039; T-036. Then the link carriers of M2

@@ -1,0 +1,12 @@
+diff --git a/crates/pod-manual/src/sections.rs b/crates/pod-manual/src/sections.rs
+--- a/crates/pod-manual/src/sections.rs
++++ b/crates/pod-manual/src/sections.rs
+@@ -185,7 +185,7 @@ pub fn command_blocks(manual: &Manual, c: &Command) -> Vec<Block> {
+     if let Some(p) = &c.parity {
+         blocks.push(para(sentence(&format!("Against {}: {}. {}", p.tool, p.status.word(), p.text), &[])));
+     }
+-    if let Availability::Feature { name, why, code } = &c.availability {
++    if let (false, Availability::Feature { name, why, code }) = (true, &c.availability) {
+         let only = format!("Only a build with the feature {name} has this command: {why}");
+         blocks.push(para(sentence(&only, &[format!("Each other build exits {code}.")])));
+     }

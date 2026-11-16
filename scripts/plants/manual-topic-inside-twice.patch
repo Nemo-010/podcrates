@@ -1,0 +1,13 @@
+diff --git a/crates/pod-manual/src/sections.rs b/crates/pod-manual/src/sections.rs
+--- a/crates/pod-manual/src/sections.rs
++++ b/crates/pod-manual/src/sections.rs
+@@ -313,7 +313,8 @@ pub fn sections(manual: &Manual) -> Vec<Section> {
+         })
+         .collect();
+     let within = |t: &&Topic| manual.commands.iter().any(|c| c.topics.contains(&t.key));
+-    out.extend(manual.topics.iter().filter(|t| !within(t)).map(|t: &Topic| Section {
++    let _ = within;
++    out.extend(manual.topics.iter().map(|t: &Topic| Section {
+         key: t.key.clone(),
+         aliases: t.aliases.clone(),
+         heading: t.heading.clone(),

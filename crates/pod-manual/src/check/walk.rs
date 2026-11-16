@@ -71,6 +71,10 @@ pub fn texts(manual: &Manual) -> Vec<Finding> {
         w.one(at, &c.about, D);
         w.all(at, &c.notes, D);
         w.one(at, &c.usage, TERM);
+        if let crate::model::Availability::Feature { name, why, .. } = &c.availability {
+            w.one(at, name, TERM);
+            w.one(at, why, D);
+        }
         if let Some(p) = &c.parity {
             w.one(at, &p.tool, TERM);
             w.one(at, &p.text, D);
@@ -88,6 +92,7 @@ pub fn texts(manual: &Manual) -> Vec<Finding> {
                 FlagKind::Wired => {}
                 FlagKind::Ignored { why } => w.one(&at, why, D),
                 FlagKind::Refused { instead } => w.one(&at, instead, D),
+                FlagKind::NotInRelease { why, .. } => w.one(&at, why, D),
             }
             if let Some(p) = &f.parity {
                 w.one(&at, &p.tool, TERM);

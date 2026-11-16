@@ -1,5 +1,6 @@
-# pod-manual: the check of the exit codes lets a code with no fact pass; its test must fail.
-ENTRY=T-700
+# pod-manual: the model check does not hold the exit code of a feature or of a flag not in this release to EXIT STATUS; the test of the model check must fail (T-807, PodUtils/podssh#288).
+ENTRY=T-807
 GROUP=manual
-EXPECT='test check::tests::the_exit_codes_are_checked_both_ways \.\.\. FAILED'
-RUN='cargo test -p pod-manual --lib -- check::tests::the_exit_codes_are_checked_both_ways --exact'
+EXPECT='the_model_check_holds_the_new_forms'
+RUN='cargo test -p pod-manual --all-features --lib sections::tests'
+LIMIT=1800
