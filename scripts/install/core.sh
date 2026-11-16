@@ -28,6 +28,7 @@ inst_size() { eval "printf '%s' \"\${INST_SIZE_$(inst_key "$1"):-0}\""; }
 # The hooks. inst_files TARGET EXE: one line "NAME ASSET" for each file.
 inst_files() { printf '%s %s\n' "$INST_NAME$2" "$INST_NAME-$1$2"; }
 # The first line of FILE --version must be "INST_NAME VERSION".
+# shellcheck disable=SC2317 # a project redefines each hook; the core calls it by name.
 inst_version_ok() { case $1 in "$INST_NAME $INST_VERSION" | "$INST_NAME $INST_VERSION "*) return 0 ;; *) return 1 ;; esac; }
 # The last step: a check of the installed program, with no network.
 # shellcheck disable=SC2317 # a project redefines each hook; the core calls it by name.
