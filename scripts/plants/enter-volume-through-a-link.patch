@@ -1,0 +1,13 @@
+diff --git a/crates/pod-enter/src/ns_volume.rs b/crates/pod-enter/src/ns_volume.rs
+index 5f9bf3d7..ec7335f4 100644
+--- a/crates/pod-enter/src/ns_volume.rs
++++ b/crates/pod-enter/src/ns_volume.rs
+@@ -47,7 +47,7 @@ pub const NS_VOLUME_REMOUNT_STEP: u8 = 36;
+ pub const MOST: usize = 255;
+ 
+ /// Each walk of a guest path: no link, and nothing out of the directory.
+-const RESOLVE: u64 = sys::RESOLVE_IN_ROOT | sys::RESOLVE_NO_SYMLINKS;
++const RESOLVE: u64 = sys::RESOLVE_IN_ROOT;
+ 
+ /// One volume, built before the fork.
+ pub(crate) struct Prepared {

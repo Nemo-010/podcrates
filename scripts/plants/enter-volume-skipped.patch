@@ -1,0 +1,15 @@
+diff --git a/crates/pod-enter/src/ns_volume.rs b/crates/pod-enter/src/ns_volume.rs
+index 5f9bf3d7..752effe6 100644
+--- a/crates/pod-enter/src/ns_volume.rs
++++ b/crates/pod-enter/src/ns_volume.rs
+@@ -234,8 +234,8 @@ pub(crate) fn bind_each(v: &Volumes) -> std::result::Result<(), (u8, Errno, u8)>
+     let mut out = Ok(());
+     for (at, vol) in v.list.iter().enumerate() {
+         if let Err((step, e)) = bind_one(root, vol, &v.empty) {
+-            out = Err((step, e, at as u8));
+-            break;
++            let _ = (step, e, at);
++            continue;
+         }
+     }
+     let _ = sys::close(root);

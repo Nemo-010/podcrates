@@ -1,0 +1,13 @@
+diff --git a/crates/pod-enter/src/ns_volume.rs b/crates/pod-enter/src/ns_volume.rs
+index 5f9bf3d7..500a0525 100644
+--- a/crates/pod-enter/src/ns_volume.rs
++++ b/crates/pod-enter/src/ns_volume.rs
+@@ -217,7 +217,7 @@ fn bind_one(root: i64, v: &Prepared, empty: &CBuf) -> std::result::Result<(), (u
+     }
+     // A new walk crosses into the bind: the remount needs its root.
+     let top = point(root, v).map_err(|(_, e)| (NS_VOLUME_REMOUNT_STEP, e))?;
+-    let remounted = sys::fstatfs(top).and_then(|fs| mount_on_fd(empty, top, remount_flags(fs.f_flags), empty));
++    let remounted = sys::fstatfs(top).and_then(|fs| mount_on_fd(empty, top, remount_flags(fs.f_flags & 0), empty));
+     let _ = sys::close(top);
+     remounted.map(drop).map_err(|e| (NS_VOLUME_REMOUNT_STEP, e))
+ }
