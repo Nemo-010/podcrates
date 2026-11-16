@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/net/vars.rs b/crates/pod-lab/src/net/vars.rs
+index 000ed2c..1f7f71e 100644
+--- a/crates/pod-lab/src/net/vars.rs
++++ b/crates/pod-lab/src/net/vars.rs
+@@ -86,7 +86,7 @@ pub fn changes<'a>(current: impl IntoIterator<Item = (&'a str, &'a str)>, proxy:
+     }
+     if let Some(p) = proxy {
+         let url = proxy_url(p);
+-        out.extend(URL_VARIABLES.iter().map(|v| Change::Set(v.to_string(), url.clone())));
++        let _ = &url;
+         let mut set = |k: &str, v: &str| out.push(Change::Set(k.to_string(), v.to_string()));
+         set("CLOUDSDK_PROXY_TYPE", "http");
+         set("CLOUDSDK_PROXY_ADDRESS", "127.0.0.1");

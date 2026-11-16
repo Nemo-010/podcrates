@@ -1,0 +1,6 @@
+# A network lab with a proxy does not set the proxy variables of other tools
+# to its stand-in proxy; the test of the changes must fail.
+ENTRY=T-760
+GROUP=lab
+EXPECT='test net::vars::tests::a_class_with_a_proxy_sets_the_url_forms_to_the_stand_in \.\.\. FAILED'
+RUN='cargo test -p pod-lab --all-features --lib -- net::vars::tests::a_class_with_a_proxy_sets_the_url_forms_to_the_stand_in --exact'
