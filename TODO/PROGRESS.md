@@ -17,10 +17,10 @@
     watcher and the sync of the issues (`issue_rules = "on"`; the map of
     #192 repaired); `pod-manual` is PodUtils/podssh@T-790; its lane in
     `pod-lab` is PodUtils/podssh@T-791.
-  - podnet: `v0.54.0` (`d702f61`, PodUtils/podnet#589; it runs the one
-    watcher, PodUtils/podcrates#186; its help and manual come from
-    `pod-manual`; T-725 fixed the gaps it found, for the next tag). It sets the
-    profile of `kcp` with its take of the udp carrier (#139, T-526).
+  - podnet: `v0.58.0` (`dd903e3`, PodUtils/podnet#597): its help and manual
+    come from `pod-manual` with no workaround of T-725; it runs the one
+    watcher and the sync of the issues; its installer on
+    `scripts/install/core.sh` is PodUtils/podnet@T-360.
   - podvm: `v0.52.0` (`d27cf271`, PodUtils/podvm#413).
   - podrunner: `v0.52.0` (`45bd964`, PodUtils/podrunner#169).
 - Takes that wait: podvm's check of T-208 against `lambda-al2023`, and
