@@ -1,0 +1,6 @@
+# The rows that send a packet out run with no Settings::network, so a
+# census of a host sends packets past it by default; the test must fail.
+ENTRY=T-751
+GROUP=hostprobe
+EXPECT='test probes::tests::the_rows_that_send_a_packet_are_off_by_default \.\.\. FAILED'
+RUN='cargo test -p pod-hostprobe --all-features --lib -- probes::tests::the_rows_that_send_a_packet_are_off_by_default --exact'

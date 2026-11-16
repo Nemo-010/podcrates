@@ -1,0 +1,7 @@
+# A direct way out dials a name that the resolver of the host gives the
+# loopback, so a command of the lab reaches the services of the host; the
+# test must fail.
+ENTRY=T-746
+GROUP=lab
+EXPECT='test net::out::tests::a_direct_way_out_does_not_dial_the_loopback_of_the_host \.\.\. FAILED'
+RUN='cargo test -p pod-lab --all-features --lib -- net::out::tests::a_direct_way_out_does_not_dial_the_loopback_of_the_host --exact'

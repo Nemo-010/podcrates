@@ -19,7 +19,7 @@ use std::process::{Command, ExitStatus, Stdio};
 use pod_hostprobe::sys as k;
 
 use crate::check::{PartVerdict, Seen, State, Verdict, check_with};
-use crate::net::{CERT_VARIABLE, PROXY_VARIABLES, Ready, Started};
+use crate::net::{CERT_VARIABLE, PROXY_VARIABLES, Ready, Started, WayOut};
 use crate::profile::{Hold, LabFact, Profile};
 use crate::{Settings, hold, inside, mounts, table};
 
@@ -35,6 +35,12 @@ pub struct Options {
     /// TCP connect (`bind-denied`): the proxy of a host whose only way
     /// out is that proxy.
     pub allow_connect: Vec<u16>,
+    /// A way out to the real network through the stand-in proxy of a
+    /// network lab: a `CONNECT` that the rules of the class pass, to a name
+    /// that is not of the lab, goes out directly or through the proxy of
+    /// the host (its variable and its credential, which the command never
+    /// gets). Only a profile with a stand-in proxy takes it.
+    pub way_out: bool,
 }
 
 /// The run of a command in a lab.
@@ -84,6 +90,9 @@ pub fn run(settings: &Settings, profile: &Profile, cmd: &[OsString], opts: Optio
     if table::find(settings.profiles, profile.name).is_none() {
         return Err(RunError::Lab(format!("the profile {} is not in the profiles of the settings", profile.name)));
     }
+    if opts.way_out && !has_proxy(profile) {
+        return Err(RunError::Lab(format!("the profile {} has no stand-in proxy for a way out", profile.name)));
+    }
     let mut fds = [0i32; 2];
     k::pipe2(&mut fds, k::O_CLOEXEC).map_err(|e| RunError::Lab(format!("pipe2: {}", e.name())))?;
     let (r, w) = (fds[0], fds[1]);
@@ -100,6 +109,7 @@ pub fn run(settings: &Settings, profile: &Profile, cmd: &[OsString], opts: Optio
         .arg(profile.name)
         .arg(if opts.partial { "partial" } else { "whole" })
         .arg(opts.allow_connect.iter().map(u16::to_string).collect::<Vec<_>>().join(","))
+        .arg(if opts.way_out { "way-out" } else { "closed" })
         .arg(w.to_string())
         .arg("--")
         .args(cmd);
@@ -181,10 +191,15 @@ fn decode(profile: &Profile, text: &str) -> Result<(Verdict, End), String> {
     Ok((Verdict { profile: profile.name.to_string(), parts }, end))
 }
 
+/// True where a part of `profile` is a network lab with a stand-in proxy.
+pub fn has_proxy(profile: &Profile) -> bool {
+    profile.parts.iter().any(|p| matches!(p.hold, Hold::LabNet(n) if n.proxy.is_some()))
+}
+
 /// The work of the lab process: `args` are the arguments after the lab
 /// flag (the profile, `whole` or `partial`, the ports of a connect that
-/// stays allowed, the descriptor of the verdict, `--` and the command). It
-/// does not return.
+/// stays allowed, `way-out` or `closed`, the descriptor of the verdict,
+/// `--` and the command). It does not return.
 pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
     let text = |i: usize| args.get(i).and_then(|a| a.to_str()).unwrap_or("");
     // A lab process with no verdict descriptor cannot speak: the caller
@@ -197,8 +212,9 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
     else {
         fail("no list of ports")
     };
-    let Ok(given) = text(3).parse::<i64>() else { fail("no descriptor of the verdict") };
-    if text(4) != "--" || args.len() < 6 {
+    let way_out = text(3) == "way-out";
+    let Ok(given) = text(4).parse::<i64>() else { fail("no descriptor of the verdict") };
+    if text(5) != "--" || args.len() < 7 {
         fail("no command");
     }
     // The verdict goes on a descriptor above each one that a part opens,
@@ -210,7 +226,17 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
         let _ = k::write(out, line.as_bytes());
     };
 
-    let (set, net) = setup(profile, &connect);
+    // The way out starts before the namespaces of the lab, in the network
+    // of the host, and reads the variables of the host before the lab sets
+    // its own.
+    let out = match way_out {
+        false => Ok(None),
+        true => {
+            let reterminate = profile.parts.iter().any(|p| matches!(p.hold, Hold::LabNet(n) if n.proxy_ca()));
+            crate::net::start_way_out(reterminate).map(Some).map_err(|e| format!("the way out: {e}"))
+        }
+    };
+    let (set, net) = setup(profile, &connect, out);
     if let Some(lab) = &net {
         environment(lab);
     }
@@ -234,8 +260,8 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
         std::process::exit(crate::codes::EXIT_REFUSED);
     }
     say("go\n");
-    let mut c = Command::new(&args[5]);
-    c.args(&args[6..]);
+    let mut c = Command::new(&args[6]);
+    c.args(&args[7..]);
     if profile.parts.iter().any(|p| matches!(p.hold, Hold::Tmpfs { .. })) {
         c.env("TMPDIR", "/tmp");
     }
@@ -272,7 +298,11 @@ fn environment(lab: &Started) {
 /// filter last, so that the filter does not refuse a call of the setup.
 /// One entry for each part: `Some(why)` where the part could not be set;
 /// and the network lab that runs.
-fn setup(profile: &Profile, connect: &[u16]) -> (Vec<Option<String>>, Option<Started>) {
+fn setup(
+    profile: &Profile,
+    connect: &[u16],
+    out: Result<Option<WayOut>, String>,
+) -> (Vec<Option<String>>, Option<Started>) {
     let mut why: Vec<Option<String>> = profile.parts.iter().map(|p| hold::cannot(p.hold)).collect();
     let mut net = None;
     // Each mount in one namespace.
@@ -285,7 +315,7 @@ fn setup(profile: &Profile, connect: &[u16]) -> (Vec<Option<String>>, Option<Sta
                 for (&i, r) in at.iter().zip(made.each) {
                     why[i] = r.err();
                 }
-                net = start(profile, made.net, &mut why);
+                net = start(profile, made.net, out, &mut why);
             }
             Err(e) => at.iter().for_each(|&i| why[i] = Some(e.clone())),
         }
@@ -338,12 +368,17 @@ fn setup(profile: &Profile, connect: &[u16]) -> (Vec<Option<String>>, Option<Sta
 }
 
 /// Start the stand-ins of the network lab of `profile` on the sockets of
-/// `ready`. Where they do not start, each part of the network lab gets the
-/// reason.
-fn start(profile: &Profile, ready: Option<Ready>, why: &mut [Option<String>]) -> Option<Started> {
+/// `ready`, with the way out `out`. Where they do not start, or the way out
+/// did not, each part of the network lab gets the reason.
+fn start(
+    profile: &Profile,
+    ready: Option<Ready>,
+    out: Result<Option<WayOut>, String>,
+    why: &mut [Option<String>],
+) -> Option<Started> {
     let (ready, net) =
         (ready?, profile.parts.iter().find_map(|p| if let Hold::LabNet(n) = p.hold { Some(n) } else { None })?);
-    match crate::net::start(ready, net) {
+    match out.and_then(|out| crate::net::start(ready, net, out)) {
         Ok(lab) => Some(lab),
         Err(e) => {
             for (i, p) in profile.parts.iter().enumerate() {

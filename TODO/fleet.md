@@ -3929,7 +3929,7 @@ cargo test -p pod-lab --all-features
 **Milestone:** M8
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -3967,6 +3967,10 @@ through the proxy alone; a direct connect still gives `ENETUNREACH`.
 ```sh
 cargo test -p pod-lab --all-features --test lab
 ```
+
+## Done
+
+2026-11-16. `podlab run --way-out` (`Options::way_out`), for a profile with a stand-in proxy alone. The lab starts the process of the way out before its network namespace (`crates/pod-lab/src/net/out.rs`): it dials directly, or through the proxy of the host (the variables in the order of curl) with its credential. The stand-in proxy applies the rules of its class, then asks the way out for each `CONNECT` to a name that is not of the lab (`is_lab_name`) on a socket pair, and gets the descriptor of the connected stream (`net/pass.rs`, `SCM_RIGHTS`); where the class terminates TLS, it checks the real server with the roots of the host and shows a leaf of the CA of the lab (`net/relay.rs`; `pod-tls` takes the feature `rsa` for a real chain). The command and the arguments of the lab never hold the proxy of the host; `podlab run --way-out` and each serving process of the lab are not dumpable. Found and fixed: a direct way out dialed a name that the resolver of the host gives the loopback, so a command of the lab reached the services of the host; it now refuses a loopback or unspecified address after the lookup (test `a_direct_way_out_does_not_dial_the_loopback_of_the_host`, plant `lab-way-out-dials-the-host`). Found and fixed: the help of `--way-out` had a sentence of 30 words, which the text rules of `pod-manual` refused; the manual is generated again. Tests: `tests/lab/way_out.rs` runs a stand-in proxy of "the host" with a made-up credential and two servers on the loopback of the test; through each of `proxy-only`, `proxy-per-name`, `proxy-tls-reterminate` and `ws-upgrade-refused` the command reaches them by the proxy alone. Here (root, kernel 6.18): `cargo test -p pod-lab --all-features` (50 unit tests, the binary 7, `cli` 4, `lab` as root and again as uid 65534: each case ok, the four way-out cases ok).
 
 # T-747: `pod-lab`: the direct network classes on each address: an SNI filter by `nf_tables`, an IPv6 device with a default route
 
@@ -4022,7 +4026,7 @@ cargo test -p pod-lab --all-features --test lab
 **Milestone:** M8
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -4057,12 +4061,16 @@ that names the setting. `podlab check` takes the setting as an option, and
 the parts of the network classes read the rows; the lab keeps its
 stand-ins as `Observe::LabCheck`.
 
+
+Part 1 is done (2026-11-16). `pod-hostprobe`: `Settings::network` (`Network`: a name and its port, another name, a closed port, an IP literal, a time limit), off by default; nine census rows of `Kind::Network` (`probes::NETWORK_ROWS`, `crates/pod-hostprobe/src/probes/send.rs`): four `CONNECT` rows through the proxy of the host (with and with no credential, another name, a literal), the closed port with an SSH banner, three TLS rows (a ClientHello of TLS 1.2 with no TLS library, `probes/send/hello.rs`; the certificate of `SSL_CERT_FILE` that issued the chain), and a lookup. With no setting each row is a skip that names it, and no child runs; the spawner gives the targets in `POD_HOSTPROBE_NETWORK` and drops that variable of the caller. The schema names the rows. Tests: `probes::send::tests` (the setting through the variable, the URL of a proxy and a reason with no host or credential, a `CONNECT` on the loopback with and with no credential, the end of a `CONNECT` with no status, the chain across records, the issuer in a PEM file, base64) and `the_rows_that_send_a_packet_are_off_by_default` (plant `hostprobe-network-rows-on-by-default`). Here: `cargo test -p pod-hostprobe --all-features` (174 unit tests). Part 2, open: `podlab check` takes the setting as an option, and the parts of the network classes read these rows (`unseen` now).
+
 ## Prove
 
 ```sh
 cargo test -p pod-hostprobe --all-features
 cargo test -p pod-lab --all-features
 ```
+
 
 # T-723: `pod-todo`: a kind `reference` for an issue that holds no work (PodUtils/podvm#435)
 

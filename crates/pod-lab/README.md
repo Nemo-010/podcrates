@@ -130,6 +130,32 @@ comes from a stand-in.
 A part whose text says "Assumed:" holds the form of the class that podssh
 or podnet named, not a measurement of a real network.
 
+#### The way out (`--way-out`)
+
+A live lane needs the real network through the proxy of its class.
+`podlab run --way-out PROFILE -- CMD` (`Options::way_out`) gives it, for a
+profile with a stand-in proxy alone.
+
+* Before the lab enters its network namespace, it starts the process of
+  the way out in the network of the host. That process dials directly, or
+  through the proxy of the host (`https_proxy`, `HTTPS_PROXY`,
+  `all_proxy`, `ALL_PROXY`, the order of curl) with its credential.
+* The stand-in proxy applies the rules of its class first (the
+  credential, the ports, 403, 504, a reset, the silent port). Then it
+  sends each `CONNECT` to a name that is not of the lab to the way out, on
+  a socket pair. The way out answers with the descriptor of the connected
+  stream (`SCM_RIGHTS`).
+* A name of the lab (`listed.test`, `other.test`, `localhost`, the
+  addresses outside and the loopback) stays with the stand-ins. A direct
+  way out refuses a name that the resolver of the host gives a loopback
+  or an unspecified address.
+* Where the class terminates TLS for a listed name, the stand-in checks
+  the real server with the roots of the host, and shows the command a
+  leaf of the CA of the lab.
+* The command and the arguments of the lab never hold the proxy of the
+  host or its credential. `podlab run --way-out` and each process of the
+  lab that serves are not dumpable.
+
 ## The profiles
 
 `podlab list` prints the table. The parts, and what holds each one in a

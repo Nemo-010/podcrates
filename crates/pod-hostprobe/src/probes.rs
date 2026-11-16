@@ -44,6 +44,10 @@ pub enum Kind {
     /// row that reads and changes nothing, and that a child cannot give:
     /// a host with no `/proc` starts no child through `/proc/self/exe`.
     Here { body: fn() -> Outcome },
+    /// A row that sends a packet past the host: a child with no namespace
+    /// flag where the caller turned on [`crate::Settings::network`], else
+    /// a skip with no child.
+    Network { body: fn() -> Outcome },
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -76,8 +80,15 @@ impl Probe {
             Kind::Clone(flags) => spawner.clone_accepted(flags),
             Kind::Child { ns_flags, .. } => spawner.run_probe(self.name, ns_flags),
             Kind::Here { body } => body(),
+            Kind::Network { .. } if !spawner.network => Outcome::skip(None, send::OFF),
+            Kind::Network { .. } => spawner.run_probe(self.name, 0),
         }
     }
+}
+
+/// A census row that sends a packet out ([`Kind::Network`]).
+const fn network(name: &'static str, body: fn() -> Outcome) -> Probe {
+    Probe { name, group: Group::Census, kind: Kind::Network { body } }
 }
 
 /// A census row in a child with no namespace flag.
@@ -231,6 +242,17 @@ pub static PROBES: &[Probe] = &[
     census("read(/etc/resolv.conf)", p_resolver),
     census("read(/proc/net/route)", p_route4),
     census("read(/proc/net/ipv6_route)", p_route6),
+    // The rows that send a packet past the host, to the targets of
+    // `Settings::network`; off by default (`Kind::Network`).
+    network(CONNECT_NAME, s_connect_name),
+    network(CONNECT_NO_CREDENTIAL, s_connect_no_credential),
+    network(CONNECT_OTHER, s_connect_other),
+    network(CONNECT_CLOSED, s_connect_closed),
+    network(CONNECT_LITERAL, s_connect_literal),
+    network(TLS_NAME, s_tls_name),
+    network(TLS_OTHER, s_tls_other),
+    network(TLS_LITERAL, s_tls_literal),
+    network(LOOKUP_NAME, s_lookup_name),
 
     // -------------------------------------------------------- attribution
     // A seccomp filter sees the syscall number and six
@@ -368,6 +390,13 @@ mod files;
 use files::*;
 mod network;
 use network::*;
+pub use network::{CERT_VARIABLE, PROXY_VARIABLES};
+pub mod send;
+use send::*;
+pub use send::{
+    CONNECT_CLOSED, CONNECT_LITERAL, CONNECT_NAME, CONNECT_NO_CREDENTIAL, CONNECT_OTHER, LOOKUP_NAME, NETWORK_ROWS,
+    NETWORK_VARIABLE, TLS_LITERAL, TLS_NAME, TLS_OTHER,
+};
 mod sockets;
 use sockets::*;
 mod access;

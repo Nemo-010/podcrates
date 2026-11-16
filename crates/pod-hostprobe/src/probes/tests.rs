@@ -74,7 +74,9 @@ fn the_propagation_change_is_only_ever_probed_inside_a_mount_namespace() {
                 Kind::Child { ns_flags, .. } => {
                     assert_eq!(ns_flags & sys::CLONE_NEWNS, sys::CLONE_NEWNS, "{}", p.name)
                 }
-                Kind::Clone(_) | Kind::Here { .. } => panic!("{} must run a body in a child", p.name),
+                Kind::Clone(_) | Kind::Here { .. } | Kind::Network { .. } => {
+                    panic!("{} must run a body in a child", p.name)
+                }
             }
         }
     }
@@ -150,7 +152,7 @@ fn the_fuse_row_opens_the_node_outside_any_namespace() {
         Kind::Child { ns_flags, .. } => {
             assert_eq!(ns_flags, 0, "{} runs outside any namespace", p.name)
         }
-        Kind::Clone(_) | Kind::Here { .. } => panic!("{} is not a child probe", p.name),
+        Kind::Clone(_) | Kind::Here { .. } | Kind::Network { .. } => panic!("{} is not a child probe", p.name),
     }
 }
 #[test]
@@ -164,7 +166,7 @@ fn the_root_listing_block_is_three_outer_legs_in_order() {
                 Kind::Child { ns_flags, .. } => {
                     assert_eq!(ns_flags, 0, "{} runs outside any namespace", p.name)
                 }
-                Kind::Clone(_) | Kind::Here { .. } => panic!("{} is not a child probe", p.name),
+                Kind::Clone(_) | Kind::Here { .. } | Kind::Network { .. } => panic!("{} is not a child probe", p.name),
             }
             at += 1;
         }
@@ -219,7 +221,7 @@ fn the_rows_of_the_host_classes_are_census_rows() {
         match p.kind {
             Kind::Here { .. } => assert_eq!(name, "readlink(/proc/self/exe)"),
             Kind::Child { ns_flags, .. } => assert_eq!(ns_flags, 0, "{name}"),
-            Kind::Clone(_) => panic!("{name} is not a child probe"),
+            Kind::Clone(_) | Kind::Network { .. } => panic!("{name} is not a child probe"),
         }
     }
     let here: Vec<&str> = PROBES.iter().filter(|p| matches!(p.kind, Kind::Here { .. })).map(|p| p.name).collect();
@@ -233,4 +235,22 @@ fn the_row_of_the_running_binary_reads_it_here() {
     let o = p_readlink_exe();
     assert_eq!(o.verdict, crate::verdict::Verdict::Ok, "{o:?}");
     assert!(o.reason.is_empty(), "the path of the binary is in the reason: {}", o.reason);
+}
+
+/// The rows that send a packet out are census rows of their own kind, in
+/// the order of `NETWORK_ROWS`; with no setting, each is a skip that names
+/// the setting, and no child runs.
+#[test]
+fn the_rows_that_send_a_packet_are_off_by_default() {
+    let got: Vec<&str> = PROBES.iter().filter(|p| matches!(p.kind, Kind::Network { .. })).map(|p| p.name).collect();
+    assert_eq!(got.as_slice(), NETWORK_ROWS);
+    let spawner = crate::child::Spawner::new(&crate::Settings::default());
+    assert!(!spawner.network);
+    for name in NETWORK_ROWS {
+        let p = find(name).unwrap_or_else(|| panic!("no row {name}"));
+        assert!(p.group == Group::Census, "{name}");
+        let o = p.measure(&spawner);
+        assert_eq!(o.verdict, crate::verdict::Verdict::Skip, "{name}: {o:?}");
+        assert!(o.reason.contains("Settings::network"), "{name}: {}", o.reason);
+    }
 }

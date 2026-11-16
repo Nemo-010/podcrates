@@ -135,6 +135,12 @@ Run the command in the parts that hold, and report the others.
 Let a TCP connect reach this port where the profile refuses each TCP connect
 (the proxy of the host). Give it once for each port.
 .TP
+\fB\-\-way\-out\fR
+Give a network lab a way out. The stand\-in proxy applies the rules of its
+class. Then it sends a CONNECT to a name outside the lab to the real network.
+It goes directly, or through the proxy of HTTPS_PROXY of this host. The
+command never gets that proxy or its credential.
+.TP
 \fB\-h\fR, \fB\-\-help\fR
 Print the help of this command.
 .PP

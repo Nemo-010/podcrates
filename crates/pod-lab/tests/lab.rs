@@ -6,7 +6,8 @@
 //! uid 65534 (the kernel clears each capability), as CI runs it as a user.
 //! Where uid 65534 cannot reach this binary, the test says so. The classes
 //! of podssh and podnet are in `lab/hosts.rs`, the network classes in
-//! `lab/net.rs`. A case that the host
+//! `lab/net.rs`, the way out of a network lab in `lab/way_out.rs`. A case
+//! that the host
 //! cannot give says `skipping` with the reason; `scripts/ci/userns-tests.sh`
 //! fails on that line. No libtest (`harness = false`): the binary reads the
 //! flag of a lab process, of a probe child and of a payload first, and has
@@ -31,6 +32,14 @@ mod net_payload;
 #[cfg(target_os = "linux")]
 #[path = "lab/net.rs"]
 mod net;
+
+#[cfg(target_os = "linux")]
+#[path = "lab/way_out_payload.rs"]
+mod way_out_payload;
+
+#[cfg(target_os = "linux")]
+#[path = "lab/way_out.rs"]
+mod way_out;
 
 #[cfg(target_os = "linux")]
 mod cases {
@@ -121,7 +130,12 @@ mod cases {
     ) -> (Result<pod_lab::Ran, RunError>, String) {
         let profile = pod_lab::find(settings.profiles, name).expect("a profile");
         let (mut r, w) = std::io::pipe().expect("a pipe");
-        let out = pod_lab::run(settings, profile, cmd, Options { partial, stdout: Some(w.into()), allow_connect });
+        let out = pod_lab::run(
+            settings,
+            profile,
+            cmd,
+            Options { partial, stdout: Some(w.into()), allow_connect, way_out: false },
+        );
         let mut text = String::new();
         r.read_to_string(&mut text).expect("the output of the payload");
         (out, text)
@@ -246,6 +260,9 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).map(String::as_str) == Some("--payload") {
         std::process::exit(payload::main(args.get(2).map_or("", String::as_str)));
+    }
+    if args.get(1).map(String::as_str) == Some(way_out::CASE) {
+        way_out::one(args.get(2).map_or("", String::as_str), args.get(3).map_or("", String::as_str));
     }
     if args.get(1).map(String::as_str) == Some(hosts::CTTY_CHILD) {
         hosts::ctty_child();

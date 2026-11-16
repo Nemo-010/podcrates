@@ -1,16 +1,19 @@
 //! The work of the stand-in process on each connection: the stand-in proxy
 //! (`CONNECT` and a plain request) and the stand-in server (TLS, then
 //! HTTP). After a 200, the proxy is the server of the target itself: the
-//! lab has no route out.
+//! lab has no route out. With a way out, a `CONNECT` to a name that is not
+//! of the lab goes to the real network after the rules of the class
+//! (`relay`).
 
 use std::io::{Read, Write};
 use std::net::{IpAddr, TcpStream};
 use std::sync::Arc;
 use std::time::Duration;
 
+use super::out::WayOut;
 use super::tls::Cas;
 use super::wire::{first_line, header, peek_record, read_head, reset, server_name, target};
-use super::{Ca, Net, Proxy, credential};
+use super::{Ca, Net, Proxy, credential, is_lab_name};
 
 /// The time that a stand-in waits for a peer.
 const WAIT: Duration = Duration::from_secs(30);
@@ -18,7 +21,7 @@ const WAIT: Duration = Duration::from_secs(30);
 /// The body of each answer of the stand-in server.
 pub const BODY: &str = "pod-lab stand-in\n";
 
-fn answer(s: &mut impl Write, status: &str, body: &str) {
+pub fn answer(s: &mut impl Write, status: &str, body: &str) {
     let text = format!("HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
     let _ = s.write_all(text.as_bytes());
     let _ = s.flush();
@@ -36,7 +39,7 @@ fn http(s: &mut (impl Read + Write), refuse: bool) {
 }
 
 /// TLS with the leaf of `name` signed by `ca`, then one request.
-fn tls(cas: &Cas, tcp: TcpStream, name: &str, ca: Ca, refuse: bool) {
+pub fn tls(cas: &Cas, tcp: TcpStream, name: &str, ca: Ca, refuse: bool) {
     let Ok(config) = cas.server(name, ca) else { return };
     let Ok(conn) = rustls::ServerConnection::new(config) else { return };
     let mut s = rustls::StreamOwned::new(conn, tcp);
@@ -73,7 +76,7 @@ pub fn server(cas: &Cas, net: &Net, tcp: TcpStream, name: Option<&str>, ca: Ca, 
 }
 
 /// The stand-in proxy on one connection.
-pub fn proxy(cas: &Cas, net: &Net, rules: &Proxy, mut tcp: TcpStream) {
+pub fn proxy(cas: &Cas, net: &Net, rules: &Proxy, mut tcp: TcpStream, out: Option<&WayOut>) {
     let _ = tcp.set_read_timeout(Some(WAIT));
     let Ok(head) = read_head(&mut tcp) else { return };
     if rules.auth && header(&head, "proxy-authorization") != Some(credential().as_str()) {
@@ -110,6 +113,10 @@ pub fn proxy(cas: &Cas, net: &Net, rules: &Proxy, mut tcp: TcpStream) {
         answer(&mut tcp, "504 Gateway Timeout", "");
         return;
     }
+    if let Some(out) = out.filter(|_| !is_lab_name(&host) && !rules.silent.contains(&port)) {
+        super::relay::outside(cas, rules, tcp, out, &host, port);
+        return;
+    }
     if tcp.write_all(b"HTTP/1.1 200 Connection established\r\n\r\n").is_err() {
         return;
     }
@@ -130,10 +137,10 @@ pub fn proxy(cas: &Cas, net: &Net, rules: &Proxy, mut tcp: TcpStream) {
 }
 
 /// The work of one accepted connection, in a thread of its own.
-pub fn spawn(cas: &Arc<Cas>, net: &'static Net, tcp: TcpStream, is_proxy: bool) {
+pub fn spawn(cas: &Arc<Cas>, net: &'static Net, tcp: TcpStream, is_proxy: bool, out: Option<&'static WayOut>) {
     let cas = Arc::clone(cas);
     let _ = std::thread::Builder::new().spawn(move || match (&net.proxy, is_proxy) {
-        (Some(rules), true) => proxy(&cas, net, rules, tcp),
+        (Some(rules), true) => proxy(&cas, net, rules, tcp, out),
         _ => server(&cas, net, tcp, None, Ca::Server, false),
     });
 }

@@ -56,11 +56,6 @@ the entry, run all the checks, then delete the branch by a
   and the test of the installer on macOS and Windows. New files:
   `scripts/install/core-net.sh`, `scripts/install/test-cases.sh`. Changes
   to `ci.yml`, `release.yml`, `check-workflows.py` and the install docs.
-- `wip/T-746-way-out` (T-746, T-751): `pod-lab` gives a way out through
-  the stand-in proxy of a proxy class, for the live lanes of the
-  consumers (`crates/pod-lab/src/net/out*`, `pass.rs`, `relay.rs`, tests
-  `way_out*.rs`); `pod-hostprobe` gets the rows of the network classes
-  that send a packet out, off by default (`probes/send*`).
 - `wip/egress-part2` and `wip/egress-part3` hold work that is already on
   `main`; delete them by a request.
 

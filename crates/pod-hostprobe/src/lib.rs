@@ -52,6 +52,12 @@ pub struct Settings {
     /// directory, for example `$STORE`. The messages of [`space`] and
     /// [`exec`] name it. `None`: they name no setting.
     pub directory_setting: Option<String>,
+    /// The rows that send a packet past the host ([`probes::NETWORK_ROWS`]):
+    /// a `CONNECT` through the proxy of `HTTPS_PROXY`, a TLS handshake, a
+    /// lookup of a name, each to a target of [`Network`]. `None` (the
+    /// default): each of them is a skip that names this setting, and no
+    /// row sends a packet out.
+    pub network: Option<Network>,
 }
 
 impl Default for Settings {
@@ -60,7 +66,37 @@ impl Default for Settings {
             child_flag: "--hostprobe-child".to_string(),
             child_name: "pod-hostprobe".to_string(),
             directory_setting: None,
+            network: None,
         }
+    }
+}
+
+/// The targets of the rows that send a packet out ([`Settings::network`]).
+/// A real host needs real names; a lab of `pod-lab` gives its own.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Network {
+    /// A host name that the way out of the host passes, and its port: the
+    /// `CONNECT` rows, the handshake and the lookup take it.
+    pub name: String,
+    pub port: u16,
+    /// A second host name, which a proxy can answer in another way (a 504,
+    /// the CA of the server in place of its own).
+    pub other: Option<String>,
+    /// A port that a proxy refuses, or holds with no byte: 22.
+    pub closed_port: u16,
+    /// An IP literal: a `CONNECT` to it, and a handshake to it with no
+    /// name. A direct handshake goes to it where it is set (the server of
+    /// a filter of names that a host reaches by address).
+    pub literal: Option<std::net::IpAddr>,
+    /// The time limit of each step of a row, in milliseconds.
+    pub wait_ms: u32,
+}
+
+impl Network {
+    /// The targets `name:port`, with no other name and no literal, the
+    /// closed port 22 and a limit of 5 s.
+    pub fn new(name: impl Into<String>, port: u16) -> Network {
+        Network { name: name.into(), port, other: None, closed_port: 22, literal: None, wait_ms: 5000 }
     }
 }
 
@@ -114,7 +150,7 @@ pub fn run_child(name: &str, out: &mut dyn std::io::Write) -> i32 {
     let outcome = match probes::find(name) {
         None => Outcome::skip(None, format!("no probe named {name:?}")),
         Some(probe) => match probe.kind {
-            probes::Kind::Child { body, .. } | probes::Kind::Here { body } => body(),
+            probes::Kind::Child { body, .. } | probes::Kind::Here { body } | probes::Kind::Network { body } => body(),
             // The measurement of a `Clone` probe is the clone of the
             // parent, so a child has nothing to run. The parent and the
             // table do not agree: that is a defect, not a denial.

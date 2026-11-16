@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**597 entries: 119 open, 13 partial, 6 blocked, 459 done.**
+**597 entries: 117 open, 14 partial, 6 blocked, 460 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 7 | 0 | 131 | 149 |
-| P2 | 53 | 3 | 4 | 240 | 300 |
-| P3 | 55 | 3 | 2 | 86 | 146 |
-| **All** | 119 | 13 | 6 | 459 | 597 |
+| P2 | 52 | 3 | 4 | 241 | 300 |
+| P3 | 54 | 4 | 2 | 86 | 146 |
+| **All** | 117 | 14 | 6 | 460 | 597 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -638,9 +638,9 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-743](relay.md) | P1 | S | M2 | defect | done | `pod-hold`: the netns backend needs a UDP socket for its interface ioctls, which `udp-denied` refuses (PodUtils/podnet#592) |
 | [T-744](podvm.md) | P2 | S | M6 | feature | done | `pod-hostprobe`: the row `chroot(/tmp) in unshare(NEWUSER+maps)`, the chroot of a driver with no root (PodUtils/podrunner#191) |
 | [T-745](fleet.md) | P2 | M | M8 | feature | done | `pod-hostprobe`: the probe rows of the network classes (a CONNECT through the proxy, the CA of a handshake, a lookup, a direct connect, a ClientHello) |
-| [T-746](fleet.md) | P2 | M | M8 | feature | open | `pod-lab`: a way out through the stand-in proxy of a proxy class, for the live lanes of the consumers |
+| [T-746](fleet.md) | P2 | M | M8 | feature | done | `pod-lab`: a way out through the stand-in proxy of a proxy class, for the live lanes of the consumers |
 | [T-747](fleet.md) | P3 | M | M8 | feature | open | `pod-lab`: the direct network classes on each address: an SNI filter by `nf_tables`, an IPv6 device with a default route |
 | [T-750](podvm.md) | P2 | M | M6 | defect | done | `pod-enter`: on an overlay root with an upper directory, the working directory and the paths of the rules are checked in the lower layer alone |
-| [T-751](fleet.md) | P3 | M | M8 | feature | open | `pod-hostprobe`: the rows of the network classes that send a packet out, behind a setting of the caller that is off by default |
+| [T-751](fleet.md) | P3 | M | M8 | feature | partial | `pod-hostprobe`: the rows of the network classes that send a packet out, behind a setting of the caller that is off by default |
 | [T-755](podvm.md) | P3 | S | M6 | measurement | open | `pod-enter`: the opaque attribute that overlayfs reads on an overlay root in a user namespace is not measured |
 | [T-756](fleet.md) | P3 | S | M8 | feature | open | `pod-manual`: the model has no rule "needs one of" for clap's `requires` of a group |

@@ -1,0 +1,11 @@
+--- a/crates/pod-lab/src/net/out.rs
++++ b/crates/pod-lab/src/net/out.rs
+@@ -155,7 +155,7 @@
+ pub fn dial(up: &Upstream, host: &str, port: u16) -> Result<TcpStream, String> {
+     use std::io::Write as _;
+     match up {
+-        Upstream::Direct => connect_target(host, port),
++        Upstream::Direct => connect(host, port),
+         Upstream::Proxy { host: at, port: at_port, auth } => {
+             let mut s = connect(at, *at_port).map_err(|e| format!("the proxy of the host: {e}"))?;
+             let _ = s.set_read_timeout(Some(DIAL));

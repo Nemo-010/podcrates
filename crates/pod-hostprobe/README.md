@@ -87,6 +87,24 @@ of a proxy and no credential.
 | `read(/etc/resolv.conf)` | the `nameserver` lines; with none, a TCP connect to `127.0.0.1:53` | `nameservers N`, with `127.0.0.1:53 refused`, `answers`, `silent` or the errno |
 | `read(/proc/net/route)`, `read(/proc/net/ipv6_route)` | a default route that is up (no reject route) in the main table | `default 1` or `0`; `ipv6 absent` where the kernel has no IPv6 |
 
+
+### The rows that send a packet out
+
+The rows of `probes::NETWORK_ROWS` (`Kind::Network`) send a packet past
+the host. With no `Settings::network` (the default), each is a skip that
+names the setting, and no child runs. The spawner gives the targets
+(`Network`: a name and its port, another name, a closed port, an IP
+literal, a time limit) to the child in `POD_HOSTPROBE_NETWORK`, and drops
+that variable of the caller. A reason holds no name of a target, no host
+of a proxy, no credential and no byte of a body.
+
+| Row | What it does | The items |
+| --- | --- | --- |
+| `CONNECT(HTTPS_PROXY, name)`, `... with no credential`, `CONNECT(HTTPS_PROXY, other)`, `CONNECT(HTTPS_PROXY, literal)` | a `CONNECT` through the proxy of the host; the head of the answer alone | `status N`, or `status none; end WORD` |
+| `CONNECT(HTTPS_PROXY, name:closed port)` | the same to the closed port; after a 200, an SSH banner and one read of at most 1 s | `status 200; bytes 0` or `1` |
+| `TLS(name)`, `TLS(other)`, `TLS(literal) with no name` | a ClientHello of TLS 1.2, through the proxy where a variable names one, else direct; the certificates of the server, with no check of a signature | `path proxy` or `direct`; `hello 1; certs N; issuer file; ca K` (the certificate of `SSL_CERT_FILE` that issued the chain), `issuer other` or `issuer none`; else `hello 0; end WORD` |
+| `getaddrinfo(name)` | a lookup by the C library, in a thread with the time limit | `resolved 1; addresses N`, `resolved 0`, or `resolved 0; end silent` |
+
 ## The report
 
 The feature `report` (serde and serde_json) gives the module `report`.
