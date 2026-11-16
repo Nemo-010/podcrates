@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**625 entries: 127 open, 14 partial, 6 blocked, 478 done.**
+**625 entries: 126 open, 14 partial, 6 blocked, 479 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 140 | 159 |
-| P2 | 60 | 3 | 4 | 248 | 315 |
+| P2 | 59 | 3 | 4 | 249 | 315 |
 | P3 | 56 | 3 | 2 | 88 | 149 |
-| **All** | 127 | 14 | 6 | 478 | 625 |
+| **All** | 126 | 14 | 6 | 479 | 625 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -671,4 +671,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-789](upkeep.md) | P2 | S | M5 | defect | open | The nightly at `f309b07` is red on armv7: two tests of the MQTT board of `pod-wormhole` against the stand-in |
 | [T-790](upkeep.md) | P2 | S | M5 | chore | done | `pod-services`: the Syncthing relay of the device DVWOU27 moved to 1.168.112.83 |
 | [T-791](podvm.md) | P3 | S | M6 | feature | open | `pod-enter`: the ids of the plan for a host root (a change of ids with no user namespace) |
-| [T-792](fleet.md) | P2 | S | M8 | feature | open | `pod-lab`: with a way out, the certificate file of the lab holds the roots that the host trusts for its way out (PodUtils/podssh#285) |
+| [T-792](fleet.md) | P2 | S | M8 | feature | done | `pod-lab`: with a way out, the certificate file of the lab holds the roots that the host trusts for its way out (PodUtils/podssh#285) |

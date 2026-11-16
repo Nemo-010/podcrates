@@ -4758,7 +4758,7 @@ podlab-install.sh of the signed SHA256SUMS" (as podnet saw). Plant
 **Milestone:** M8
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -4795,3 +4795,19 @@ server through the way out with the lab's `SSL_CERT_FILE` alone.
 ```sh
 cargo test -p pod-lab --all-features --test lab
 ```
+
+## Done
+
+2026-11-16. `WayOut::pem` (`crates/pod-lab/src/net/out.rs`): the lab
+process reads, before its namespaces, the certificate blocks of the file
+of the host's `SSL_CERT_FILE`, else of its first system bundle (at most
+8 MiB; `certificate_blocks` keeps each whole `CERTIFICATE` block and
+drops other text). `write_cert_file` (`net/standin.rs`) adds them after
+the CAs of the lab where the run has a way out; with no way out the file
+holds the CAs of the lab alone. Tests: `net::out::tests::the_certificate_blocks_of_a_pem_text`,
+and the way out of `proxy-only` (`tests/lab/way_out*.rs`): the payload
+reaches the TLS server of the test past the lab, whose CA is the host's
+`SSL_CERT_FILE`, and checks it with the lab's `SSL_CERT_FILE` alone. Plant
+`lab-way-out-host-roots-left-out`. Here (root): `cargo test -p pod-lab
+--all-features` (61 unit tests, the binary 7, `cli` 6, `lab` as root and as
+uid 65534: each case ok).

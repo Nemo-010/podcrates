@@ -170,6 +170,11 @@ profile with a stand-in proxy alone.
 * Where the class terminates TLS for a listed name, the stand-in checks
   the real server with the roots of the host, and shows the command a
   leaf of the CA of the lab.
+* The certificate file of the lab (`SSL_CERT_FILE` of the command) holds
+  the certificates that the host trusts for its way out after the CAs of
+  the lab: the file of the host's `SSL_CERT_FILE`, else its first system
+  bundle. So a command checks a real server through a spliced `CONNECT`,
+  also behind a proxy of the host that signs TLS again.
 * The command and the arguments of the lab never hold the proxy of the
   host or its credential. `podlab run --way-out` and each process of the
   lab that serves are not dumpable.

@@ -37,6 +37,12 @@ pub struct WayOut {
     /// and the roots compiled in): the stand-in checks the real server with
     /// them, then shows the command a leaf of the CA of the lab.
     pub roots: Option<Arc<rustls::RootCertStore>>,
+    /// The certificates that the host trusts for its way out, as PEM: the
+    /// file of its `SSL_CERT_FILE`, else its first system bundle. The
+    /// certificate file of the lab holds them after the CAs of the lab, so
+    /// a command checks a real server, also behind a proxy of the host that
+    /// signs TLS again.
+    pub pem: String,
 }
 
 /// Where the way out dials.
@@ -205,6 +211,44 @@ fn forward(ctl: OwnedFd, up: Upstream) -> ! {
 
 /// The roots of the host, read before the lab sets its own
 /// `SSL_CERT_FILE`.
+/// The longest file of certificates that the lab copies.
+const PEM_MOST: u64 = 8 << 20;
+
+/// The PEM text of the certificates that the host trusts: the file of
+/// `SSL_CERT_FILE` where it is set, else the first system bundle that
+/// reads. The certificate blocks alone; empty where there is none.
+fn host_pem() -> String {
+    use std::io::Read as _;
+    let file = std::env::var_os(super::CERT_VARIABLE).filter(|v| !v.is_empty()).map(std::path::PathBuf::from);
+    let paths: Vec<std::path::PathBuf> = match file {
+        Some(f) => vec![f],
+        None => pod_tls::SYSTEM_BUNDLES.iter().map(std::path::PathBuf::from).collect(),
+    };
+    for p in paths {
+        let mut text = String::new();
+        let read = std::fs::File::open(&p).and_then(|f| f.take(PEM_MOST).read_to_string(&mut text));
+        if read.is_ok() {
+            return certificate_blocks(&text);
+        }
+    }
+    String::new()
+}
+
+/// The `CERTIFICATE` blocks of a PEM text, each one whole.
+pub(super) fn certificate_blocks(text: &str) -> String {
+    const BEGIN: &str = "-----BEGIN CERTIFICATE-----";
+    const END: &str = "-----END CERTIFICATE-----";
+    let mut out = String::new();
+    let mut rest = text;
+    while let Some(a) = rest.find(BEGIN) {
+        let Some(b) = rest[a..].find(END) else { break };
+        out.push_str(&rest[a..a + b + END.len()]);
+        out.push('\n');
+        rest = &rest[a + b + END.len()..];
+    }
+    out
+}
+
 fn host_roots() -> Result<Arc<rustls::RootCertStore>, String> {
     let file = std::env::var_os(super::CERT_VARIABLE)
         .filter(|v| !v.is_empty())
@@ -221,6 +265,7 @@ fn host_roots() -> Result<Arc<rustls::RootCertStore>, String> {
 pub fn start(reterminate: bool) -> Result<WayOut, String> {
     let up = upstream()?;
     let roots = if reterminate { Some(host_roots()?) } else { None };
+    let pem = host_pem();
     let (ctl, theirs) = pass::pair().map_err(|e| words("socketpair(AF_UNIX, SOCK_SEQPACKET)", e))?;
     // SAFETY: the lab process has one thread; each child allocates only
     // its own memory.
@@ -246,7 +291,7 @@ pub fn start(reterminate: bool) -> Result<WayOut, String> {
             if status != 0 {
                 return Err(format!("the way out did not start: status {status}"));
             }
-            Ok(WayOut { ctl, roots })
+            Ok(WayOut { ctl, roots, pem })
         }
     }
 }

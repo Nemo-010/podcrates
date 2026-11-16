@@ -117,7 +117,19 @@ fn proxy_only() -> Out {
         r => return Err(format!("a direct connect: {r:?}; the lab wants ENETUNREACH")),
     }
     no_credential()?;
-    Ok("out 200 and reached, port 22 403, refused 502, no direct route, no credential in the lab".to_string())
+    // The certificate file of the lab holds the roots that the host trusts
+    // for its way out (T-792): TLS to a server past the lab checks with it.
+    let (c, tcp) = via(&format!("{NAME}:443"), true)?;
+    if c != 200 {
+        return Err(format!("CONNECT {NAME}:443: {c}"));
+    }
+    let mut s = tls(tcp, NAME, true).map_err(|e| format!("TLS to {NAME} with the roots of the lab: {e}"))?;
+    let (code, body) = get(&mut s, "")?;
+    if (code, body.as_str()) != (200, REACHED) {
+        return Err(format!("GET over TLS {code} {body:?}"));
+    }
+    Ok("out 200 and reached, TLS checked, port 22 403, refused 502, no direct route, no credential in the lab"
+        .to_string())
 }
 
 fn per_name() -> Out {

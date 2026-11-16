@@ -224,7 +224,7 @@ pub fn all() {
     case(
         "proxy-only",
         "out-proxy-only",
-        "out 200 and reached, port 22 403, refused 502, no direct route, no credential in the lab",
+        "out 200 and reached, TLS checked, port 22 403, refused 502, no direct route, no credential in the lab",
         proxy,
         &roots,
     );

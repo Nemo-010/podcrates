@@ -131,3 +131,16 @@ fn a_direct_way_out_does_not_dial_the_loopback_of_the_host() {
         assert!(why.contains("an address of this host"), "{host}: {why}");
     }
 }
+
+/// The certificate blocks of a PEM text, each whole; other text and a block
+/// with no end are left out.
+#[test]
+fn the_certificate_blocks_of_a_pem_text() {
+    let one = "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----";
+    let two = "-----BEGIN CERTIFICATE-----\nBBBB\n-----END CERTIFICATE-----";
+    let text = format!(
+        "# a bundle\n{one}\n-----BEGIN PRIVATE KEY-----\nKKKK\n-----END PRIVATE KEY-----\n{two}\n-----BEGIN CERTIFICATE-----\nCCCC"
+    );
+    assert_eq!(super::certificate_blocks(&text), format!("{one}\n{two}\n"));
+    assert_eq!(super::certificate_blocks("no certificate"), "");
+}

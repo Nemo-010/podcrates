@@ -35,12 +35,16 @@ pub struct Started {
 /// The certificate file: the CA of the server, and the CA of the proxy
 /// where the proxy terminates TLS. A new file of the temporary directory;
 /// the stand-in removes it.
-fn write_cert_file(cas: &Cas, net: &Net) -> Result<PathBuf, String> {
+fn write_cert_file(cas: &Cas, net: &Net, host: Option<&str>) -> Result<PathBuf, String> {
     use std::io::Write as _;
     use std::os::unix::fs::OpenOptionsExt as _;
     let mut text = cas.of(Ca::Server).pem();
     if net.proxy_ca() {
         text.push_str(&cas.of(Ca::Proxy).pem());
+    }
+    // With a way out: the roots of the host after the CAs of the lab.
+    if let Some(host) = host {
+        text.push_str(host);
     }
     let path = std::env::temp_dir().join(format!("podlab-ca-{}.pem", k::getpid()));
     std::fs::OpenOptions::new()
@@ -147,7 +151,7 @@ fn serve(
 /// fork may allocate.
 pub fn start(ready: Ready, net: &'static Net, out: Option<WayOut>, served: Local) -> Result<Started, String> {
     let cas = Arc::new(Cas::new()?);
-    let cert_file = write_cert_file(&cas, net)?;
+    let cert_file = write_cert_file(&cas, net, out.as_ref().map(|w| w.pem.as_str()))?;
     let fail = |why: String| {
         let _ = std::fs::remove_file(&cert_file);
         Err(why)
