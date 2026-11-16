@@ -27,7 +27,7 @@ file c7be999b7a566273a3f307a3adba6e200591d177 crates/podvm-probe/src/interp.rs -
 file 1f95e456cb6919bd3b803200d2822ea11f4ad282 crates/podvm-probe/src/lib.rs -> crates/pod-hostprobe/src/lib.rs
 file 20b3633a29887ab9064e266c2a047b6246488ad5 crates/podvm-probe/src/machine.rs -> crates/pod-hostprobe/src/machine.rs
 file 7bf7558a36c2e22a940a73a9a57bc4a15078d260 crates/podvm-probe/src/mounts.rs -> crates/pod-hostprobe/src/mounts.rs
-file c212f421c4af2554eaae616fb3af8287cbe16473 crates/podvm-probe/src/probes.rs -> crates/pod-hostprobe/src/probes.rs
+file c212f421c4af2554eaae616fb3af8287cbe16473 crates/podvm-probe/src/probes.rs -> crates/pod-hostprobe/src/probes.rs crates/pod-hostprobe/src/probes/scratch.rs
 file e01b77163042dd33c1b32743178159c83864e8b6 crates/podvm-probe/src/probes/access.rs -> crates/pod-hostprobe/src/probes/access.rs
 file 82eac9bfc44c797a28cbb6925105d84c24258e21 crates/podvm-probe/src/probes/attribution.rs -> crates/pod-hostprobe/src/probes/attribution.rs
 file f3f45fb498f8bd33cc08f61b998438fac23335fe crates/podvm-probe/src/probes/census.rs -> crates/pod-hostprobe/src/probes/census.rs

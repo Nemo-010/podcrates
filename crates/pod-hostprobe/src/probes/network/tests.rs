@@ -61,6 +61,10 @@ fn a_default_route_of_ipv6_is_up_and_no_reject_route() {
     // The "unreachable" entry of a namespace with no default route.
     let reject = format!("{zero} 00 {zero} 00 {zero} ffffffff 00000001 00000000 00200200 lo\n");
     assert!(!default_v6(&reject));
+    // An unreachable default route that is up (`ip -6 route add unreachable
+    // default`): no way out.
+    let unreachable = format!("{zero} 00 {zero} 00 {zero} 00000400 00000001 00000000 00200201 lo\n");
+    assert!(!default_v6(&unreachable));
     let local =
         format!("00000000000000000000000000000001 80 {zero} 00 {zero} 00000000 00000002 00000000 80200001 lo\n");
     assert!(!default_v6(&local));
