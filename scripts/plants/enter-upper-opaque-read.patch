@@ -1,10 +1,10 @@
 diff --git a/crates/pod-enter/src/ns_upper.rs b/crates/pod-enter/src/ns_upper.rs
-index 8e42206d..8beb53b9 100644
+index 3eb35f8a..8004df1c 100644
 --- a/crates/pod-enter/src/ns_upper.rs
 +++ b/crates/pod-enter/src/ns_upper.rs
-@@ -88,7 +88,7 @@ fn opaque(dir: &Path) -> bool {
-         CBuf::new(n).is_some_and(|c| sys::fgetxattr(fd, &c, &mut b) == Ok(1) && b[0] == b'y')
-     });
+@@ -109,7 +109,7 @@ fn opaque(dir: &Path, attr: &str) -> bool {
+     let mut b = [0u8; 2];
+     let set = CBuf::new(attr).is_some_and(|c| sys::fgetxattr(fd, &c, &mut b) == Ok(1) && b[0] == b'y');
      let _ = sys::close(fd);
 -    set
 +    set && false
