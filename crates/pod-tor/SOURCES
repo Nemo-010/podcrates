@@ -1,0 +1,21 @@
+# The files of this crate that came from another repository
+# (docs/design.md, section 9). A file line holds the git blob id at the
+# commit (`git ls-tree COMMIT -- PATH` gives it). scripts/check-sources.py
+# compares each with the default branch of its repository.
+
+repo PodUtils/podssh 0370b0bfdbe0ad7e3c60480d7220bee054568ad7
+# The move of podssh (PodUtils/podssh@T-684, PodUtils/podssh#248): the road
+# through Tor, crates/podssh-tor, imported whole (T-038).
+dir crates/podssh-tor
+file 00a33488e375d74060896aff6549bd4c705e2719 crates/podssh-tor/Cargo.toml -> crates/pod-tor/Cargo.toml
+file 1821abbb6aad9b969ce27fd8c4c25719e9b12c57 crates/podssh-tor/src/bridges.rs -> crates/pod-tor/src/bridges.rs
+file 16d0f6d83d09ecbfa598fef89c25eb6c5f4b589a crates/podssh-tor/src/client.rs -> crates/pod-tor/src/client.rs
+file 887f3c3416f765e1208fa216fbfc81043a19dd21 crates/podssh-tor/src/lib.rs -> crates/pod-tor/src/lib.rs
+file f283a1e4ce200e0fa2b8765be53c92968790a4a4 crates/podssh-tor/src/onion.rs -> crates/pod-tor/src/onion.rs
+file 205b4d2930ca75112f897011185a966c8edfc32d crates/podssh-tor/src/runtime.rs -> crates/pod-tor/src/runtime.rs
+file fe236a62f83bcc85e0f814a863d6708c4dfceaee crates/podssh-tor/src/socks.rs -> crates/pod-tor/src/socks.rs
+file 6b149394c8c7dc2ac68e3ad3037a9db21cda8ff8 crates/podssh-tor/src/transport.rs -> crates/pod-tor/src/transport.rs
+file d234a28c31601ec95c3aba9b95d9096178f01eff crates/podssh-tor/tests/onion_service.rs -> crates/pod-tor/tests/onion_service.rs
+file 73d79779404fb007433b70cee19b752353d16c23 crates/podssh-tor/tests/private_network.rs -> crates/pod-tor/tests/private_network.rs
+file 6b496388d0f9e286c24f2fc18e099513364e70e6 crates/podssh-tor/tests/proxied_tcp.rs -> crates/pod-tor/tests/proxied_tcp.rs
+file eb5ac0bd6fc6b3072c714b69e2b4827ece891660 crates/podssh-tor/tests/transports.rs -> crates/pod-tor/tests/transports.rs
