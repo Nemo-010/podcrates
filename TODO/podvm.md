@@ -8797,3 +8797,31 @@ sh scripts/ci/userns-tests.sh
 ## Done
 
 2026-11-15. With the lock, the same binary as uid 65534 failed 0 of 60 runs.
+
+# T-738: `pod-enter`: bind the volumes of a plan on the namespace rung, also through a user namespace (PodUtils/podvm#440)
+
+**Source:** PodUtils/podvm#440 (COORD-148 of podvm; PodUtils/podvm@T-1920, from PodUtils/podrunner#189).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P1
+**Effort:** M
+**Status:** open
+
+## Problem
+
+A volume moves a podvm run off the namespace rung: the loader family serves it as a path rewrite, and a dynamic program that issues a raw `syscall` instruction (`uv`, `ruff`: `tempfile` through `rustix`) sees host paths and fails with `EACCES`. podvm binds each volume itself for a foreground `run` (its own user namespace has a mount namespace), but `run -d` and `create` enter through `pod-enter`'s user namespace (T-670 to T-672, T-688), where podvm has no mount namespace of its own.
+
+## Premise
+
+- Read: PodUtils/podvm#440. podvm's form is `PodUtils/podvm:crates/podvm/src/userns/host.rs` (`bind_volumes`, `locked_flags`) on its `main` at `1298b66a`.
+
+## Approach
+
+`Plan` takes the volumes: `(host, guest, read_only)` for each, in order. In the child of the namespace rung, after the private remount of `/`, the tmpfs and the device binds and before the `chroot`: open each guest path under the root with `openat2(RESOLVE_IN_ROOT | RESOLVE_NO_SYMLINKS)`, making each missing directory (or an empty file where the host side is a file); then `mount(host, /proc/self/fd/N, MS_BIND | MS_REC)`. A read-only volume is remounted `MS_REMOUNT | MS_BIND | MS_RDONLY` with the flags that a user namespace locks (read from the mount). A failed bind is a named refusal (a step of `ns_setup_step`); a guest path that crosses a symbolic link of the image is refused. Tests as root and as a user with no capabilities (`scripts/ci/userns-tests.sh`), with plants.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+sh scripts/ci/userns-tests.sh
+```
