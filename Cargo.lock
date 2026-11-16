@@ -5762,6 +5762,7 @@ dependencies = [
  "pod-supervise",
  "pod-term",
  "pod-tls",
+ "pod-tor",
  "pod-transit",
  "pod-turn",
  "pod-udf",
