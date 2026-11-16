@@ -10,8 +10,9 @@
 //!    kernel, measured in a disposable child that also restricts itself, so
 //!    that a nested ruleset under the policy of the host is proven. The
 //!    caller is not restricted by it.
-//! 2. [`Spec::compile`] (host paths) or [`Spec::compile_in`] (paths of a
-//!    guest root) before the fork: each path opens as `O_PATH`, a path that
+//! 2. [`Spec::compile`] (host paths), [`Spec::compile_in`] (paths of a
+//!    guest root) or [`Spec::compile_by`] (paths that an opener of the
+//!    caller resolves) before the fork: each path opens as `O_PATH`, a path that
 //!    does not exist is a refusal by name, and the BPF program is built.
 //!    Where the child mounts on a path after the compile, or changes its
 //!    root: [`Compiled::close_paths`] before the fork, and

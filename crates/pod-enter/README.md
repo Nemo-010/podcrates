@@ -97,7 +97,8 @@ The entries:
   volumes in `userland::Maps`). A join (`spawn_joined`) binds none: the
   mount namespace of the run holds them. A working directory in a volume
   resolves in the host side of the volume before the fork
-  (`userland::Maps::of_binds`, which a caller gives to `check_workdir`).
+  (`userland::Maps::of_binds`, which a caller gives to `check_workdir`),
+  and so does the path of each rule of the confinement.
 * The overlay root of the namespace rung (`spawn_namespace_root`,
   `run_namespace_root` with `Root::Overlay { lower, upper }`): the
   caller's tree is the read-only lower layer of an overlay, so a shared
@@ -154,8 +155,14 @@ compiles the spec before the banner and the fork: on each rung with a
 chroot (the chroot sequence, the namespace rung, the ladder) the paths are
 guest paths, and each opens under the root descriptor with
 `RESOLVE_IN_ROOT`, as the payload sees it after the chroot; on the entry
-with no chroot they are host paths. A host with no Landlock, or a path
-that does not exist, is a refusal by name before the fork. Then the
+with no chroot they are host paths. Where the plan has volumes, each path
+resolves through them (`pod_confine::Spec::compile_by` with the walk of
+`userland::Maps::of_binds`, as for the working directory): a path at or
+under the guest path of a volume opens in its host side, and each other
+path in the image. A directory above the guest path of a volume that the
+image does not hold is made by the child, and its rule is accepted. A
+host with no Landlock, or a path that neither the image nor a volume
+holds, is a refusal by name before the fork. Then the
 descriptors of the rules close (`Compiled::close_paths`), and the child
 opens each path again (`Compiled::open_paths`) after the passed
 descriptors, its mounts, its root change and its `chdir`, before the
@@ -163,7 +170,8 @@ limits. Why: Landlock does not read a rule on a directory under a mount
 point, so a rule that the compile opened on the `/tmp` of the image does
 not cover the tmpfs that the namespace rung mounts on it in the child
 (PodUtils/podvm#267). The child opens the path that the payload sees: the
-root of that tmpfs. A path that the tmpfs hides (a directory under the
+root of that tmpfs, and the root of the bind of a volume (the child opens
+the paths after the binds of the volumes). A path that the tmpfs hides (a directory under the
 `/tmp` of the image) is a refusal by name in the child (`the confinement
 failed at open(O_PATH) for the path "/tmp/hidden": ENOENT (2)`). The child
 applies the spec after the limits and `no_new_privs`, as the last step
@@ -365,12 +373,21 @@ volume fails with `EROFS` and its mount holds `ro` and the four flags, a
 volume on a path that the image does not hold and a file volume work (the
 image keeps an empty mount point), a guest path through a link of the
 image is refused with its step, and a host path that does not exist is
-refused before the banner. `scripts/ci/userns-tests.sh` runs it
+refused before the banner. A confined payload with volumes (T-739) reads
+a volume that the image does not hold under a read rule, writes a
+directory of the host side alone under a write rule, reads a volume under
+a rule on a directory that the child makes above it, and gets `EACCES` in
+a volume that no rule names and for a write outside the rules; a rule on
+a path in no volume and not in the image is refused by name before the
+banner. `scripts/ci/userns-tests.sh` runs it
 in CI and fails on a skip. The plants `enter-userns-not-tried`,
 `enter-userns-no-maps`, `enter-userns-banner-twice`,
 `enter-userns-dev-bind-over-link`, `enter-userns-dev-no-remount`,
 `enter-volume-skipped`, `enter-volume-ro-writable`,
-`enter-volume-flags-dropped` and `enter-volume-through-a-link` prove it.
+`enter-volume-flags-dropped`, `enter-volume-through-a-link`,
+`enter-confine-volume-in-the-image`,
+`enter-confine-volume-missing-accepted` and
+`enter-confine-volume-descriptors-kept` prove it.
 `tests/overlay_root.rs` is podvm's acceptance test of the overlay root
 (PodUtils/podvm#323) with an upper directory of the caller: the writes
 are in the upper layer, the image is the same byte for byte, and a file

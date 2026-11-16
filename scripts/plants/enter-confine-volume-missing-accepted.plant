@@ -1,0 +1,6 @@
+# pod-enter: the compile accepts a rule on a path that neither the image nor a volume holds; the live test of the confinement with volumes must fail where the refusal comes from the child, after the banner (T-739).
+ENTRY=T-739
+GROUP=enter
+EXPECT='a rule on a path in no volume and not in the image: Err\(.*confinement failed at open'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

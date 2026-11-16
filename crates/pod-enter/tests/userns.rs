@@ -6,7 +6,8 @@
 //! T-672). An exec that joins the run sees the `/tmp` of the run (T-671).
 //! The device nodes of the host replace the regular files of the image
 //! (T-688). The volumes of a plan are bound as root and as the caller with
-//! no capabilities (T-738, `userns/volumes.rs`).
+//! no capabilities (T-738, `userns/volumes.rs`), and a rule of the
+//! confinement on a volume holds on the volume (T-739).
 //!
 //! As root, the test makes the image and starts its own binary again as
 //! uid and gid 65534 with no groups (`pod_testkit::nobody`). The test of
@@ -161,7 +162,12 @@ fn a_caller_with_no_capabilities_gets_the_devices_of_the_host() {
 
 #[test]
 fn the_namespace_rung_binds_the_volumes_of_a_plan() {
-    volumes::as_root_and_nobody("the_namespace_rung_binds_the_volumes_of_a_plan");
+    volumes::as_root_and_nobody("the_namespace_rung_binds_the_volumes_of_a_plan", volumes::body);
+}
+
+#[test]
+fn a_rule_of_the_confinement_holds_on_a_volume() {
+    volumes::as_root_and_nobody("a_rule_of_the_confinement_holds_on_a_volume", volumes::confined);
 }
 
 #[test]

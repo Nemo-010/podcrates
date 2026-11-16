@@ -1,0 +1,6 @@
+# pod-enter: the compile opens each path of a rule in the image, also where the plan has volumes; the live test of the confinement with volumes must fail where a rule on a volume that the image does not hold is refused before the fork (T-739).
+ENTRY=T-739
+GROUP=enter
+EXPECT='left: Err\(.*/cv.* of the spec does not exist'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

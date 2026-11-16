@@ -1,0 +1,6 @@
+# pod-enter: with volumes, the descriptors of the compile go to the child, which does not open the paths again after the binds; the live test of the confinement with volumes must fail where the payload reads a volume that no rule names (T-739).
+ENTRY=T-739
+GROUP=enter
+EXPECT='left: Ok\(22\)'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

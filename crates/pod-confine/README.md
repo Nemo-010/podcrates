@@ -18,7 +18,11 @@ only issues system calls on data that exists:
    caller is not restricted by it.
 2. `Spec::compile(abi)` (host paths) or `Spec::compile_in(abi, root)`
    (guest paths, resolved under a root descriptor with `openat2` and
-   `RESOLVE_IN_ROOT`, as after a `chroot` there) before the fork: each
+   `RESOLVE_IN_ROOT`, as after a `chroot` there), or
+   `Spec::compile_by(abi, open)` (each path as the spec names it goes to
+   the opener of the caller, which gives an `O_PATH` descriptor or an
+   errno: for a root under which the child binds other trees) before the
+   fork: each
    path opens as `O_PATH | O_CLOEXEC`, the BPF program is built. A path
    that does not exist is a refusal by name. Where the child mounts on a
    path after the compile or changes its root (a mount namespace, a
@@ -69,7 +73,7 @@ the host.
 | `Access` | `READ` (read a file, list a directory), `WRITE` (write, truncate, make, remove, rename, link; an `ioctl` on a device), `EXECUTE`, `NONE`, and their union (`READ \| EXECUTE`); `rights()` gives the Landlock rights |
 | `Deny` | `{ name, nr, errno, when }`: `Deny::call(name, SYS_*, errno)`; each condition of `when` is an `Arg` on the low 32 bits of one argument, and all must hold: `when_flags(index, mask)` (a bit of the mask is set), `when_equal(index, mask, value)` (the argument masked is the value), `when_not_equal(index, mask, value)`; `Deny::defaults()`, `Deny::io_uring()`, `Deny::udp()`, `Deny::mptcp()`, `Deny::families()` |
 | `deny::program(&[Deny])` | the BPF program: the audit arch (a foreign ABI and x32 get `ENOSYS`), one block for each rule, `ALLOW`. The first rule of a number that holds gives its errno: a rule with conditions that do not hold gives the call to the next rule of its number, and a rule after a rule of its number with no condition is left out. A rule with no condition takes two instructions, one with one flag condition five. `NAMESPACE_FLAGS`, `CLONE_NEWTIME` |
-| `Spec::compile(abi)`, `Spec::compile_in(abi, root_fd)` | a `Compiled` (`abi`, `handled_fs`, `handled_net`, `scoped`, `rules` with `fd`, `allowed`, `path`, `ports`, `filter`; it closes its descriptors when it drops); `keep_clear_of(&numbers)` moves each rule off a number that the child takes for a `dup2`; `close_paths()` closes the descriptor of each rule (`fd` is then -1) and keeps its path; `open_paths()` opens the path of each rule with no descriptor in the view of the caller (in the child, after its mounts and its root change), with no allocation, or gives `Err(Refusal)` of `OpenPath` |
+| `Spec::compile(abi)`, `Spec::compile_in(abi, root_fd)`, `Spec::compile_by(abi, open)` | a `Compiled` (`abi`, `handled_fs`, `handled_net`, `scoped`, `rules` with `fd`, `allowed`, `path`, `ports`, `filter`; it closes its descriptors when it drops); `keep_clear_of(&numbers)` moves each rule off a number that the child takes for a `dup2`; `close_paths()` closes the descriptor of each rule (`fd` is then -1) and keeps its path; `open_paths()` opens the path of each rule with no descriptor in the view of the caller (in the child, after its mounts and its root change), with no allocation, or gives `Err(Refusal)` of `OpenPath` |
 | `apply(&Compiled)` | the confinement of this thread and of each process that it makes later; `Err(Refusal { call, index, errno })` |
 | `Call`, `Refusal` | the call (`NoNewPrivs`, `CreateRuleset`, `AddPathRule`, `AddPortRule`, `RestrictSelf`, `Seccomp`, `CapGet`, `CapBoundingDrop`, `CapSet`, `CapAmbientClear`, `OpenPath`; `name`, `code` 1 to 11, `from_code`); `Refusal::to_bytes` and `from_bytes` (five bytes for a pipe from a child), `describe(&compiled)` (the call, the path or the port of the rule, the errno), `failure(&compiled)` |
 | `exec` | `ExecTable` (`Spec::exec_table()`: the path of each rule with `EXECUTE`, once, with no trailing `/`; `resolved()` (each host path that exists through `realpath`), `paths`, `allows(program)`, `encode` (the paths joined by `exec::SEP`, `:`; a path with `:` or NUL is a refusal by name, `Class::Usage`), `decode`), `exec::allows_in(table, program)` (the same answer on the text, with no allocation and no other item of the crate, for an object that takes no dependency) |

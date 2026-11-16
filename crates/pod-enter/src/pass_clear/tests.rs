@@ -65,8 +65,11 @@ fn the_kind_names_a_directory_and_a_pipe() {
     let mut pipe = [0i32; 2];
     sys::pipe2(&mut pipe, sys::O_CLOEXEC).unwrap();
     assert_eq!(kind(i64::from(pipe[0])), "a pipe");
-    for fd in [root, i64::from(pipe[0]), i64::from(pipe[1])] {
+    // A closed number far over the low numbers: another test thread that
+    // opens a file takes the lowest free number, never this one.
+    let high = sys::fcntl(root, sys::F_DUPFD_CLOEXEC, 900).unwrap();
+    for fd in [root, high, i64::from(pipe[0]), i64::from(pipe[1])] {
         let _ = sys::close(fd);
     }
-    assert_eq!(kind(root), "a descriptor that fstat cannot read");
+    assert_eq!(kind(high), "a descriptor that fstat cannot read");
 }

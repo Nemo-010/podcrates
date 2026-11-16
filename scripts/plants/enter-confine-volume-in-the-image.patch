@@ -1,0 +1,15 @@
+diff --git a/crates/pod-enter/src/confine.rs b/crates/pod-enter/src/confine.rs
+index dd9a40ef..85ed246e 100644
+--- a/crates/pod-enter/src/confine.rs
++++ b/crates/pod-enter/src/confine.rs
+@@ -37,10 +37,6 @@ pub(crate) fn compile(plan: &Plan, root: Option<&RootDir>) -> Result<Option<Comp
+     let Some(spec) = &plan.confine else { return Ok(None) };
+     let abi = pod_confine::check()?;
+     let mut compiled = match root {
+-        Some(r) if !plan.volumes.is_empty() => {
+-            let maps = Maps::of_binds(&r.path, &plan.volumes);
+-            spec.compile_by(abi, |path| open_through(&maps, r, path))?
+-        }
+         Some(r) => spec.compile_in(abi, r.fd())?,
+         None => spec.compile(abi)?,
+     };

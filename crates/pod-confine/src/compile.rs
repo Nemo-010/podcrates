@@ -180,14 +180,14 @@ impl Spec {
     /// Compile with host paths: each path opens from the root of this
     /// process. `abi` is the answer of [`crate::check`].
     pub fn compile(&self, abi: u32) -> Result<Compiled, Failure> {
-        self.compile_with(abi, SOCKETCALL, |c| k::open(c, k::O_PATH | k::O_CLOEXEC, 0))
+        self.compile_with(abi, SOCKETCALL, |_, c| k::open(c, k::O_PATH | k::O_CLOEXEC, 0))
     }
 
     /// Compile with host paths as for a target with or with no
     /// `socketcall(2)`: the tests of the rules run on each target.
     #[cfg(test)]
     pub(crate) fn compile_on(&self, abi: u32, socketcall: bool) -> Result<Compiled, Failure> {
-        self.compile_with(abi, socketcall, |c| k::open(c, k::O_PATH | k::O_CLOEXEC, 0))
+        self.compile_with(abi, socketcall, |_, c| k::open(c, k::O_PATH | k::O_CLOEXEC, 0))
     }
 
     /// Compile with the paths of a guest root: each path resolves under the
@@ -199,14 +199,26 @@ impl Spec {
     /// and [`Compiled::open_paths`].
     pub fn compile_in(&self, abi: u32, root: i64) -> Result<Compiled, Failure> {
         let how = k::OpenHow { flags: k::O_PATH | k::O_CLOEXEC, mode: 0, resolve: k::RESOLVE_IN_ROOT };
-        self.compile_with(abi, SOCKETCALL, |c| k::openat2(root, c, &how))
+        self.compile_with(abi, SOCKETCALL, |_, c| k::openat2(root, c, &how))
+    }
+
+    /// Compile with the paths of a view that the caller resolves: `open`
+    /// takes each path of the spec as the spec names it and gives an
+    /// `O_PATH | O_CLOEXEC` descriptor of the file that the payload will
+    /// see there, or the errno of the refusal (`ENOENT`: the path does not
+    /// exist). For a guest root whose child binds other trees under it
+    /// after the fork (the volumes of `pod-enter`): a path in such a tree
+    /// opens in its source. The child opens each path again in its own
+    /// view ([`Compiled::close_paths`], [`Compiled::open_paths`]).
+    pub fn compile_by(&self, abi: u32, open: impl Fn(&str) -> Result<i64, Errno>) -> Result<Compiled, Failure> {
+        self.compile_with(abi, SOCKETCALL, |path, _| open(path))
     }
 
     fn compile_with(
         &self,
         abi: u32,
         socketcall: bool,
-        open: impl Fn(&CBuf) -> Result<i64, Errno>,
+        open: impl Fn(&str, &CBuf) -> Result<i64, Errno>,
     ) -> Result<Compiled, Failure> {
         if abi == 0 {
             return Err(failure(Class::Unsupported, "Landlock is absent: the payload does not run unconfined"));
@@ -336,7 +348,11 @@ impl Spec {
 
 /// Open the path of one rule, or refuse it by name. The path comes back as
 /// a C string for an open in the child.
-fn open_rule(path: &str, access: Access, open: &impl Fn(&CBuf) -> Result<i64, Errno>) -> Result<(i64, CBuf), Failure> {
+fn open_rule(
+    path: &str,
+    access: Access,
+    open: &impl Fn(&str, &CBuf) -> Result<i64, Errno>,
+) -> Result<(i64, CBuf), Failure> {
     if access.is_empty() {
         return Err(failure(Class::Usage, format!("the path {path:?} of the spec has no access")));
     }
@@ -344,7 +360,7 @@ fn open_rule(path: &str, access: Access, open: &impl Fn(&CBuf) -> Result<i64, Er
         return Err(failure(Class::Usage, format!("the path {path:?} of the spec is not absolute")));
     }
     let c = CBuf::new(path).ok_or_else(|| failure(Class::Usage, format!("the path {path:?} contains a NUL byte")))?;
-    let fd = open(&c).map_err(|e| {
+    let fd = open(path, &c).map_err(|e| {
         let what = if e == k::ENOENT { "does not exist" } else { "cannot be opened" };
         failure(errno_class(e), format!("the path {path:?} ({}) of the spec {what}: {}", access.words(), errno_text(e)))
     })?;

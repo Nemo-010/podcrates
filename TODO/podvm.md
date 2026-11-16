@@ -8890,3 +8890,32 @@ Where the plan has volumes, check each path of the rules through the table of th
 cargo test -p pod-enter --all-features
 sh scripts/ci/root-enter-confine-tests.sh
 ```
+
+# T-750: `pod-enter`: on an overlay root with an upper directory, the working directory and the paths of the rules are checked in the lower layer alone
+
+**Source:** T-739 (a finding of its work).
+**Category:** defect
+**Milestone:** M6
+**Priority:** P2
+**Effort:** M
+**Status:** open
+
+## Problem
+
+The overlay root of the namespace rung (`Root::Overlay { lower, upper: Upper::Dir { upper, work } }`) enters through `launch` with `lower` as the root. Before the fork, the check of the working directory (`ns_volume::check_workdir`) walks `lower.path`, and the compile of the confinement opens each path of a rule under the descriptor of `lower` (`compile_in`, or the walk of T-739 with volumes). An upper directory of the caller holds files: podvm completes the root into it (`pod_rootfs::complete` with `Settings::upper`, T-567), and a run of a container keeps its writes there for the next run. A `-w` or a rule on a path that only the upper layer holds is refused before the fork, though the payload sees it after the mount of the overlay. A path that the upper layer removes (a whiteout) passes the check, and the child then refuses it.
+
+## Premise
+
+- Read: `crates/pod-enter/src/ns_overlay.rs` (`namespace_root_entry`: `spawn_own(lower, ..)`), `crates/pod-enter/src/launch.rs` (`check_workdir`, `confine::compile` with `root`), `crates/pod-enter/src/confine.rs` (`open_through`).
+- Not measured: a confined run, or a run with `-w`, on an overlay root whose upper directory holds the path.
+
+## Approach
+
+A `GuestRoot` of two layers for the checks before the fork: each component reads the upper directory first (a whiteout, a character device 0:0, is a missing entry; a directory with `trusted.overlay.opaque` or `user.overlay.opaque` hides the lower one), then the lower one; the volumes stay above both. `check_workdir` and `confine::compile` (through `compile_by`) take it where the root is an overlay with an upper directory; `Upper::Tmpfs` keeps the lower layer, as its upper layer starts empty. Tests on the overlay root as root (`tests/confine/overlay.rs`): a `-w` and a write rule on a directory that only the upper layer holds pass, and a rule on a path that a whiteout removes is refused before the banner; a plant for each.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+sh scripts/ci/root-enter-confine-tests.sh
+```

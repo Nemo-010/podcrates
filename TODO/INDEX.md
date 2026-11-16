@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**590 entries: 120 open, 12 partial, 6 blocked, 452 done.**
+**591 entries: 121 open, 12 partial, 6 blocked, 452 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 7 | 0 | 131 | 149 |
-| P2 | 58 | 2 | 4 | 233 | 297 |
+| P2 | 59 | 2 | 4 | 233 | 298 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 120 | 12 | 6 | 452 | 590 |
+| **All** | 121 | 12 | 6 | 452 | 591 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -637,3 +637,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-742](relay.md) | P1 | S | M2 | defect | done | `pod-link`: the unix carrier fails under Landlock: the move of its staged socket gives `EXDEV` (PodUtils/podnet#592) |
 | [T-743](relay.md) | P1 | S | M2 | defect | done | `pod-hold`: the netns backend needs a UDP socket for its interface ioctls, which `udp-denied` refuses (PodUtils/podnet#592) |
 | [T-744](podvm.md) | P2 | S | M6 | feature | done | `pod-hostprobe`: the row `chroot(/tmp) in unshare(NEWUSER+maps)`, the chroot of a driver with no root (PodUtils/podrunner#191) |
+| [T-750](podvm.md) | P2 | M | M6 | defect | open | `pod-enter`: on an overlay root with an upper directory, the working directory and the paths of the rules are checked in the lower layer alone |

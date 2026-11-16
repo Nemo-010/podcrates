@@ -309,8 +309,9 @@ pub(crate) fn resolve_dir<G: GuestRoot + ?Sized>(root: &G, guest: &str) -> Resul
 /// `"/tmp"`, and `"/"` resolves to the root itself. `..` past the root
 /// escapes rather than resolving onto the host. The walk keeps the guest
 /// path, and `..` removes a guest component: it never reads the host
-/// parent of a side of the table.
-fn walk_in<G: GuestRoot + ?Sized>(root: &G, guest: &str) -> Result<(PathBuf, Vec<String>), ResolveKind> {
+/// parent of a side of the table. The confinement opens the path of each
+/// rule through it where a plan has volumes (`confine::compile`).
+pub(crate) fn walk_in<G: GuestRoot + ?Sized>(root: &G, guest: &str) -> Result<(PathBuf, Vec<String>), ResolveKind> {
     const MAX_LINKS: usize = 40;
     let mut parts: Vec<String> = guest.split('/').filter(|s| !s.is_empty()).map(str::to_string).collect();
     let mut out: Vec<String> = Vec::new();

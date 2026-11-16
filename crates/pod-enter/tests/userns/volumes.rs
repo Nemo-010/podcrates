@@ -7,6 +7,7 @@
 //! user namespace locks them.
 
 use super::*;
+use pod_confine::{Access, Spec};
 use pod_enter::{NS_VOLUME_LINK_STEP, VolumeBind, ns_setup_step, volume_label};
 
 /// The tmpfs of the host sides, set by the parent.
@@ -16,8 +17,9 @@ const VOLS: &str = "POD_ENTER_USERNS_VOLUMES";
 const FLAGS: [&str; 4] = ["nosuid", "nodev", "noexec", "noatime"];
 
 /// As root: the test again as root, then as uid 65534, each over its own
-/// image and tmpfs. As another user: the test again as this user.
-pub fn as_root_and_nobody(test: &str) {
+/// image and tmpfs. As another user: the test again as this user. The
+/// test again runs `body`.
+pub fn as_root_and_nobody(test: &str, body: fn(&Path, &Path)) {
     let _one = ONE.lock().unwrap_or_else(|e| e.into_inner());
     if let (Some(root), Some(vols)) = (std::env::var_os(IMAGE), std::env::var_os(VOLS)) {
         return body(Path::new(&root), Path::new(&vols));
@@ -69,7 +71,7 @@ fn bind(host: &Path, guest: &str, read_only: bool) -> VolumeBind {
 /// and writes, a read-only one, one on a path that the image does not hold,
 /// a file; then a guest path through a link of the image, and a host path
 /// that does not exist.
-fn body(root: &Path, vols: &Path) {
+pub fn body(root: &Path, vols: &Path) {
     let who = if nobody::is_root() { "root" } else { "a caller with no capabilities" };
     if !nobody::is_root() && !no_capabilities() {
         return;
@@ -137,4 +139,65 @@ fn body(root: &Path, vols: &Path) {
     let err = String::from_utf8_lossy(&err);
     assert!(missing.as_ref().is_err_and(|e| e.contains("does not exist")), "a missing host path: {missing:?}");
     assert!(!err.contains("the banner"), "the refusal came after the banner: {err}");
+}
+
+/// The confinement with volumes (T-739). Before the fork, the path of each
+/// rule resolves through the volumes; the child opens it after the binds,
+/// so the rule holds the volume and not the mount point of the image.
+/// `/cv` is a volume that the image does not hold, with a read rule, and
+/// `/cv/w` is a directory of its host side alone, with a write rule.
+/// `/data` is a volume on a directory of the image, with no rule. `/up`
+/// is above the volume `/up/deep`, and the image holds neither: the child
+/// makes it, and its read rule covers the volume.
+pub fn confined(root: &Path, vols: &Path) {
+    let who = if nobody::is_root() { "root" } else { "a caller with no capabilities" };
+    if !nobody::is_root() && !no_capabilities() {
+        return;
+    }
+    if let Err(e) = pod_confine::check() {
+        return skip_line(&format!("no Landlock for the confinement: {e}"));
+    }
+    let (rw, cv, up) = (vols.join("rw"), vols.join("cv"), vols.join("up"));
+    for d in [&rw, &cv.join("w"), &up] {
+        fs::create_dir_all(d).unwrap();
+    }
+    fs::write(rw.join("in"), "in").unwrap();
+    fs::write(cv.join("in"), "cv").unwrap();
+    fs::write(up.join("in"), "up").unwrap();
+    let dir = RootDir::open(root.to_str().unwrap()).unwrap();
+    let volumes = vec![bind(&rw, "/data", false), bind(&cv, "/cv", false), bind(&up, "/up/deep", false)];
+    let spec = || {
+        Spec::new()
+            .allow("/bin", Access::READ | Access::EXECUTE)
+            .allow("/cv", Access::READ)
+            .allow("/cv/w", Access::READ | Access::WRITE)
+            .allow("/up", Access::READ)
+    };
+    // Exit codes of their own: a plant names the step that it breaks.
+    let script = "test \"$(cat /cv/in)\" = cv || exit 21; cat /data/in && exit 22; \
+         echo w > /cv/w/out || exit 23; echo n > /cv/no && exit 24; test \"$(cat /up/deep/in)\" = up || exit 25; \
+         exit 0";
+    let mut p = plan(script, None);
+    p.volumes = volumes.clone();
+    p.confine = Some(spec());
+    let mut err = Vec::new();
+    let code = run_namespace(&dir, &p, &mut err);
+    let err = String::from_utf8_lossy(&err);
+    assert_eq!(code.map_err(|e| e.to_string()), Ok(0), "the confined payload with the volumes as {who}: {err}");
+    assert_eq!(fs::read_to_string(cv.join("w/out")).unwrap(), "w\n", "the write under the write rule");
+    assert!(!cv.join("no").exists(), "a write outside the rules landed in the volume");
+
+    // A rule on a path that neither the image nor a volume holds: refused
+    // by name before the banner, so before the fork.
+    let mut p = plan("exit 0", None);
+    p.volumes = volumes;
+    p.confine = Some(spec().allow("/nowhere", Access::READ));
+    let mut err = Vec::new();
+    let refused = run_namespace(&dir, &p, &mut err).map_err(|e| e.to_string());
+    let err = String::from_utf8_lossy(&err);
+    assert!(
+        refused.as_ref().is_err_and(|e| e.contains("\"/nowhere\"") && e.contains("does not exist")),
+        "a rule on a path in no volume and not in the image: {refused:?}"
+    );
+    assert!(!err.contains("the banner"), "the refusal of the rule came after the banner: {err}");
 }

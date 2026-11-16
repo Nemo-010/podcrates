@@ -151,6 +151,33 @@ fn a_guest_path_resolves_in_the_root() {
     let _ = std::fs::remove_dir_all(d);
 }
 
+/// The opener of the caller resolves each path as the spec names it: its
+/// descriptor is the rule, a file there gets the rights of a file, and its
+/// errno is the refusal by name.
+#[test]
+fn the_opener_of_the_caller_resolves_each_path() {
+    let d = dir("by");
+    std::fs::create_dir_all(d.join("vol")).unwrap();
+    std::fs::write(d.join("conf"), b"x").unwrap();
+    let open = |path: &str| {
+        let host = match path {
+            "/data" => d.join("vol"),
+            "/etc/conf" => d.join("conf"),
+            _ => return Err(k::ENOENT),
+        };
+        k::open(&k::CBuf::new(&text(&host)).unwrap(), k::O_PATH | k::O_CLOEXEC, 0)
+    };
+    let spec = Spec::new().allow("/data", Access::READ | Access::WRITE).allow("/etc/conf", Access::READ);
+    let c = spec.compile_by(ABI, open).unwrap();
+    assert_eq!(file_of(c.rules()[0].fd()), file_at(&d.join("vol")));
+    assert_eq!(file_of(c.rules()[1].fd()), file_at(&d.join("conf")));
+    assert_eq!(c.rules()[1].allowed() & !FILE_RIGHTS, 0, "a file gets the rights of a file");
+    assert_eq!(c.rules()[0].path(), "/data", "the rule keeps the path of the spec for the child");
+    let e = Spec::new().allow("/missing", Access::READ).compile_by(ABI, open).unwrap_err();
+    assert!(e.to_string().contains("\"/missing\"") && e.to_string().contains("does not exist"), "{e}");
+    let _ = std::fs::remove_dir_all(d);
+}
+
 /// A descriptor on a number that the child takes for a `dup2` moves above
 /// it, and keeps its file.
 #[test]

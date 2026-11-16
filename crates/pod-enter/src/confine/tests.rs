@@ -188,3 +188,50 @@ fn the_payload_gets_the_exec_table_and_no_value_of_the_caller() {
     assert!(pod_confine::exec::allows_in(got.as_bytes(), path(&f.inside, "static").as_bytes()));
     assert!(!pod_confine::exec::allows_in(got.as_bytes(), path(&f.outside, "static").as_bytes()));
 }
+
+/// The path of a rule resolves through the volumes of a plan (T-739): a
+/// path at or under a volume is a file of its host side, a link of the
+/// image to a volume lands in the volume, a directory above a volume that
+/// the image does not hold gets the root of the image, and a path in
+/// neither the image nor a volume is `ENOENT`.
+#[test]
+fn a_rule_resolves_through_the_volumes() {
+    use std::os::unix::fs::MetadataExt;
+    let d = std::env::temp_dir().join(format!("pod-enter-confine-volumes-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    let img = d.join("img");
+    for p in [img.join("bin"), img.join("data"), d.join("cv/sub"), d.join("rw"), d.join("up")] {
+        std::fs::create_dir_all(p).unwrap();
+    }
+    std::os::unix::fs::symlink("/cv/sub", img.join("lnk")).unwrap();
+    let text = |p: &Path| p.to_str().unwrap().to_string();
+    let root = RootDir::open(&text(&img)).unwrap();
+    let bind = |host: &str, guest: &str| crate::VolumeBind {
+        host: text(&d.join(host)),
+        guest: guest.to_string(),
+        read_only: false,
+    };
+    let volumes = vec![bind("cv", "/cv"), bind("rw", "/data"), bind("up", "/up/deep")];
+    let maps = Maps::of_binds(&root.path, &volumes);
+    let file = |guest: &str| {
+        let fd = open_through(&maps, &root, guest).map_err(|e| e.name())?;
+        let st = sys::fstatat(fd, &sys::cempty(), sys::AT_EMPTY_PATH).unwrap();
+        let _ = sys::close(fd);
+        Ok::<_, String>((st.st_dev, st.st_ino))
+    };
+    let at = |p: PathBuf| {
+        let m = std::fs::metadata(p).unwrap();
+        Ok::<_, String>((m.dev(), m.ino()))
+    };
+    assert_eq!(file("/cv"), at(d.join("cv")), "a volume that the image does not hold");
+    assert_eq!(file("/cv/sub"), at(d.join("cv/sub")), "a path of the host side alone");
+    assert_eq!(file("/lnk"), at(d.join("cv/sub")), "a link of the image to a volume");
+    assert_eq!(file("/data"), at(d.join("rw")), "a volume over a directory of the image");
+    assert_eq!(file("/up"), at(img.clone()), "a directory above a volume that the child makes");
+    assert_eq!(file("/up/deep"), at(d.join("up")), "a volume under a made directory");
+    assert_eq!(file("/bin"), at(img.join("bin")), "a path of the image");
+    assert_eq!(file("/nowhere"), Err("ENOENT".to_string()), "a path in neither the image nor a volume");
+    assert_eq!(file("/cv/missing"), Err("ENOENT".to_string()), "a path that the host side does not hold");
+    drop(root);
+    let _ = std::fs::remove_dir_all(&d);
+}
