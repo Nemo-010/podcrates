@@ -1942,7 +1942,7 @@ The same day, a live run over the state of the earlier form: the first search re
 **Milestone:** M0
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1966,3 +1966,7 @@ cargo test -p pod-relay --all-features
 cargo test -p pod-services-watch
 cargo test -p pod-dns --all-features
 ```
+
+## Done
+
+2026-11-16, commits 2273dada (the helper and the harnesses) and ad98bd3f (the plants); call C719. `crates/pod-testkit/src/listener.rs` (`pod_testkit::listener`): `free_port`, `own_listener` (moved from `crates/pod-transit/tests/transit_server/mod.rs`) and `start`. `own_listener` now takes a child only when the child holds each listener at its port in `/proc/net/tcp`: a port that another process also listens on (`SO_REUSEPORT`, which CoreDNS uses) is refused at once. `start(limit, spawn)` chooses a port, starts the child with `spawn(port)`, and kills a child that ends, does not listen within `limit` or shares the port; then it takes a new port, `TRIES` (5) times at most, and gives `Err` with the last reason. The harnesses that start through it: the mailbox server of `pod-wormhole` (`tests/harness/mod.rs`) and of `pod-relay` (`tests/mailbox_harness/mod.rs`), Mosquitto (`pod-wormhole/tests/harness/broker.rs`, which `pod-relay` also includes), the transit relay of `pod-transit` (the TCP port of the relay is chosen in the closure: a child that cannot bind it ends and the next try takes new ports) and of `pod-services-watch` (`tests/watches/transit.rs`), CoreDNS (`pod-dns/tests/doh_coredns.rs`) and the distribution registry (`pod-oci/tests/common/distribution/server.rs`, in place of its read of the log line, 3 tries, and `free_port` of `distribution/mod.rs`). Each harness still says `did not run` and passes where its program is absent: the check of the program comes before the start, as before. The tests `crates/pod-testkit/tests/listener.rs` (Linux, python3 alone): `the_harness_takes_only_its_own_child_s_listener_for_a_relay` (the test of T-731, moved with its name), `a_port_that_another_process_shares_is_not_the_child_s` and `a_start_takes_a_new_port_when_its_child_does_not_listen_on_its_own` (a first child that binds a port of the test ends, the second try is taken; a child that never holds its port gives `Err` after 5 tries). 30 runs of the file passed as root and 30 as uid 65534. Plants (group `transit`): `transit-harness-any-listener` of T-731 now plants the connection check in the helper and runs the moved test; `testkit-start-no-new-port` (no new port) and `testkit-listener-shared-port` (a shared port taken) are new; `plant-each.sh --group transit` gives 8 caught. `cargo test --all-features` of `pod-testkit`, `pod-transit`, `pod-wormhole`, `pod-relay`, `pod-services-watch`, `pod-dns` and `pod-oci` passed. Not run here: the servers themselves (no Python packages of magic-wormhole, no Mosquitto, CoreDNS or registry on this host); `scripts/ci/mailbox-tests.sh`, `mosquitto-tests.sh`, `coredns-tests.sh` and `registry-tests.sh` run them in CI. A limit: a second server with `SO_REUSEPORT` that binds the port after the check can take connections until its own start refuses and kills it.
