@@ -40,9 +40,9 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 8 | 0 | 139 | 158 |
+| P1 | 12 | 8 | 0 | 139 | 159 |
 | P2 | 60 | 3 | 4 | 247 | 314 |
-| P3 | 57 | 3 | 2 | 87 | 149 |
+| P3 | 56 | 3 | 2 | 87 | 148 |
 | **All** | 128 | 14 | 6 | 475 | 623 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
@@ -666,7 +666,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-780](upkeep.md) | P2 | S | M5 | defect | open | A test reads the pipes of its child only after the child ends: a child that writes more than a pipe holds stops (`pod-term` calibration) |
 | [T-781](upkeep.md) | P2 | S | M5 | chore | open | The findings of the study of zmux for the tests of podssh, podnet and podvm, by COORD issues |
 | [T-786](podvm.md) | P1 | S | M6 | feature | done | `pod-enter`: the ids inside the user namespace of the namespace rung, so that a payload runs as the user of its image (PodUtils/podvm#447) |
-| [T-787](podvm.md) | P3 | S | M6 | feature | open | `pod-enter`: the ids of the plan for a caller that makes the namespace rung with no user namespace (root) |
+| [T-787](podvm.md) | P1 | S | M6 | feature | open | `pod-enter`: the ids of the plan for a caller that makes the namespace rung with no user namespace (root) |
 | [T-788](upkeep.md) | P2 | S | M5 | defect | open | The nightly at `f309b07` is red on ppc64le: a test of `pod-enter`'s `pass_clear` reads a closed number that another test thread can take |
 | [T-789](upkeep.md) | P2 | S | M5 | defect | open | The nightly at `f309b07` is red on armv7: two tests of the MQTT board of `pod-wormhole` against the stand-in |
 | [T-790](upkeep.md) | P2 | S | M5 | chore | done | `pod-services`: the Syncthing relay of the device DVWOU27 moved to 1.168.112.83 |

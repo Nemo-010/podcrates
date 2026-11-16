@@ -9158,10 +9158,10 @@ caught (`left: Ok(21)`); the plants `enter-userns-banner-twice` and
 
 # T-787: `pod-enter`: the ids of the plan for a caller that makes the namespace rung with no user namespace (root)
 
-**Source:** T-786, a finding (`docs/decisions.md`, C757).
+**Source:** T-786, a finding (`docs/decisions.md`, C757); PodUtils/podvm#452 (COORD-159 of podvm; PodUtils/podvm@T-1927).
 **Category:** feature
 **Milestone:** M6
-**Priority:** P3
+**Priority:** P1
 **Effort:** S
 **Status:** open
 
@@ -9179,7 +9179,20 @@ of the image. The chroot rung has the same gap.
 - Read: `crates/pod-enter/src/ns_user.rs`, `crates/pod-enter/src/launch.rs`
   (the child sets no ids before the `execve`).
 - Not measured: a root caller of podvm with an image that names a `USER`.
-  No consumer asked for it.
+- PodUtils/podvm#452 (2026-11-16): "A foreground `podvm run` of a user
+  with no root enters a user, a PID and a UTS namespace of podvm's own at
+  the start of `main` [...] There it maps the caller to 0, before it knows
+  the image. Then it spawns the payload through pod-enter from inside that
+  namespace, as uid 0. With `Plan::userns_ids = Some((1001, 1001))`,
+  pod-enter sees a root caller and changes nothing." Measured by podvm as
+  uid 1000: `podvm run --rm --user 1001 IMAGE cat /proc/self/uid_map`
+  gives `0 1000 1`; `run -d` gives `1001 1000 1`. The ask: "Where
+  `Plan::userns_ids` is `Some((uid, gid))` and the caller is uid 0 of a
+  user namespace that is not the initial one, the child opens a nested user
+  namespace before the exec: `unshare(CLONE_NEWUSER)`; `deny` into
+  `setgroups`; `uid_map` `UID 0 1` and `gid_map` `GID 0 1` [...] A host root
+  (the initial namespace) keeps T-787's behaviour. Alternatively, name a
+  better way, for example a pre-exec hook of the plan."
 
 ## Approach
 
@@ -9188,8 +9201,15 @@ names ids, the child calls `setgroups(0, NULL)`, `setresgid` and
 `setresuid` with the ids of the plan after the mounts and the root change,
 before the confinement and the exec; a refused call stops the payload with
 its step. A tree that root extracted keeps the owners of the image, so the
-ids of the plan are the ids of the image. Ask podvm first if it wants this
-(a COORD issue), and record the answer.
+ids of the plan are the ids of the image.
+
+The first case to build is podvm's (PodUtils/podvm#452): a caller that is
+uid 0 of a user namespace that is not the initial one (its
+`/proc/self/uid_map` is not `0 0 4294967295`). There, after the mounts of
+the rung and the root change, the child opens a nested user namespace
+(`unshare(CLONE_NEWUSER)`, `deny` into `setgroups`, `uid_map` `UID 0 1`,
+`gid_map` `GID 0 1`), then the confinement and the exec. A host root keeps
+the behaviour of now until a consumer asks for `setresuid`.
 
 ## Prove
 
