@@ -5,13 +5,11 @@
 ## State
 
 - `docs/HANDOFF.md` has what is in flight and what waits.
-- Last release: `v0.60.0` at `725b729` (`docs/releases/v0.60.0.md`; ci
-  43797570607, adoption 43797574794, release 43800608238; the request
-  #205): T-716, T-714, T-715, T-745, T-726, T-750. The hand-off is
-  COORD-119 (#206).
-- In release: `v0.61.0` (`docs/releases/v0.61.0.md`): T-746, T-751, T-757, T-758;
-  T-718 (`install-os` passed in nightly 43817142905), T-717 (the signature
-  of the run on the tag, 43828067548).
+- Last release: `v0.61.0` at `cbbd016` (`docs/releases/v0.61.0.md`; ci
+  43819162910, adoption 43819162907, plants 43819162818, release
+  43827650390 and its run on the tag 43828067548, which signed
+  `SHA256SUMS`): T-746, T-751, T-757, T-758, T-717, T-718. The hand-off is
+  COORD-121 (#209).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.60.0` (`cbef76d`, PodUtils/podssh#281; no patch): it runs the one
