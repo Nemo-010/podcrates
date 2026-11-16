@@ -366,9 +366,17 @@ fn a_namespace_makes_its_wire_where_udp_sockets_are_refused() {
                 Err(e) => {
                     let chain = e.chain();
                     eprintln!("{NAME}: child: {chain}");
-                    // The socket of the ioctls and the ioctls are the defect;
-                    // no TUN and no veth pair is the host.
-                    if chain.contains("for the interfaces") || chain.contains("ioctl SIOC") { 20 } else { 12 }
+                    // The refused socket of the ioctls is the defect. An ioctl
+                    // that gives EPERM is the host: its namespace holds no
+                    // CAP_NET_ADMIN (the filter refuses no ioctl). No TUN and no
+                    // veth pair is the host too.
+                    if chain.contains("for the interfaces") {
+                        20
+                    } else if chain.contains("ioctl SIOC") && chain.contains("Operation not permitted") {
+                        13
+                    } else {
+                        12
+                    }
                 }
             }
         })();
@@ -388,6 +396,7 @@ fn a_namespace_makes_its_wire_where_udp_sockets_are_refused() {
     match wait(pid) {
         0 => println!("ok: {NAME}"),
         12 => println!("SKIP: {NAME}: the namespace has no TUN and no veth wire"),
+        13 => println!("SKIP: {NAME}: the namespace of this caller holds no CAP_NET_ADMIN"),
         code => panic!("{NAME}: the interfaces fail where UDP sockets are refused (child exit {code})"),
     }
 }

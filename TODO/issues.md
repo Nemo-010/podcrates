@@ -206,6 +206,6 @@ kinds and the rules.
 | #199 | request | [gh action] requested: the gates of main at ca1107f and the release v0.58.0 | closed (ci 43782163204, adoption 43782166425, release 43784336026, publish 43784528092) | T-725, T-737, T-731, T-702 |
 | #200 | coord | COORD-116: v0.58.0: the installer core (ruling "Installer"), podlab as a release asset, --allow-connect, and podnet's gaps of pod-manual (to all) | open | T-702, T-725, T-737 |
 | #201 | coord | COORD-117: the answer to PodUtils/podrunner#191: the mount row exists since v0.52.0; the chroot row in a user namespace is new on main (T-744) (to podrunner) | open | T-744, T-670 |
-| #202 | request | [gh action] requested: the gates of main at 5792f06 and the release v0.59.0 | open | T-738, T-742, T-743, T-744, T-736, T-732 |
+| #202 | request | [gh action] requested: the gates of main at 5792f06 and the release v0.59.0 | closed (ci 43788174436 failed: a test of T-743 as a user; adoption 43788178737 passed; replaced by #203) | T-738, T-742, T-743, T-744, T-736, T-732 |
 
 #79 to #81 are pull requests.
