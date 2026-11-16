@@ -37,6 +37,10 @@ pod-hostprobe = { workspace = true, features = ["report"] }
 # `fuzzing` is out: it is for the fuzz targets of fuzz/, and no consumer turns it on.
 pod-hold = { workspace = true, features = ["syn-hold"] }
 pod-identity = { workspace = true }
+# iroh on ring, and the patched iroh-relay of vendor/. `test-relay` is out:
+# it is for the tests of this crate and of a consumer, and no binary turns
+# it on.
+pod-iroh = { workspace = true }
 pod-incus = { workspace = true }
 # `schema` is out: it is for the tests that generate the JSON Schemas, and no binary turns it on.
 pod-job = { workspace = true }

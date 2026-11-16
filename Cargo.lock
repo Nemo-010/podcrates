@@ -7241,6 +7241,7 @@ dependencies = [
  "pod-hostprobe",
  "pod-identity",
  "pod-incus",
+ "pod-iroh",
  "pod-job",
  "pod-lab",
  "pod-link",

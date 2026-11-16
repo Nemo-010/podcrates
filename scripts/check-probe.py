@@ -48,6 +48,9 @@ ALLOWED = {
                                  "a consumer turns it on in [dev-dependencies] only, and no binary carries it",
     ("pod-derp", "standin"): "the stand-in DERP server of the tests of this crate and of a consumer; "
                              "a consumer turns it on in [dev-dependencies] only, and no binary carries it",
+    ("pod-iroh", "test-relay"): "a relay server and a server of pkarr on the loopback, and the way out of a test, "
+                                "for the tests of this crate and of a consumer; a consumer turns it on in "
+                                "[dev-dependencies] only, and no binary carries it",
     ("pod-ws", "plain-ws"): "for the tests of an embedder over plain TCP to the loopback; no binary turns it on",
 }
 LEAN = "static-probe-lean"
