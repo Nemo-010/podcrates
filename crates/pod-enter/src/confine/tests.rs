@@ -97,6 +97,7 @@ fn plan(confine: Option<Spec>, env: Vec<String>) -> Plan {
         die_with_parent: false,
         hostname: None,
         volumes: Vec::new(),
+        userns_ids: None,
         confine,
     }
 }

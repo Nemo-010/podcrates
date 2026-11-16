@@ -325,6 +325,7 @@ fn a_descriptor_passed_onto_its_own_number_reaches_the_payload() {
         confine: None,
         hostname: None,
         volumes: Vec::new(),
+        userns_ids: None,
     };
     let maps = crate::userland::Maps::of_root(dir.to_str().unwrap());
     let root = RootDir::open(maps.rootfs()).unwrap();

@@ -30,6 +30,7 @@ fn plan_with(limits: Vec<Limit>, no_new_privs: bool, die_with_parent: bool) -> P
         confine: None,
         hostname: None,
         volumes: Vec::new(),
+        userns_ids: None,
     }
 }
 

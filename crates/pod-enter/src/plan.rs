@@ -62,6 +62,16 @@ pub struct Plan {
     /// the namespace rung does not fall back to chroot with one: the
     /// payload never runs with a volume missing.
     pub volumes: Vec<VolumeBind>,
+    /// The uid and the gid of the payload inside the user namespace of the
+    /// namespace rung (`ns_user`); `None` is 0. The one-line maps then map
+    /// the effective ids of the caller to these ids: the files of the
+    /// caller show as owned by them, and the `execve` of a uid that is not
+    /// 0 drops each capability of the payload. Only the rung through a
+    /// user namespace of its own reads them: a caller that makes the mount
+    /// namespace with no user namespace (root), a join of a run (the map
+    /// of the run holds) and each other entry keep the ids of the caller.
+    /// `u32::MAX` is refused before the fork: the kernel maps no such id.
+    pub userns_ids: Option<(u32, u32)>,
 }
 
 /// One volume of the namespace rung: a recursive bind of the host path
@@ -161,9 +171,10 @@ impl Plan {
             out.push(format!("PATH={}", Self::DEFAULT_PATH));
         }
         if !has(&out, "HOME") {
-            // docker takes `HOME` from the passwd entry of the user. The
-            // payload runs as uid 0, so this is the value of root, the
-            // value that docker gives for root.
+            // docker takes `HOME` from the passwd entry of the user. With
+            // no `Plan::userns_ids` the payload runs as uid 0, so this is
+            // the value that docker gives for root. A caller that names
+            // other ids gives the `HOME` of that user in `caller`.
             out.push("HOME=/root".to_string());
         }
         out

@@ -9,7 +9,9 @@
 //! no capabilities (T-738, `userns/volumes.rs`), and a rule of the
 //! confinement on a volume holds on the volume (T-739). On an overlay root
 //! with an upper directory, the checks before the fork read the upper
-//! layer over the image (T-750, `userns/upper.rs`).
+//! layer over the image (T-750, `userns/upper.rs`). With the ids inside
+//! of the plan, the payload is a user of its image with no capability
+//! (T-786, `userns/ids.rs`).
 //!
 //! As root, the test makes the image and starts its own binary again as
 //! uid and gid 65534 with no groups (`pod_testkit::nobody`). The test of
@@ -38,6 +40,8 @@ use pod_hostprobe::sys;
 use pod_testkit::host::skip_line;
 use pod_testkit::nobody;
 
+#[path = "userns/ids.rs"]
+mod ids;
 #[path = "userns/upper.rs"]
 mod upper;
 #[path = "userns/volumes.rs"]
@@ -100,6 +104,7 @@ fn plan(script: &str, hostname: Option<&str>) -> Plan {
         confine: None,
         hostname: hostname.map(str::to_string),
         volumes: Vec::new(),
+        userns_ids: None,
     }
 }
 
@@ -117,6 +122,9 @@ fn as_nobody(test: &str, tag: &str, body: fn(&Path)) {
     let root = image(&bb, tag);
     if tag == "dev" {
         dev_of_the_image(&root);
+    }
+    if tag == "ids" {
+        ids::of_the_image(&root);
     }
     // The run checks the flags of the bind of /proc: it gets a proc with
     // none, so that a host whose proc has them already does not hide a
@@ -177,6 +185,11 @@ fn a_rule_of_the_confinement_holds_on_a_volume() {
 #[test]
 fn the_checks_read_the_upper_layer_of_an_overlay_root() {
     volumes::as_root_and_nobody("the_checks_read_the_upper_layer_of_an_overlay_root", upper::layered);
+}
+
+#[test]
+fn the_payload_runs_as_the_ids_inside_of_the_plan() {
+    as_nobody("the_payload_runs_as_the_ids_inside_of_the_plan", "ids", ids::inside);
 }
 
 #[test]

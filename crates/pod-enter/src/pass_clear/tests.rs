@@ -18,6 +18,7 @@ fn plan(pass: Vec<(i64, i64)>) -> Plan {
         confine: None,
         hostname: None,
         volumes: Vec::new(),
+        userns_ids: None,
     }
 }
 

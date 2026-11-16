@@ -9130,3 +9130,45 @@ no capability; the default stays 0.
 cargo test -p pod-enter --all-features
 sh scripts/ci/userns-tests.sh
 ```
+
+# T-787: `pod-enter`: the ids of the plan for a caller that makes the namespace rung with no user namespace (root)
+
+**Source:** T-786, a finding (`docs/decisions.md`, C757).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`Plan::userns_ids` names the ids of the payload inside the user namespace
+of the namespace rung. A caller with `CAP_SYS_ADMIN` (root) makes the
+mount namespace with no user namespace (`crates/pod-enter/src/ns_user.rs`,
+`spawn_own`), so the ids of the plan do nothing there: the payload of an
+image with `USER runner` runs as root, where docker runs it as the user
+of the image. The chroot rung has the same gap.
+
+## Premise
+
+- Read: `crates/pod-enter/src/ns_user.rs`, `crates/pod-enter/src/launch.rs`
+  (the child sets no ids before the `execve`).
+- Not measured: a root caller of podvm with an image that names a `USER`.
+  No consumer asked for it.
+
+## Approach
+
+Where the rung (or the chroot rung) has no user namespace and the plan
+names ids, the child calls `setgroups(0, NULL)`, `setresgid` and
+`setresuid` with the ids of the plan after the mounts and the root change,
+before the confinement and the exec; a refused call stops the payload with
+its step. A tree that root extracted keeps the owners of the image, so the
+ids of the plan are the ids of the image. Ask podvm first if it wants this
+(a COORD issue), and record the answer.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+```
+
