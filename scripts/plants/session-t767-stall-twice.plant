@@ -1,0 +1,6 @@
+# T-767: the far end says a wait that holds at each look, not once, so the
+# test of the line of a wait must fail.
+ENTRY=T-767
+GROUP=session
+EXPECT='test pump::stall::tests::a_wait_that_holds_gives_one_line_each \.\.\. FAILED'
+RUN='cargo test -p pod-session --lib -- pump::stall::tests::a_wait_that_holds_gives_one_line_each'
