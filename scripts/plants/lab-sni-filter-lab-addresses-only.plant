@@ -1,0 +1,7 @@
+# The filter of sni-allowlist is on 192.0.2.0/24 alone: a ClientHello to
+# another address gets no reset of the filter. The check from inside must
+# refuse the run.
+ENTRY=T-747
+GROUP=lab
+EXPECT='the lab sni-allowlist does not hold: sni-reset'
+RUN='sh scripts/ci/userns-tests.sh'
