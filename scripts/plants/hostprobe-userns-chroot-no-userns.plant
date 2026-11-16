@@ -1,6 +1,9 @@
 # The chroot row of a driver with no root skips the user namespace and its
 # maps, so a caller with no capabilities gets EPERM; the leg test must fail.
+# The script turns on the user namespaces of a runner first: a direct run
+# of the test says `skipping` on a runner of Ubuntu 24.04 and passes.
 ENTRY=T-744
 GROUP=hostprobe
 EXPECT='the chroot leg'
-RUN='cargo test -p pod-hostprobe --all-features --test userns_leg'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

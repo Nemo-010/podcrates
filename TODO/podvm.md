@@ -8862,6 +8862,8 @@ sh scripts/plant-each.sh hostprobe-userns-chroot-no-userns
 
 2026-11-16. `USERNS_CHROOT` and `p_userns_chroot` in `crates/pod-hostprobe`; `schemas/hostprobe-report.v1.schema.json` names the row; `tests/userns_leg.rs` runs both rows as uid 65534 and requires the chroot where the mount leg holds (both OK on this host). The plant `hostprobe-userns-chroot-no-userns` is caught.
 
+2026-11-16, the fix of a missed plant: the plant ran `tests/userns_leg.rs` directly, and on the runner of `plants.yml` (Ubuntu 24.04, `kernel.apparmor_restrict_unprivileged_userns=1`) the test said `skipping` and passed (plants run 43797579278, shard 0: "MISSED hostprobe-userns-chroot-no-userns"). The plant now runs `scripts/ci/userns-tests.sh`, which turns the user namespaces on and fails on a skip, as the plant `hostprobe-userns-leg-no-user` of T-670 does. Here: `sh scripts/plant-each.sh hostprobe-userns-chroot-no-userns`: 1 caught.
+
 # T-739: `pod-enter`: a rule of the confinement on a guest path of a volume is checked in the image, not in the volume
 
 **Source:** T-738 (a finding of its work).
