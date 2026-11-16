@@ -86,7 +86,7 @@ pub(super) async fn run<W, R>(
     mut decoder: Decoder,
     outbox: &Outbox,
     state: &Mutex<Link>,
-    room: &Notify,
+    (room, waits): (&Notify, &super::stall::Waits),
     undelivered: &mut Vec<u8>,
     heard: &Mutex<Instant>,
     hearing: &Hearing,
@@ -177,6 +177,7 @@ where
         };
         match next {
             Next::Wrote(Ok(n)) if n > 0 => {
+                waits.took(n);
                 undelivered.drain(..n);
                 lock(state).holding(undelivered.len() as u64);
                 if undelivered.is_empty() && app.flush().await.is_err() {

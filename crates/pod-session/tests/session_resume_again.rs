@@ -210,7 +210,7 @@ async fn a_resume_after_a_new_link_that_ended_before_the_greeting_moves_bytes_bo
     let lines = sixth_case(Cut::Both).await;
     assert_eq!(lines.len(), 1, "one resume: {lines:?}");
     assert!(lines[0].contains(": resume 1: the client has "), "{lines:?}");
-    assert!(lines[0].ends_with("; no link carried the session"), "{lines:?}");
+    assert!(lines[0].contains("; no link carried the session; room "), "{lines:?}");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -218,5 +218,5 @@ async fn a_resume_while_the_old_link_lives_at_the_far_end_stops_it_and_moves_byt
     let lines = sixth_case(Cut::ClientSide).await;
     assert_eq!(lines.len(), 1, "one resume: {lines:?}");
     assert!(lines[0].contains(": resume 1: the client has "), "{lines:?}");
-    assert!(lines[0].ends_with("; it stopped the first link"), "{lines:?}");
+    assert!(lines[0].contains("; it stopped the first link; room "), "{lines:?}");
 }

@@ -8240,6 +8240,26 @@ Progress (2026-11-16):
   the newest resume comes, its handshake answered on a link whose task did
   not reach `run_resumed`. If its line says that it gave way, a newer
   handshake came that the client did not make.
+- The seventh failure (podssh at `v0.63.0`, `5340fbb`, gate run
+  43870922795, test `the_layer_survives_a_stall_of_3_minutes`): the node's
+  line says resume 1, no link carried the session, the client has
+  5,040,486 bytes of the node and the node sends 0 again; the node wrote
+  7,814,432 bytes of the client to the target (an echo). So the node's
+  reader of the target had no byte in flight at the resume: with a window
+  of 768 KiB it would hold up to that much, and it held none. The reader
+  stopped before the stall, with room, and the resume did not move it.
+  Ask 3 of podssh: a line of that reader's wait. Done (2026-11-16): the
+  far end sends `session.stall` (`pump::STALL`, level `Info`, sink of
+  `Keeper::with_tell`) once for each wait of the reader of the target
+  that holds 20 s (`pump::STALL_AFTER`): for room (the replay buffer or
+  the window), for the writer of the link, for room of the records sent
+  again, or on a target that sent no byte while it took bytes of the
+  client; with the offsets sent and acknowledged, the bytes kept, the room
+  and the window. The resume line ends with the room of the replay buffer
+  and the window. `Watch` moved to `pump/watch.rs` (the limit of 500
+  lines). Test: `pump::stall::tests` on a paused clock; plant
+  `session-t767-stall-twice`. The next failure names the wait, or says
+  by no line that the reader waits on the target with no byte taken.
 
 ## Prove
 

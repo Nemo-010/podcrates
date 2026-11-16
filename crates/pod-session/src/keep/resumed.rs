@@ -61,11 +61,14 @@ pub(super) struct Taken {
     /// `Some(n)` for the link of resume `n`, `None` when no link held the
     /// session.
     pub stopped: Option<u64>,
+    /// The room of the replay buffer once the resume took the session, and
+    /// the window of the link: what the reader of the target may send.
+    pub room: (usize, Option<usize>),
 }
 
 impl std::fmt::Display for Taken {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let Taken { number, by, client, accepted, received, held, again, stopped } = self;
+        let Taken { number, by, client, accepted, received, held, again, stopped, room } = self;
         write!(
             f,
             "resume {number}{}: the client has {client} bytes of this side, and this side sends {again} bytes again; \
@@ -77,6 +80,10 @@ impl std::fmt::Display for Taken {
             None => f.write_str("no link carried the session"),
             Some(0) => f.write_str("it stopped the first link"),
             Some(older) => write!(f, "it stopped the link of resume {older}"),
+        }?;
+        match room {
+            (room, Some(window)) => write!(f, "; room {room} in the replay buffer, a window of {window} bytes"),
+            (room, None) => write!(f, "; room {room} in the replay buffer, no window"),
         }
     }
 }
@@ -120,6 +127,7 @@ mod tests {
             held: 12,
             again: 65536,
             stopped,
+            room: (1 << 20, Some(786_432)),
         }
     }
 
@@ -130,12 +138,14 @@ mod tests {
             line,
             "resume 3: the client has 4096 bytes of this side, and this side sends 65536 bytes again; this side \
              has 9000 bytes of the client (8192 in its ACCEPT), 12 of them not yet written to the target; no link \
-             carried the session"
+             carried the session; room 1048576 in the replay buffer, a window of 786432 bytes"
         );
-        assert!(taken(Some(0)).to_string().ends_with("; it stopped the first link"));
+        assert!(taken(Some(0)).to_string().contains("; it stopped the first link; room"));
         let named = Taken { by: "relay session 0a1b".into(), ..taken(None) };
         assert!(named.to_string().starts_with("resume 3 on relay session 0a1b: the client has 4096 bytes"), "{named}");
-        assert!(taken(Some(2)).to_string().ends_with("; it stopped the link of resume 2"));
+        assert!(taken(Some(2)).to_string().contains("; it stopped the link of resume 2; room"));
+        let open = Taken { room: (5, None), ..taken(None) };
+        assert!(open.to_string().ends_with("; room 5 in the replay buffer, no window"), "{open}");
         assert_eq!(why_not(&NotTaken::Newer(5)), "a newer link resumed the session (resume 5); this resume gave way");
         assert_eq!(why_not(&NotTaken::Stuck), "the old link of the session did not stop");
     }

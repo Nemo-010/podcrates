@@ -8,6 +8,7 @@ use tokio::sync::{Notify, mpsc};
 
 use super::super::link::Link;
 use super::super::record::MAX_DATA;
+use super::stall::{UpWait, Waits};
 use super::{CHUNK, End, lock};
 
 /// The end of the first record in `records`: a type byte, a 32-bit length,
@@ -48,7 +49,7 @@ pub(super) async fn run<R>(
     again: Vec<u8>,
     data: mpsc::Sender<Vec<u8>>,
     state: &Mutex<Link>,
-    room: &Notify,
+    (room, waits): (&Notify, &Waits),
     window: Option<usize>,
     ended: bool,
 ) -> Option<End>
@@ -63,7 +64,9 @@ where
     while !rest.is_empty() {
         let end = first_record(rest);
         let record = &rest[..end];
+        waits.up(UpWait::Again);
         until(state, room, |link| link.again_fits(record, window)).await;
+        waits.up(UpWait::Writer);
         if data.send(record.to_vec()).await.is_err() {
             return std::future::pending().await;
         }
@@ -71,6 +74,7 @@ where
     }
     // An input that ended may not end twice (a terminal waits again).
     if ended {
+        waits.up(UpWait::Done);
         return None;
     }
     let mut buf = vec![0u8; CHUNK.min(MAX_DATA)];
@@ -83,11 +87,16 @@ where
             if space > 0 {
                 break space;
             }
+            waits.up(UpWait::Room);
             freed.await;
         };
         let want = buf.len().min(space);
+        waits.up(UpWait::Target);
         let n = match app.read(&mut buf[..want]).await {
-            Ok(0) => return None,
+            Ok(0) => {
+                waits.up(UpWait::Done);
+                return None;
+            }
             // No end of one direction: the application is gone, and the
             // session ends with `CLOSE`.
             Err(_) => {
@@ -100,6 +109,7 @@ where
         if let Err(e) = lock(state).send(&buf[..n], &mut records) {
             return Some(End::Broken(e));
         }
+        waits.up(UpWait::Writer);
         if data.send(records).await.is_err() {
             // The writer is gone, and its own end ends the link.
             return std::future::pending().await;

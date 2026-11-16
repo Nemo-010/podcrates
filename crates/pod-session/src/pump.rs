@@ -27,12 +27,14 @@
 mod down;
 mod outbox;
 mod parts;
+mod stall;
 mod up;
+mod watch;
 
 pub use parts::CarryParts;
 
 use std::future::Future;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -44,6 +46,9 @@ use super::decode::Decoder;
 use super::hearing::Hearing;
 use super::link::{Link, LinkError};
 use outbox::{Finish, Outbox, Written};
+use stall::Waits;
+pub use stall::{STALL, STALL_AFTER, Stall};
+pub use watch::Watch;
 
 /// How much of the application's bytes one read takes: a `DATA` record that
 /// fits a frame of the reverse road with its id.
@@ -236,68 +241,6 @@ impl Carry {
     }
 }
 
-/// What the caller of one link watches and steers.
-#[derive(Debug, Default)]
-pub struct Watch {
-    /// Ends the link at a record boundary, with [`End::Stopped`].
-    pub stop: Notify,
-    /// Whether a stopped link sends `RETIRE` first: the client moved the
-    /// session to another link.
-    pub retire: AtomicBool,
-    /// The bytes that the link carried, both ways, the records included:
-    /// what the relay counts against its cap.
-    pub bytes: AtomicU64,
-    /// The count of bytes at which `due` is told, once; 0 is never.
-    pub move_at: AtomicU64,
-    /// Told when the link's bytes pass `move_at`.
-    pub due: Notify,
-    /// Set when this side's application ended its bytes on this link and
-    /// its `CLOSE` is due, not at an `END`: the session is closing,
-    /// and a move would only delay its `CLOSE`.
-    pub app_ended: AtomicBool,
-    /// Whether this side ends a retired link (the far end, a node's): after
-    /// its last bytes it closes its side, and on a node's road the node's
-    /// `close` then follows its data. The client never does: an end of its
-    /// side is the operator leg's end, whose Close would cross the node's
-    /// bytes still on their way, and the relay ends the node's whole socket
-    /// for a frame of an id that it forgot.
-    pub ends_links: bool,
-    /// The most bytes that this link carries with no acknowledgement, from
-    /// the settings of its road; `None` leaves it to the buffer.
-    pub window: Option<usize>,
-}
-
-impl Watch {
-    /// The far end's watch: it ends the links that it retires or that are
-    /// retired under it.
-    pub fn far_end() -> Watch {
-        Watch { ends_links: true, ..Watch::default() }
-    }
-
-    /// This watch, for a link whose bytes in flight stay within `window`.
-    pub fn within(mut self, window: Option<usize>) -> Watch {
-        self.window = window;
-        self
-    }
-
-    /// A watch that tells `due` when the link passes `move_at` bytes.
-    pub fn moving_at(move_at: u64) -> Watch {
-        let watch = Watch::default();
-        watch.move_at.store(move_at, Ordering::Relaxed);
-        watch
-    }
-
-    /// Count `n` more bytes of the link, and tell `due` when they pass the
-    /// mark.
-    fn count(&self, n: u64) {
-        let before = self.bytes.fetch_add(n, Ordering::Relaxed);
-        let at = self.move_at.load(Ordering::Relaxed);
-        if at > 0 && before < at && before + n >= at {
-            self.due.notify_one();
-        }
-    }
-}
-
 fn lock<T>(mutex: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(|e| e.into_inner())
 }
@@ -320,20 +263,20 @@ where
     let heartbeat = lock(state).heartbeat();
     let outbox = Outbox::new();
     let heard = Mutex::new(Instant::now());
-    let room = Notify::new();
+    let (room, waits) = (Notify::new(), Waits::new());
     // One batch of `DATA` waits while the writer sends the one before.
     let (data_tx, mut data_rx) = mpsc::channel(1);
 
     let mut retired = false;
     let end = {
-        let up = up::run(&mut app_r, again, data_tx, state, &room, watch.window, ended_before);
+        let up = up::run(&mut app_r, again, data_tx, state, (&room, &waits), watch.window, ended_before);
         let down = down::run(
             &mut app_w,
             &mut link_r,
             decoder,
             &outbox,
             state,
-            &room,
+            (&room, &waits),
             undelivered,
             &heard,
             hearing,
@@ -343,7 +286,8 @@ where
         let writer = outbox::write(&mut link_w, &mut data_rx, &outbox, state, watch, hearing);
         let beat =
             async { if heartbeat { beat(&outbox, &heard, hearing).await } else { std::future::pending().await } };
-        tokio::pin!(up, down, writer, beat);
+        let stalls = stall::look(&waits, state, watch.window, watch.stall.as_ref());
+        tokio::pin!(up, down, writer, beat, stalls);
         let mut app_ended = false;
         loop {
             tokio::select! {
@@ -414,6 +358,7 @@ where
                     break End::Stopped;
                 }
                 end = &mut beat => break end,
+                never = &mut stalls => match never {},
             }
         }
     };

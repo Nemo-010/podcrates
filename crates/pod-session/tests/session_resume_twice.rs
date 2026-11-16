@@ -260,5 +260,5 @@ async fn two_resumes_in_quick_succession_after_the_open_links_are_cut_move_bytes
         assert!(took || n < resumes, "the newest resume took the session: {lines:?}");
     }
     let first = lines.iter().find(|l| l.contains(": resume 1 on relay link 1")).unwrap();
-    assert!(first.ends_with("; it stopped the first link") || first.ends_with("gave way"), "{lines:?}");
+    assert!(first.contains("; it stopped the first link; room ") || first.ends_with("gave way"), "{lines:?}");
 }

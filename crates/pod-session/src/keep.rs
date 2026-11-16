@@ -40,7 +40,7 @@ use super::budget::{Census, Tell, Told};
 use super::decode::Decoder;
 use super::far::{Accepted, last_word};
 use super::link::Link;
-use super::pump::{self, Carry, End, Ended, Watch};
+use super::pump::{self, Carry, End, Ended, Stall, Watch};
 use super::record::Record;
 use super::secret::SessionId;
 use super::sessions::Sessions;
@@ -244,7 +244,7 @@ where
         let (link, decoder, established, settings) = accepted.into_parts();
         let carry = Carry::new(settings.link(&established));
         lock(&self.sessions).attach(&established.id, carry.state.clone());
-        let (watch, done) = (Arc::new(Watch::far_end().within(settings.window)), Arc::new(Notify::new()));
+        let (watch, done) = (Arc::new(self.watch(&established.id, settings.window)), Arc::new(Notify::new()));
         let live = Slot::Live {
             watch: watch.clone(),
             done: done.clone(),
@@ -273,7 +273,7 @@ where
             let at = newest.entry(id).or_insert(number);
             *at = (*at).max(number);
         }
-        let (watch, done) = (Arc::new(Watch::far_end().within(settings.window)), Arc::new(Notify::new()));
+        let (watch, done) = (Arc::new(self.watch(&id, settings.window)), Arc::new(Notify::new()));
         let (mut app, mut carry, admitted, stopped) = match self.take(&id, number, &watch, &done).await {
             Ok(taken) => taken,
             Err(not) => {
@@ -304,7 +304,8 @@ where
         let (client, accepted, received) =
             (established.peer_received, established.received, lock(&carry.state).received());
         let held = carry.undelivered();
-        let taken = Taken { number, by, client, accepted, received, held, again: again_bytes, stopped };
+        let room = (lock(&carry.state).room(), settings.window);
+        let taken = Taken { number, by, client, accepted, received, held, again: again_bytes, stopped, room };
         resumed::took(&self.tell, &id, &taken);
         // The pump sends the bytes that the client lacks while it reads the
         // client's.
@@ -406,6 +407,13 @@ where
         // Each resume that waits looks at the session again.
         done.notify_waiters();
         ended
+    }
+
+    /// The watch of a link of session `id`, whose waits that hold go to
+    /// the keeper's sink.
+    fn watch(&self, id: &SessionId, window: Option<usize>) -> Watch {
+        let stall = Stall { tell: self.tell.clone(), session: id.short() };
+        Watch::far_end().within(window).stalling(stall)
     }
 
     /// No client can resume the session from now on.

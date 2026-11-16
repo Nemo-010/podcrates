@@ -74,7 +74,7 @@ level `Info`) to the sink of `Keeper::with_tell` at each resume that
 session says:
 
 ```text
-session 0187db18: resume 2 on relay session ID: the client has 1441792 bytes of this side, and this side sends 622592 bytes again; this side has 1671168 bytes of the client (1671168 in its ACCEPT), 0 of them not yet written to the target; it stopped the link of resume 1
+session 0187db18: resume 2 on relay session ID: the client has 1441792 bytes of this side, and this side sends 622592 bytes again; this side has 1671168 bytes of the client (1671168 in its ACCEPT), 0 of them not yet written to the target; it stopped the link of resume 1; room 1048576 in the replay buffer, a window of 786432 bytes
 ```
 
 * `resume N`: the number of the resume, in the order of the handshakes of
@@ -91,13 +91,34 @@ session 0187db18: resume 2 on relay session ID: the client has 1441792 bytes of 
   when the old link read on after the `ACCEPT`.
 * `H of them not yet written to the target`: the bytes that wait for the
   target.
-* The end: `no link carried the session`, `it stopped the first link`, or
-  `it stopped the link of resume M`.
+* What held the session: `no link carried the session`, `it stopped the
+  first link`, or `it stopped the link of resume M`.
+* `room R in the replay buffer, a window of W bytes`: what the reader of
+  the target may send on the new link, once the resume took the session;
+  `no window` where the road sets none.
 
 A resume that does not take its session says `resume N on NAME did not take
 it:` and why: `a newer link resumed the session (resume M); this resume gave
 way`, `the session ended on its old link`, `the old link of the session did
 not stop`, or the offsets that the far end no longer keeps.
+
+The far end also sends one event of the kind `session.stall`
+(`pump::STALL`, level `Info`) to the same sink when a wait of a link holds
+for 20 s (`pump::STALL_AFTER`), once for each wait:
+
+```text
+session 0187db18: the reader of the target waits for room for 20 s; this side sent 5040486 bytes, the client acknowledged 4253952; the replay buffer keeps 786534 bytes, room 262042; a window of 786432 bytes
+```
+
+* `the reader of the target waits for room`: the replay buffer or the
+  window is full, and no `ACK` came.
+* `the reader of the target waits N s for the writer of the link`: the
+  writer did not take the last batch.
+* `the records sent again wait for room`: the bytes of a resume wait for
+  the window.
+* `the target sent no byte for N s, while it took B bytes of the client`:
+  the reader of the target waits on the target. A target that took no byte
+  in the wait gives no line.
 
 ## Parity
 
