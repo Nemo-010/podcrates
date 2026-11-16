@@ -102,6 +102,7 @@ fn each_sum_of_a_guest_image_is_a_sha256() {
         [
             "alpine-netboot",
             "alpine-netboot-aarch64",
+            "fedora-virtio-win",
             "freedos-image",
             "microsoft-validationos",
             "microsoft-windows-eval"

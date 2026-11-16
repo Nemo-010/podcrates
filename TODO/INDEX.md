@@ -679,3 +679,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-797](fleet.md) | P3 | S | M8 | defect | open | `pod-lab`: the certificate file of a way out on a host with no bundle, and an `SSL_CERT_FILE` that cannot be read (PodUtils/podvm#455) |
 | [T-798](relay.md) | P3 | S | M2 | measurement | open | `pod-link`: the tcp carrier allocates about 3 times for each `DATA` frame |
 | [T-799](relay.md) | P3 | M | M2 | feature | open | `pod-link`: two copies less of each byte: a read into the buffer of the decoder, and a writer queue of bytes |
+| [T-800](podvm.md) | P2 | S | M6 | feature | done | `pod-services`: the host of the virtio-win guest tools, fedorapeople.org (PodUtils/podvm#456) |

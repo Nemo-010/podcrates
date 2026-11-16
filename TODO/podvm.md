@@ -9322,3 +9322,60 @@ cargo test -p pod-enter --all-features
 ## Start condition
 
 A consumer asks for the ids of the plan for a host root.
+
+# T-800: `pod-services`: the host of the virtio-win guest tools, fedorapeople.org (PodUtils/podvm#456)
+
+**Source:** PodUtils/podvm#456 (COORD-163 of podvm, PodUtils/podvm@T-1868).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+podvm: "podvm T-1868 adds the virtio-win guest tools to the install of a
+full Windows guest. The catalog pins `virtio-win-0.1.302.iso` from
+`https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/`
+(877 373 440 bytes, with a pinned sha256). [...] The ask: list
+`fedorapeople.org` in `pod-services`, with its owner and its use (a
+download of pinned guest media)." podvm's test
+`hosts_tests::each_host_that_podvm_names_is_in_pod_services` keeps the
+host in its list `WAITING` until a tag of podcrates lists it.
+
+## Premise
+
+- Read: PodUtils/podvm#456; `crates/pod-services/services/microsoft-windows-eval.toml`
+  (a guest ISO with a watch of its primary volume descriptor).
+- Measured (2026-11-16, from this session): a HEAD of
+  `archive-virtio/virtio-win-0.1.302-1/virtio-win-0.1.302.iso` answers 200
+  with 877 373 440 bytes; the primary volume descriptor (a range read of
+  sector 16) has the volume id `virtio-win-0.1.302`.
+- Not measured: the path that podvm's catalog names under
+  `direct-downloads/` (podvm's main does not hold T-1868 yet); the file of
+  `archive-virtio/` is the one of that name and size.
+
+## Approach
+
+A service `fedora-virtio-win` (`guest-image`, the Fedora project) with
+the endpoint of the ISO, its sha256 and its length, and the watch of
+`microsoft-windows-eval`: the length and the SHA-256 of the primary volume
+descriptor by a range, so that a new master of the ISO fails the watch
+with no daily read of 837 MiB.
+
+## Prove
+
+```sh
+cargo test -p pod-services --all-features --test podvm
+```
+
+## Done
+
+2026-11-16, the commit of the change. `crates/pod-services/services/fedora-virtio-win.toml`:
+the endpoint `iso` on `fedorapeople.org`, the facts `iso-sha256`
+(`303f7ae4...`, measured from a GET of the whole file, 877 373 440 bytes), `iso-bytes` (877 373 440), and
+the primary volume descriptor that the watch reads (`pvd-sha256`,
+`volume-id` `virtio-win-0.1.302`). The test of the guest images lists the
+service. podvm compares the sha256 with its catalog when it takes the tag;
+a path under `direct-downloads/` other than `archive-virtio/` names the
+same file only where its sha256 agrees.

@@ -1,0 +1,66 @@
+# The virtio-win guest tools of the Fedora project on fedorapeople.org: the
+# ISO of the drivers and of the QEMU Guest Agent of a Windows guest, which
+# podvm adds to the install of a full Windows guest with a pinned sha256. A
+# full read is 837 MiB: the watch reads the primary volume descriptor (one
+# sector) by a range, and the length. A new master of the ISO changes both:
+# the watch then fails.
+id = "fedora-virtio-win"
+kind = "guest-image"
+party = "the Fedora project"
+about = "The virtio-win guest tools: the drivers and the QEMU Guest Agent of a Windows guest, the ISO of 0.1.302"
+
+[[endpoint]]
+name = "iso"
+scheme = "https"
+host = "fedorapeople.org"
+port = 443
+path = "/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.302-1/virtio-win-0.1.302.iso"
+source = { ruling = "PodUtils/podvm#456 (COORD-163, PodUtils/podvm@T-1868): the catalog of podvm pins virtio-win-0.1.302.iso of direct-downloads/", read = 2026-11-16, note = "a HEAD with no login answered 200 with Accept-Ranges: bytes and Last-Modified: Thu, 27 Aug 2026 23:50:52 GMT on 2026-11-16" }
+
+[[fact]]
+name = "iso-sha256"
+value = "303f7ae40dad495d6ae474fdc571df58958a4dbc5c37a522d80f9a203867949d"
+source = { measured = "sha256sum of the bytes of a GET of the endpoint", read = 2026-11-16 }
+
+[[fact]]
+name = "iso-bytes"
+value = 877373440
+unit = "bytes"
+source = { measured = "the Content-Length of a HEAD of the endpoint, and the bytes of a GET", read = 2026-11-16, note = "the size of PodUtils/podvm#456" }
+
+[[fact]]
+name = "sector-bytes"
+value = 2048
+unit = "bytes"
+source = { measured = "the logical block size (bytes 128 and 129, little-endian) of the primary volume descriptor of the endpoint", read = 2026-11-16, note = "ECMA-119 gives 2048 bytes for each logical sector" }
+
+# The primary volume descriptor of ECMA-119: sector 16, one sector.
+[[fact]]
+name = "pvd-lba"
+value = 16
+source = { measured = "the bytes from 32768 (sector 16) of the endpoint start with 1 and CD001, the primary volume descriptor", read = 2026-11-16 }
+
+[[fact]]
+name = "pvd-bytes"
+value = 2048
+unit = "bytes"
+source = { measured = "a range read of sector 16 of the endpoint gave this many bytes", read = 2026-11-16 }
+
+[[fact]]
+name = "pvd-sha256"
+value = "92dd95de26b4cc58ff6718da8fd216d5141450db3530d6ec52503958ee7259fd"
+source = { measured = "the SHA-256 of a range read of pvd-bytes bytes from sector pvd-lba of the endpoint", read = 2026-11-16 }
+
+[[fact]]
+name = "volume-id"
+value = "virtio-win-0.1.302"
+source = { measured = "the volume identifier (bytes 40 to 71, with no trailing spaces) of the primary volume descriptor of the endpoint", read = 2026-11-16 }
+
+[[watch]]
+kind = "http-sha256"
+endpoint = "iso"
+length = "iso-bytes"
+start = "pvd-lba"
+sector = "sector-bytes"
+bytes = "pvd-bytes"
+fact = "pvd-sha256"
