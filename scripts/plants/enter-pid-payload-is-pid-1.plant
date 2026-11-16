@@ -1,0 +1,6 @@
+# pod-enter: the payload of a PID namespace of its own is pid 1 with no init, so a SIGTERM of the caller does not reach it; the live test as a caller with no capabilities must fail at its check of pid 2 (T-806).
+ENTRY=T-806
+GROUP=enter
+EXPECT='left: Ok\(31\)'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

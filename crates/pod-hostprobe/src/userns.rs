@@ -120,6 +120,14 @@ fn write_file(path: &CBuf, bytes: &[u8]) -> Result<(), Errno> {
 /// with more (`EINVAL`). Async-signal-safe.
 pub fn enter(m: &Maps) -> Result<(), (Step, Errno)> {
     sys::unshare(sys::CLONE_NEWUSER).map_err(|e| (Step::Unshare, e))?;
+    write_maps(m)
+}
+
+/// Map the caller by `m` in the user namespace that it is in: the second
+/// half of [`enter`], for a child that `clone(CLONE_NEWUSER)` made. The
+/// clone makes the user namespace first, so it owns each other namespace
+/// of the same call. Async-signal-safe.
+pub fn write_maps(m: &Maps) -> Result<(), (Step, Errno)> {
     // A kernel before 3.19 has no `setgroups` file, and takes the map of
     // the group with no `deny`.
     match write_file(&m.setgroups, b"deny") {

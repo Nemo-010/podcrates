@@ -2,9 +2,12 @@
 //! recursive bind of the host's `/proc` on the `/proc` of the image.
 //!
 //! The kernel gives a fresh proc only to a holder of `CAP_SYS_ADMIN` over
-//! the user namespace that owns the PID namespace. The rung makes no PID
-//! namespace, so in its own user namespace the mount gets `EPERM`. A bind
-//! needs only `CAP_SYS_ADMIN` over the mount namespace of the rung.
+//! the user namespace that owns the PID namespace. With no PID namespace
+//! of the plan (`ns_pid`), the PID namespace is the host's, so in its own
+//! user namespace the mount gets `EPERM`. A bind needs only
+//! `CAP_SYS_ADMIN` over the mount namespace of the rung. In a PID namespace
+//! of the plan, the host's `/proc` is never bound: its `/proc/self` is not
+//! the pid of the child.
 //!
 //! What the bind shows: the processes of the PID namespace of the entry,
 //! as a fresh proc of the rung as root shows them. The entry binds only a

@@ -74,6 +74,12 @@ pub struct Plan {
     /// with no chroot keep the ids of the caller. `u32::MAX` is refused
     /// before the fork: the kernel maps no such id.
     pub userns_ids: Option<(u32, u32)>,
+    /// A PID namespace of the payload on the namespace rung (`ns_pid`): a
+    /// fresh `proc` of it on `/proc`, the payload as pid 2 under an init
+    /// of the entry, and a join of the run lands in it. Each other entry
+    /// refuses the plan, and the namespace rung does not fall back to
+    /// chroot with it: the payload never sees the processes of the host.
+    pub pid_namespace: bool,
 }
 
 /// One volume of the namespace rung: a recursive bind of the host path

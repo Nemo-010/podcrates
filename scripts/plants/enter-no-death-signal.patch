@@ -1,6 +1,7 @@
+diff --git a/crates/pod-enter/src/launch.rs b/crates/pod-enter/src/launch.rs
 --- a/crates/pod-enter/src/launch.rs
 +++ b/crates/pod-enter/src/launch.rs
-@@ -164,7 +164,7 @@
+@@ -210,7 +210,7 @@ pub(crate) fn spawn_with(
              // First, the end with the parent (T-205). A parent that ended
              // before the call sends no signal: the child compares its parent.
              if plan.die_with_parent {
@@ -8,4 +9,4 @@
 +                if let Err(e) = sys::set_pdeathsig(0) {
                      report(14, e);
                  }
-                 if sys::getppid() != parent {
+                 if pid_ns.parent_ended(parent) {

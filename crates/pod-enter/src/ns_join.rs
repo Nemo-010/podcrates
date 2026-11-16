@@ -11,6 +11,11 @@
 //! the user namespace of the caller (a run as root), the join is
 //! `CLONE_NEWNS` alone: the kernel refuses a join of the own user
 //! namespace with `EINVAL`.
+//!
+//! A payload in a PID namespace of its own (`ns_pid`) adds `CLONE_NEWPID`
+//! to the same call. It sets the PID namespace of the children of the
+//! child, not of the child: the child forks the payload of the exec into
+//! it and stays as its relay (`ns_pid`).
 
 use std::os::unix::fs::MetadataExt;
 
@@ -21,6 +26,10 @@ use crate::entry::NS_JOIN_STEP;
 /// The step byte of `setns(pidfd, CLONE_NEWUSER | CLONE_NEWNS)`.
 pub const NS_JOIN_USER_STEP: u8 = 27;
 
+/// The step bytes of the two joins with `CLONE_NEWPID`.
+pub const NS_JOIN_PID_STEP: u8 = 43;
+pub const NS_JOIN_USER_PID_STEP: u8 = 44;
+
 /// The join, decided before the fork.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct Join {
@@ -30,23 +39,33 @@ pub(crate) struct Join {
     /// The payload is in a user namespace that is not the one of the
     /// caller: the child joins it too.
     pub(crate) user: bool,
+    /// The payload is in a PID namespace that is not the one of the
+    /// caller: the child joins it for its children.
+    pub(crate) pid: bool,
 }
 
 impl Join {
-    /// The join of the payload of `pidfd`. It reads the user namespaces
-    /// here, before the fork.
+    /// The join of the payload of `pidfd`. It reads the user and the PID
+    /// namespaces here, before the fork.
     pub(crate) fn of(pidfd: i64, overlay: bool) -> Join {
-        Join { pidfd, overlay, user: other_user_namespace(pidfd) }
+        Join { pidfd, overlay, user: other_user_namespace(pidfd), pid: other_namespace(pidfd, "pid") }
     }
 
     /// The namespaces of the call.
     pub(crate) fn flags(&self) -> u64 {
-        if self.user { sys::CLONE_NEWUSER | sys::CLONE_NEWNS } else { sys::CLONE_NEWNS }
+        let user = if self.user { sys::CLONE_NEWUSER } else { 0 };
+        let pid = if self.pid { sys::CLONE_NEWPID } else { 0 };
+        user | sys::CLONE_NEWNS | pid
     }
 
     /// The step byte of the call.
     pub(crate) fn step(&self) -> u8 {
-        if self.user { NS_JOIN_USER_STEP } else { NS_JOIN_STEP }
+        match (self.user, self.pid) {
+            (false, false) => NS_JOIN_STEP,
+            (true, false) => NS_JOIN_USER_STEP,
+            (false, true) => NS_JOIN_PID_STEP,
+            (true, true) => NS_JOIN_USER_PID_STEP,
+        }
     }
 
     /// In the child, first after the death signal. One call: a pidfd with
@@ -73,10 +92,27 @@ fn ns_id(path: &str) -> Option<(u64, u64)> {
 /// this process? False where `/proc` does not tell: the join is then the
 /// mount namespace alone, as before, and a refusal falls back.
 pub fn other_user_namespace(pidfd: i64) -> bool {
+    other_namespace(pidfd, "user")
+}
+
+/// The name of the step of a join with `CLONE_NEWPID`, for
+/// [`crate::ns_setup_step`].
+pub(crate) fn pid_step_name(byte: u8) -> Option<&'static str> {
+    match byte {
+        NS_JOIN_PID_STEP => Some("setns(pidfd, CLONE_NEWNS | CLONE_NEWPID)"),
+        NS_JOIN_USER_PID_STEP => Some("setns(pidfd, CLONE_NEWUSER | CLONE_NEWNS | CLONE_NEWPID)"),
+        _ => None,
+    }
+}
+
+/// Is the process of `pidfd` in a namespace of the kind `kind` (a name
+/// under `/proc/PID/ns`) that is not the one of this process? False where
+/// `/proc` does not tell.
+pub fn other_namespace(pidfd: i64, kind: &str) -> bool {
     let fdinfo = format!("/proc/self/fdinfo/{pidfd}");
     let pid = || std::fs::read_to_string(&fdinfo).ok().as_deref().and_then(fdinfo_pid);
     let Some(p) = pid() else { return false };
-    let (own, theirs) = (ns_id("/proc/self/ns/user"), ns_id(&format!("/proc/{p}/ns/user")));
+    let (own, theirs) = (ns_id(&format!("/proc/self/ns/{kind}")), ns_id(&format!("/proc/{p}/ns/{kind}")));
     // The pid again: a process that ended between the two reads gave its
     // number free, and the link above can be the one of another process.
     let same = pid() == Some(p);

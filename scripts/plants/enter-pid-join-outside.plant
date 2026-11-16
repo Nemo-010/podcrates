@@ -1,0 +1,6 @@
+# pod-enter: a join of a run in a PID namespace stays in the PID namespace of the caller, so its /proc/self names no process; the live test of the join must fail (T-806).
+ENTRY=T-806
+GROUP=enter
+EXPECT='left: Ok\(42\)'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

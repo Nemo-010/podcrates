@@ -66,6 +66,7 @@ fn plan(ids: Option<(u32, u32)>) -> Plan {
         hostname: None,
         volumes: Vec::new(),
         userns_ids: ids,
+        pid_namespace: false,
     }
 }
 
@@ -130,7 +131,7 @@ fn only_uid_0_of_a_user_namespace_takes_a_nested_one() {
 /// the ids; a plan with no ids takes none on each entry.
 #[test]
 fn a_join_and_the_entry_with_no_chroot_take_no_nested_namespace() {
-    let join = NsEntry::Join(crate::ns_join::Join { pidfd: -1, overlay: false, user: false }, None);
+    let join = NsEntry::Join(crate::ns_join::Join { pidfd: -1, overlay: false, user: false, pid: false }, None);
     let p = plan(Some((1001, 1001)));
     assert!(nested_for(&p, Some(&join), false).unwrap().is_none());
     assert!(nested_for(&p, None, true).unwrap().is_none());

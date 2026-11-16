@@ -1,0 +1,13 @@
+diff --git a/crates/pod-enter/src/ns_user.rs b/crates/pod-enter/src/ns_user.rs
+--- a/crates/pod-enter/src/ns_user.rs
++++ b/crates/pod-enter/src/ns_user.rs
+@@ -97,7 +97,8 @@ pub(crate) fn enter_with(maps: &Maps, cloned: bool) -> std::result::Result<(), (
+ /// does not remove.
+ pub fn calls_for_user_namespace(step: &str, errno: Errno) -> bool {
+     let pid = ns_setup_step(crate::ns_pid::NS_PID_STEP);
+-    (Some(step) == ns_setup_step(7) || Some(step) == pid) && errno == sys::EPERM
++    let _ = pid;
++    Some(step) == ns_setup_step(7) && errno == sys::EPERM
+ }
+ 
+ /// The refusal of the rung in its two forms, for a fallback line: the

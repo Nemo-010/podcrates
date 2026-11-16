@@ -98,6 +98,7 @@ fn plan(confine: Option<Spec>, env: Vec<String>) -> Plan {
         hostname: None,
         volumes: Vec::new(),
         userns_ids: None,
+        pid_namespace: false,
         confine,
     }
 }

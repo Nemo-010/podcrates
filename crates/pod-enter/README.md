@@ -24,8 +24,8 @@ The entries:
   chroot and names the fallback on the error writer. A refused proc mount
   or bind of `/dev/pts` does not stop the rung: the child writes one line
   to the payload's standard error (`ns_refused_line`), and the payload
-  runs with no `/proc` or `/dev/pts`, as on the chroot rung. The rung has no PID namespace: the
-  payload's `/proc` shows the host's processes.
+  runs with no `/proc` or `/dev/pts`, as on the chroot rung. With no PID
+  namespace of the plan, the payload's `/proc` shows the host's processes.
 * The namespace rung for a caller with no capabilities (`ns_user`,
   PodUtils/podvm#406): at `EPERM` of `unshare(CLONE_NEWNS)`, the entry
   tries the rung again with a user namespace first, as `unshare -Ur` makes
@@ -169,6 +169,22 @@ The entries:
   holds passes, and a path that it removes is a refusal by name before
   the fork. A join of an overlay run reads the same view.
   `Upper::Tmpfs` starts empty: the checks read the lower layer.
+* The PID namespace of the namespace rung (`Plan::pid_namespace`,
+  `ns_pid`): the entry clones its child with `CLONE_NEWPID`, and with
+  `CLONE_NEWUSER` where the rung makes a user namespace, so that the user
+  namespace of the rung owns the PID namespace. The child mounts a fresh
+  `proc` of the namespace on `/proc`; the bind of the host's `/proc` is not
+  a fallback. The child is pid 1 and stays as the init: just before the
+  exec it forks the payload (pid 2), gives each signal of `PID_FORWARDED`
+  (SIGHUP, SIGINT, SIGQUIT, SIGUSR1, SIGUSR2, SIGTERM, SIGWINCH) to it,
+  reaps each orphan, and exits with the code of the payload (128 + the
+  signal for a payload that a signal ended). The init holds the mounts,
+  the root, the limits and the confinement of the payload. The `Child` is
+  the host pid of the init; a SIGKILL to it ends each process of the
+  namespace. `EPERM` of `clone(CLONE_NEWPID)` (`NS_PID_STEP` 41) calls for
+  the form with a user namespace, as `EPERM` of `unshare(CLONE_NEWNS)`
+  does. Each other entry refuses the plan, and the namespace rung does not
+  fall back to chroot with it.
 * The joined entry (`spawn_joined`, for an exec): `setns` on the pidfd of
   a running payload of the namespace rung joins its mount namespace, then
   the chroot by path and the check of the rung. Where the payload is in a
@@ -176,7 +192,12 @@ The entries:
   joins both (`setns(pidfd, CLONE_NEWUSER | CLONE_NEWNS)`,
   `NS_JOIN_USER_STEP` 27): the owner of that user namespace holds each
   capability in it. The entry compares `/proc/self/ns/user` with the one
-  of the pid of the pidfd (`other_user_namespace`) before the fork. The payload of the exec
+  of the pid of the pidfd (`other_user_namespace`) before the fork. Where
+  the payload is in a PID namespace that is not the one of the caller
+  (`other_namespace`), the same call adds `CLONE_NEWPID`
+  (`NS_JOIN_PID_STEP` 43, `NS_JOIN_USER_PID_STEP` 44): the child forks the
+  payload of the exec into the namespace and stays as its relay, with the
+  loop of the init. The payload of the exec
   sees the `/tmp` and the `/proc` of the payload of the run; the entry
   mounts nothing. A refused join (a kernel before 5.8, `EPERM`, a process
   that ended) writes `ns_join_fallback_line` and enters

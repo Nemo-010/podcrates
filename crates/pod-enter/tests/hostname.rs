@@ -61,6 +61,7 @@ fn plan(script: &str, hostname: Option<&str>) -> Plan {
         hostname: hostname.map(str::to_string),
         volumes: Vec::new(),
         userns_ids: None,
+        pid_namespace: false,
     }
 }
 

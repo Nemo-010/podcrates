@@ -81,12 +81,23 @@ pub(crate) fn enter(maps: &Maps) -> std::result::Result<(), (u8, Errno)> {
     pod_hostprobe::userns::enter(maps).map_err(|(step, e)| (step_byte(step), e))
 }
 
+/// [`enter`], or the maps alone where the clone of the child made the user
+/// namespace (`cloned`, with a PID namespace: `ns_pid`).
+pub(crate) fn enter_with(maps: &Maps, cloned: bool) -> std::result::Result<(), (u8, Errno)> {
+    if !cloned {
+        return enter(maps);
+    }
+    pod_hostprobe::userns::write_maps(maps).map_err(|(step, e)| (step_byte(step), e))
+}
+
 /// Does this refusal of the rung call for the form with a user namespace?
-/// Only `EPERM` of `unshare(CLONE_NEWNS)`: the answer of the kernel to a
-/// caller with no `CAP_SYS_ADMIN` in its own user namespace. Each other
-/// refusal has another cause, which a user namespace does not remove.
+/// Only `EPERM` of `unshare(CLONE_NEWNS)` or of `clone(CLONE_NEWPID)`: the
+/// answer of the kernel to a caller with no `CAP_SYS_ADMIN` in its own user
+/// namespace. Each other refusal has another cause, which a user namespace
+/// does not remove.
 pub fn calls_for_user_namespace(step: &str, errno: Errno) -> bool {
-    Some(step) == ns_setup_step(7) && errno == sys::EPERM
+    let pid = ns_setup_step(crate::ns_pid::NS_PID_STEP);
+    (Some(step) == ns_setup_step(7) || Some(step) == pid) && errno == sys::EPERM
 }
 
 /// The refusal of the rung in its two forms, for a fallback line: the

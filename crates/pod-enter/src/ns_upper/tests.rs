@@ -24,6 +24,7 @@ fn plan(volumes: Vec<VolumeBind>) -> Plan {
         hostname: None,
         volumes,
         userns_ids: None,
+        pid_namespace: false,
     }
 }
 

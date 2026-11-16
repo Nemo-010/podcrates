@@ -1,11 +1,10 @@
 diff --git a/crates/pod-hostprobe/src/userns.rs b/crates/pod-hostprobe/src/userns.rs
-index 46992950..e7301dd5 100644
 --- a/crates/pod-hostprobe/src/userns.rs
 +++ b/crates/pod-hostprobe/src/userns.rs
-@@ -97,6 +97,9 @@ fn write_file(path: &CBuf, bytes: &[u8]) -> Result<(), Errno> {
- /// with more (`EINVAL`). Async-signal-safe.
- pub fn enter(m: &Maps) -> Result<(), (Step, Errno)> {
-     sys::unshare(sys::CLONE_NEWUSER).map_err(|e| (Step::Unshare, e))?;
+@@ -128,6 +128,9 @@ pub fn enter(m: &Maps) -> Result<(), (Step, Errno)> {
+ /// clone makes the user namespace first, so it owns each other namespace
+ /// of the same call. Async-signal-safe.
+ pub fn write_maps(m: &Maps) -> Result<(), (Step, Errno)> {
 +    if !m.uid_line.is_empty() {
 +        return Ok(());
 +    }

@@ -9447,7 +9447,7 @@ of the root for this crate when it takes the tag after `v0.64.0`.
 **Milestone:** M6
 **Priority:** P1
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -9493,3 +9493,26 @@ lands in the namespace, and the end of the init ends each process of it.
 ```sh
 sh scripts/ci/userns-tests.sh
 ```
+
+## Done
+
+2026-11-16. `Plan::pid_namespace` (`ns_pid`): the namespace rung clones its
+child with `CLONE_NEWPID`, and with `CLONE_NEWUSER` where the rung makes a
+user namespace (`pod_hostprobe::userns::write_maps` maps it with no second
+`unshare`); `EPERM` of the clone calls for the form with a user namespace.
+The child mounts a fresh `proc` of the namespace and stays as its init:
+the payload is pid 2, the init gives it each signal of `PID_FORWARDED`
+that a process sent (not a signal of the terminal), reaps each orphan and
+exits with the code of the payload. The `Child` is the host pid of the
+init, not of the payload (C769): a SIGTERM of `pod-supervise` or of the
+waiter reaches the payload, and a SIGKILL ends the namespace. A join of a
+run in a PID namespace adds `CLONE_NEWPID` to its one `setns` call
+(`other_namespace`, steps 43 and 44) and forks the payload of the exec into
+it under a relay with the same loop. Each other entry refuses the plan,
+and the rung does not fall back to chroot with it. Tests: three live
+tests in `tests/userns/pid.rs` (pid 2, a fresh proc, no host pid, 6
+processes at most; a SIGTERM to the init gives 143, a SIGKILL ends a
+process in the background; a join sees `/proc/2` of the run and its own
+pid there), as root and as uid 65534, each failing with
+`pid_namespace: false`; unit tests in `src/ns_pid/tests.rs` and
+`src/ns_join/tests.rs`; five plants `enter-pid-*`.

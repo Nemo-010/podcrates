@@ -1,0 +1,6 @@
+# pod-enter: the init gives the payload a signal of the terminal again, which the payload got already; the unit test of the forward must fail (T-806).
+ENTRY=T-806
+GROUP=enter
+EXPECT='forwards\(int, SI_KERNEL\)'
+RUN='cargo test -p pod-enter --all-features --lib the_init_forwards_the_signals_of_a_process'
+LIMIT=1800

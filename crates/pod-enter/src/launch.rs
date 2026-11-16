@@ -113,6 +113,7 @@ pub(crate) fn spawn_with(
     if let Some(entry) = entry {
         crate::uts::refuse_without_namespace(plan, entry)?;
     }
+    let pid_ns = crate::ns_pid::Pid::of(plan, ns.as_ref(), entry)?;
     // The volumes: a join binds none, as the mount namespace of the run
     // holds them; an entry with no mount namespace refuses them.
     let volumes = crate::ns_volume::prepare(plan, root, entry.filter(|_| ns.is_none()))?;
@@ -185,6 +186,9 @@ pub(crate) fn spawn_with(
     let write_end = crate::pass_clear::clear_of_passes(plan, write_end).inspect_err(|_| {
         let _ = sys::close(read_end);
     })?;
+    let pid_ns = pid_ns.with_parent(plan.die_with_parent).inspect_err(|_| {
+        let _ = (sys::close(read_end), sys::close(write_end));
+    })?;
 
     // The limits as numbers, made before the fork: the child only reads
     // them.
@@ -192,7 +196,7 @@ pub(crate) fn spawn_with(
 
     // The parent of the child, for its check after `PR_SET_PDEATHSIG`.
     let parent = sys::getpid();
-    let pid = match unsafe { sys::clone_fork(sys::SIGCHLD) } {
+    let pid = match unsafe { sys::clone_fork(sys::SIGCHLD | pid_ns.flags) } {
         Ok(0) => {
             // The child: async-signal-safe work only, then execve.
             let _ = sys::close(read_end);
@@ -209,7 +213,7 @@ pub(crate) fn spawn_with(
                 if let Err(e) = sys::set_pdeathsig(9) {
                     report(14, e);
                 }
-                if sys::getppid() != parent {
+                if pid_ns.parent_ended(parent) {
                     sys::exit_group(SETUP_FAILED);
                 }
             }
@@ -236,7 +240,7 @@ pub(crate) fn spawn_with(
             // reports its step, and the parent enters chroot.
             if let Some(NsEntry::Own(m)) = ns {
                 // A user namespace first, where the rung needs one (`ns_user`).
-                if let Some(Err((step, e))) = m.user.as_ref().map(crate::ns_user::enter) {
+                if let Some(Err((step, e))) = m.user.as_ref().map(|u| crate::ns_user::enter_with(u, pid_ns.own)) {
                     report(step, e);
                 }
                 // The lower layer of an overlay is the working directory:
@@ -370,6 +374,11 @@ pub(crate) fn spawn_with(
                 sys::exit_group(SETUP_FAILED)
             }
 
+            // The payload of a PID namespace forks here, under its init or
+            // its relay (`ns_pid`).
+            if let Err((step, e)) = pid_ns.split(&[write_end, root_fd, fd_exec.unwrap_or(-1)]) {
+                report(step, e);
+            }
             // The program resolves here, in the process that changed the
             // root. A memfd from the caller execs with no path, under the
             // same chroot.
@@ -404,11 +413,16 @@ pub(crate) fn spawn_with(
         }
         Ok(pid) => pid,
         Err(e) => {
-            let _ = sys::close(read_end);
-            let _ = sys::close(write_end);
+            let _ = (sys::close(read_end), sys::close(write_end));
+            pid_ns.close();
+            // A refused PID namespace is a refusal of the rung.
+            if let Some(step) = ns_setup_step(pid_ns.clone_step()).filter(|_| pid_ns.flags != 0) {
+                return Err(Error::NsSetup { step, errno: e });
+            }
             return Err(errno_failure("clone(2) for the payload failed", e));
         }
     };
+    pid_ns.close();
 
     // The parent closes its write end first. Otherwise the read below
     // never sees the end of the file: the copy of this process holds the

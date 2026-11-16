@@ -1,0 +1,6 @@
+# pod-enter: EPERM of clone(CLONE_NEWPID) does not call for the form with a user namespace, so a caller with no capabilities cannot have a PID namespace; the unit test of the retry must fail (T-806).
+ENTRY=T-806
+GROUP=enter
+EXPECT='calls_for_user_namespace\(step, sys::EPERM\)'
+RUN='cargo test -p pod-enter --all-features --lib eperm_of_the_pid_namespace_calls_for_a_user_namespace'
+LIMIT=1800

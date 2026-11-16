@@ -316,6 +316,11 @@ pub const SIGTERM: u64 = linux_raw_sys::general::SIGTERM as u64;
 /// (SIGQUIT and SIGSTKFLT), which would block nothing that arrives and
 /// leave the waiter dying on the real signals.
 pub const SHUTDOWN_SIGNALS: u64 = (1 << (SIGINT - 1)) | (1 << (SIGTERM - 1));
+/// The other signals that an init of a PID namespace gives to its payload
+/// (`SIGHUP` and `SIGQUIT` are in `sigmask`).
+pub const SIGUSR1: u64 = linux_raw_sys::general::SIGUSR1 as u64;
+pub const SIGUSR2: u64 = linux_raw_sys::general::SIGUSR2 as u64;
+pub const SIGWINCH: u64 = linux_raw_sys::general::SIGWINCH as u64;
 /// `signalfd4` "close on exec": the `O_CLOEXEC` of the architecture
 /// (0x400000 on sparc). `SIG_BLOCK` and `SIG_SETMASK` are in `sigmask`.
 pub const SFD_CLOEXEC: u64 = linux_raw_sys::general::O_CLOEXEC as u64;

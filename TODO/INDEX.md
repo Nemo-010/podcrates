@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**643 entries: 127 open, 14 partial, 6 blocked, 496 done.**
+**643 entries: 126 open, 14 partial, 6 blocked, 497 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 12 | 8 | 0 | 145 | 165 |
+| P1 | 11 | 8 | 0 | 146 | 165 |
 | P2 | 58 | 3 | 4 | 257 | 322 |
 | P3 | 57 | 3 | 2 | 92 | 154 |
-| **All** | 127 | 14 | 6 | 496 | 643 |
+| **All** | 126 | 14 | 6 | 497 | 643 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -685,7 +685,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-803](relay.md) | P3 | M | M2 | feature | open | `pod-link`: an adaptive parity datagram for the ARQ, off on a clean link (GitHub #213) |
 | [T-804](podvm.md) | P1 | S | M5 | defect | done | `pod-qga` has no `LICENSE` beside its manifest; a check of each crate that cargo packs (PodUtils/podvm#456) |
 | [T-805](relay.md) | P2 | S | M2 | feature | open | `pod-relay`: a node that gets `409` for its own lost socket gives up on that route sooner than `rejoin`, and says so (PodUtils/podnet#604) |
-| [T-806](podvm.md) | P1 | M | M6 | feature | open | `pod-enter`: a PID namespace with its own `/proc` on the namespace rung, which a join enters (PodUtils/podvm#457) |
+| [T-806](podvm.md) | P1 | M | M6 | feature | done | `pod-enter`: a PID namespace with its own `/proc` on the namespace rung, which a join enters (PodUtils/podvm#457) |
 | [T-807](fleet.md) | P2 | M | M5 | feature | open | `pod-manual`: four forms that podssh's manual needs before its text, help and JSON move to the crate (PodUtils/podssh#288) |
 | [T-808](roads.md) | P2 | S | M4 | defect | done | `pod-iroh`: the fork of iroh-relay sends the name of the relay to a `socks5://` proxy (T-037) |
 | [T-809](roads.md) | P3 | M | M4 | feature | open | `pod-iroh`: the relay dial of iroh takes a proxy URL, not the caller's dialer (T-037) |

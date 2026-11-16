@@ -12,7 +12,9 @@
 //! layer over the image (T-750, `userns/upper.rs`). With the ids inside
 //! of the plan, the payload is a user of its image with no capability
 //! (T-786, `userns/ids.rs`); a caller that is uid 0 of a user namespace
-//! gets them through a nested one (T-787, `userns/nested.rs`).
+//! gets them through a nested one (T-787, `userns/nested.rs`). With a PID
+//! namespace, the payload sees the processes of its run alone (T-806,
+//! `userns/pid.rs`).
 //!
 //! As root, the test makes the image and starts its own binary again as
 //! uid and gid 65534 with no groups (`pod_testkit::nobody`). The test of
@@ -45,6 +47,8 @@ use pod_testkit::nobody;
 mod ids;
 #[path = "userns/nested.rs"]
 mod nested;
+#[path = "userns/pid.rs"]
+mod pid;
 #[path = "userns/upper.rs"]
 mod upper;
 #[path = "userns/volumes.rs"]
@@ -85,7 +89,7 @@ fn image(bb: &Path, tag: &str) -> PathBuf {
     fs::write(root.join("tmp/of-the-image"), "x").unwrap();
     fs::copy(bb, root.join("bin/busybox")).unwrap();
     fs::set_permissions(root.join("bin/busybox"), fs::Permissions::from_mode(0o755)).unwrap();
-    for applet in ["sh", "id", "uname", "test", "touch", "grep", "sleep", "head", "wc", "cat"] {
+    for applet in ["sh", "id", "uname", "test", "touch", "grep", "sleep", "head", "wc", "cat", "ls"] {
         std::os::unix::fs::symlink("busybox", root.join("bin").join(applet)).unwrap();
     }
     root
@@ -108,6 +112,7 @@ fn plan(script: &str, hostname: Option<&str>) -> Plan {
         hostname: hostname.map(str::to_string),
         volumes: Vec::new(),
         userns_ids: None,
+        pid_namespace: false,
     }
 }
 
@@ -203,6 +208,21 @@ fn the_payload_runs_as_the_ids_inside_of_the_plan() {
 #[test]
 fn uid_0_of_a_user_namespace_gets_the_ids_of_the_plan() {
     as_nobody("uid_0_of_a_user_namespace_gets_the_ids_of_the_plan", "nested", nested::root_of_a_user_namespace);
+}
+
+#[test]
+fn the_pid_namespace_hides_the_processes_of_the_host() {
+    pid::as_root_then_nobody("the_pid_namespace_hides_the_processes_of_the_host", "pid", pid::hides_the_host);
+}
+
+#[test]
+fn the_payload_ends_with_the_init_of_its_pid_namespace() {
+    pid::as_root_then_nobody("the_payload_ends_with_the_init_of_its_pid_namespace", "pid-end", pid::ends_with_its_init);
+}
+
+#[test]
+fn a_join_lands_in_the_pid_namespace_of_its_run() {
+    pid::as_root_then_nobody("a_join_lands_in_the_pid_namespace_of_its_run", "pid-join", pid::a_join_lands_in_it);
 }
 
 #[test]

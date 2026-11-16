@@ -1,0 +1,6 @@
+# pod-enter: the init keeps each signal and gives none to the payload, so a SIGTERM of the caller does not end it; the live test of the end must fail at its bound (T-806).
+ENTRY=T-806
+GROUP=enter
+EXPECT='TimedOut'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

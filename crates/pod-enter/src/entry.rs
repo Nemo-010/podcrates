@@ -131,8 +131,9 @@ pub fn run_ladder(
 ///
 /// One private tmpfs on the `/tmp` of the image: the mount that a run
 /// keeps apart from the host. Then the mounts that do not stop the rung
-/// (`ns_optional`): a fresh proc and a bind of the host's `/dev/pts`. No
-/// PID or network namespace: the banner says so. A user namespace only for
+/// (`ns_optional`): a fresh proc and a bind of the host's `/dev/pts`. A PID
+/// namespace only where the plan asks for one (`ns_pid`), and no network
+/// namespace: the banner says so. A user namespace only for
 /// a caller that cannot make the mount namespace in its own (`ns_user`).
 pub struct NsMount {
     /// The maps of the user namespace that the child makes first, where
@@ -328,7 +329,7 @@ pub fn ns_setup_step(step: u8) -> Option<&'static str> {
         }
         crate::ns_volume::NS_VOLUME_BIND_STEP => Some("binding the host path of a volume"),
         crate::ns_volume::NS_VOLUME_REMOUNT_STEP => Some("remounting the bind of a read-only volume read-only"),
-        _ => crate::ns_user::step_name(step),
+        _ => crate::ns_user::step_name(step).or_else(|| crate::ns_pid::step_name(step)),
     }
 }
 
@@ -356,6 +357,13 @@ pub(crate) fn namespace_entry(root: &RootDir, plan: &Plan, banner: bool, err: &m
             return Err(Error::runtime(
                 Class::Unsupported,
                 format!("the host name {name:?} needs the namespace rung, and {cause}"),
+            ));
+        }
+        // Nor a PID namespace: the payload never sees the host's processes.
+        if plan.pid_namespace {
+            return Err(Error::runtime(
+                Class::Unsupported,
+                format!("the PID namespace needs the namespace rung, and {cause}"),
             ));
         }
         // A volume has no place on the chroot rung either.

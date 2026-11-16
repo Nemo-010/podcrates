@@ -1,0 +1,12 @@
+diff --git a/crates/pod-enter/src/ns_pid.rs b/crates/pod-enter/src/ns_pid.rs
+--- a/crates/pod-enter/src/ns_pid.rs
++++ b/crates/pod-enter/src/ns_pid.rs
+@@ -192,7 +192,7 @@ fn relay(payload: i64) -> ! {
+                     // `ssi_signo` and `ssi_code` of `signalfd_siginfo`.
+                     let signo = u32::from_ne_bytes([buf[0], buf[1], buf[2], buf[3]]);
+                     let code = i32::from_ne_bytes([buf[8], buf[9], buf[10], buf[11]]);
+-                    if forwards(signo, code) {
++                    if forwards(signo, code) && signo == 0 {
+                         let _ = sys::kill(payload, i64::from(signo));
+                     }
+                 }

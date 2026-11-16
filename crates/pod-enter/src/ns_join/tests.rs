@@ -18,7 +18,7 @@ fn the_pid_of_a_pidfd_is_read_from_its_fdinfo() {
 /// of the caller joins the mount namespace alone.
 #[test]
 fn the_join_takes_the_user_namespace_only_where_it_differs() {
-    let own = Join { pidfd: 9, overlay: false, user: false };
+    let own = Join { pidfd: 9, overlay: false, user: false, pid: false };
     assert_eq!(own.flags(), sys::CLONE_NEWNS);
     assert_eq!(own.step(), NS_JOIN_STEP);
     let other = Join { user: true, ..own };
@@ -26,6 +26,20 @@ fn the_join_takes_the_user_namespace_only_where_it_differs() {
     assert_eq!(other.step(), NS_JOIN_USER_STEP);
     assert_eq!(ns_setup_step(NS_JOIN_USER_STEP), Some("setns(pidfd, CLONE_NEWUSER | CLONE_NEWNS)"));
     assert_eq!(ns_setup_step(NS_JOIN_STEP), Some("setns(pidfd, CLONE_NEWNS)"));
+}
+
+/// A join of a payload in another PID namespace adds `CLONE_NEWPID` to the
+/// one call, with a step of its own.
+#[test]
+fn the_join_takes_the_pid_namespace_only_where_it_differs() {
+    let own = Join { pidfd: 9, overlay: false, user: false, pid: true };
+    assert_eq!(own.flags(), sys::CLONE_NEWNS | sys::CLONE_NEWPID);
+    assert_eq!(own.step(), NS_JOIN_PID_STEP);
+    let other = Join { user: true, ..own };
+    assert_eq!(other.flags(), sys::CLONE_NEWUSER | sys::CLONE_NEWNS | sys::CLONE_NEWPID);
+    assert_eq!(other.step(), NS_JOIN_USER_PID_STEP);
+    assert_eq!(ns_setup_step(NS_JOIN_PID_STEP), Some("setns(pidfd, CLONE_NEWNS | CLONE_NEWPID)"));
+    assert_eq!(ns_setup_step(NS_JOIN_USER_PID_STEP), Some("setns(pidfd, CLONE_NEWUSER | CLONE_NEWNS | CLONE_NEWPID)"));
 }
 
 /// A process in the user namespace of the test is not in another one:
@@ -43,7 +57,8 @@ fn a_child_in_the_own_user_namespace_is_not_in_another() {
         }
     };
     assert!(!other_user_namespace(pidfd));
-    assert_eq!(Join::of(pidfd, true), Join { pidfd, overlay: true, user: false });
+    assert!(!other_namespace(pidfd, "pid"));
+    assert_eq!(Join::of(pidfd, true), Join { pidfd, overlay: true, user: false, pid: false });
     let _ = sys::close(pidfd);
     let _ = child.kill();
     let _ = child.wait();

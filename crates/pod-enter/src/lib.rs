@@ -65,6 +65,7 @@ mod ns_dev_bind;
 mod ns_join;
 mod ns_optional;
 mod ns_overlay;
+mod ns_pid;
 mod ns_proc_bind;
 mod ns_upper;
 mod ns_user;
@@ -86,12 +87,15 @@ pub use ns_dev_bind::{
     Choice, DEVICES, Kind, NS_DEV_BIND_STEP, NS_DEV_POINT_STEP, NS_DEV_REMOUNT_STEP, choose, kind_of, no_dev_line,
     refused_start as ns_dev_refused_start, skipped_line as ns_dev_skipped_line,
 };
-pub use ns_join::{NS_JOIN_USER_STEP, fdinfo_pid, other_user_namespace};
+pub use ns_join::{
+    NS_JOIN_PID_STEP, NS_JOIN_USER_PID_STEP, NS_JOIN_USER_STEP, fdinfo_pid, other_namespace, other_user_namespace,
+};
 pub use ns_optional::{NS_PROC_STEP, NS_PTS_STEP, ns_proc_refused, ns_proc_target, ns_pts_target, ns_refused_line};
 pub use ns_overlay::{
     NS_OVERLAY_DIRS_STEP, NS_OVERLAY_STEP, NS_OVERLAY_TMPFS_STEP, OVERLAY_OPTIONS_MOST, Root, USERXATTR, Upper,
     overlay_escape, overlay_options, run_namespace_root, spawn_namespace_root,
 };
+pub use ns_pid::{FORWARDED as PID_FORWARDED, NS_PID_FORK_STEP, NS_PID_STEP, NS_PID_USER_STEP};
 pub use ns_proc_bind::{NS_PROC_BIND_STEP, NS_PROC_REMOUNT_STEP, proc_of_this_pid_namespace};
 pub use ns_user::{
     NS_GID_MAP_STEP, NS_NESTED_GID_MAP_STEP, NS_NESTED_SETGROUPS_STEP, NS_NESTED_UID_MAP_STEP, NS_NESTED_USER_STEP,

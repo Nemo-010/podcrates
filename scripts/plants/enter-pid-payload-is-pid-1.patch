@@ -1,0 +1,12 @@
+diff --git a/crates/pod-enter/src/ns_pid.rs b/crates/pod-enter/src/ns_pid.rs
+--- a/crates/pod-enter/src/ns_pid.rs
++++ b/crates/pod-enter/src/ns_pid.rs
+@@ -131,7 +131,7 @@ impl Pid {
+     /// init or relay, with `close` closed. Returns in the payload, or where
+     /// the fork has no place. Async-signal-safe.
+     pub(crate) fn split(&self, close: &[i64]) -> std::result::Result<(), (u8, Errno)> {
+-        if !self.relay {
++        if !self.relay || self.own {
+             return Ok(());
+         }
+         match unsafe { sys::clone_fork(sys::SIGCHLD) } {
