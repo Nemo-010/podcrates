@@ -33,7 +33,7 @@ is done. Git and the record keep finished work.
    `session.resume` and `session.stall` (from `v0.64.0`), then find the
    cause; T-768 beside it. Answer podssh's ask 3 on the hand-off of
    `v0.64.0`.
-5. Then the work order of `TODO/PROGRESS.md`: the move of podssh (T-037, T-029, T-030,
+5. Then the work order of `TODO/PROGRESS.md`: the move of podssh (T-810, the trial of pod-iroh; T-029, T-030,
    T-039, T-036), then T-526.
 
 ## The rules that cost the most time

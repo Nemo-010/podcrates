@@ -1596,3 +1596,121 @@ python3 -I scripts/check-probe.py
 ## Done
 
 2026-11-15, the commit of the change. `examples/static-probe` turns on `vless`, `vmess`, `trojan` and `shadowsocks` of `pod-egress`, and `egress::part2` makes a dialer of each with a made-up server, as for the roads of part 1. `python3 scripts/check-probe.py`: 48 crates, 0 faults. The probe built with `cargo zigbuild --release --target x86_64-unknown-linux-musl -p static-probe`; `sh scripts/check-static.sh` says static (24,065,704 bytes); its line names `VLESS vless://vless.example:443/ timeout, VMess vmess://vmess.example:443/ timeout, Trojan trojan://trojan.example:443/ timeout, Shadowsocks ss://192.0.2.1:8888 timeout`.
+
+# T-808: `pod-iroh`: the fork of iroh-relay sends the name of the relay to a `socks5://` proxy (T-037)
+
+**Source:** T-037 (a finding of the adaptation).
+**Category:** defect
+**Milestone:** M4
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The patch of the fork (`vendor/iroh-relay/src/client/socks5.rs`,
+`vendor/patches/iroh-relay/0001-socks5-proxy.patch`) sends the relay's name
+with the address type 3 for both `socks5://` and `socks5h://`. The rule of
+podcrates (`pod-proxy`, as curl does) is: `socks5://` resolves the name
+locally and sends the address; `socks5h://` sends the name
+(`docs/design.md`, section 8, the known differences).
+
+## Premise
+
+- Read: the patch and its unit tests (`client::socks5`); the tests of
+  `crates/pod-iroh/tests/proxy_env.rs`.
+- Not measured: a relay dial through a `socks5://` proxy that cannot
+  resolve names.
+
+## Approach
+
+For `socks5://`, resolve the relay's name with the resolver of the
+endpoint and send its address (address type 1 or 4); `socks5h://` keeps
+the name. Make the patch again from the changed fork, and add a case of
+`socks5://` to `tests/proxy_env.rs` (the stand-in proxy sees an address,
+not a name).
+
+## Prove
+
+```sh
+cargo test -p pod-iroh --all-features --test proxy_env
+```
+
+# T-809: `pod-iroh`: the relay dial of iroh takes a proxy URL, not the caller's dialer (T-037)
+
+**Source:** T-037 (a finding of the adaptation).
+**Category:** feature
+**Milestone:** M4
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+iroh dials its relay itself, with a proxy URL alone (`Options::proxy`, a
+`pod_proxy::ProxyChoice`), not through a `pod_core::Dial` of the caller.
+So a way out that is not a proxy URL (WARP, a road of `pod-egress`, a
+proxy over a Unix socket or a command) cannot carry the relay, and the
+caller must keep `Options::proxy` the same as its `Way` (design rule: the
+caller gives the way out).
+
+## Premise
+
+- Read: `crates/pod-iroh/src/endpoint.rs`; iroh 1.4's feature
+  `unstable-custom-transports`.
+- Not measured: whether a custom transport of iroh 1.4 can carry the
+  relay's connection.
+
+## Approach
+
+Either a custom transport of iroh (`unstable-custom-transports`) over the
+caller's `Dial`, or a SOCKS5 bridge in the process: a listener on the
+loopback whose each connection goes through `Way::dial`, given to iroh as
+its proxy. Take the first where iroh's API carries a relay; a test with a
+`Dial` that is not a proxy.
+
+## Prove
+
+```sh
+cargo test -p pod-iroh --all-features
+```
+
+# T-810: `pod-iroh`: the adoption trial of podssh (T-037)
+
+**Source:** T-037 (`docs/design.md`, section 8, step 7).
+**Category:** chore
+**Milestone:** M4
+**Priority:** P2
+**Effort:** M
+**Status:** open
+
+## Problem
+
+T-037 made `pod-iroh`; no trial of podssh shows that podssh's feature
+`iroh` builds and passes its tests on it. `crates/pod-iroh/README.md` has
+the adoption map.
+
+## Premise
+
+- Read: the adoption map of `crates/pod-iroh/README.md`;
+  `adoption/podssh/pod-tor.patch` and `.run` (the form of a trial of the
+  move).
+- Read: a `[patch.crates-io]` of podcrates does not reach a consumer:
+  podssh keeps its own `[patch.crates-io] iroh-relay`, pointed at the
+  fork of podcrates' tag.
+
+## Approach
+
+The patch, the commit and the run of the trial of podssh (`adoption/podssh/`), as the trial of
+`pod-tor`: crates/podssh-iroh and podssh's copy of iroh-relay leave
+podssh; podssh-cli takes `pod-iroh` with its feature `iroh` and gives it
+its TLS provider, its resolver, its proxy and its way out; podssh's root
+`[patch.crates-io] iroh-relay` names the fork of podcrates' tag. The run:
+the build, clippy and the tests of the CLI with the feature
+(`iroh-test`, the road on a relay of the loopback).
+
+## Prove
+
+```sh
+sh scripts/adoption.sh podssh pod-iroh
+```
