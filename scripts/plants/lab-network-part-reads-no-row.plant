@@ -1,0 +1,6 @@
+# The part proxy-reaches reads no row that sends a packet out, so a check
+# of a report never sees it; the test of the network parts must fail.
+ENTRY=T-751
+GROUP=lab
+EXPECT='test check::rows::the_rows_that_send_a_packet_out_decide_the_network_parts \.\.\. FAILED'
+RUN='cargo test -p pod-lab --all-features --lib -- check::rows::the_rows_that_send_a_packet_out_decide_the_network_parts --exact'

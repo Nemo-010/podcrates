@@ -1,0 +1,13 @@
+diff --git a/crates/pod-lab/src/table/network.rs b/crates/pod-lab/src/table/network.rs
+index 68dab5f..09f0f04 100644
+--- a/crates/pod-lab/src/table/network.rs
++++ b/crates/pod-lab/src/table/network.rs
+@@ -96,8 +96,6 @@ pub(super) const PROXY_ONLY_PARTS: &[Part] = &[
+         "proxy-reaches",
+         "a CONNECT through the proxy with its credential reaches a TLS server",
+         &[
+-            sends(CONNECT_NAME, "status", "200"),
+-            sends(TLS_NAME, "hello", "1"),
+             lab_check(NetFact::Connect { host: LISTED, port: 443, status: 200 }),
+             lab_check(NetFact::Issuer { name: LISTED, ca: Ca::Server }),
+         ],
