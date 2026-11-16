@@ -3414,7 +3414,7 @@ sh scripts/install/test.sh
 
 2026-11-16, the first run on a tag: `release.yml` run 43828067548 on
 `v0.61.0` (`cbbd016`). `cosign sign-blob` wrote `SHA256SUMS.sigstore.json`
-with the identity `.github/workflows/release.yml@refs/tags/v0.61.0`;
+with the identity of `release.yml` at the tag `v0.61.0`;
 `cosign verify-blob` gave "Verified OK", and refused a changed copy
 ("invalid signature") and the identity of `refs/heads/main` ("no matching
 CertificateIdentity"). The published installer printed "the signature of
