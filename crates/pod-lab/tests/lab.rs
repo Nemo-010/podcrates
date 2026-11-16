@@ -6,9 +6,9 @@
 //! uid 65534 (the kernel clears each capability), as CI runs it as a user.
 //! Where uid 65534 cannot reach this binary, the test says so. The classes
 //! of podssh and podnet are in `lab/hosts.rs`, the network classes in
-//! `lab/net.rs`, the way out of a network lab in `lab/way_out.rs`. A case
-//! that the host
-//! cannot give says `skipping` with the reason; `scripts/ci/userns-tests.sh`
+//! `lab/net.rs`, the way out of a network lab in `lab/way_out.rs`, the
+//! answer of a lab whose filter cannot hold in `lab/filter.rs`. A case
+//! that the host cannot give says `skipping` with the reason; `scripts/ci/userns-tests.sh`
 //! fails on that line. No libtest (`harness = false`): the binary reads the
 //! flag of a lab process, of a probe child and of a payload first, and has
 //! one thread.
@@ -16,6 +16,10 @@
 #[cfg(target_os = "linux")]
 #[path = "lab/payload.rs"]
 mod payload;
+
+#[cfg(target_os = "linux")]
+#[path = "lab/filter.rs"]
+mod filter;
 
 #[cfg(target_os = "linux")]
 #[path = "lab/hosts_payload.rs"]

@@ -143,13 +143,11 @@ pub fn class(f: &Failure) -> Class {
 /// session into the read of the record again.
 ///
 /// macOS gives no refusal for a port that a socket holds with no listen:
-/// the connection waits for its time limit. There the port of a listener
-/// that is bound and dropped is free; macOS picks each free port at random,
-/// so another test takes it seldom.
+/// the connection waits for its time limit. There the port is 1: a bind to
+/// port 0 never gives it, so no listener of a test can take it.
 pub fn dead() -> SocketAddr {
     if cfg!(target_os = "macos") {
-        let listener = std::net::TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
-        return listener.local_addr().unwrap();
+        return SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1);
     }
     static HELD: Mutex<Vec<tokio::net::TcpSocket>> = Mutex::new(Vec::new());
     let socket = tokio::net::TcpSocket::new_v4().unwrap();

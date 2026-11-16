@@ -1,0 +1,7 @@
+# A split session takes a silence of half of lost_after as a loss: the
+# bound of the silence must see the early loss (T-764).
+ENTRY=T-764
+GROUP=link
+EXPECT='a silence is a loss after lost_after alone'
+RUN='cargo test -p pod-link --all-features --test split a_silent_up_half'
+LIMIT=1800

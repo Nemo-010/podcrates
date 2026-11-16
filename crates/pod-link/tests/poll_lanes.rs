@@ -16,7 +16,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use common::limit;
-use common::poll::{Relay, ask_on, at, bound, carrier, connect, identity, key, post, raw};
+use common::poll::{Relay, ask_on, at, bound, carrier, connect, connect_narrow, identity, key, post, raw};
 use common::tcp::Direct;
 use pod_link::poll::{self, Form, PollListener};
 use pod_link::{Carrier, CarrierErrorKind};
@@ -291,12 +291,15 @@ async fn a_body_up_goes_into_the_link_by_parts_and_a_cut_keeps_its_part() {
     drop(conn);
     let mut whole = head.into_bytes();
     whole.extend_from_slice(&data);
-    let mut conn = connect(&key(1), identity(2), local).await.unwrap();
+    // A narrow pipe to the socket, as the small send buffer of Windows: a
+    // write of TLS that waits keeps its last records until a flush.
+    let mut conn = connect_narrow(&key(1), identity(2), local, 4 << 10).await.unwrap();
     // The listener answers when the whole body is in the link, and the
     // link holds less than the rest where its buffers are small (Windows):
     // the far end reads the rest while the answer comes.
     let answer = async {
         conn.write_all(&whole).await.unwrap();
+        conn.flush().await.unwrap();
         let mut answer = Vec::new();
         let mut byte = [0u8];
         while !answer.ends_with(b"\r\n\r\n") {

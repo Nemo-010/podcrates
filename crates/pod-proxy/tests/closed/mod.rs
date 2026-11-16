@@ -9,12 +9,13 @@ use std::net::SocketAddr;
 /// until the test ends.
 ///
 /// macOS drops a SYN to a port that a socket holds and does not listen on,
-/// so a dial there times out and is not refused. There the port is free
-/// (a listener bound and dropped), and another test can take it first.
+/// so a dial there times out and is not refused. There the port is 1: a
+/// bind to port 0 never gives it, so no listener of a test can take it. A
+/// freed port can go to a listener of another test, and a dial to it then
+/// gets that listener's reset.
 pub fn port() -> (Option<tokio::net::TcpSocket>, SocketAddr) {
     if cfg!(target_os = "macos") {
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
-        return (None, listener.local_addr().expect("its address"));
+        return (None, "127.0.0.1:1".parse().expect("an address"));
     }
     let socket = tokio::net::TcpSocket::new_v4().expect("a socket");
     socket.bind("127.0.0.1:0".parse().expect("an address")).expect("bind");

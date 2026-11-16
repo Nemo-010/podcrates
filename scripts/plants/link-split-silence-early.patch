@@ -1,0 +1,22 @@
+diff --git a/crates/pod-link/src/split/run.rs b/crates/pod-link/src/split/run.rs
+index 6346b5b..f045630 100644
+--- a/crates/pod-link/src/split/run.rs
++++ b/crates/pod-link/src/split/run.rs
+@@ -144,7 +144,7 @@ async fn send_main(mut w: WriteHalf<BoxIo>, mut from: DuplexStream, half: Half,
+ /// bytes; the end of the peer then comes within `lost_after`, or is taken
+ /// as come.
+ async fn recv_main(mut r: ReadHalf<BoxIo>, mut to: DuplexStream, half: Half, s: Arc<Shared>) {
+-    let (mut state, lost_after) = (s.ends.watch(), s.timing.lost_after);
++    let (mut state, lost_after) = (s.ends.watch(), s.timing.lost_after / 2);
+     let mut gone = false;
+     loop {
+         // A frame read in part must not stop: the drop of the link is seen
+@@ -201,7 +201,7 @@ async fn beat_back(mut w: WriteHalf<BoxIo>, half: Half, s: Arc<Shared>) {
+ /// side ended its bytes: the peer closes its halves after it read the end
+ /// of this side's bytes, or after it wrote the end of its own.
+ async fn hear_back(mut r: ReadHalf<BoxIo>, half: Half, s: Arc<Shared>) {
+-    let lost_after = s.timing.lost_after;
++    let lost_after = s.timing.lost_after / 2;
+     loop {
+         let frame = tokio::select! {
+             frame = timeout(lost_after, wire::read(&mut r)) => frame,

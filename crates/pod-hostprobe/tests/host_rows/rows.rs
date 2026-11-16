@@ -107,14 +107,24 @@ fn files(settings: &Settings, id: &identity::Identity) {
             denied(&home, sys::EACCES, "a file in a HOME that is not writable");
         } else if writable {
             let flag = sys::statfs(&path).expect("statfs").flag(sys::ST_NOEXEC);
-            assert_eq!(home.value("noexec"), flag.map(|b| if b { "1" } else { "0" }), "{home:?}");
+            assert_eq!(home.value("noexec"), Some(flag_text(flag)), "{home:?}");
             assert_eq!(home.verdict, Verdict::Ok, "{home:?}");
         }
     }
     let ssl = row(&s, "statfs(/etc/ssl)");
     match sys::statfs(&sys::CBuf::new("/etc/ssl").expect("no NUL")) {
-        Ok(st) => assert_eq!(ssl.value("rdonly"), st.flag(sys::ST_RDONLY).map(|b| if b { "1" } else { "0" })),
+        Ok(st) => assert_eq!(ssl.value("rdonly"), Some(flag_text(st.flag(sys::ST_RDONLY))), "{ssl:?}"),
         Err(e) => denied(&ssl, e, "statfs(/etc/ssl)"),
+    }
+}
+
+/// The value of a mount flag in a row: `unknown` where the kernel gave no
+/// `ST_VALID` (qemu-user gives none).
+fn flag_text(flag: Option<bool>) -> &'static str {
+    match flag {
+        Some(true) => "1",
+        Some(false) => "0",
+        None => "unknown",
     }
 }
 

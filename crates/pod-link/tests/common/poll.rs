@@ -173,9 +173,32 @@ pub async fn connect(server: &PublicKey, client: Arc<Identity>, local: std::net:
     Ok(tls)
 }
 
+/// A connection of TLS as [`connect`] gives, through a pipe of `room`
+/// bytes to its socket: a write of more than the pipe holds waits, as a
+/// write to a socket with a small send buffer (Windows) waits.
+pub async fn connect_narrow(
+    server: &PublicKey,
+    client: Arc<Identity>,
+    local: std::net::SocketAddr,
+    room: usize,
+) -> std::io::Result<tokio_rustls::client::TlsStream<DuplexStream>> {
+    let config = pod_tls::peer::client_config(ring(), client, KeyName::Key(*server), &[b"http/1.1"]).unwrap();
+    let mut tcp = TcpStream::connect(local).await?;
+    let (near, mut far) = tokio::io::duplex(room);
+    tokio::spawn(async move {
+        let _ = tokio::io::copy_bidirectional(&mut far, &mut tcp).await;
+    });
+    let name = rustls::pki_types::ServerName::IpAddress(local.ip().into());
+    let mut tls = tokio_rustls::TlsConnector::from(config).connect(name, near).await?;
+    tls.flush().await?;
+    Ok(tls)
+}
+
 /// Send `request` on `tls`: the status of its answer, whose body goes.
 pub async fn ask_on(tls: &mut Raw, request: &str) -> std::io::Result<u16> {
     tls.write_all(request.as_bytes()).await?;
+    // A write of TLS can keep records until a flush.
+    tls.flush().await?;
     let mut head = Vec::new();
     let mut byte = [0u8];
     while !head.ends_with(b"\r\n\r\n") {
