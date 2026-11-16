@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**591 entries: 121 open, 12 partial, 6 blocked, 452 done.**
+**591 entries: 120 open, 12 partial, 6 blocked, 453 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 7 | 0 | 131 | 149 |
-| P2 | 59 | 2 | 4 | 233 | 298 |
+| P2 | 58 | 2 | 4 | 234 | 298 |
 | P3 | 51 | 3 | 2 | 86 | 142 |
-| **All** | 121 | 12 | 6 | 452 | 591 |
+| **All** | 120 | 12 | 6 | 453 | 591 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -633,7 +633,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-736](upkeep.md) | P2 | S | M5 | defect | done | the plant `enter-userns-dev-no-remount` misses where the host's `/dev` has `nosuid` and `noexec` already |
 | [T-737](fleet.md) | P1 | S | M8 | feature | done | `podlab run --allow-connect PORT`: the way out to a proxy in `bind-denied` (PodUtils/podssh#278) |
 | [T-738](podvm.md) | P1 | M | M6 | feature | done | `pod-enter`: bind the volumes of a plan on the namespace rung, also through a user namespace (PodUtils/podvm#440) |
-| [T-739](podvm.md) | P2 | S | M6 | defect | open | `pod-enter`: a rule of the confinement on a guest path of a volume is checked in the image, not in the volume |
+| [T-739](podvm.md) | P2 | S | M6 | defect | done | `pod-enter`: a rule of the confinement on a guest path of a volume is checked in the image, not in the volume |
 | [T-742](relay.md) | P1 | S | M2 | defect | done | `pod-link`: the unix carrier fails under Landlock: the move of its staged socket gives `EXDEV` (PodUtils/podnet#592) |
 | [T-743](relay.md) | P1 | S | M2 | defect | done | `pod-hold`: the netns backend needs a UDP socket for its interface ioctls, which `udp-denied` refuses (PodUtils/podnet#592) |
 | [T-744](podvm.md) | P2 | S | M6 | feature | done | `pod-hostprobe`: the row `chroot(/tmp) in unshare(NEWUSER+maps)`, the chroot of a driver with no root (PodUtils/podrunner#191) |

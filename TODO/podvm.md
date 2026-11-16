@@ -8869,7 +8869,7 @@ sh scripts/plant-each.sh hostprobe-userns-chroot-no-userns
 **Milestone:** M6
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8888,8 +8888,13 @@ Where the plan has volumes, check each path of the rules through the table of th
 
 ```sh
 cargo test -p pod-enter --all-features
+sh scripts/ci/userns-tests.sh
 sh scripts/ci/root-enter-confine-tests.sh
 ```
+
+## Done
+
+2026-11-16, commit 2e9ec7e8; call C731. `pod-confine`: `Spec::compile_by(abi, open)`, a compile whose opener of the caller gives the descriptor of each path as the spec names it (or the errno of the refusal). `pod-enter`: where a plan has volumes, `confine::compile` opens each path of a rule through the walk of `Maps::of_binds` (`open_through`): a path at or under the guest path of a volume opens in its host side, each other path in the image, and a link of the image to a volume lands in the volume; a directory above a volume that the image does not hold (the child makes it) gets the root of the image for the check of the type; a path in neither the image nor a volume is `ENOENT`, refused by name before the banner. A plan with no volume keeps `compile_in`. The child is unchanged: it opens each path after the binds and the chroot (`Compiled::open_paths`), so a rule holds the root of the bind. Tests: `pod_confine` `the_opener_of_the_caller_resolves_each_path`; `confine::tests::a_rule_resolves_through_the_volumes` (a volume that the image does not hold, a path of the host side alone, a link of the image to a volume, a volume over a directory of the image, a made directory above a volume, `ENOENT` for a path in neither); `tests/userns.rs` `a_rule_of_the_confinement_holds_on_a_volume` as root and as uid 65534 over the flagged tmpfs: the payload reads a volume that the image does not hold under a read rule, writes a directory of the host side alone under a write rule, reads a volume under a rule on the made directory above it, and gets `EACCES` in the volume `/data` that no rule names and for a write outside the rules; a rule on `/nowhere` is refused before the banner. Here (root, kernel 6.18, Landlock, `PODVM_T486_BUSYBOX=/tmp/bbx/busybox`): `cargo test -p pod-enter -p pod-confine --all-features` (pod-enter 218 unit tests, pod-confine 38), `sh scripts/ci/userns-tests.sh` and `sh scripts/ci/root-enter-confine-tests.sh` pass. The plants `enter-confine-volume-in-the-image`, `enter-confine-volume-missing-accepted` and `enter-confine-volume-descriptors-kept` are caught (`sh scripts/plant-each.sh --group enter`: 23 caught, 0 missed or stale; `--apply`: 0 stale). Also fixed: `pass_clear::tests::the_kind_names_a_directory_and_a_pipe` read a closed low number that another test thread can take (a failure seen here); it reads a closed number over 900. Found: T-750 (the overlay root with an upper directory). For the release notes: podvm can now combine the rules of its confinement profile (`fs.read`, `fs.write`, `fs.execute`; `Plan::confine`) with `-v HOST:GUEST[:ro]` volumes (`Plan::volumes`) on the namespace rung, for `run -d` and `create`: a rule on a guest path of a volume (also one that the image does not hold, or a path under it that only the host side holds) is accepted and holds the volume; a rule that names no volume does not reach into it. No change of the API for podvm: `pod_confine::Spec::compile_by` is new.
 
 # T-750: `pod-enter`: on an overlay root with an upper directory, the working directory and the paths of the rules are checked in the lower layer alone
 
