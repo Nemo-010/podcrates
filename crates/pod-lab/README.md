@@ -121,6 +121,11 @@ comes from a stand-in.
   `https_proxy`, `HTTP_PROXY` and `http_proxy` of the lab process name
   it, before the lab measures the profile, and the command inherits them;
   in a class with no proxy, the lab removes each variable of a proxy.
+  The proxy variables of other tools (`net::vars`: global-agent of
+  Node.js, npm, Yarn, a build of Docker, the Google Cloud CLI) go the same
+  way: set to the stand-in proxy where the class has one, else removed. The
+  options of a Java virtual machine (`JAVA_TOOL_OPTIONS`,
+  `JDK_JAVA_OPTIONS`, `_JAVA_OPTIONS`) lose each option of a proxy.
   After a 200, the proxy is the server of the target itself.
 * The names: `listed.test` is on the list of a class, `other.test` is not
   (RFC 6761 names). The address outside is `192.0.2.1` (RFC 5737): a

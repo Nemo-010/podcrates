@@ -22,6 +22,7 @@ pub fn main(kind: &str) -> Option<Out> {
         "nodns" => nodns(),
         "ws" => ws(),
         "v6" => v6(),
+        "tool-vars" => tool_vars(),
         _ => return crate::way_out_payload::main(kind),
     };
     let file = std::env::var("SSL_CERT_FILE").unwrap_or_default();
@@ -229,4 +230,21 @@ fn v6() -> Out {
     connect("127.0.0.1:443").map_err(|e| format!("127.0.0.1:443: {e}"))?;
     connect("[fd00:6c61:62::1]:443").map_err(|e| format!("the IPv6 address: {e}"))?;
     Ok("no IPv4 route, the loopback and IPv6 reach".to_string())
+}
+
+/// The variables of a proxy of other tools than curl name the stand-in
+/// proxy of the lab, as `HTTPS_PROXY` does (T-760).
+fn tool_vars() -> Out {
+    let url = std::env::var("HTTPS_PROXY").map_err(|_| "no HTTPS_PROXY".to_string())?;
+    for v in pod_lab::net::vars::URL_VARIABLES {
+        let got = std::env::var(v).unwrap_or_default();
+        if got != url {
+            return Err(format!("{v} is {got:?}, not the stand-in proxy"));
+        }
+    }
+    let address = std::env::var("CLOUDSDK_PROXY_ADDRESS").unwrap_or_default();
+    if address != "127.0.0.1" {
+        return Err(format!("CLOUDSDK_PROXY_ADDRESS is {address:?}"));
+    }
+    Ok("the proxy variables of each tool name the stand-in proxy".to_string())
 }

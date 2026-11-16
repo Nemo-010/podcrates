@@ -244,6 +244,24 @@ them. Used by: run. podlab sets it and does not read it.
 The lab removes them: the command reaches out only as the class lets it. Used
 by: run. podlab sets it and does not read it.
 .TP
+\fBGLOBAL_AGENT_HTTP_PROXY\fR, \fBGLOBAL_AGENT_HTTPS_PROXY\fR, \fBnpm_config_proxy\fR, \fBnpm_config_https_proxy\fR, \fBNPM_CONFIG_PROXY\fR, \fBNPM_CONFIG_HTTPS_PROXY\fR, \fBYARN_HTTP_PROXY\fR, \fBYARN_HTTPS_PROXY\fR, \fBDOCKER_HTTP_PROXY\fR, \fBDOCKER_HTTPS_PROXY\fR
+The proxy of a tool other than curl. The lab sets them to its stand\-in proxy
+where the class has one. Else the lab removes them. Used by: run. podlab sets
+it and does not read it.
+.TP
+\fBGLOBAL_AGENT_NO_PROXY\fR, \fBnpm_config_noproxy\fR, \fBNPM_CONFIG_NOPROXY\fR, \fBDOCKER_NO_PROXY\fR
+The lab removes them. Used by: run. podlab sets it and does not read it.
+.TP
+\fBCLOUDSDK_PROXY_TYPE\fR, \fBCLOUDSDK_PROXY_ADDRESS\fR, \fBCLOUDSDK_PROXY_PORT\fR, \fBCLOUDSDK_PROXY_USERNAME\fR, \fBCLOUDSDK_PROXY_PASSWORD\fR, \fBCLOUDSDK_PROXY_RDNS\fR
+The proxy of the Google Cloud CLI. The lab sets the type, the address, the
+port and the credential of its stand\-in proxy where the class has one. Else
+the lab removes them. Used by: run. podlab sets it and does not read it.
+.TP
+\fBJAVA_TOOL_OPTIONS\fR, \fBJDK_JAVA_OPTIONS\fR, \fB_JAVA_OPTIONS\fR
+The options of a Java virtual machine. The lab removes each option of a proxy
+from them, and keeps the other options. Used by: run. podlab reads it and sets
+it.
+.TP
 \fBSSL_CERT_FILE\fR
 The certificate file of the lab: the CA of the stand\-in servers, and the CA
 of the proxy where the proxy terminates TLS. Used by: run. podlab sets it and

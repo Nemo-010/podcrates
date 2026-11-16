@@ -67,6 +67,53 @@ pub fn facts() -> pod_manual::Facts {
             Var {
                 used_by: "run".into(),
                 ..Var::sets(
+                    &[
+                        "GLOBAL_AGENT_HTTP_PROXY",
+                        "GLOBAL_AGENT_HTTPS_PROXY",
+                        "npm_config_proxy",
+                        "npm_config_https_proxy",
+                        "NPM_CONFIG_PROXY",
+                        "NPM_CONFIG_HTTPS_PROXY",
+                        "YARN_HTTP_PROXY",
+                        "YARN_HTTPS_PROXY",
+                        "DOCKER_HTTP_PROXY",
+                        "DOCKER_HTTPS_PROXY",
+                    ],
+                    "The proxy of a tool other than curl. The lab sets them to its stand-in proxy where the class has one. Else the lab removes them.",
+                )
+            },
+            Var {
+                used_by: "run".into(),
+                ..Var::sets(
+                    &["GLOBAL_AGENT_NO_PROXY", "npm_config_noproxy", "NPM_CONFIG_NOPROXY", "DOCKER_NO_PROXY"],
+                    "The lab removes them.",
+                )
+            },
+            Var {
+                used_by: "run".into(),
+                ..Var::sets(
+                    &[
+                        "CLOUDSDK_PROXY_TYPE",
+                        "CLOUDSDK_PROXY_ADDRESS",
+                        "CLOUDSDK_PROXY_PORT",
+                        "CLOUDSDK_PROXY_USERNAME",
+                        "CLOUDSDK_PROXY_PASSWORD",
+                        "CLOUDSDK_PROXY_RDNS",
+                    ],
+                    "The proxy of the Google Cloud CLI. The lab sets the type, the address, the port and the credential of its stand-in proxy where the class has one. Else the lab removes them.",
+                )
+            },
+            Var {
+                used_by: "run".into(),
+                usage: pod_manual::Use::ReadsAndSets,
+                ..Var::sets(
+                    &["JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS"],
+                    "The options of a Java virtual machine. The lab removes each option of a proxy from them, and keeps the other options.",
+                )
+            },
+            Var {
+                used_by: "run".into(),
+                ..Var::sets(
                     &["SSL_CERT_FILE"],
                     "The certificate file of the lab: the CA of the stand-in servers, and the CA of the proxy where the proxy terminates TLS.",
                 )

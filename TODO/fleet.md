@@ -4550,7 +4550,7 @@ cargo test -p pod-lab --all-features --test lab
 **Milestone:** M8
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -4583,3 +4583,22 @@ list the variables. A test sets each of them for the lab process alone
 ```sh
 cargo test -p pod-lab --all-features --test lab
 ```
+
+## Done
+
+2026-11-16. `pod_lab::net::vars`: `changes` gives the changes of the
+environment of the lab process: each variable of `URL_VARIABLES`
+(global-agent, npm, Yarn, a build of Docker), `SKIP_VARIABLES` and
+`CLOUDSDK_VARIABLES` removed; where the class has a proxy, the URL forms set
+to the stand-in proxy and the Google Cloud CLI set to its type, address,
+port and credential; `JAVA_TOOL_OPTIONS`, `JDK_JAVA_OPTIONS` and
+`_JAVA_OPTIONS` lose each option of a proxy and keep the others. The lab
+applies them in `environment`, beside the variables of curl. The manual of
+`podlab` names each variable (the drift check of `pod-manual` refused the
+code until it did). Tests: `net::vars::tests` (a class with no proxy, a
+class with a proxy and a credential, the options of Java) and the lab case
+`tool-vars` in `proxy-only` (the command sees each URL form and the address
+of the Google Cloud CLI as the stand-in proxy). Plant
+`lab-tool-proxy-variables-kept`. Here (root): `cargo test -p pod-lab
+--all-features` (54 unit tests, the binary 7, `cli` 5, `lab` as root and as
+uid 65534: each case ok).

@@ -19,6 +19,7 @@ mod relay;
 mod setup;
 mod standin;
 mod tls;
+pub mod vars;
 mod wire;
 
 pub use measure::measure;

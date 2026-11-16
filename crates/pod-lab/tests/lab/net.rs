@@ -52,6 +52,11 @@ pub fn proxy_only() {
     );
 }
 
+/// The variables of a proxy of other tools than curl (T-760).
+pub fn tool_variables() {
+    case("proxy-only", "tool-vars", "the proxy variables of each tool name the stand-in proxy");
+}
+
 pub fn proxy_tls_reterminate() {
     case(
         "proxy-tls-reterminate",
@@ -107,6 +112,7 @@ pub fn all() {
     proxy_per_name();
     sni_allowlist();
     no_proxy_no_dns();
+    tool_variables();
     ws_upgrade_refused();
     ipv6_only();
     crate::way_out::all();

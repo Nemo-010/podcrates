@@ -287,6 +287,14 @@ fn environment(lab: &Started) {
         for v in PROXY_VARIABLES {
             std::env::remove_var(v);
         }
+        let current: Vec<(String, String)> = std::env::vars().collect();
+        let current = current.iter().map(|(k, v)| (k.as_str(), v.as_str()));
+        for change in crate::net::vars::changes(current, lab.net.proxy.as_ref()) {
+            match change {
+                crate::net::vars::Change::Remove(k) => std::env::remove_var(k),
+                crate::net::vars::Change::Set(k, v) => std::env::set_var(k, v),
+            }
+        }
         if let Some(p) = &lab.net.proxy {
             let url = crate::net::proxy_url(p);
             for v in &PROXY_VARIABLES[..4] {
