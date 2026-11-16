@@ -4453,7 +4453,7 @@ sh scripts/plant-each.sh lab-allow-connect-dropped
 **Milestone:** M8
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -4483,7 +4483,45 @@ plant.
 
 ```sh
 cargo test -p pod-manual --all-features --test clap
+sh scripts/plant-each.sh manual-clap-needs-group-dropped
 ```
+
+## Done
+
+2026-11-16, `d038158`, `d441f7b`, `b1da77a`.
+
+- `Rule::Needs` has the new field `one` (`bool`; the JSON leaves it out
+  when it is false, schema 1; a JSON with no `one` reads as a need of each
+  name). The sentence is `--audit needs one of --json, --text.`, with a
+  value `--mode signed needs one of --key, --agent.`. The help, the text,
+  the man page, the JSON and `llms-full.txt` show it through
+  `Rule::sentence` and the model. `check::model` refuses a need of one of
+  less than two names. Call C762.
+- The probe (`crates/pod-manual/src/clap/needs.rs`) matches clap's text of
+  each group of the command (`<--json|--text>`: a flag as its usage, a
+  positional as its value names) to the arguments of the group. A group
+  of one argument is a need of that argument; a group with a hidden
+  argument is left out; a need that another need gives is left out.
+- Tests: `tests/clap.rs` `the_reader_gives_a_need_of_one_of_a_group` (a
+  group of two flags, of an option and a positional, of three flags, of
+  one flag, with a hidden flag, a `requires_if` of a group, a need
+  through another need; each writer, the reader of the JSON,
+  `check::model` and `check::flags`),
+  `a_need_with_no_field_one_is_a_need_of_each`, `--audit` in
+  `the_reader_gives_each_rule_of_requires`; `check::tests`
+  `a_need_of_one_of_names_two_or_more`. `cargo test -p pod-manual
+  --all-features`: 60 and 13 passed. podlab (`--bin podlab --test cli`):
+  7 and 6 passed; its parser has no group need, `man/podlab.1` does not
+  change.
+- Plant `manual-clap-needs-group-dropped` (the key of a group with no
+  angle brackets) is caught; `manual-clap-needs-followed-through` has a
+  new patch; `plant-each.sh --group manual`: 25 caught, and
+  `manual-man-plant-vacuous` needs groff, which the host of the run did
+  not have.
+- For the release notes: `pod_manual::clap::read` gives a `requires` of a
+  group as a need of one of its arguments ("--audit needs one of --json,
+  --text."). Breaking: `Rule::Needs` has the new field `one` (a struct
+  literal or a pattern names it, or `..`).
 
 # T-759: `pod-lab`: the stand-in proxy of a network lab reaches a server of the command on the loopback of the lab, with the rules of its class (PodUtils/podssh#282)
 
