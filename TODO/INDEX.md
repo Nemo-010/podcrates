@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**643 entries: 126 open, 14 partial, 6 blocked, 497 done.**
+**643 entries: 125 open, 14 partial, 6 blocked, 498 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 146 | 165 |
-| P2 | 58 | 3 | 4 | 257 | 322 |
+| P2 | 57 | 3 | 4 | 258 | 322 |
 | P3 | 57 | 3 | 2 | 92 | 154 |
-| **All** | 126 | 14 | 6 | 497 | 643 |
+| **All** | 125 | 14 | 6 | 498 | 643 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -684,7 +684,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-802](relay.md) | P2 | M | M2 | feature | open | `pod-turn`: a NAT probe (the mapping, the filtering and the port of RFC 5780) on the caller's datagrams (GitHub #212) |
 | [T-803](relay.md) | P3 | M | M2 | feature | open | `pod-link`: an adaptive parity datagram for the ARQ, off on a clean link (GitHub #213) |
 | [T-804](podvm.md) | P1 | S | M5 | defect | done | `pod-qga` has no `LICENSE` beside its manifest; a check of each crate that cargo packs (PodUtils/podvm#456) |
-| [T-805](relay.md) | P2 | S | M2 | feature | open | `pod-relay`: a node that gets `409` for its own lost socket gives up on that route sooner than `rejoin`, and says so (PodUtils/podnet#604) |
+| [T-805](relay.md) | P2 | S | M2 | feature | done | `pod-relay`: a node that gets `409` for its own lost socket gives up on that route sooner than `rejoin`, and says so (PodUtils/podnet#604) |
 | [T-806](podvm.md) | P1 | M | M6 | feature | done | `pod-enter`: a PID namespace with its own `/proc` on the namespace rung, which a join enters (PodUtils/podvm#457) |
 | [T-807](fleet.md) | P2 | M | M5 | feature | open | `pod-manual`: four forms that podssh's manual needs before its text, help and JSON move to the crate (PodUtils/podssh#288) |
 | [T-808](roads.md) | P2 | S | M4 | defect | done | `pod-iroh`: the fork of iroh-relay sends the name of the relay to a `socks5://` proxy (T-037) |

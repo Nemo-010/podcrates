@@ -1,0 +1,6 @@
+# pod-relay: a node ends on a held lost socket with no line, so the operator does not know why the route is gone; the test of the hold must fail at its check of the line (T-805).
+ENTRY=T-805
+GROUP=relay
+EXPECT='last.starts_with'
+RUN='cargo test -p pod-relay --all-features --test blocking_held a_held_lost_socket_ends_the_node_at_its_hold'
+LIMIT=1800

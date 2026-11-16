@@ -109,6 +109,12 @@ pub enum Exit {
     /// the relay held the old socket longer than `Settings::rejoin` after a
     /// loss (podssh T-261).
     NameInUse,
+    /// `409` for the node's own lost socket for longer than
+    /// `Settings::lost_hold`: the relay did not drop that socket, and the
+    /// operators' connections reach it. A new pair, or another relay of the
+    /// pool, serves at once; this pair on this relay waits for the relay
+    /// (PodUtils/podnet#604). The node said so in one line.
+    LostSocketHeld,
     /// `1001 operator stopped reverse relay`: the pair is over, and its stored
     /// copy is deleted.
     PairStopped,
@@ -210,6 +216,15 @@ pub fn refused_upgrade(body: &str) -> String {
     }
 }
 
+/// The line of [`Exit::LostSocketHeld`], after `held` of `409`.
+pub fn held_line(held: Duration) -> String {
+    format!(
+        "the relay still holds the node's lost socket after {} s of 409: an operator's connection reaches that \
+         socket and stops; the node stops on this route (take a new pair, or another relay)",
+        held.as_secs()
+    )
+}
+
 /// Run the node until it ends; reconnect after a broken socket, at once the
 /// first time after a socket that served ([`again_at_once`]), else with the
 /// jittered backoff of the forward opener, with a line that says how the
@@ -222,7 +237,8 @@ pub fn refused_upgrade(body: &str) -> String {
 /// exits (podssh T-416). After a loss it means that the relay still holds the old
 /// socket: the node connects again until `Settings::rejoin` after the loss,
 /// as the sessions that the resumable layer keeps wait that long (podssh T-261;
-/// rule 6 of `docs/reverse.md`).
+/// rule 6 of `docs/reverse.md`), but for `Settings::lost_hold` of `409` at
+/// most (PodUtils/podnet#604).
 pub async fn run<H, F>(config: &mut NodeConfig<'_>, handler: Arc<H>, stop: F) -> Exit
 where
     H: Handler,
@@ -234,6 +250,8 @@ where
     let mut lost: Option<Instant> = None;
     // When the relay first answered `409` to a node that had held no socket.
     let mut first_conflict: Option<Instant> = None;
+    // When the relay first answered `409` after the last loss.
+    let mut held: Option<Instant> = None;
     // When the node last connected again at once (podssh T-255).
     let mut at_once: Option<Instant> = None;
     loop {
@@ -264,6 +282,7 @@ where
         let next = match connected {
             Ok(socket) => {
                 retry = 0;
+                held = None;
                 // Only now can an operator reach the node: a user, and a
                 // test, wait for this line, not for the start.
                 if let Some(say) = config.say {
@@ -317,7 +336,18 @@ where
             ) => return Exit::Unusable(why),
             Err(ConnectError::Refused { status: 409, .. }) => {
                 let (left, why) = match lost {
-                    Some(at) => (config.settings.rejoin.saturating_sub(at.elapsed()), "the node's lost socket"),
+                    Some(at) => {
+                        let rejoin = config.settings.rejoin.saturating_sub(at.elapsed());
+                        let since = *held.get_or_insert_with(Instant::now);
+                        let hold = config.settings.lost_hold.saturating_sub(since.elapsed());
+                        if hold.is_zero() && !rejoin.is_zero() {
+                            if let Some(say) = config.say {
+                                say(held_line(since.elapsed()));
+                            }
+                            return Exit::LostSocketHeld;
+                        }
+                        (rejoin.min(hold), "the node's lost socket")
+                    }
                     None => {
                         let since = *first_conflict.get_or_insert_with(Instant::now);
                         (

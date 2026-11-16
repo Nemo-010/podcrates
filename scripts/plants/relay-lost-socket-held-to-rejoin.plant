@@ -1,0 +1,6 @@
+# pod-relay: a node keeps on connecting for the whole of rejoin while the relay holds its lost socket, so an operator waits on a dead route; the test of the hold must fail at its bound (T-805, PodUtils/podnet#604).
+ENTRY=T-805
+GROUP=relay
+EXPECT='an end within the limit'
+RUN='cargo test -p pod-relay --all-features --test blocking_held a_held_lost_socket_ends_the_node_at_its_hold'
+LIMIT=1800

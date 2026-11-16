@@ -40,9 +40,9 @@ pub use framing::SessionId;
 pub use layered::Layered;
 
 pub use local::{ChannelHandler, LocalHandler, Target, channel};
-pub use node::{Exit, Handler, Next, NodeConfig, Opening, QUEUE_BYTES, RepairHook, after_close, run};
+pub use node::{Exit, Handler, Next, NodeConfig, Opening, QUEUE_BYTES, RepairHook, after_close, held_line, run};
 pub use operator::{EOF_IDLE, OperatorConfig, OperatorLimits, Outcome};
-pub use serve::{DRAIN, End, HALF_CLOSE_IDLE, Settings, serve};
+pub use serve::{DRAIN, End, FIRST_CONFLICT, HALF_CLOSE_IDLE, LOST_HOLD, Settings, serve};
 pub use state::NodeState;
 pub use tcp::TcpHandler;
 pub use udp::UdpHandler;

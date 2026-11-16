@@ -70,6 +70,14 @@ pub struct Settings {
     /// that ran just before this one, as at a restart (podssh T-416). Zero exits at
     /// the first `409`.
     pub first_conflict: Duration,
+    /// How long a node connects again when the relay answers `409` for its
+    /// own lost socket, from the first such `409` (PodUtils/podnet#604):
+    /// the relay did not drop that socket, and an operator's connection
+    /// reaches it and stops. Then the node says so in one line and ends
+    /// with [`super::node::Exit::LostSocketHeld`], so that its caller can
+    /// take a new pair or another relay. `rejoin` stays the bound of the
+    /// whole wait; a value of `rejoin` or more gives the wait of `rejoin`.
+    pub lost_hold: Duration,
     /// The sessions that the relay role keeps readied ahead for this node's
     /// operators, where its `hello` offers them (podssh T-650): none by default, as
     /// each is a session at rest here; `super::spares::MOST` at most.
@@ -91,6 +99,10 @@ pub struct Settings {
 /// The default of [`Settings::first_conflict`].
 pub const FIRST_CONFLICT: Duration = Duration::from_secs(30);
 
+/// The default of [`Settings::lost_hold`]: a socket that the relay held
+/// for a minute after a reset is a socket that it did not see end.
+pub const LOST_HOLD: Duration = Duration::from_secs(60);
+
 /// The wait for an operator's last bytes after a local side's half close,
 /// in podnet's plain mode ([`Settings::half_close`]).
 pub const HALF_CLOSE_IDLE: Duration = Duration::from_secs(2);
@@ -107,6 +119,7 @@ impl Default for Settings {
             pings_allowed: pod_ws::LIVENESS_ALLOWED,
             rejoin: pod_session::resume::RESUME_DEADLINE,
             first_conflict: FIRST_CONFLICT,
+            lost_hold: LOST_HOLD,
             spares: 0,
             node: Arc::default(),
             half_close: None,
