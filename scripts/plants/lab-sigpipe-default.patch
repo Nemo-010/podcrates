@@ -1,0 +1,10 @@
+--- a/crates/pod-lab/src/net/standin.rs
++++ b/crates/pod-lab/src/net/standin.rs
+@@ -89,7 +89,6 @@
+     }
+     let _ = crate::hold::drop_caps();
+     not_dumpable();
+-    ignore_sigpipe();
+ }
+ 
+ /// SIGPIPE to `SIG_IGN`: a peer that closes before an answer gives the

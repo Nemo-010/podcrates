@@ -268,6 +268,9 @@ mod cases {
 #[cfg(target_os = "linux")]
 fn main() {
     let (settings, test) = (cases::settings(), cases::test_settings());
+    if std::env::var_os(net::SIGPIPE_DEFAULT).is_some() {
+        net::sigpipe_default();
+    }
     pod_lab::dispatch(&settings);
     pod_lab::dispatch(&test);
     let args: Vec<String> = std::env::args().collect();

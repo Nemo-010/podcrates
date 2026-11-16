@@ -23,6 +23,7 @@ pub fn main(kind: &str) -> Option<Out> {
         "ws" => ws(),
         "v6" => v6(),
         "tool-vars" => tool_vars(),
+        "sigpipe" => sigpipe(),
         _ => return crate::way_out_payload::main(kind),
     };
     let file = std::env::var("SSL_CERT_FILE").unwrap_or_default();
@@ -151,6 +152,37 @@ fn proxy_only() -> Out {
         r => return Err(format!("a UDP socket: {r:?}; the lab wants EPERM")),
     }
     Ok("200 with the credential, 407 with none, 403 for port 22, no direct route, no udp".to_string())
+}
+
+/// A client that ends its connection with a reset after the handshake, so
+/// that a write of the stand-in gets `EPIPE`; then a second client still
+/// gets its answer: the stand-in lives (PodUtils/podvm#455).
+fn sigpipe() -> Out {
+    let (c, tcp) = via(&format!("{LISTED}:443"), true)?;
+    if c != 200 {
+        return Err(format!("CONNECT with the credential: {c}"));
+    }
+    let s = tls(tcp, LISTED, true).map_err(|e| format!("TLS: {e}"))?;
+    reset(&s.sock)?;
+    drop(s);
+    std::thread::sleep(Duration::from_millis(300));
+    let (c, tcp) = via(&format!("{LISTED}:443"), true).map_err(|e| format!("the CONNECT after the reset: {e}"))?;
+    let mut s = tls(tcp, LISTED, true).map_err(|e| format!("TLS after the reset: {e}"))?;
+    let got = get(&mut s, "")?;
+    Ok(format!("a reset after the handshake, then CONNECT {c} and GET {got}"))
+}
+
+/// `SO_LINGER` of 0 s: the close of `s` sends a reset, not a FIN.
+fn reset(s: &TcpStream) -> Result<(), String> {
+    use linux_raw_sys::net::{SO_LINGER, SOL_SOCKET};
+    use std::os::fd::AsRawFd as _;
+    let linger: [i32; 2] = [1, 0];
+    let args =
+        [s.as_raw_fd() as u64, u64::from(SOL_SOCKET), u64::from(SO_LINGER), linger.as_ptr() as usize as u64, 8, 0];
+    // SAFETY: the kernel reads 8 bytes of `linger`, which lives until the call ends.
+    unsafe { pod_hostprobe::sys::sys(i64::from(linux_raw_sys::general::__NR_setsockopt), args) }
+        .map(|_| ())
+        .map_err(|e| format!("SO_LINGER: {}", e.name()))
 }
 
 fn reterminate() -> Out {

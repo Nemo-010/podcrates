@@ -57,6 +57,32 @@ pub fn tool_variables() {
     case("proxy-only", "tool-vars", "the proxy variables of each tool name the stand-in proxy");
 }
 
+/// The name of the variable that makes the lab process of a case set
+/// SIGPIPE to its default before `pod_lab::dispatch`, as a consumer can.
+pub const SIGPIPE_DEFAULT: &str = "POD_LAB_TEST_SIGPIPE_DEFAULT";
+
+/// SIGPIPE to `SIG_DFL` (the handler 0) in this process.
+pub fn sigpipe_default() {
+    use linux_raw_sys::general::{__NR_rt_sigaction, SIGPIPE, kernel_sigaction, kernel_sigset_t};
+    // SAFETY: all zero is a valid `kernel_sigaction`: `SIG_DFL`, no flag,
+    // no mask.
+    let act: kernel_sigaction = unsafe { std::mem::zeroed() };
+    let at = std::ptr::from_ref(&act) as usize as u64;
+    let args = [u64::from(SIGPIPE), at, 0, std::mem::size_of::<kernel_sigset_t>() as u64, 0, 0];
+    // SAFETY: the kernel reads `act` and writes nothing.
+    unsafe { pod_hostprobe::sys::sys(i64::from(__NR_rt_sigaction), args) }.expect("rt_sigaction");
+}
+
+/// A stand-in of a lab whose process has SIGPIPE at its default lives
+/// through a client that resets its connection (PodUtils/podvm#455).
+pub fn sigpipe() {
+    // SAFETY: this binary has one thread.
+    unsafe { std::env::set_var(SIGPIPE_DEFAULT, "1") };
+    case("proxy-only", "sigpipe", "a reset after the handshake, then CONNECT 200 and GET 200");
+    // SAFETY: as above.
+    unsafe { std::env::remove_var(SIGPIPE_DEFAULT) };
+}
+
 pub fn proxy_tls_reterminate() {
     case(
         "proxy-tls-reterminate",
@@ -117,6 +143,7 @@ pub fn all() {
     sni_allowlist();
     no_proxy_no_dns();
     tool_variables();
+    sigpipe();
     ws_upgrade_refused();
     ipv6_only();
     crate::way_out::all();

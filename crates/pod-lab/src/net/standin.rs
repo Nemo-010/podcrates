@@ -32,9 +32,10 @@ pub struct Started {
     pub cert_file: PathBuf,
 }
 
-/// The certificate file: the CA of the server, and the CA of the proxy
-/// where the proxy terminates TLS. A new file of the temporary directory;
-/// the stand-in removes it.
+/// The certificate file: the CA of the server, the CA of the proxy where
+/// the proxy terminates TLS, and with a way out the roots of the host
+/// (`host`), for a server whose real chain the way out passes. A new file
+/// of the temporary directory; the stand-in removes it.
 fn write_cert_file(cas: &Cas, net: &Net, host: Option<&str>) -> Result<PathBuf, String> {
     use std::io::Write as _;
     use std::os::unix::fs::OpenOptionsExt as _;
@@ -70,7 +71,8 @@ fn close_but(keep: &[i64]) {
 
 /// The start of a process of the lab that serves and never runs the
 /// command (a stand-in, the way out): each descriptor but `keep` closed,
-/// `/dev/null` on the standard streams, no capability, and not dumpable.
+/// `/dev/null` on the standard streams, no capability, not dumpable, and
+/// SIGPIPE ignored.
 /// A reader of the output of the command would wait for a process that
 /// holds it. A process that is not dumpable keeps its memory and its
 /// `/proc/PID/environ` (the environment of the caller, the proxy of the
@@ -87,6 +89,28 @@ pub fn shed(keep: &[i64]) {
     }
     let _ = crate::hold::drop_caps();
     not_dumpable();
+    ignore_sigpipe();
+}
+
+/// SIGPIPE to `SIG_IGN`: a peer that closes before an answer gives the
+/// write `EPIPE`, not the end of the process. A consumer can start the lab
+/// with SIGPIPE at its default, and rustls writes with `writev`, which
+/// raises it (PodUtils/podvm#455). No process that calls it runs an exec,
+/// so the command of the lab keeps its own disposition.
+fn ignore_sigpipe() {
+    use linux_raw_sys::general::{
+        __NR_rt_sigaction, __kernel_sighandler_t, SIGPIPE, kernel_sigaction, kernel_sigset_t,
+    };
+    // SAFETY: all zero is a valid `kernel_sigaction`: no handler, no flag,
+    // no mask.
+    let mut act: kernel_sigaction = unsafe { std::mem::zeroed() };
+    // SAFETY: `SIG_IGN` is the handler 1; the kernel reads the value, and
+    // no code calls it.
+    act.sa_handler_kernel = unsafe { std::mem::transmute::<usize, __kernel_sighandler_t>(1) };
+    let at = std::ptr::from_ref(&act) as usize as u64;
+    let args = [u64::from(SIGPIPE), at, 0, std::mem::size_of::<kernel_sigset_t>() as u64, 0, 0];
+    // SAFETY: the kernel reads `act` and writes nothing (no old action).
+    let _ = unsafe { k::sys(i64::from(__NR_rt_sigaction), args) };
 }
 
 /// `prctl(PR_SET_DUMPABLE, 0)`: a process of the same user with no

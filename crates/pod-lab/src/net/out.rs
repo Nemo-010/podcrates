@@ -209,14 +209,13 @@ fn forward(ctl: OwnedFd, up: Upstream) -> ! {
     }
 }
 
-/// The roots of the host, read before the lab sets its own
-/// `SSL_CERT_FILE`.
 /// The longest file of certificates that the lab copies.
 const PEM_MOST: u64 = 8 << 20;
 
 /// The PEM text of the certificates that the host trusts: the file of
 /// `SSL_CERT_FILE` where it is set, else the first system bundle that
-/// reads. The certificate blocks alone; empty where there is none.
+/// reads and holds a certificate, as `pod_tls::roots::load` takes it. The
+/// certificate blocks alone; empty where there is none.
 fn host_pem() -> String {
     use std::io::Read as _;
     let file = std::env::var_os(super::CERT_VARIABLE).filter(|v| !v.is_empty()).map(std::path::PathBuf::from);
@@ -227,8 +226,9 @@ fn host_pem() -> String {
     for p in paths {
         let mut text = String::new();
         let read = std::fs::File::open(&p).and_then(|f| f.take(PEM_MOST).read_to_string(&mut text));
-        if read.is_ok() {
-            return certificate_blocks(&text);
+        let blocks = certificate_blocks(&text);
+        if read.is_ok() && !blocks.is_empty() {
+            return blocks;
         }
     }
     String::new()
@@ -249,6 +249,8 @@ pub(super) fn certificate_blocks(text: &str) -> String {
     out
 }
 
+/// The roots of the host, read before the lab sets its own
+/// `SSL_CERT_FILE`.
 fn host_roots() -> Result<Arc<rustls::RootCertStore>, String> {
     let file = std::env::var_os(super::CERT_VARIABLE)
         .filter(|v| !v.is_empty())

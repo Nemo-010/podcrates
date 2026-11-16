@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**628 entries: 120 open, 14 partial, 6 blocked, 488 done.**
+**630 entries: 121 open, 14 partial, 6 blocked, 489 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 8 | 0 | 143 | 162 |
+| P1 | 11 | 8 | 0 | 144 | 163 |
 | P2 | 55 | 3 | 4 | 253 | 315 |
-| P3 | 54 | 3 | 2 | 90 | 149 |
-| **All** | 120 | 14 | 6 | 488 | 628 |
+| P3 | 55 | 3 | 2 | 90 | 150 |
+| **All** | 121 | 14 | 6 | 489 | 630 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -675,3 +675,5 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-793](upkeep.md) | P1 | S | M5 | defect | done | `check-sources.py` reads a file that a part take names at the commit of the take of its dir: `pod-egress` shows 3 changes |
 | [T-794](upkeep.md) | P1 | S | M5 | chore | done | `pod-manual`: podnet took the crate at `9217b0b`; the `taken` line is not in `SOURCES` |
 | [T-795](upkeep.md) | P1 | S | M5 | chore | done | `pod-manual`: the text fixes of podssh in `data.rs` and `flags.rs` change no form that the crate took |
+| [T-796](fleet.md) | P1 | S | M8 | defect | done | `pod-lab`: the stand-in and the way out ignore SIGPIPE, so that a client that resets does not end them (PodUtils/podvm#455) |
+| [T-797](fleet.md) | P3 | S | M8 | defect | open | `pod-lab`: the certificate file of a way out on a host with no bundle, and an `SSL_CERT_FILE` that cannot be read (PodUtils/podvm#455) |

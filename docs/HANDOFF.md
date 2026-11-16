@@ -22,7 +22,9 @@ is done. Git and the record keep finished work.
    `release.yml` with no input (the dry run), then with `version=0.64.0`.
    Push nothing to `main` until the tag exists. Then open the COORD
    hand-off `(to all)` (COORD-124) and map it in `TODO/issues.md` and
-   `TODO/github.txt`.
+   `TODO/github.txt`. In it, answer PodUtils/podvm#455: item 1 is T-792
+   (in `v0.64.0`), item 2 is T-796 (on `main`, for the tag after), and
+   T-797 holds the gaps that stay.
 3. Read the scheduled nightly: T-789 (armv7) and T-766 (riscv64) are the
    jobs that stayed red; a new red job needs an entry.
 4. T-767 (PodUtils/podssh#283, P1, partial): the seventh failure shows

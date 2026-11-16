@@ -1,0 +1,7 @@
+# The stand-in and the way out keep the SIGPIPE of the lab process: in a
+# lab process with SIGPIPE at its default, a client that resets ends the
+# stand-in, and the case sigpipe of proxy-only must fail.
+ENTRY=T-796
+GROUP=lab
+EXPECT='proxy-only: the lab proxy-only does not hold: proxy-reaches'
+RUN='sh scripts/ci/userns-tests.sh'

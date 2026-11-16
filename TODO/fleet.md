@@ -4832,3 +4832,121 @@ reaches the TLS server of the test past the lab, whose CA is the host's
 `lab-way-out-host-roots-left-out`. Here (root): `cargo test -p pod-lab
 --all-features` (61 unit tests, the binary 7, `cli` 6, `lab` as root and as
 uid 65534: each case ok).
+
+# T-796: `pod-lab`: the stand-in and the way out ignore SIGPIPE, so that a client that resets does not end them (PodUtils/podvm#455)
+
+**Source:** PodUtils/podvm#455 (COORD-162 of podvm, item 2).
+**Category:** defect
+**Milestone:** M8
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+podvm: "podvm sets SIGPIPE to `SIG_DFL` at the start of each process
+(PodUtils/podvm@T-1769), and the lab process and its stand-in inherit it. A probe
+that closes its socket before the stand-in writes its answer kills the
+whole stand-in (`strace`: `killed by SIGPIPE`, `si_code=SI_USER`). Each
+later `CONNECT` then gets "Connection refused", and `proxy-only` did not
+hold on this host." The stand-in and the way out are forks of the lab
+process (`crates/pod-lab/src/net/standin.rs`, `out.rs`), and they keep its
+dispositions. rustls writes with `writev`, which raises SIGPIPE on a
+socket whose peer reset it; the plain writes of `TcpStream` use
+`MSG_NOSIGNAL`. No code of `pod-lab` set SIGPIPE.
+
+## Premise
+
+- Read: PodUtils/podvm#455; `shed` in `net/standin.rs` (the start of the
+  stand-in and of the way out); `run` in `src/lab.rs` (the exec of the lab
+  process: the consumer's binary through `pod_lab::dispatch`).
+- Measured: `tests/lab.rs` with SIGPIPE at `SIG_DFL` in the lab process:
+  the check of `proxy-only` before the command fails, "TLS to listed.test
+  through the proxy shows the CA of the server: a read of the head:
+  Connection reset by peer", then "the proxy: Connection refused".
+
+## Approach
+
+`shed` sets SIGPIPE to `SIG_IGN` (`rt_sigaction` with the
+`kernel_sigaction` of `linux-raw-sys`, the layout of each target). Both
+the stand-in and the way out call `shed` before their threads start. No
+process that calls it runs an exec, so the command of the lab keeps its
+own disposition. A test: the lab test sets SIGPIPE to `SIG_DFL` in the lab
+process (the variable `POD_LAB_TEST_SIGPIPE_DEFAULT`), and a payload
+resets its connection after the handshake, then gets its answer from the
+stand-in again.
+
+## Prove
+
+```sh
+cargo test -p pod-lab --all-features --test lab
+sh scripts/plant-each.sh lab-sigpipe-default
+```
+
+## Done
+
+2026-11-16, the commit of the fix. `ignore_sigpipe` in
+`crates/pod-lab/src/net/standin.rs`, called by `shed`. Test: the case
+`proxy-only` with the payload `sigpipe` (`tests/lab/net.rs`,
+`tests/lab/net_payload.rs`): the lab process sets SIGPIPE to `SIG_DFL`
+before `pod_lab::dispatch` (`tests/lab.rs`), the payload resets a TLS
+connection through the proxy (`SO_LINGER` of 0 s), then a `CONNECT` and a
+`GET` get 200. Before the fix the case fails as podvm saw it (the
+check of the lab before the command: a reset, then "Connection refused");
+after it each case passes as root and as uid 65534. Plant
+`lab-sigpipe-default`. Two findings of the triage, fixed in place: the doc
+comment of `host_roots` stood on `PEM_MOST` (`net/out.rs`), and `host_pem`
+took the first system bundle that reads, also with no certificate; it now
+takes the first with a certificate, as `pod_tls::roots::load` does. The
+doc of `write_cert_file` names the roots of the host. Item 1 of the issue
+(the roots of the host in the certificate file) is T-792, on `main` since
+`c58f870` and in `v0.64.0`. podvm can drop its handler of SIGPIPE before
+`pod_lab::dispatch` when it takes the tag after `v0.64.0`. Release notes:
+`pod-lab`: the stand-in and the way out ignore SIGPIPE: a consumer that
+starts the lab with SIGPIPE at its default needs no handler.
+
+# T-797: `pod-lab`: the certificate file of a way out on a host with no bundle, and an `SSL_CERT_FILE` that cannot be read (PodUtils/podvm#455)
+
+**Source:** PodUtils/podvm#455 (COORD-162 of podvm, item 1; the triage of T-796).
+**Category:** defect
+**Milestone:** M8
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+T-792 adds the roots of the host to the certificate file of a lab with a
+way out (`host_pem` in `crates/pod-lab/src/net/out.rs`). Two gaps stay.
+(1) A host with no `SSL_CERT_FILE` and no system bundle (a scratch or a
+distroless image) gives an empty text, so a class that splices the real
+chain (`proxy-only`) still fails with `UnknownIssuer`, while a class that
+re-terminates works: `host_roots` takes `pod_tls::roots::load`, which adds
+the built-in roots of `webpki-roots`. (2) A file of `SSL_CERT_FILE` that
+cannot be read gives an empty text with no message; `host_roots` gives an
+error for the same file.
+
+## Premise
+
+- Read: `host_pem`, `host_roots` and `start` in `net/out.rs`;
+  `crates/pod-tls/src/roots.rs` (`load` and its built-in roots).
+- Read: `webpki-roots` holds trust anchors, not certificates: it cannot
+  become PEM. The crate `webpki-root-certs` holds the same roots as DER.
+- Not measured: a host with no bundle.
+
+## Approach
+
+(1) Where `host_pem` finds no certificate, write the roots of
+`webpki-root-certs` as PEM (base64 of each DER), or refuse `--way-out`
+with the reason; take the first when its licence and its size in the
+binary pass `deny.toml` and the size of `podlab`. (2) `host_pem` gives an
+error for a file of `SSL_CERT_FILE` that does not read, and `start` gives
+it as the error of the way out. A test of each: the lab process with an
+`SSL_CERT_FILE` that names no file, and a `host_pem` with no bundle (a
+list of paths as an argument).
+
+## Prove
+
+```sh
+cargo test -p pod-lab --all-features
+```
