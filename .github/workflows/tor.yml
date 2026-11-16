@@ -1,0 +1,79 @@
+# The road through Tor of pod-tor (T-038) against a Tor network of C tor on
+# this runner, chutney's (`scripts/tor-net.sh`), whose relays know no other
+# network: no byte goes to Tor's own network. The daemon of Tor's network
+# that Ubuntu's package would start is masked before the install. chutney
+# comes from the Tor Project at a pinned commit (docs/live-calls.md, L55).
+name: tor
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/pod-tor/**"
+      - "scripts/tor-net.sh"
+      - ".github/workflows/tor.yml"
+  schedule:
+    - cron: "41 3 * * 2"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_BUILD_JOBS: "4"
+
+jobs:
+  tor-net:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Toolchain
+        run: |
+          sh scripts/retry.sh rustup toolchain install
+          rustup default "$(sed -n 's/^channel = "\(.*\)"/\1/p' rust-toolchain.toml)"
+      - name: The cache of the registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ github.job }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-${{ github.job }}-
+      - name: tor, with no daemon of Tor's network
+        run: |
+          set -eu
+          sudo systemctl mask tor.service tor@default.service
+          sh scripts/retry.sh sudo apt-get update -q
+          sh scripts/retry.sh sudo apt-get install -y -q --no-install-recommends tor
+          if pgrep -x tor; then echo "FAIL a daemon of Tor's network runs"; exit 1; fi
+      - name: The tests build
+        run: cargo test --locked -p pod-tor --no-run
+      - name: The private network
+        run: |
+          set -eu
+          # Not the loopback, which the dialer sends through no proxy: the
+          # runner's own address, so that each first hop crosses the proxy.
+          address=$(hostname -I | awk '{print $1}')
+          toml=$(sh scripts/tor-net.sh start "$RUNNER_TEMP/tor-net" "$address")
+          test -f "$toml"
+          echo "POD_TEST_TOR_NETWORK=$toml" >> "$GITHUB_ENV"
+      - name: The road through Tor, and an onion service
+        run: |
+          set -eu
+          cargo test --locked -p pod-tor --test private_network -- --nocapture
+          # Each relay is an HSDir; a service runs once the consensus holds
+          # both shared random values (scripts/tor-net.sh).
+          sh scripts/tor-net.sh wait-onion "$RUNNER_TEMP/tor-net" 1200
+          cargo test --locked -p pod-tor --test onion_service -- --nocapture
+      - name: The network stopped
+        if: always()
+        run: sh scripts/tor-net.sh stop "$RUNNER_TEMP/tor-net"

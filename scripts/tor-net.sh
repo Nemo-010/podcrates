@@ -1,19 +1,19 @@
 #!/bin/sh
 # A private Tor network of C tor on this host, for the tests of the Tor
-# road (T-353): chutney's network `basic` (four authorities, five exits,
+# road (PodUtils/podssh@T-353): chutney's network `basic` (four authorities, five exits,
 # two clients), and arti-client's configuration of it, which the tests read
-# from PODSSH_TEST_TOR_NETWORK. Its relays know no other network, so
-# nothing of it reaches Tor's own. The test of onion services (T-578) runs
+# from POD_TEST_TOR_NETWORK. Its relays know no other network, so
+# nothing of it reaches Tor's own. The test of onion services (PodUtils/podssh@T-578) runs
 # in it too: chutney's TestingTorNetwork votes each relay an HSDir, and nine
 # relays are more than the five that a service and its client need.
 #
-# start-bridges (T-385) makes a network of podssh's own in its place: four
+# start-bridges (PodUtils/podssh@T-385) makes a network of its own in its place: four
 # authorities, a bridge authority, four exits, and one bridge whose
 # pluggable transports are Tor's own servers, meek-server 0.38.0 and the
 # WebTunnel server 0.0.7, built here with Go from their modules (through
 # Go's module proxy) and started by the bridge's tor. It prints the path of
 # a file of the bridge's lines, one for each transport, beside the
-# network's arti.toml; the tests read it from PODSSH_TEST_TOR_BRIDGES.
+# network's arti.toml; the tests read it from POD_TEST_TOR_BRIDGES.
 #
 #   sh scripts/tor-net.sh start DIR [ADDRESS]           # prints the path of arti.toml
 #   sh scripts/tor-net.sh start-bridges DIR [ADDRESS]   # prints the path of the bridge lines
@@ -27,7 +27,7 @@
 # service started then stays in Bootstrapping for good; the tests of onion
 # services run after it. SECONDS bounds the wait, 1200 by default.
 #
-# The relays listen on ADDRESS, 127.0.0.1 by default. podssh sends no
+# The relays listen on ADDRESS, 127.0.0.1 by default. The dialer of pod-proxy sends no
 # loopback address through a proxy, so a test of the proxy's road gives
 # another address of this host. Both forms take the same ports: stop one
 # network before the other starts.
