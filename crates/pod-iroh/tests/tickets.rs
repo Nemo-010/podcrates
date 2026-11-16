@@ -1,9 +1,10 @@
-//! The tickets of the iroh road, and the allowlist of a node (T-163).
+//! The tickets of the iroh road, and the allowlist of a node
+//! (PodUtils/podssh@T-163).
 //!
 //! The fixed tickets are iroh's own form: the bytes of the test vector of
 //! iroh-tickets 1.0.0 (its `test_ticket_base32`: a key, the relay
 //! `http://derp.me./` and `127.0.0.1:1024`), written as text by Python's
-//! base32, not by podssh's encoder. A node lets in only a client whose key
+//! base32, not by this crate's encoder. A node lets in only a client whose key
 //! its allowlist holds, and a key added to the file counts at once; a
 //! planted node that admits each key fails the same check.
 
@@ -11,16 +12,16 @@ mod cleanup;
 mod common;
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use iroh::{Endpoint, EndpointAddr, PublicKey, SecretKey};
-use podssh_iroh::{ticket, Allowlist, Dialer, Failure};
-use podssh_relay::session::client::Outcome;
-use podssh_relay::session::Settings;
+use pod_iroh::{Allowlist, Dialer, Failure, ticket};
+use pod_session::Settings;
+use pod_session::client::Outcome;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
 
-use common::{options, proxy, relay, LIMIT};
+use common::{LIMIT, options, proxy, relay};
 
 /// The key of iroh's vector, in hex and in base32.
 const KEY: &str = "ae58ff8833241ac82d6ff7611046ed67b5072d142c588d0063e942d9a75502b6";
@@ -46,7 +47,7 @@ fn iroh_s_own_ticket_parses_to_its_key_relay_and_address() {
     assert_eq!(addr.ip_addrs().map(ToString::to_string).collect::<Vec<_>>(), ["127.0.0.1:1024"]);
     // As iroh's tools print a ticket, with no scheme.
     assert_eq!(ticket::parse(VECTOR).unwrap(), addr);
-    // podssh writes iroh's own text back.
+    // this crate writes iroh's own text back.
     assert_eq!(ticket::format(&addr), format!("iroh:{VECTOR}"));
 }
 
@@ -118,7 +119,7 @@ async fn node<G>(relay: &iroh::RelayUrl, proxy: std::net::SocketAddr, admit: G) 
 where
     G: Fn(&PublicKey) -> bool + Clone + Send + Sync + 'static,
 {
-    let node = podssh_iroh::bind(&options(relay, proxy, true)).await.expect("the node");
+    let node = pod_iroh::bind(&options(relay, proxy, true)).await.expect("the node");
     tokio::time::timeout(LIMIT, node.online()).await.expect("the node has its home relay");
     let opened = Arc::new(AtomicUsize::new(0));
     let counted = opened.clone();
@@ -134,7 +135,7 @@ where
             Ok::<DuplexStream, String>(target)
         }
     };
-    tokio::spawn(podssh_iroh::far::serve(node.clone(), Settings::default(), 16 << 20, open, admit));
+    tokio::spawn(pod_iroh::far::serve(node.clone(), Settings::default(), 16 << 20, open, admit));
     (node, opened)
 }
 
@@ -150,7 +151,7 @@ async fn session(client: &Endpoint, node: &Endpoint, relay: &iroh::RelayUrl) -> 
         app.read_exact(&mut back).await.map(|_| back.to_vec())
     };
     let (carried, echoed) = tokio::time::timeout(LIMIT, async {
-        tokio::join!(podssh_iroh::carry(&dialer, app_end, Settings::default(), |_| {}), talk)
+        tokio::join!(pod_iroh::carry(&dialer, app_end, Settings::default(), |_| {}), talk)
     })
     .await
     .expect("the session within the limit");
@@ -170,7 +171,7 @@ where
     let list = scratch(name).join("allow");
     write_list(&list, &format!("# only the operator's key\n{KEY}\n"));
     let (node, opened) = node(&relay_url, proxy, admit(list)).await;
-    let client = podssh_iroh::bind(&options(&relay_url, proxy, false)).await.expect("the client");
+    let client = pod_iroh::bind(&options(&relay_url, proxy, false)).await.expect("the client");
     let got = session(&client, &node, &relay_url).await;
     client.close().await;
     node.close().await;
@@ -200,7 +201,7 @@ async fn a_key_added_to_the_allowlist_gets_in_at_once() {
     let list = scratch("added").join("allow");
     write_list(&list, &format!("{KEY}\n"));
     let (node, opened) = node(&relay_url, proxy, by_the_list(list.clone())).await;
-    let client = podssh_iroh::bind(&options(&relay_url, proxy, false)).await.expect("the client");
+    let client = pod_iroh::bind(&options(&relay_url, proxy, false)).await.expect("the client");
     assert_eq!(session(&client, &node, &relay_url).await, Err(Failure::Refused));
     // The node's operator adds the client's key: the next connection gets in,
     // with no new start of the node.
@@ -213,11 +214,11 @@ async fn a_key_added_to_the_allowlist_gets_in_at_once() {
 
 /// A fresh, empty scratch directory unique to one test.
 fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("podssh-iroh-tickets-{name}-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("pod-iroh-tickets-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     // Private, as a user's own directory is: the node refuses an allowlist
     // that others can change, as a host's temporary directory may let them.
-    podssh_relay::cache::private_dir(&dir).expect("a scratch directory");
+    pod_core::files::private_dir(&dir).expect("a scratch directory");
     cleanup::at_test_end(&dir);
     dir
 }

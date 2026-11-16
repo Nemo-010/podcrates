@@ -1,6 +1,6 @@
-//! Who may reach a node over the iroh road (T-163): the client keys of the
-//! node's allowlist, the same file and the same reading on each road
-//! (`podssh_relay::identity::allow`, T-087). A line holds a key's
+//! Who may reach a node over the iroh road (PodUtils/podssh@T-163): the client
+//! keys of the node's allowlist, the same file and the same reading on each
+//! road (`pod_identity::allow`, PodUtils/podssh@T-087). A line holds a key's
 //! fingerprint, or the key in iroh's hex or base32.
 
 use std::path::Path;
@@ -14,18 +14,18 @@ pub const REFUSED_REASON: &str = "this client's key is not in the node's allowli
 
 /// The keys of an allowlist, asked with iroh's keys.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct Allowlist(podssh_relay::identity::allow::Allowlist);
+pub struct Allowlist(pod_identity::allow::Allowlist);
 
 impl Allowlist {
     /// The keys of `text`.
     pub fn parse(text: &str) -> Allowlist {
-        Allowlist(podssh_relay::identity::allow::Allowlist::parse(text))
+        Allowlist(pod_identity::allow::Allowlist::parse(text))
     }
 
     /// The allowlist in the file at `path`; a missing file is an error, so the
     /// node says that nobody can get in.
     pub fn read(path: &Path) -> Result<Allowlist, String> {
-        podssh_relay::identity::allow::Allowlist::read(path).map(Allowlist)
+        pod_identity::allow::Allowlist::read(path).map(Allowlist)
     }
 
     /// Whether `key` may get in.

@@ -1,6 +1,6 @@
-//! The QUIC settings of the iroh road (T-665): each arm's values in iroh's
-//! own config, iroh's settings kept where podssh sets nothing, and iroh's
-//! own value kept where its types refuse one of podssh's.
+//! The QUIC settings of the iroh road (PodUtils/podssh@T-665): each arm's
+//! values in iroh's own config, iroh's settings kept where the road sets
+//! nothing, and iroh's own value kept where its types refuse one of the road's.
 
 use std::time::Instant;
 
@@ -103,10 +103,10 @@ async fn an_endpoint_takes_the_arm_s_settings() {
     for (tuning, rtt) in [(Tuning::TUNED, "initial_rtt: 100ms"), (Tuning::IROH, "initial_rtt: 333ms")] {
         let options = crate::Options {
             relays: vec![relay.clone()],
-            proxy: podssh_ws::ProxyChoice::Direct,
+            proxy: pod_proxy::ProxyChoice::Direct,
             udp: crate::Udp::Off,
             quic: Some(tuning),
-            ..crate::Options::default()
+            ..crate::test_relay::options()
         };
         let opened = crate::endpoint::open(&options).await.expect("an endpoint");
         assert_eq!(opened.quic, tuning);

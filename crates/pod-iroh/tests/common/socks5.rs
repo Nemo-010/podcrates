@@ -1,9 +1,9 @@
-//! A stand-in SOCKS5 proxy (RFC 1928), as a sandbox's (T-280): a CONNECT to
-//! the relay's name, [`super::RELAY_NAME`], opens a tunnel to the relay on
-//! the loopback; a CONNECT to an address, or to another name, gets reply 2
-//! (not allowed by its rules). Given a user and a password, it asks for them
-//! (RFC 1929) and refuses others. It keeps the address type and the host of
-//! each CONNECT.
+//! A stand-in SOCKS5 proxy (RFC 1928), as a sandbox's (PodUtils/podssh@T-280):
+//! a CONNECT to the relay's name, [`super::RELAY_NAME`], opens a tunnel to the
+//! relay on the loopback; a CONNECT to an address, or to another name, gets
+//! reply 2 (not allowed by its rules). Given a user and a password, it asks for
+//! them (RFC 1929) and refuses others. It keeps the address type and the host
+//! of each CONNECT.
 
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};

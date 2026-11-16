@@ -1,27 +1,27 @@
-//! The client of the iroh road (T-163): a connection to a node by the
-//! address of its ticket, a session of the resumable layer on a stream of
-//! it, and a new stream, or a new connection, for each lost link. When the
+//! The client of the iroh road (PodUtils/podssh@T-163): a connection to a node
+//! by the address of its ticket, a session of the resumable layer on a stream
+//! of it, and a new stream, or a new connection, for each lost link. When the
 //! ticket's relay does not reach the node, the node's record of pkarr names
-//! where it is now (T-350, [`crate::pkarr`]). Each session of a process to
-//! the node may take a stream of the one connection ([`crate::share`],
-//! T-666), in its own lane.
+//! where it is now (PodUtils/podssh@T-350, [`crate::pkarr`]). Each session of a
+//! process to the node may take a stream of the one connection
+//! ([`crate::share`], PodUtils/podssh@T-666), in its own lane.
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use iroh::endpoint::{ConnectError, ConnectOptions, ConnectingError, Connection, ConnectionError, VarInt};
 use iroh::{Endpoint, EndpointAddr, RelayUrl};
 use n0_future::StreamExt;
-use podssh_relay::session::client::{self, Outcome};
-use podssh_relay::session::resume::{self, Next, Note};
-use podssh_relay::session::{Ask, Hearing, OsEntropy, Settings};
+use pod_session::client::{self, Outcome};
+use pod_session::resume::{self, Next, Note};
+use pod_session::{Ask, Hearing, OsEntropy, Settings};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::sync::Mutex;
 
 use crate::allow::{REFUSED, REFUSED_REASON};
 use crate::pkarr::Finder;
-use crate::stream::{open_lane, Lane, Stream};
+use crate::stream::{Lane, Stream, open_lane};
 
 /// How long a connection to a node may take, its handshake included.
 pub const CONNECT_LIMIT: Duration = Duration::from_secs(30);
@@ -32,7 +32,7 @@ pub const FIND_AFTER: Duration = Duration::from_secs(10);
 /// How long a connection whose link failed may take to say why it closed.
 const CLOSE_WAIT: Duration = Duration::from_secs(2);
 /// What `-v` says at the end of a session that no direct path carried, and
-/// of one that a direct path carried at some time (T-335).
+/// of one that a direct path carried at some time (PodUtils/podssh@T-335).
 pub const RELAY_ONLY: &str = "the relay carried each byte of the session";
 pub const WENT_DIRECT: &str = "a direct path carried the session";
 
@@ -89,7 +89,7 @@ impl Dialer {
     }
 
     /// With `finder`, which asks for the node's record when the ticket's
-    /// relay does not reach the node (T-350).
+    /// relay does not reach the node (PodUtils/podssh@T-350).
     pub fn finding(mut self, finder: Finder) -> Dialer {
         self.finder = Some(finder);
         self
@@ -120,7 +120,7 @@ impl Dialer {
     }
 
     /// The connection's own id while there is one: the same for each
-    /// session that shares it (T-666).
+    /// session that shares it (PodUtils/podssh@T-666).
     pub async fn connection_id(&self) -> Option<usize> {
         let slot = self.connection.lock().await;
         slot.as_ref().filter(|c| c.close_reason().is_none()).map(|c| c.stable_id())
@@ -235,7 +235,7 @@ impl Dialer {
     async fn find(&self, finder: &Finder) -> Found {
         let host = finder.server.host().to_string();
         let found = match finder.find(&self.ticket.id).await {
-            // A record of the node's other roads alone (T-445).
+            // A record of the node's other roads alone (PodUtils/podssh@T-445).
             Ok(Some(record)) if record.relays.is_empty() => Found::NoRelay(host.clone()),
             Ok(Some(record)) => {
                 let new: Vec<RelayUrl> =
@@ -303,7 +303,7 @@ where
 }
 
 /// [`carry`], with the session's `hearing`, which a notice of the far end's
-/// silence reads (T-302).
+/// silence reads (PodUtils/podssh@T-302).
 pub async fn carry_heard<A, N>(
     dialer: &Dialer,
     app: A,
@@ -321,7 +321,7 @@ where
         Err(_) if dialer.refused().await => return Err(Failure::Refused),
         Err(e) => return Err(Failure::Failed(e.to_string())),
     };
-    let connect = |_: &podssh_relay::session::Ended| async move {
+    let connect = |_: &pod_session::Ended| async move {
         match dialer.link().await {
             Ok(stream) => Next::Link(stream),
             Err(Failure::Refused) => Next::Stop(REFUSED_REASON.to_string()),
@@ -332,8 +332,8 @@ where
     Ok(resume::run(client, app, connect, note, &mut entropy).await)
 }
 
-/// A connection to `addr` that offers the ALPN of lanes first (T-666), and
-/// [`crate::ALPN`] beside it for a node of before.
+/// A connection to `addr` that offers the ALPN of lanes first
+/// (PodUtils/podssh@T-666), and [`crate::ALPN`] beside it for a node of before.
 async fn connect_lanes(endpoint: &Endpoint, addr: EndpointAddr) -> Result<Connection, ConnectError> {
     let options = ConnectOptions::new().with_additional_alpns(vec![crate::ALPN.to_vec()]);
     let connecting = endpoint.connect_with_opts(addr, crate::ALPN_LANES, options).await?;

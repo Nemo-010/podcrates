@@ -1,20 +1,21 @@
-//! A node's record at a server of pkarr (T-350, T-445): its home relay, and
-//! each other road that it has, signed with its key, so that a client whose
-//! ticket names an older relay finds it, and a client with the node's key
-//! alone finds each of its roads.
+//! A node's record at a server of pkarr (PodUtils/podssh@T-350,
+//! PodUtils/podssh@T-445): its home relay, and each other road that it has,
+//! signed with its key, so that a client whose ticket names an older relay
+//! finds it, and a client with the node's key alone finds each of its roads.
 //!
-//! The record is iroh's own, with podssh's beside it ([`record`]): a signed
-//! packet of pkarr whose `_iroh` TXT names `relay=URL` (iroh-dns writes and
-//! reads it), so iroh's tools and n0's DNS read it too, and whose `_podssh`
-//! TXT names the DERP home, the quick tunnel and the Pinggy tunnel, which
-//! iroh passes by. It names no address of the host.
-//! podssh puts it and asks for it over podssh-ws, through podssh's proxy and
-//! trust store, as it asks a relay's `/ping`: iroh's own publisher and
-//! resolver would take the one proxy that the endpoint has, ask at each
-//! dial, and say why they failed to their traces alone.
+//! The record is iroh's own, with the other roads beside it ([`record`]): a
+//! signed packet of pkarr whose `_iroh` TXT names `relay=URL` (iroh-dns
+//! writes and reads it), so iroh's tools and n0's DNS read it too, and whose
+//! `_podssh` TXT names the DERP home, the quick tunnel and the Pinggy
+//! tunnel, which iroh passes by. It names no address of the host.
+//! The crate puts it and asks for it over the caller's way out
+//! ([`pod_ws::Way`]) and trust store, as it asks a relay's `/ping`: iroh's
+//! own publisher and resolver would take the one proxy that the endpoint
+//! has, ask at each dial, and say why they failed to their traces alone.
 //!
-//! The server is n0's when an end's relays are n0's, as Q50 makes n0's
-//! relays and n0's server a fallback; [`ENV`] names another one, or `off`.
+//! The server is n0's when an end's relays are n0's, as podssh's ruling Q50
+//! makes n0's relays and n0's server a fallback; the consumer's variable
+//! [`ENV`] names another one, or `off` ([`choice`]).
 //! The node's end is [`keep`], or [`keep_roads`] for a node with no iroh
 //! endpoint; a client's is [`Finder`], which [`crate::Dialer`] asks when the
 //! ticket's relay does not reach the node, and which a client with the
@@ -24,7 +25,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use iroh::{Endpoint, PublicKey, RelayUrl, SecretKey, Watcher as _};
-use podssh_ws::{dial, http, ProxyChoice, Trust};
+use pod_proxy::{authority, http};
+use pod_tls::Trust;
+use pod_ws::Way;
 use tokio::sync::watch;
 use url::Url;
 
@@ -44,7 +47,8 @@ pub fn n0_url() -> String {
     service.endpoint("relay").map(|e| e.url()).expect("n0-pkarr of pod-services has the endpoint relay")
 }
 
-/// The variable that names the server: a URL, or `off` for none.
+/// The variable of the consumer that names the server: a URL, or `off` for
+/// none. The consumer reads it and gives its value to [`choice`].
 pub const ENV: &str = "PODSSH_IROH_PKARR";
 
 /// How long a cache of DNS keeps the record's names: iroh's own publisher's
@@ -73,8 +77,8 @@ pub struct Server(Url);
 
 impl Server {
     /// The server of `text`. User information, a query and a fragment are
-    /// refused, as on a relay's URL; plain HTTP too, as each road of podssh
-    /// speaks TLS.
+    /// refused, as on a relay's URL; plain HTTP too, as each road speaks
+    /// TLS.
     pub fn parse(text: &str) -> Result<Server, String> {
         let url = Url::parse(text.trim()).map_err(|e| format!("{text:?} is not a URL: {e}"))?;
         if url.scheme() != "https" {
@@ -90,7 +94,7 @@ impl Server {
             ));
         }
         let host = url.host_str().ok_or_else(|| format!("{text:?} names no host"))?;
-        podssh_ws::names::check_host(host).map_err(|why| format!("{text:?}: {why}"))?;
+        pod_core::names::check_host(host).map_err(|why| format!("{text:?}: {why}"))?;
         Ok(Server(url))
     }
 
@@ -140,11 +144,6 @@ pub fn choice(value: Option<&str>) -> Result<Choice, String> {
     }
 }
 
-/// [`choice`] of this process's variable.
-pub fn choice_from_environment() -> Result<Choice, String> {
-    choice(std::env::var(ENV).ok().as_deref())
-}
-
 /// Whether each relay of `relays` is one of n0's public relays: the table
 /// of [`crate::relays::default_urls`], by host, with or without the final dot.
 pub fn n0_relays(relays: &[RelayUrl]) -> bool {
@@ -162,11 +161,6 @@ pub fn server_for(choice: &Choice, relays: &[RelayUrl]) -> Option<Server> {
         Choice::At(server) => Some(server.clone()),
         Choice::Default => n0_relays(relays).then(Server::n0),
     }
-}
-
-/// [`server_for`] with this process's variable.
-pub fn choose(relays: &[RelayUrl]) -> Result<Option<Server>, String> {
-    Ok(server_for(&choice_from_environment()?, relays))
 }
 
 /// How a client reads a server's answer for the record of `key`.
@@ -187,7 +181,7 @@ pub fn read(key: &PublicKey, payload: &[u8]) -> Result<Record, String> {
 }
 
 /// One request for the record of `key` at `server`: `PUT` with `body`, or
-/// `GET`; through `proxy`, the server's certificate checked against `trust`,
+/// `GET`; through `way`, the server's certificate checked against `trust`,
 /// within `limit`.
 async fn request(
     server: &Server,
@@ -195,18 +189,17 @@ async fn request(
     key: &PublicKey,
     body: &[u8],
     trust: &Trust,
-    proxy: &ProxyChoice,
+    way: &Way,
     limit: Duration,
 ) -> Result<http::Response, String> {
     let host = server.host();
     let port = server.url().port_or_known_default().unwrap_or(443);
     let path = server.path_of(key);
-    let host_header = if port == 443 { host.to_string() } else { dial::authority(host, port) };
+    let host_header = if port == 443 { host.to_string() } else { authority(host, port) };
     let asked = async {
-        let mut tls = podssh_ws::client::open_tls(host, port, host, trust, proxy, limit)
-            .await
-            .map_err(|e| format!("{host}: {e}"))?;
-        http::exchange(&mut tls, method, &host_header, &path, &[], body, MAX_BODY)
+        let (mut tls, _) =
+            way.open_tls(host, port, host, trust, limit, &[]).await.map_err(|e| format!("{host}: {e}"))?;
+        http::exchange(&mut tls, &way.user_agent, method, &host_header, &path, &[], body, MAX_BODY)
             .await
             .map_err(|e| format!("{host}: {method} {path}: {e}"))
     };
@@ -219,12 +212,12 @@ pub async fn publish(
     secret: &SecretKey,
     roads: &Roads,
     trust: &Trust,
-    proxy: &ProxyChoice,
+    way: &Way,
     limit: Duration,
 ) -> Result<(), String> {
     let packet = record::packet(secret, roads, TTL)?;
     let key = secret.public();
-    let response = request(server, "PUT", &key, &packet.to_relay_payload(), trust, proxy, limit).await?;
+    let response = request(server, "PUT", &key, &packet.to_relay_payload(), trust, way, limit).await?;
     match response.status {
         200..=299 => Ok(()),
         status => Err(format!("{} answered HTTP {status} {}", server.host(), response.body_text(120))),
@@ -237,11 +230,11 @@ pub async fn lookup_with(
     server: &Server,
     key: &PublicKey,
     trust: &Trust,
-    proxy: &ProxyChoice,
+    way: &Way,
     limit: Duration,
     read: Read,
 ) -> Result<Option<Record>, String> {
-    let response = request(server, "GET", key, b"", trust, proxy, limit).await?;
+    let response = request(server, "GET", key, b"", trust, way, limit).await?;
     match response.status {
         200 => read(key, &response.body).map(Some),
         404 => Ok(None),
@@ -249,15 +242,15 @@ pub async fn lookup_with(
     }
 }
 
-/// [`lookup_with`] with podssh's [`read`].
+/// [`lookup_with`] with [`read`].
 pub async fn lookup(
     server: &Server,
     key: &PublicKey,
     trust: &Trust,
-    proxy: &ProxyChoice,
+    way: &Way,
     limit: Duration,
 ) -> Result<Option<Record>, String> {
-    lookup_with(server, key, trust, proxy, limit, read).await
+    lookup_with(server, key, trust, way, limit, read).await
 }
 
 /// What [`keep_roads`] last said, so that it says each change once.
@@ -270,16 +263,16 @@ enum Said {
     Failed,
 }
 
-/// Keep the record of `endpoint`'s roads at `server` until the endpoint
-/// closes: its home relay, which the endpoint gives, and the DERP home,
-/// quick tunnel and Pinggy tunnel of `others`, which the node's other roads
-/// give as they come online and move (T-445, T-548); `None` names the home
-/// relay alone. Put as [`keep_roads`] puts it.
+/// Keep the record of `endpoint`'s roads at `server` until the endpoint closes:
+/// its home relay, which the endpoint gives, and the DERP home, quick tunnel
+/// and Pinggy tunnel of `others`, which the node's other roads give as they
+/// come online and move (PodUtils/podssh@T-445, PodUtils/podssh@T-548); `None`
+/// names the home relay alone. Put as [`keep_roads`] puts it.
 pub async fn keep(
     endpoint: Endpoint,
     server: Server,
     trust: Trust,
-    proxy: ProxyChoice,
+    way: Way,
     mut others: Option<watch::Receiver<Roads>>,
     say: impl Fn(String),
 ) {
@@ -323,7 +316,7 @@ pub async fn keep(
     };
     tokio::select! {
         () = follow => {}
-        () = keep_roads(secret, server, trust, proxy, roads, say) => {}
+        () = keep_roads(secret, server, trust, way, roads, say) => {}
     }
 }
 
@@ -349,7 +342,7 @@ pub async fn keep_roads(
     secret: SecretKey,
     server: Server,
     trust: Trust,
-    proxy: ProxyChoice,
+    way: Way,
     mut roads: watch::Receiver<Roads>,
     say: impl Fn(String),
 ) {
@@ -360,7 +353,7 @@ pub async fn keep_roads(
         let wait = if now.is_empty() {
             REPUBLISH
         } else {
-            match publish(&server, &secret, &now, &trust, &proxy, LIMIT).await {
+            match publish(&server, &secret, &now, &trust, &way, LIMIT).await {
                 Ok(()) => {
                     if said.as_ref() != Some(&Said::Put(now.clone())) {
                         say(format!(
@@ -401,19 +394,19 @@ pub async fn keep_roads(
 pub struct Finder {
     pub server: Server,
     pub trust: Trust,
-    pub proxy: ProxyChoice,
+    pub way: Way,
     /// Whether to ask before the first dial: the ticket's relay did not
     /// answer `/ping`, so the node is not reached there either.
     pub first: bool,
-    /// What a lookup found, in words, for `-v`.
+    /// What a lookup found, in words, for a verbose run.
     pub say: Arc<dyn Fn(String) + Send + Sync>,
     /// The reading of an answer: [`read`]; a test plants another.
     pub read: Read,
 }
 
 impl Finder {
-    pub fn new(server: Server, trust: Trust, proxy: ProxyChoice) -> Finder {
-        Finder { server, trust, proxy, first: false, say: Arc::new(|_: String| {}), read }
+    pub fn new(server: Server, trust: Trust, way: Way) -> Finder {
+        Finder { server, trust, way, first: false, say: Arc::new(|_: String| {}), read }
     }
 
     /// Asked before the first dial when `first`.
@@ -437,7 +430,7 @@ impl Finder {
 
     /// The record of `key`, within [`LIMIT`].
     pub async fn find(&self, key: &PublicKey) -> Result<Option<Record>, String> {
-        lookup_with(&self.server, key, &self.trust, &self.proxy, LIMIT, self.read).await
+        lookup_with(&self.server, key, &self.trust, &self.way, LIMIT, self.read).await
     }
 }
 

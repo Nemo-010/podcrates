@@ -1,11 +1,12 @@
-//! One iroh connection to a node for the sessions of one process (T-666).
-//! A second SSH connection of this process to a node of the iroh road, as
-//! a copy beside a terminal, opens a new QUIC stream of the connection that
-//! the first one made: no new endpoint, relay connection, path or handshake.
-//! Each session holds a [`Lease`] of the shared [`Dialer`], and takes its
-//! streams in its own [`Lane`], so that a copy's bytes wait for a terminal's
-//! and not the other way round; QUIC loses no byte of one stream to the loss
-//! of another's. The connection and its endpoint close with the last lease.
+//! One iroh connection to a node for the sessions of one process
+//! (PodUtils/podssh@T-666). A second SSH connection of this process to a node
+//! of the iroh road, as a copy beside a terminal, opens a new QUIC stream of
+//! the connection that the first one made: no new endpoint, relay connection,
+//! path or handshake. Each session holds a [`Lease`] of the shared [`Dialer`],
+//! and takes its streams in its own [`Lane`], so that a copy's bytes wait for a
+//! terminal's and not the other way round; QUIC loses no byte of one stream to
+//! the loss of another's. The connection and its endpoint close with the last
+//! lease.
 //!
 //! Sessions share a dialer when they run in one runtime (an endpoint's tasks
 //! are its runtime's), with one key of this client, to one node.

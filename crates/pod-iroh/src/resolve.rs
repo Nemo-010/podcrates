@@ -1,44 +1,60 @@
-//! podssh's name resolution for iroh: the relay's name and the proxy's go
-//! through the same chain as on the other roads (an IP literal, the pinned
-//! addresses of `--relay-addr`, the system resolver, then DNS over HTTPS), not
-//! through iroh's own resolver, which knows no pins and no fallback.
+//! The caller's name resolution for iroh: the relay's name and the proxy's
+//! go through the caller's resolver (`pod_core::Resolve`: an IP literal,
+//! the pinned addresses, the system resolver, then DNS over HTTPS, as
+//! `pod-dns` orders them), as on the other roads, not through iroh's own
+//! resolver, which knows no pins and no fallback (PodUtils/podssh@T-162).
 //!
 //! Through a proxy, the relay's name is not resolved here at all: the proxy
 //! gets it in `CONNECT`. iroh asks for a TXT record only for address lookup,
-//! which podssh turns off, so that answer is a refusal.
+//! which the endpoint turns off, so that answer is a refusal.
 
 use std::future::Future;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Duration;
 
 use iroh::dns::{BoxIter, DnsError, Resolver, TxtRecordData};
-use n0_error::{e, AnyError};
+use n0_error::{AnyError, e};
+use pod_core::Resolve;
 use tokio::time::Instant;
 
-/// The bound on one lookup: the system resolver, then each DNS-over-HTTPS
-/// resolver within what is left.
+/// The bound on one lookup: each source of the caller's resolver within it.
 const LOOKUP_LIMIT: Duration = Duration::from_secs(15);
 
 type Lookup<T> = Pin<Box<dyn Future<Output = Result<BoxIter<T>, DnsError>> + Send>>;
 
-/// The resolver that iroh gets in place of its own.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Podssh;
+/// The resolver that iroh gets in place of its own: the caller's.
+#[derive(Clone)]
+pub struct Chain(Arc<dyn Resolve>);
 
-/// Each address of `host` that podssh's chain finds, of one family.
-async fn addresses(host: String) -> Result<Vec<IpAddr>, DnsError> {
+impl Chain {
+    /// iroh's resolver over `resolve`.
+    pub fn new(resolve: Arc<dyn Resolve>) -> Chain {
+        Chain(resolve)
+    }
+}
+
+impl std::fmt::Debug for Chain {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Chain").field(&self.0.label()).finish()
+    }
+}
+
+/// Each address of `host` that the caller's resolver finds, of each family.
+async fn addresses(resolve: Arc<dyn Resolve>, host: String) -> Result<Vec<IpAddr>, DnsError> {
     let deadline = Instant::now() + LOOKUP_LIMIT;
-    match podssh_ws::resolve::resolve(&host, 0, deadline).await {
+    match resolve.resolve(&host, 0, deadline).await {
         Ok(found) => Ok(found.into_iter().map(|addr| addr.ip()).collect()),
         Err(why) => Err(e!(DnsError::Resolve, AnyError::from_string(format!("could not resolve {host}: {why}")))),
     }
 }
 
-impl Resolver for Podssh {
+impl Resolver for Chain {
     fn lookup_ipv4(&self, host: String) -> Lookup<Ipv4Addr> {
+        let resolve = self.0.clone();
         Box::pin(async move {
-            let v4: Vec<Ipv4Addr> = addresses(host)
+            let v4: Vec<Ipv4Addr> = addresses(resolve, host)
                 .await?
                 .into_iter()
                 .filter_map(|ip| match ip {
@@ -51,8 +67,9 @@ impl Resolver for Podssh {
     }
 
     fn lookup_ipv6(&self, host: String) -> Lookup<Ipv6Addr> {
+        let resolve = self.0.clone();
         Box::pin(async move {
-            let v6: Vec<Ipv6Addr> = addresses(host)
+            let v6: Vec<Ipv6Addr> = addresses(resolve, host)
                 .await?
                 .into_iter()
                 .filter_map(|ip| match ip {
@@ -72,6 +89,6 @@ impl Resolver for Podssh {
     fn clear_cache(&self) {}
 
     fn reset(&self) -> Box<dyn Resolver> {
-        Box::new(Podssh)
+        Box::new(self.clone())
     }
 }

@@ -1,29 +1,29 @@
-//! The sessions of one process to one node over the iroh road (T-666), on
-//! this machine's loopback: iroh's relay server, reached through a stand-in
-//! CONNECT proxy, and a far end of podssh. A second session of the process
-//! takes a lease of the dialer that the first made, and a new stream of its
-//! one connection, in a copy's lane: the far end sees one connection and two
-//! sessions, each of which carries its bytes, and the connection and its
-//! endpoint close with the last lease. A copy's stream goes below a
-//! terminal's at each end that reads its lane, and a far end of before
-//! takes it as any session.
+//! The sessions of one process to one node over the iroh road
+//! (PodUtils/podssh@T-666), on this machine's loopback: iroh's relay server,
+//! reached through a stand-in CONNECT proxy, and a far end of this crate. A
+//! second session of the process takes a lease of the dialer that the first
+//! made, and a new stream of its one connection, in a copy's lane: the far end
+//! sees one connection and two sessions, each of which carries its bytes, and
+//! the connection and its endpoint close with the last lease. A copy's stream
+//! goes below a terminal's at each end that reads its lane, and a far end of
+//! before takes it as any session.
 
 mod common;
 
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use iroh::{Endpoint, EndpointAddr, PublicKey, RelayUrl, SecretKey};
-use podssh_iroh::{share, Dialer, Lane, Options, Stream, ALPN, ALPN_LANES};
-use podssh_relay::session::client::{self, Outcome};
-use podssh_relay::session::{Ask, OsEntropy, Settings};
+use pod_iroh::{ALPN, ALPN_LANES, Dialer, Lane, Options, Stream, share};
+use pod_session::client::{self, Outcome};
+use pod_session::{Ask, OsEntropy, Settings};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-use common::{options, proxy, relay, LIMIT};
+use common::{LIMIT, options, proxy, relay};
 
 const PIPE: usize = 256 * 1024;
 const MIB: usize = 1 << 20;
@@ -55,7 +55,7 @@ async fn exchange(stream: DuplexStream, out: Vec<u8>) -> Vec<u8> {
     got
 }
 
-/// A far end of podssh that counts its connections (each key that its
+/// A far end of this crate that counts its connections (each key that its
 /// allowlist is asked about) and its sessions (each target that it opens),
 /// and hands each target to the test.
 struct Far {
@@ -66,7 +66,7 @@ struct Far {
 }
 
 async fn far(relay: &RelayUrl, proxy: SocketAddr, client: PublicKey) -> Far {
-    let endpoint = podssh_iroh::bind(&options(relay, proxy, true)).await.expect("the far end");
+    let endpoint = pod_iroh::bind(&options(relay, proxy, true)).await.expect("the far end");
     tokio::time::timeout(LIMIT, endpoint.online()).await.expect("the far end has its home relay");
     let (tx, targets) = mpsc::unbounded_channel::<DuplexStream>();
     let sessions = Arc::new(AtomicUsize::new(0));
@@ -86,14 +86,14 @@ async fn far(relay: &RelayUrl, proxy: SocketAddr, client: PublicKey) -> Far {
         asked.fetch_add(1, Ordering::SeqCst);
         *key == client
     };
-    tokio::spawn(podssh_iroh::far::serve(endpoint.clone(), Settings::default(), 64 * MIB, open, admit));
+    tokio::spawn(pod_iroh::far::serve(endpoint.clone(), Settings::default(), 64 * MIB, open, admit));
     Far { endpoint, connections, sessions, targets }
 }
 
 /// The dialer of the client of `secret` to `node`, on an endpoint of its own.
 async fn dialer(relay: &RelayUrl, proxy: SocketAddr, secret: &SecretKey, node: EndpointAddr) -> Result<Dialer, String> {
     let options = Options { secret: Some(secret.clone()), ..options(relay, proxy, false) };
-    let endpoint = podssh_iroh::bind(&options).await.map_err(|e| e.to_string())?;
+    let endpoint = pod_iroh::bind(&options).await.map_err(|e| e.to_string())?;
     Ok(Dialer::new(endpoint, node))
 }
 
@@ -192,7 +192,7 @@ async fn a_copy_s_stream_goes_below_a_terminal_s_at_each_end_that_reads_its_lane
     let (relay_url, _relay) = relay().await;
     let (proxy, _) = proxy(relay_url.port().unwrap()).await;
     for lanes in [true, false] {
-        let far = podssh_iroh::bind(&options(&relay_url, proxy, true)).await.expect("the far end");
+        let far = pod_iroh::bind(&options(&relay_url, proxy, true)).await.expect("the far end");
         if !lanes {
             far.set_alpns(vec![ALPN.to_vec()]);
         }
@@ -201,11 +201,11 @@ async fn a_copy_s_stream_goes_below_a_terminal_s_at_each_end_that_reads_its_lane
         let accepted = tokio::spawn(async move {
             let incoming = accepting.accept().await.expect("a connection");
             let connection = incoming.await.expect("its handshake");
-            let first = podssh_iroh::accept_session(&connection).await.expect("the terminal's stream");
-            let second = podssh_iroh::accept_session(&connection).await.expect("the copy's stream");
+            let first = pod_iroh::accept_session(&connection).await.expect("the terminal's stream");
+            let second = pod_iroh::accept_session(&connection).await.expect("the copy's stream");
             (connection.alpn().to_vec(), first.priority(), second.priority(), connection)
         });
-        let near = podssh_iroh::bind(&options(&relay_url, proxy, false)).await.expect("the client");
+        let near = pod_iroh::bind(&options(&relay_url, proxy, false)).await.expect("the client");
         let dialer = Dialer::new(near.clone(), EndpointAddr::new(far.id()).with_relay_url(relay_url.clone()));
         let terminal = dialer.link_as(Lane::Interactive).await.expect("the terminal's stream");
         let copy = dialer.link_as(Lane::Bulk).await.expect("the copy's stream");

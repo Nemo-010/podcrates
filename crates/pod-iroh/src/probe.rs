@@ -1,16 +1,18 @@
-//! Whether this host's UDP goes out and comes back (T-359). A sandbox can
-//! refuse UDP (`docs/target-environment.md`), and iroh's endpoint does not
-//! start when its UDP bind is required and fails; a host can also let a UDP
-//! socket bind and drop its datagrams further on, as a network whose way out
-//! is a proxy can. A bind is not what a direct path uses, so the iroh road
-//! takes UDP after a datagram came back: the round trip of QUIC address
-//! discovery (QAD) to its own relay, in the endpoint's first report of the
-//! network (rule 1 of `AGENTS.md`).
+//! Whether this host's UDP goes out and comes back (PodUtils/podssh@T-359). A
+//! sandbox can refuse UDP (podssh's `docs/target-environment.md`), and iroh's
+//! endpoint does not start when its UDP bind is required and fails; a host can
+//! also let a UDP socket bind and drop its datagrams further on, as a network
+//! whose way out is a proxy can. A bind is not what a direct path uses, so the
+//! iroh road takes UDP after a datagram came back: the round trip of QUIC
+//! address discovery (QAD) to its own relay, in the endpoint's first report of
+//! the network (rule 1 of podssh's `AGENTS.md`).
 
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
 use std::time::Duration;
 
 use iroh::{Endpoint, Watcher as _};
+
+use crate::endpoint::UDP_ENV;
 
 /// How long the first report may take. iroh gives each QAD probe 3 s, so a
 /// host that drops UDP waits about that long, and the report 5 s for its
@@ -37,10 +39,10 @@ pub enum Answer {
     /// A socket bound, and no round trip came back within this time: the
     /// relay carries each byte, as on a host that drops UDP further on.
     Unknown(Duration),
-    /// `PODSSH_IROH_UDP=on`: UDP after the bind alone, nothing sent, for a
+    /// [`UDP_ENV`] `on`: UDP after the bind alone, nothing sent, for a
     /// relay that runs no QAD.
     BindOnly(SocketAddr),
-    /// `PODSSH_IROH_UDP=off`: the relay carries each byte, with no probe.
+    /// [`UDP_ENV`] `off`: the relay carries each byte, with no probe.
     Off,
 }
 
@@ -63,11 +65,11 @@ impl std::fmt::Display for Answer {
             Answer::Unknown(waited) => write!(
                 f,
                 "a UDP socket binds, and no QUIC address discovery to the home relay came back within {} ms, so \
-                 the relay carries each byte (PODSSH_IROH_UDP=on takes UDP after the bind alone)",
+                 the relay carries each byte ({UDP_ENV}=on takes UDP after the bind alone)",
                 waited.as_millis()
             ),
-            Answer::BindOnly(addr) => write!(f, "PODSSH_IROH_UDP=on: UDP after a socket bound ({addr}), nothing sent"),
-            Answer::Off => write!(f, "PODSSH_IROH_UDP=off: the relay carries each byte"),
+            Answer::BindOnly(addr) => write!(f, "{UDP_ENV}=on: UDP after a socket bound ({addr}), nothing sent"),
+            Answer::Off => write!(f, "{UDP_ENV}=off: the relay carries each byte"),
         }
     }
 }

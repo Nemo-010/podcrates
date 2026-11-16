@@ -1,12 +1,12 @@
-//! The record of pkarr that finds a node whose home relay changed (T-350),
-//! offline: two of iroh's relay servers and a server of pkarr on the
-//! loopback. The node moves from the first relay to the second and keeps its
-//! record at the server; a client with the first ticket asks the record once
-//! the ticket's relay does not reach the node, and connects. A client whose
-//! ticket's relay does not answer asks it before the first dial. A record
-//! that a server forged, signed by another key, is refused, and a planted
-//! reader that skips the signature fails that check. iroh's own client of
-//! pkarr reads podssh's record, and podssh reads iroh's.
+//! The record of pkarr that finds a node whose home relay changed
+//! (PodUtils/podssh@T-350), offline: two of iroh's relay servers and a server
+//! of pkarr on the loopback. The node moves from the first relay to the second
+//! and keeps its record at the server; a client with the first ticket asks the
+//! record once the ticket's relay does not reach the node, and connects. A
+//! client whose ticket's relay does not answer asks it before the first dial. A
+//! record that a server forged, signed by another key, is refused, and a
+//! planted reader that skips the signature fails that check. iroh's own client
+//! of pkarr reads this crate's record, and this crate reads iroh's.
 
 mod cleanup;
 
@@ -18,13 +18,15 @@ use iroh::address_lookup::PkarrRelayClient;
 use iroh::endpoint_info::EndpointInfo;
 use iroh::tls::CaTlsConfig;
 use iroh::{Endpoint, EndpointAddr, PublicKey, RelayUrl, SecretKey};
-use podssh_iroh::client::FIND_AFTER;
-use podssh_iroh::pkarr::{self, Finder, Read, Record, Roads, Server, SignedPacket};
-use podssh_iroh::test_pkarr::{self, TestPkarr};
-use podssh_iroh::{ticket, Dialer, Failure, Options, Udp};
-use podssh_relay::session::client::Outcome;
-use podssh_relay::session::Settings;
-use podssh_ws::{ProxyChoice, Trust};
+use pod_iroh::client::FIND_AFTER;
+use pod_iroh::pkarr::{self, Finder, Read, Record, Roads, Server, SignedPacket};
+use pod_iroh::test_pkarr::{self, TestPkarr};
+use pod_iroh::test_relay::{self, direct};
+use pod_iroh::{Dialer, Failure, Options, Udp, ticket};
+use pod_proxy::ProxyChoice;
+use pod_session::Settings;
+use pod_session::client::Outcome;
+use pod_tls::Trust;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
 
 const LIMIT: Duration = Duration::from_secs(60);
@@ -32,14 +34,14 @@ const PIPE: usize = 64 * 1024;
 
 /// A fresh, empty scratch directory unique to one test, removed when it ends.
 fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("podssh-iroh-pkarr-{name}-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("pod-iroh-pkarr-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     cleanup::at_test_end(&dir);
     dir
 }
 
-/// The stand-in server as podssh names a server, and the trust in its
+/// The stand-in server as this crate names a server, and the trust in its
 /// certificate alone.
 fn server_of(stand_in: &TestPkarr) -> (Server, Trust) {
     (Server::parse(stand_in.url.as_str()).expect("the stand-in's URL"), Trust::File(stand_in.cert.clone()))
@@ -50,6 +52,8 @@ fn server_of(stand_in: &TestPkarr) -> (Server, Trust) {
 fn options(relay: &RelayUrl, secret: Option<SecretKey>, accepts: bool) -> Options {
     Options {
         relays: vec![relay.clone()],
+        tls: test_relay::tls(),
+        resolve: test_relay::resolver(),
         proxy: ProxyChoice::Direct,
         trust: Trust::Default,
         udp: Udp::Off,
@@ -81,7 +85,7 @@ fn serve(node: &Endpoint) {
         Ok::<DuplexStream, String>(target)
     };
     let each = |_: &PublicKey| true;
-    tokio::spawn(podssh_iroh::far::serve(node.clone(), Settings::default(), 16 << 20, open, each));
+    tokio::spawn(pod_iroh::far::serve(node.clone(), Settings::default(), 16 << 20, open, each));
 }
 
 /// `hello` there and back over one session of `dialer`, or why it got none.
@@ -93,7 +97,7 @@ async fn hello(dialer: &Dialer) -> Result<Vec<u8>, Failure> {
         app.read_exact(&mut back).await.map(|_| back.to_vec())
     };
     let (carried, echoed) = tokio::time::timeout(LIMIT, async {
-        tokio::join!(podssh_iroh::carry(dialer, app_end, Settings::default(), |_| {}), talk)
+        tokio::join!(pod_iroh::carry(dialer, app_end, Settings::default(), |_| {}), talk)
     })
     .await
     .expect("the session within the limit");
@@ -106,10 +110,10 @@ async fn hello(dialer: &Dialer) -> Result<Vec<u8>, Failure> {
 async fn record_naming(server: &Server, key: &PublicKey, trust: &Trust, relay: &RelayUrl) -> Record {
     let deadline = Instant::now() + LIMIT;
     loop {
-        if let Ok(Some(record)) = pkarr::lookup(server, key, trust, &ProxyChoice::Direct, LIMIT).await {
-            if record.relays.contains(relay) {
-                return record;
-            }
+        if let Ok(Some(record)) = pkarr::lookup(server, key, trust, &direct(), LIMIT).await
+            && record.relays.contains(relay)
+        {
+            return record;
         }
         assert!(Instant::now() < deadline, "no record that names {relay} within {} s", LIMIT.as_secs());
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -133,27 +137,26 @@ async fn a_client_with_the_first_ticket_finds_the_node_on_its_second_relay() {
     let secret = SecretKey::from_bytes(&[0x35; 32]);
 
     // The node on its first relay: its ticket names that relay.
-    let before = podssh_iroh::bind(&options(&first, Some(secret.clone()), true)).await.expect("the node");
+    let before = pod_iroh::bind(&options(&first, Some(secret.clone()), true)).await.expect("the node");
     tokio::time::timeout(LIMIT, before.online()).await.expect("the node's first home relay");
     let old = ticket::of(&before, &first);
     before.close().await;
 
     // The node again, with the same key, on the second relay, as after a
     // start at which the first did not answer; its record says so.
-    let node = podssh_iroh::bind(&options(&second, Some(secret.clone()), true)).await.expect("the node again");
+    let node = pod_iroh::bind(&options(&second, Some(secret.clone()), true)).await.expect("the node again");
     tokio::time::timeout(LIMIT, node.online()).await.expect("the node's second home relay");
     let (node_said, say) = heard();
-    let keeping =
-        tokio::spawn(pkarr::keep(node.clone(), server.clone(), trust.clone(), ProxyChoice::Direct, None, say));
+    let keeping = tokio::spawn(pkarr::keep(node.clone(), server.clone(), trust.clone(), direct(), None, say));
     let record = record_naming(&server, &secret.public(), &trust, &second).await;
     assert_eq!(record.relays, vec![second.clone()], "the record names the home relay alone");
     serve(&node);
 
     // A client on the first relay, with the first ticket: the first relay
     // does not reach the node, and the record names the second.
-    let client = podssh_iroh::bind(&options(&first, None, false)).await.expect("the client");
+    let client = pod_iroh::bind(&options(&first, None, false)).await.expect("the client");
     let (client_said, say) = heard();
-    let finder = Finder::new(server.clone(), trust.clone(), ProxyChoice::Direct).saying(say);
+    let finder = Finder::new(server.clone(), trust.clone(), direct()).saying(say);
     let dialer = Dialer::new(client.clone(), ticket::parse(&old).expect("the first ticket")).finding(finder);
     let got = hello(&dialer).await;
     let said = client_said.lock().unwrap().clone();
@@ -167,9 +170,9 @@ async fn a_client_with_the_first_ticket_finds_the_node_on_its_second_relay() {
 
     // Another client, whose ticket's relay does not answer: the record is
     // asked before the first dial, so no wait for that relay comes first.
-    let other = podssh_iroh::bind(&options(&first, None, false)).await.expect("another client");
+    let other = pod_iroh::bind(&options(&first, None, false)).await.expect("another client");
     let gone = EndpointAddr::new(secret.public()).with_relay_url(silent_relay());
-    let finder = Finder::new(server, trust, ProxyChoice::Direct).first(true);
+    let finder = Finder::new(server, trust, direct()).first(true);
     let dialer = Dialer::new(other.clone(), gone).finding(finder);
     let started = Instant::now();
     assert_eq!(hello(&dialer).await, Ok(b"hello".to_vec()));
@@ -209,7 +212,7 @@ async fn refuses_a_forged_record(name: &str, read: Read) -> bool {
     let node = SecretKey::from_bytes(&[0x51; 32]);
     let forger = SecretKey::from_bytes(&[0x52; 32]);
     let relay: RelayUrl = "https://relay.forged.test".parse().unwrap();
-    let finder = Finder::new(server, trust, ProxyChoice::Direct).reading(read);
+    let finder = Finder::new(server, trust, direct()).reading(read);
     stand_in.plant(&node.public(), signed_by(&node, &node, &relay));
     let own = finder.find(&node.public()).await.map(|found| found.map(|record| record.relays));
     assert_eq!(own, Ok(Some(vec![relay.clone()])), "the node's own record");
@@ -252,20 +255,20 @@ fn trusting(der: &[u8]) -> rustls::ClientConfig {
 }
 
 /// iroh's own client of pkarr (iroh 1.4.1's `PkarrRelayClient`, software
-/// that podssh did not write) against the same server: each reads what the
+/// that this crate did not write) against the same server: each reads what the
 /// other put.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn iroh_s_own_client_reads_podssh_s_record_and_podssh_reads_iroh_s() {
     let dir = scratch("iroh");
     let stand_in = test_pkarr::spawn(&dir).await.expect("a server of pkarr");
     let (server, trust) = server_of(&stand_in);
-    let resolver = iroh::dns::DnsResolver::custom(podssh_iroh::resolve::Podssh);
+    let resolver = iroh::dns::DnsResolver::custom(pod_iroh::resolve::Chain::new(test_relay::resolver()));
     let theirs = PkarrRelayClient::new(stand_in.url.clone(), trusting(&stand_in.der), resolver);
 
     let ours = SecretKey::from_bytes(&[0x61; 32]);
     let relay: RelayUrl = "https://relay-a.podssh.test".parse().unwrap();
     let roads = Roads { relay: Some(relay.clone()), ..Roads::default() };
-    pkarr::publish(&server, &ours, &roads, &trust, &ProxyChoice::Direct, LIMIT).await.expect("podssh puts its record");
+    pkarr::publish(&server, &ours, &roads, &trust, &direct(), LIMIT).await.expect("podssh puts its record");
     let packet = theirs.resolve(ours.public()).await.expect("iroh's client reads podssh's record");
     let info = EndpointInfo::from_pkarr_signed_packet(&packet).expect("iroh's record of a node");
     assert_eq!(info.relay_urls().cloned().collect::<Vec<_>>(), vec![relay]);
@@ -277,7 +280,7 @@ async fn iroh_s_own_client_reads_podssh_s_record_and_podssh_reads_iroh_s() {
         .to_pkarr_signed_packet(&iroh_key, 30)
         .expect("iroh's record");
     theirs.publish(&packet).await.expect("iroh's client puts its record");
-    let found = pkarr::lookup(&server, &iroh_key.public(), &trust, &ProxyChoice::Direct, LIMIT).await;
+    let found = pkarr::lookup(&server, &iroh_key.public(), &trust, &direct(), LIMIT).await;
     let record = found.expect("an answer").expect("a record");
     assert_eq!(record.relays, vec![other]);
     assert_eq!(stand_in.payload(&iroh_key.public()), Some(packet.to_relay_payload()), "iroh put its own bytes");

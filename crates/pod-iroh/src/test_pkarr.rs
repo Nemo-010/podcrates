@@ -1,12 +1,11 @@
-//! A server of pkarr on the loopback, for the tests of this crate and of the
-//! command line (feature `test-relay`; never in a release): pkarr's relay
-//! API, `PUT` and `GET` of `/pkarr/KEY` with KEY in z-base-32, over HTTPS
-//! with a self-signed certificate for `localhost`, in a PEM file that
-//! podssh's trust store takes. A `PUT` is read with iroh's own reading of a
-//! signed packet, as iroh's test server of pkarr reads one, so a record that
-//! podssh signs wrong is refused there by code that podssh did not write;
-//! and a newer record wins, as pkarr's relays keep the newest (409 for an
-//! older one).
+//! A server of pkarr on the loopback, for the tests of this crate and of a
+//! consumer (feature `test-relay`; never in a release): pkarr's relay API,
+//! `PUT` and `GET` of `/pkarr/KEY` with KEY in z-base-32, over HTTPS with a
+//! self-signed certificate for `localhost`, in a PEM file that the trust store
+//! takes. A `PUT` is read with iroh's own reading of a signed packet, as iroh's
+//! test server of pkarr reads one, so a record that this crate signs wrong is
+//! refused there by code that this crate did not write; and a newer record
+//! wins, as pkarr's relays keep the newest (409 for an older one).
 
 use std::collections::HashMap;
 use std::io;
@@ -89,7 +88,7 @@ pub async fn spawn(dir: &Path) -> io::Result<TestPkarr> {
     Ok(TestPkarr { url, cert, der, records, asked, task })
 }
 
-/// Each connection: one request, its answer, and the end, as podssh asks
+/// Each connection: one request, its answer, and the end, as this crate asks
 /// with `Connection: close`; iroh's client opens another for its next.
 async fn serve(listener: TcpListener, acceptor: tokio_rustls::TlsAcceptor, records: Records, asked: Arc<AtomicUsize>) {
     while let Ok((tcp, _)) = listener.accept().await {

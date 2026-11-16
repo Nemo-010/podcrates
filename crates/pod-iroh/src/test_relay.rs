@@ -1,14 +1,50 @@
-//! A relay server on the loopback, for the tests of this crate and of the
-//! command line (feature `test-relay`; never in a release): iroh's own relay
+//! A relay server on the loopback, for the tests of this crate and of a
+//! consumer (feature `test-relay`; never in a release): iroh's own relay
 //! server, with a self-signed certificate for `localhost`, and that
-//! certificate in a PEM file that podssh's trust store takes, so that the
-//! road is tested with its certificate checked, as it runs.
+//! certificate in a PEM file that a trust store takes, so that the road is
+//! tested with its certificate checked, as it runs. And the way out of a
+//! test: TLS on ring, the system resolver, a dialer of `pod-proxy`.
 
 use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use iroh::RelayUrl;
 use iroh_relay::server::{CertConfig, RelayConfig, Server, ServerConfig, TlsConfig};
+use pod_core::Resolve;
+use pod_proxy::{Dialer, ProxyChoice, Settings};
+use pod_tls::{Context, Words};
+use pod_ws::Way;
+
+/// The user agent of the tests.
+pub const USER_AGENT: &str = "pod-iroh/0.0.0-test";
+
+/// The TLS context of the tests: ring.
+pub fn tls() -> Arc<Context> {
+    let provider = Arc::new(rustls::crypto::ring::default_provider());
+    Arc::new(Context::new(provider, pod_tls::Settings::new(Words::new("pod-iroh"))))
+}
+
+/// The resolver of the tests: the system's.
+pub fn resolver() -> Arc<dyn Resolve> {
+    Arc::new(pod_proxy::resolve::System::new())
+}
+
+/// A way out through `proxy`, with [`tls`] and [`resolver`].
+pub fn way(proxy: ProxyChoice) -> Way {
+    Way::new(tls(), Arc::new(Dialer::new(Settings::new("pod-iroh", proxy), resolver())), USER_AGENT)
+}
+
+/// A direct way out.
+pub fn direct() -> Way {
+    way(ProxyChoice::Direct)
+}
+
+/// An endpoint's options with [`tls`] and [`resolver`]
+/// ([`crate::Options::new`]).
+pub fn options() -> crate::Options {
+    crate::Options::new(tls(), resolver())
+}
 
 /// A running relay; it stops when this is dropped.
 pub struct TestRelay {
@@ -27,7 +63,7 @@ pub async fn spawn(dir: &Path) -> std::io::Result<TestRelay> {
 
 /// A relay on the loopback whose certificate is for `name`, which no
 /// resolver knows: a stand-in proxy names it, so that each byte of the
-/// relay's connections passes the proxy (T-156).
+/// relay's connections passes the proxy (PodUtils/podssh@T-156).
 pub async fn spawn_named(dir: &Path, name: &str) -> std::io::Result<TestRelay> {
     let made = rcgen::generate_simple_self_signed(vec![name.to_string()]).map_err(std::io::Error::other)?;
     let certs = vec![made.cert.der().clone()];

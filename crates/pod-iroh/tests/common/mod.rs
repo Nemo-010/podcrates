@@ -9,15 +9,16 @@
 pub mod socks5;
 
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
-use iroh::tls::CaTlsConfig;
 use iroh::RelayUrl;
-use podssh_iroh::{Options, Udp};
-use podssh_ws::dial::HttpProxy;
-use podssh_ws::{ProxyChoice, Trust};
+use iroh::tls::CaTlsConfig;
+use pod_iroh::test_relay;
+use pod_iroh::{Options, Udp};
+use pod_proxy::{HttpProxy, ProxyChoice};
+use pod_tls::Trust;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
@@ -39,6 +40,8 @@ pub async fn relay() -> (RelayUrl, impl Sized) {
 pub fn options(relay: &RelayUrl, proxy: SocketAddr, accepts: bool) -> Options {
     Options {
         relays: vec![relay.clone()],
+        tls: test_relay::tls(),
+        resolve: test_relay::resolver(),
         proxy: ProxyChoice::Via(HttpProxy::parse(&format!("http://{proxy}")).expect("a proxy URL")),
         trust: Trust::Default,
         udp: Udp::Off,

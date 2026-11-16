@@ -1,42 +1,49 @@
-//! What a node's record of pkarr names (T-350, T-445): its iroh home relay,
-//! in iroh's own `_iroh` TXT, and its other roads, in podssh's `_podssh` TXT
-//! of the same signed packet: its DERP home, as the node's DERP ticket, its
-//! quick tunnel's name, its Pinggy address, the tunnel's name and the pin
-//! of the node's TLS key (T-548), and the name of its tunnel of HTTP made by
-//! `ssh -R`, localhost.run's (T-565), the address of its onion service
-//! (T-578), and its name at OpenTunnel (T-611). iroh reads `_iroh` alone (iroh-dns 1.4.1's
+//! What a node's record of pkarr names (PodUtils/podssh@T-350,
+//! PodUtils/podssh@T-445): its iroh home relay, in iroh's own `_iroh` TXT, and
+//! its other roads, in the `_podssh` TXT of the same signed packet (a name of
+//! the wire of podssh's nodes, which this crate keeps): its DERP home, as the
+//! node's DERP ticket, its quick tunnel's name, its Pinggy address, the
+//! tunnel's name and the pin of the node's TLS key (PodUtils/podssh@T-548), and
+//! the name of its tunnel of HTTP made by `ssh -R`, localhost.run's
+//! (PodUtils/podssh@T-565), the address of its onion service
+//! (PodUtils/podssh@T-578), and its name at OpenTunnel (PodUtils/podssh@T-611).
+//! iroh reads `_iroh` alone (iroh-dns 1.4.1's
 //! `EndpointInfo::from_pkarr_signed_packet` asks for `txt_records("_iroh")`),
-//! so its tools and n0's DNS pass podssh's names by; a key that iroh does not
-//! know under `_iroh` would make iroh refuse the whole record, which is why
-//! podssh's roads have a name of their own.
+//! so its tools and n0's DNS pass the other names by; a key that iroh does not
+//! know under `_iroh` would make iroh refuse the whole record, which is why the
+//! other roads have a name of their own.
 //!
 //! A client takes of a record only what it takes of a command line: a relay
 //! `https://HOST[:PORT]`, a DERP ticket that names the record's own key, one
-//! label under `trycloudflare.com`, a Pinggy address as `--pinggy-name`
-//! takes it, a DNS name as `--tunnel-url` takes it, and a name as
-//! `--opentunnel-name` takes it. Each other value is set aside, and the record keeps its other
+//! label under `trycloudflare.com`, a Pinggy address as `--pinggy-name` takes
+//! it, a DNS name as `--tunnel-url` takes it, and a name as `--opentunnel-name`
+//! takes it. Each other value is set aside, and the record keeps its other
 //! roads. The record is signed by the node's key, which the client already
 //! holds, and each road checks that key again (the QUIC handshake, the
 //! end-to-end channel), so a road that a record names reaches the node or
 //! nothing. The Pinggy address's pin is trusted for that signature: only the
 //! holder of the node's key can say which TLS key ends the tunnel, so a
-//! stranger who takes a free tunnel's old name shows another key and is
-//! refused at TLS, before the end-to-end channel refuses it too.
+//! stranger who takes a free tunnel's old name shows another key and is refused
+//! at TLS, before the end-to-end channel refuses it too. The roads themselves
+//! (DERP, the quick tunnel, Pinggy, OpenTunnel) are the consumer's: of Pinggy,
+//! the record checks the form of the address alone ([`crate::pinggy`]).
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use iroh::endpoint_info::EndpointInfo;
 use iroh::{PublicKey, RelayUrl, SecretKey};
-use iroh_dns::pkarr::{SignedPacket, Timestamp};
 use iroh_dns::IROH_TXT_NAME;
-use podssh_relay::derp::Ticket;
-use podssh_relay::opentunnel::Name as OpenTunnelName;
-use podssh_relay::pinggy::Address;
+use iroh_dns::pkarr::{SignedPacket, Timestamp};
+use pod_derp::Ticket;
+use pod_opentunnel::Name as OpenTunnelName;
 use simple_dns::rdata::{RData, TXT};
-use simple_dns::{Name, Packet, ResourceRecord, CLASS};
+use simple_dns::{CLASS, Name, Packet, ResourceRecord};
 
-/// podssh's name in a node's zone, beside iroh's `_iroh`: the underscore
-/// keeps it out of the names of hosts, as `_iroh` is.
+use crate::pinggy::Address;
+
+/// The name of the other roads in a node's zone, beside iroh's `_iroh`: the
+/// underscore keeps it out of the names of hosts, as `_iroh` is. A name of
+/// the wire of podssh's nodes.
 pub const PODSSH_TXT_NAME: &str = "_podssh";
 
 /// The key of the DERP home: the node's DERP ticket, as the node prints it.
@@ -52,29 +59,30 @@ pub fn quick_zone() -> &'static str {
     service.text("tunnel-zone").expect("trycloudflare of pod-services holds the fact tunnel-zone")
 }
 
-/// The key of the Pinggy road: the node's address there, `NAME#PIN`, as
-/// the node's line says it and `--pinggy-name` takes it (T-548).
+/// The key of the Pinggy road: the node's address there, `NAME#PIN`, as the
+/// node's line says it and `--pinggy-name` takes it (PodUtils/podssh@T-548).
 pub const PINGGY_KEY: &str = "pinggy";
 
-/// The key of the tunnel of HTTP made by `ssh -R` (T-565): its name, a DNS
-/// name whose WebSocket at `/` is the node's, new after a few hours.
+/// The key of the tunnel of HTTP made by `ssh -R` (PodUtils/podssh@T-565): its
+/// name, a DNS name whose WebSocket at `/` is the node's, new after a few
+/// hours.
 pub const TUNNEL_KEY: &str = "tunnel";
 
 /// The key of the onion road: the address of the node's onion service,
-/// `ADDRESS.onion` of Tor's version 3 (T-578). Its restricted discovery
-/// keeps it from strangers who read the record: only the pair's operators
-/// hold the key that finds it.
+/// `ADDRESS.onion` of Tor's version 3 (PodUtils/podssh@T-578). Its restricted
+/// discovery keeps it from strangers who read the record: only the pair's
+/// operators hold the key that finds it.
 pub const ONION_KEY: &str = "onion";
 
-/// The key of the OpenTunnel road (T-611): the node's name there,
-/// `ROUTE.ID.DOMAIN`, as the node's line says it and `--opentunnel-name`
+/// The key of the OpenTunnel road (PodUtils/podssh@T-611): the node's name
+/// there, `ROUTE.ID.DOMAIN`, as the node's line says it and `--opentunnel-name`
 /// takes it. A node keeps its tunnel from one start to the next, so the name
 /// stays; the record is for a member whose client never saw it.
 pub const OPENTUNNEL_KEY: &str = "opentunnel";
 
 /// The longest OpenTunnel name that a record holds: a name of OpenTunnel's
 /// own is some 40 characters (`r7k2qmx4.abcdefghijkl.opentunnel.xyz`), so
-/// this leaves room for a service that `PODSSH_OPENTUNNEL` names, and keeps
+/// this leaves room for a service that a consumer names, and keeps
 /// the record within [`MAX_DNS_PACKET`].
 pub const MAX_OPENTUNNEL: usize = 100;
 
@@ -109,13 +117,15 @@ pub struct Roads {
     /// The quick tunnel's name.
     pub quick: Option<String>,
     /// The Pinggy address of the node's tunnel now: a free tunnel's name
-    /// changes each hour, and the node puts each new one (T-548).
+    /// changes each hour, and the node puts each new one
+    /// (PodUtils/podssh@T-548).
     pub pinggy: Option<Address>,
-    /// The name of the node's tunnel of HTTP made by `ssh -R` now (T-565).
+    /// The name of the node's tunnel of HTTP made by `ssh -R` now
+    /// (PodUtils/podssh@T-565).
     pub tunnel: Option<String>,
-    /// The address of the node's onion service (T-578).
+    /// The address of the node's onion service (PodUtils/podssh@T-578).
     pub onion: Option<String>,
-    /// The node's name at OpenTunnel (T-611).
+    /// The node's name at OpenTunnel (PodUtils/podssh@T-611).
     pub opentunnel: Option<OpenTunnelName>,
 }
 
@@ -171,11 +181,13 @@ pub struct Record {
     pub quick: Option<String>,
     /// The node's Pinggy address, its tunnel's name and its TLS key's pin.
     pub pinggy: Option<Address>,
-    /// The name of the node's tunnel of HTTP made by `ssh -R` (T-565).
+    /// The name of the node's tunnel of HTTP made by `ssh -R`
+    /// (PodUtils/podssh@T-565).
     pub tunnel: Option<String>,
-    /// The address of the node's onion service, in lower case (T-578).
+    /// The address of the node's onion service, in lower case
+    /// (PodUtils/podssh@T-578).
     pub onion: Option<String>,
-    /// The node's name at OpenTunnel, in lower case (T-611).
+    /// The node's name at OpenTunnel, in lower case (PodUtils/podssh@T-611).
     pub opentunnel: Option<OpenTunnelName>,
     /// When the node signed it, in microseconds since the epoch (pkarr's
     /// sequence number).
@@ -186,10 +198,11 @@ pub struct Record {
 
 impl Record {
     /// The names of `packet`, whose signature the caller checked: iroh's
-    /// part by iroh's own reading, podssh's by iroh-dns's reading of TXT.
+    /// part by iroh's own reading, the other roads' by iroh-dns's reading of
+    /// TXT.
     pub fn of(packet: &SignedPacket) -> Result<Record, String> {
         let mut set_aside = Vec::new();
-        // A relay that podssh would not dial is no relay of the record.
+        // A relay that the road would not dial is no relay of the record.
         let relays = match EndpointInfo::from_pkarr_signed_packet(packet) {
             Ok(info) => info.relay_urls().filter_map(|url| crate::relays::parse_url(url.as_str()).ok()).collect(),
             Err(e) => {
@@ -233,7 +246,7 @@ impl Record {
                 DERP_KEY | QUICK_KEY | PINGGY_KEY | TUNNEL_KEY | ONION_KEY | OPENTUNNEL_KEY => {
                     set_aside.push(format!("a second {key}= of {PODSSH_TXT_NAME}"))
                 }
-                // A road of a later podssh: passed by, as iroh passes ours.
+                // A road of a later version: passed by, as iroh passes ours.
                 _ => {}
             }
         }
@@ -289,7 +302,7 @@ pub fn quick_name(value: &str) -> Result<String, String> {
 /// A Pinggy address of a record: `NAME#PIN` as `--pinggy-name` takes it,
 /// of [`MAX_PINGGY`] bytes at most. Any DNS name, not Pinggy's zone alone:
 /// the zone of its free names moved once already (`run.pinggy-free.link`,
-/// where its documents say `a.pinggy.link`), and `PODSSH_PINGGY` may name
+/// where its documents say `a.pinggy.link`), and a consumer may name
 /// another server; the pin, which the node's signature vouches for, is the
 /// check. Not echoed: a stranger's record may hold anything.
 pub fn pinggy_address(value: &str) -> Result<Address, String> {
@@ -303,13 +316,13 @@ pub fn pinggy_address(value: &str) -> Result<Address, String> {
 /// The name of a tunnel of HTTP made by `ssh -R`: a DNS name of two labels
 /// or more and of [`MAX_TUNNEL`] bytes at most, in lower case, as the node's
 /// line says it. Any zone: the free
-/// zone of a service may move, and `PODSSH_LOCALHOST_RUN` may name another
-/// server; the end-to-end channel checks the node's key on the road, so a
+/// zone of a service may move, and a consumer may name another server; the
+/// end-to-end channel checks the node's key on the road, so a
 /// stranger at an old name is refused. Not echoed: a stranger's record may
 /// hold anything.
 pub fn tunnel_name(value: &str) -> Result<String, String> {
     let name = value.trim().trim_end_matches('.').to_ascii_lowercase();
-    if name.len() <= MAX_TUNNEL && podssh_relay::pinggy::urls::is_name(&name) {
+    if name.len() <= MAX_TUNNEL && crate::pinggy::is_name(&name) {
         return Ok(name);
     }
     Err(format!("its tunnel of ssh -R is not one DNS name of {MAX_TUNNEL} bytes at most, and is set aside"))
@@ -337,7 +350,7 @@ pub fn onion_address(value: &str) -> Result<String, String> {
 
 /// A node's name at OpenTunnel: `ROUTE.ID.DOMAIN` as `--opentunnel-name`
 /// takes it, of [`MAX_OPENTUNNEL`] bytes at most, in lower case. Any domain:
-/// `PODSSH_OPENTUNNEL` may name another service; TLS checks the name, and the
+/// a consumer may name another service; TLS checks the name, and the
 /// end-to-end channel the node's key, so a stranger at an old name is
 /// refused. Not echoed: a stranger's record may hold anything.
 pub fn opentunnel_name(value: &str) -> Result<OpenTunnelName, String> {
@@ -350,8 +363,8 @@ pub fn opentunnel_name(value: &str) -> Result<OpenTunnelName, String> {
 }
 
 /// The signed packet of `roads`, under `secret`'s key: iroh's `_iroh`
-/// values for the relay, as iroh-dns writes them, and podssh's `_podssh`
-/// values for the rest, each name in the node's zone, as iroh-dns builds a
+/// values for the relay, as iroh-dns writes them, and the `_podssh` values
+/// for the rest, each name in the node's zone, as iroh-dns builds a
 /// packet; a value longer than a DNS string goes in pieces, which a reader
 /// of TXT joins again.
 pub fn packet(secret: &SecretKey, roads: &Roads, ttl: u32) -> Result<SignedPacket, String> {

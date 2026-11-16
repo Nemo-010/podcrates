@@ -1,9 +1,9 @@
-//! The iroh road (T-162), offline. A relay server on the loopback has a name
-//! that only a stand-in CONNECT proxy resolves, and two endpoints have no
-//! UDP: each byte goes through the proxy and the relay, as in a sandbox. A
-//! session of the resumable layer carries 20 MiB each way with equal SHA-256
-//! digests. And podssh's own trust store refuses the relay's certificate,
-//! which the other tests skip.
+//! The iroh road (PodUtils/podssh@T-162), offline. A relay server on the
+//! loopback has a name that only a stand-in CONNECT proxy resolves, and two
+//! endpoints have no UDP: each byte goes through the proxy and the relay, as in
+//! a sandbox. A session of the resumable layer carries 20 MiB each way with
+//! equal SHA-256 digests. And the default trust store refuses the relay's
+//! certificate, which the other tests skip.
 
 mod common;
 
@@ -11,14 +11,14 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use iroh::EndpointAddr;
-use podssh_iroh::{Options, ALPN};
-use podssh_relay::session::client::{self, Found, Outcome};
-use podssh_relay::session::{Ask, End, OsEntropy, Settings};
+use pod_iroh::{ALPN, Options};
+use pod_session::client::{self, Found, Outcome};
+use pod_session::{Ask, End, OsEntropy, Settings};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
 use tokio::sync::mpsc;
 
-use common::{options, proxy, relay, LIMIT};
+use common::{LIMIT, options, proxy, relay};
 
 const PIPE: usize = 256 * 1024;
 const MIB: usize = 1 << 20;
@@ -55,7 +55,7 @@ async fn a_session_through_a_proxy_and_a_relay_carries_20_mib_each_way() {
     let (relay_url, _relay) = relay().await;
     let (proxy, tunnels) = proxy(relay_url.port().unwrap()).await;
 
-    let far = podssh_iroh::bind(&options(&relay_url, proxy, true)).await.expect("the far end");
+    let far = pod_iroh::bind(&options(&relay_url, proxy, true)).await.expect("the far end");
     tokio::time::timeout(LIMIT, far.online()).await.expect("the far end has its home relay");
     // Each new session's target: one end of a pipe, the other to the test.
     let (targets_tx, mut targets_rx) = mpsc::unbounded_channel::<DuplexStream>();
@@ -67,15 +67,15 @@ async fn a_session_through_a_proxy_and_a_relay_carries_20_mib_each_way() {
             Ok::<_, String>(target)
         }
     };
-    let near = podssh_iroh::bind(&options(&relay_url, proxy, false)).await.expect("the client");
+    let near = pod_iroh::bind(&options(&relay_url, proxy, false)).await.expect("the client");
     // The client's key, and no other, is in the far end's allowlist.
     let client_key = near.id();
     let admit = move |key: &iroh::PublicKey| *key == client_key;
-    tokio::spawn(podssh_iroh::far::serve(far.clone(), Settings::default(), 64 * MIB, open, admit));
+    tokio::spawn(pod_iroh::far::serve(far.clone(), Settings::default(), 64 * MIB, open, admit));
 
     let addr = EndpointAddr::new(far.id()).with_relay_url(relay_url.clone());
     let connection = tokio::time::timeout(LIMIT, near.connect(addr, ALPN)).await.unwrap().expect("a connection");
-    let stream = podssh_iroh::open_session(&connection).await.expect("a session's stream");
+    let stream = pod_iroh::open_session(&connection).await.expect("a session's stream");
     let session = tokio::time::timeout(LIMIT, client::start(stream, Ask::New, Settings::default(), &mut OsEntropy))
         .await
         .unwrap()
@@ -105,14 +105,14 @@ async fn a_session_through_a_proxy_and_a_relay_carries_20_mib_each_way() {
     far.close().await;
 }
 
-/// With podssh's trust store, and no skip, the relay's self-signed
+/// With the trust store, and no skip, the relay's self-signed
 /// certificate is refused: the endpoint never gets a home relay.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn podssh_s_trust_store_refuses_a_relay_that_it_does_not_trust() {
     let (relay_url, _relay) = relay().await;
     let (proxy, _tunnels) = proxy(relay_url.port().unwrap()).await;
     let trusting = Options { relay_tls: None, ..options(&relay_url, proxy, true) };
-    let endpoint = podssh_iroh::bind(&trusting).await.expect("an endpoint");
+    let endpoint = pod_iroh::bind(&trusting).await.expect("an endpoint");
     let online = tokio::time::timeout(Duration::from_secs(8), endpoint.online()).await;
     assert!(online.is_err(), "a relay with a self-signed certificate was trusted");
     endpoint.close().await;

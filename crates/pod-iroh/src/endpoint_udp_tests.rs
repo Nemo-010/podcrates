@@ -1,17 +1,18 @@
 //! The probe of UDP against iroh's own relay server on the loopback, with
 //! its QUIC address discovery on, or with that port behind a socket of the
-//! test that reads and never answers (T-359).
+//! test that reads and never answers (PodUtils/podssh@T-359).
 
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use iroh::tls::CaTlsConfig;
 use iroh::{RelayUrl, SecretKey};
-use podssh_ws::{ProxyChoice, Trust};
+use pod_proxy::ProxyChoice;
+use pod_tls::Trust;
 
-use super::{open, open_with, Options, Udp};
+use super::{Options, Udp, open, open_with};
 use crate::probe::{Answer, REPORT_LIMIT};
 
 /// A bound for each wait of these tests.
@@ -22,6 +23,8 @@ const LIMIT: Duration = Duration::from_secs(30);
 fn options(relay: &RelayUrl, qad_port: u16, udp: Udp) -> Options {
     Options {
         relays: vec![relay.clone()],
+        tls: crate::test_relay::tls(),
+        resolve: crate::test_relay::resolver(),
         proxy: ProxyChoice::Direct,
         trust: Trust::Default,
         udp,

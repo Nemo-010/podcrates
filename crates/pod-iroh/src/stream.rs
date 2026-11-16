@@ -1,17 +1,18 @@
 //! One session over the iroh road: a bidirectional QUIC stream, which the
-//! resumable layer reads and writes as it does a relay link (T-151).
+//! resumable layer reads and writes as it does a relay link
+//! (PodUtils/podssh@T-151).
 //!
 //! A QUIC peer learns of a stream only from its first byte, and the layer's
 //! client sends nothing before the far end's `GREETING`. So the client sends
 //! one byte first, which names what the stream carries, and the far end reads
 //! it before it greets.
 //!
-//! A session's [`Lane`] (T-666) puts a copy's stream below a terminal's in
-//! the order in which each end sends the bytes of one connection: a copy's
-//! first byte is [`SESSION_BULK`], on a connection of [`crate::ALPN_LANES`]
-//! alone, whose far end reads it; on one of [`crate::ALPN`], the far end of
-//! an older podssh, a copy's stream is announced as any session's, and only
-//! this end's bytes take its lane.
+//! A session's [`Lane`] (PodUtils/podssh@T-666) puts a copy's stream below a
+//! terminal's in the order in which each end sends the bytes of one connection:
+//! a copy's first byte is [`SESSION_BULK`], on a connection of
+//! [`crate::ALPN_LANES`] alone, whose far end reads it; on one of
+//! [`crate::ALPN`], the far end of an older podssh, a copy's stream is
+//! announced as any session's, and only this end's bytes take its lane.
 
 use std::future::Future;
 use std::io;
@@ -24,7 +25,7 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 /// The first byte of a stream that carries a session of the layer.
 pub const SESSION: u8 = 0x01;
 /// The first byte of a session's stream whose bytes go after the others'
-/// (T-666): a copy's.
+/// (PodUtils/podssh@T-666): a copy's.
 pub const SESSION_BULK: u8 = 0x02;
 
 /// What a session's stream carries, for its place in the order in which a

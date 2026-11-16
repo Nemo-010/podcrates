@@ -1,18 +1,21 @@
-//! Whether a relay takes this binary's iroh (T-348). n0's public relays
-//! serve the newest iroh only, and a binary in the field is not updated on
-//! its own, so a day may come when n0's relay refuses its handshake. iroh's
-//! relay client keeps only the status of that refusal, and the relay's
-//! answer names both sides' versions: podssh asks the relay itself, once its
+//! Whether a relay takes this binary's iroh (PodUtils/podssh@T-348). n0's
+//! public relays serve the newest iroh only, and a binary in the field is not
+//! updated on its own, so a day may come when n0's relay refuses its handshake.
+//! iroh's relay client keeps only the status of that refusal, and the relay's
+//! answer names both sides' versions: the road asks the relay itself, once its
 //! connection to the relay has failed, never before, in one request: the
 //! upgrade that iroh sends, with its versions, whose answer is read and the
-//! connection closed.
+//! connection closed. The words of what a user does then (a newer binary, a
+//! relay that serves this iroh) are the consumer's ([`notice`]).
 
 use std::time::Duration;
 
 use iroh::{Endpoint, RelayUrl, Watcher};
 use iroh_relay::http::{ProtocolVersion, RELAY_PATH};
-use podssh_ws::client::ConnectError;
-use podssh_ws::{dial, ProxyChoice, Trust};
+use pod_proxy::authority;
+use pod_tls::Trust;
+use pod_ws::Way;
+use pod_ws::client::ConnectError;
 
 /// The iroh of this build, which the notice names; a test holds it to the
 /// version that the lock builds.
@@ -40,62 +43,65 @@ fn names_the_version(body: &str) -> bool {
     body.contains("unsupported relay version") || body.contains("relay protocol version")
 }
 
-/// iroh's upgrade to `relay`, offering `versions`, through `proxy`, with
+/// iroh's upgrade to `relay`, offering `versions`, through `way`, with
 /// `relay`'s certificate checked against `trust`, within `limit`.
-pub async fn ask_with(relay: &RelayUrl, versions: &str, trust: &Trust, proxy: &ProxyChoice, limit: Duration) -> Answer {
+pub async fn ask_with(relay: &RelayUrl, versions: &str, trust: &Trust, way: &Way, limit: Duration) -> Answer {
     let Some(host) = relay.host_str() else { return Answer::Unknown(format!("{relay}: no host")) };
     let host = host.trim_end_matches('.');
     let port = relay.port_or_known_default().unwrap_or(443);
-    let key = match podssh_ws::handshake::generate_key() {
+    let key = match pod_ws::handshake::generate_key() {
         Ok(key) => key,
         Err(e) => return Answer::Unknown(e.to_string()),
     };
-    let host_header = if port == 443 { host.to_string() } else { dial::authority(host, port) };
+    let host_header = if port == 443 { host.to_string() } else { authority(host, port) };
+    // No CR or LF in the user agent: it would end the line of its header.
+    let agent: String = way.user_agent.chars().filter(|c| !c.is_control()).collect();
     let request = format!(
-        "GET {RELAY_PATH} HTTP/1.1\r\nHost: {host_header}\r\nUser-Agent: podssh/{}\r\nUpgrade: websocket\r\n\
+        "GET {RELAY_PATH} HTTP/1.1\r\nHost: {host_header}\r\nUser-Agent: {agent}\r\nUpgrade: websocket\r\n\
          Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\
-         Sec-WebSocket-Protocol: {versions}\r\n\r\n",
-        env!("CARGO_PKG_VERSION")
+         Sec-WebSocket-Protocol: {versions}\r\n\r\n"
     );
     let asked = async {
-        let tls = podssh_ws::client::open_tls(host, port, host, trust, proxy, limit).await?;
+        let tls = pod_ws::client::open_tls(way, host, port, host, trust, limit).await?;
         // The session is dropped at once: the relay waits for a handshake
         // that never comes, and closes its end.
-        podssh_ws::client::upgrade_with(tls, request.as_bytes(), &key).await.map(drop)
+        pod_ws::client::upgrade_with(tls, request.as_bytes(), &key).await.map(drop)
     };
     match tokio::time::timeout(limit, asked).await {
         Err(_) => Answer::Unknown(format!("{host}: no answer within {} s", limit.as_secs())),
         Ok(Ok(())) => Answer::Takes,
         Ok(Err(ConnectError::Refused { body, .. })) if names_the_version(&body) => {
-            Answer::Refuses(podssh_ws::text::one_line(&body))
+            Answer::Refuses(pod_core::text::one_line(&body))
         }
         Ok(Err(e)) => Answer::Unknown(format!("{host}: {e}")),
     }
 }
 
 /// [`ask_with`] with this build's versions.
-pub async fn ask(relay: &RelayUrl, trust: &Trust, proxy: &ProxyChoice, limit: Duration) -> Answer {
-    ask_with(relay, &ProtocolVersion::all_joined(), trust, proxy, limit).await
+pub async fn ask(relay: &RelayUrl, trust: &Trust, way: &Way, limit: Duration) -> Answer {
+    ask_with(relay, &ProtocolVersion::all_joined(), trust, way, limit).await
 }
 
 /// What a client or a node says when `relay` refused this build's iroh,
-/// with the relay's `words`.
-pub fn notice(relay: &RelayUrl, words: &str) -> String {
+/// with the relay's `words`, then `remedy`: the consumer's words of what a
+/// user does (podssh: "podssh update brings a newer podssh, or --iroh-relay
+/// URL names a relay that serves this one").
+pub fn notice(relay: &RelayUrl, words: &str, remedy: &str) -> String {
     let host = relay.host_str().unwrap_or_default().trim_end_matches('.');
     format!(
         "{host} refuses the iroh of this binary (iroh {IROH}, the relay protocol {}): \"{words}\". n0's public \
-         relays serve the newest iroh only: podssh update brings a newer podssh, or --iroh-relay URL names a relay \
-         that serves this one",
+         relays serve the newest iroh only: {remedy}",
         ProtocolVersion::all_joined()
     )
 }
 
 /// The notice for the first of `relays` that refuses this build's iroh,
-/// each asked in turn; none when each takes it or does not tell.
-pub async fn refusal(relays: &[RelayUrl], trust: &Trust, proxy: &ProxyChoice) -> Option<String> {
+/// each asked in turn, with `remedy` ([`notice`]); none when each takes it
+/// or does not tell.
+pub async fn refusal(relays: &[RelayUrl], trust: &Trust, way: &Way, remedy: &str) -> Option<String> {
     for relay in relays {
-        if let Answer::Refuses(words) = ask(relay, trust, proxy, LIMIT).await {
-            return Some(notice(relay, &words));
+        if let Answer::Refuses(words) = ask(relay, trust, way, LIMIT).await {
+            return Some(notice(relay, &words, remedy));
         }
     }
     None
@@ -117,9 +123,16 @@ pub enum Offline {
 
 /// Until `endpoint` is online, within `limit`. When the connection to a
 /// home relay fails first, that relay is asked whether it takes this
-/// build's iroh, once, and a refusal ends the wait at once, with its notice:
-/// iroh would retry a refused version until the limit.
-pub async fn online(endpoint: &Endpoint, limit: Duration, trust: &Trust, proxy: &ProxyChoice) -> Result<(), Offline> {
+/// build's iroh, once, through `way`, and a refusal ends the wait at once,
+/// with its notice and `remedy`: iroh would retry a refused version until
+/// the limit.
+pub async fn online(
+    endpoint: &Endpoint,
+    limit: Duration,
+    trust: &Trust,
+    way: &Way,
+    remedy: &str,
+) -> Result<(), Offline> {
     let wait = async {
         let mut watcher = endpoint.home_relay_status();
         let mut asked: Vec<RelayUrl> = Vec::new();
@@ -135,8 +148,8 @@ pub async fn online(endpoint: &Endpoint, limit: Duration, trust: &Trust, proxy: 
                 .collect();
             for relay in failed {
                 asked.push(relay.clone());
-                if let Answer::Refuses(words) = ask(&relay, trust, proxy, LIMIT).await {
-                    return Err(Offline::Refused(notice(&relay, &words)));
+                if let Answer::Refuses(words) = ask(&relay, trust, way, LIMIT).await {
+                    return Err(Offline::Refused(notice(&relay, &words, remedy)));
                 }
             }
             now = match watcher.updated().await {
@@ -153,11 +166,14 @@ pub async fn online(endpoint: &Endpoint, limit: Duration, trust: &Trust, proxy: 
 mod tests {
     use super::*;
 
+    /// podssh's words of what a user does.
+    const REMEDY: &str = "podssh update brings a newer podssh, or --iroh-relay URL names a relay that serves this one";
+
     #[test]
     fn the_notice_names_the_relay_this_iroh_and_the_two_ways_out() {
         let relay: RelayUrl = "https://use1-1.relay.n0.iroh.link.".parse().unwrap();
-        let said =
-            notice(&relay, "unsupported relay version: we support iroh-relay-v3 but you only provide iroh-relay-v2");
+        let words = "unsupported relay version: we support iroh-relay-v3 but you only provide iroh-relay-v2";
+        let said = notice(&relay, words, REMEDY);
         for part in [
             "use1-1.relay.n0.iroh.link refuses",
             &format!("iroh {IROH}"),

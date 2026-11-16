@@ -1,8 +1,8 @@
-//! The keys of the iroh road (T-163) are the identities of T-087: iroh's
-//! secret key is the seed of the key file, which iroh itself parses; a key
-//! is shown by its fingerprint, which the allowlist takes; and a key file of
-//! T-163 stays the key. The files' own rules are tested in `podssh-relay`
-//! (`tests/identity_file.rs`).
+//! The keys of the iroh road (PodUtils/podssh@T-163) are the identities of
+//! PodUtils/podssh@T-087: iroh's secret key is the seed of the key file, which
+//! iroh itself parses; a key is shown by its fingerprint, which the allowlist
+//! takes; and a key file of PodUtils/podssh@T-163 stays the key. The files' own
+//! rules are tested in `pod-identity` (`tests/identity_file.rs`).
 
 mod cleanup;
 
@@ -10,12 +10,12 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use iroh::SecretKey;
-use podssh_iroh::keys::{self, Place};
-use podssh_iroh::Allowlist;
-use podssh_relay::session::{Entropy, NoRandom, OsEntropy};
+use pod_iroh::Allowlist;
+use pod_iroh::keys::{self, Place};
+use pod_session::{Entropy, NoRandom, OsEntropy};
 
 fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("podssh-iroh-keys-{name}-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("pod-iroh-keys-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     cleanup::at_test_end(&dir);

@@ -1,12 +1,12 @@
-//! A node's record names each of its roads (T-445), offline: a server of
-//! pkarr on the loopback, which reads each `PUT` with iroh-dns's own check,
-//! and pod-derp's stand-in DERP server in memory. A record with the iroh
-//! home relay, the DERP home and the quick tunnel is put and read back
-//! whole, by podssh and, for its iroh part, by iroh's own client of pkarr. A
-//! node keeps its record as its DERP road comes online, and a client with
-//! the node's key alone, and no ticket, finds the record, races each road
-//! that it names, and reaches the node over DERP where the iroh road is
-//! refused. A planted record with no DERP home fails that test.
+//! A node's record names each of its roads (PodUtils/podssh@T-445), offline: a
+//! server of pkarr on the loopback, which reads each `PUT` with iroh-dns's own
+//! check, and pod-derp's stand-in DERP server in memory. A record with the iroh
+//! home relay, the DERP home and the quick tunnel is put and read back whole,
+//! by this crate and, for its iroh part, by iroh's own client of pkarr. A node
+//! keeps its record as its DERP road comes online, and a client with the node's
+//! key alone, and no ticket, finds the record, races each road that it names,
+//! and reaches the node over DERP where the iroh road is refused. A planted
+//! record with no DERP home fails that test.
 
 mod cleanup;
 
@@ -21,16 +21,19 @@ use iroh::address_lookup::PkarrRelayClient;
 use iroh::endpoint_info::EndpointInfo;
 use iroh::tls::CaTlsConfig;
 use iroh::{EndpointAddr, RelayUrl, SecretKey};
+use pod_core::{Event, Events};
 use pod_derp::standin::StandIn;
-use podssh_iroh::pkarr::{self, record, Finder, Record, Roads, Server};
-use podssh_iroh::test_pkarr::{self, TestPkarr};
-use podssh_iroh::{Dialer, Options, Udp};
-use podssh_relay::derp::{self as derp_road, far, Key, Secret, Ticket};
-use podssh_relay::identity::Identity;
-use podssh_relay::session::keep::Keeper;
-use podssh_relay::session::race::{in_turn, Start, HEAD_START};
-use podssh_relay::session::{Ask, OsEntropy, Settings};
-use podssh_ws::{ProxyChoice, Trust};
+use pod_derp::{self as derp_road, Key, Names, Secret, Ticket, far};
+use pod_identity::Identity;
+use pod_iroh::pkarr::{self, Finder, Record, Roads, Server, record};
+use pod_iroh::test_pkarr::{self, TestPkarr};
+use pod_iroh::test_relay::{self, direct};
+use pod_iroh::{Dialer, Options, Udp};
+use pod_proxy::ProxyChoice;
+use pod_session::keep::Keeper;
+use pod_session::race::{HEAD_START, Start, in_turn};
+use pod_session::{Ask, OsEntropy, Settings};
+use pod_tls::Trust;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, DuplexStream, ReadBuf};
 use tokio::sync::watch;
 
@@ -42,14 +45,14 @@ const QUICK: &str = "four-words-of-a.trycloudflare.com";
 
 /// A fresh, empty scratch directory unique to one test, removed when it ends.
 fn scratch(name: &str) -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("podssh-iroh-roads-{name}-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("pod-iroh-roads-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     cleanup::at_test_end(&dir);
     dir
 }
 
-/// The stand-in server as podssh names a server, and the trust in its
+/// The stand-in server as this crate names a server, and the trust in its
 /// certificate alone.
 fn server_of(stand_in: &TestPkarr) -> (Server, Trust) {
     (Server::parse(stand_in.url.as_str()).expect("the stand-in's URL"), Trust::File(stand_in.cert.clone()))
@@ -64,8 +67,8 @@ fn silent_relay() -> RelayUrl {
     format!("https://localhost:{port}").parse().unwrap()
 }
 
-fn say(who: &'static str) -> derp_road::Say {
-    Arc::new(move |line: String| eprintln!("{who}: {line}"))
+fn say(who: &'static str) -> Arc<dyn Events> {
+    Arc::new(move |event: Event| eprintln!("{who}: {event}"))
 }
 
 /// rustls's configuration that trusts the stand-in's certificate alone, for
@@ -88,14 +91,15 @@ async fn a_record_with_each_road_is_put_and_read_back_whole() {
     let node = SecretKey::from_bytes(&[0x71; 32]);
     let relay: RelayUrl = "https://relay-a.podssh.test".parse().unwrap();
     let ticket = Ticket {
-        node: podssh_relay::identity::PublicKey(*node.public().as_bytes()),
+        node: pod_identity::PublicKey(*node.public().as_bytes()),
         derp: Key([9; 32]),
         server: derp_road::Server::new("tc301a.ipn.dev", 443).unwrap(),
     };
-    // A Pinggy address as the node says it (T-548): the name and the pin.
-    let pinggy = podssh_relay::pinggy::Address::parse(&format!(
+    // A Pinggy address as the node says it (PodUtils/podssh@T-548): the name
+    // and the pin.
+    let pinggy = pod_iroh::pinggy::Address::parse(&format!(
         "rnwxy-12-34.run.pinggy-free.link#{}",
-        podssh_relay::pinggy::Pin::of_spki(b"the node's TLS key")
+        pod_iroh::pinggy::Pin::of_spki(b"the node's TLS key")
     ))
     .unwrap();
     let roads = Roads {
@@ -104,14 +108,15 @@ async fn a_record_with_each_road_is_put_and_read_back_whole() {
         quick: Some(QUICK.into()),
         pinggy: Some(pinggy.clone()),
         tunnel: None,
-        // The Tor Project's own address, of version 3 (T-578).
+        // The Tor Project's own address, of version 3 (PodUtils/podssh@T-578).
         onion: Some("2gzyxa5ihm7nsggfxnu52rck2vv4rvmdlkiu3zzui5du4xyclen53wid.onion".into()),
-        // A name of OpenTunnel's own, as the node says it (T-611).
-        opentunnel: Some(podssh_relay::opentunnel::Name::parse("r7k2qmx4.abcdefghijkl.opentunnel.xyz").unwrap()),
+        // A name of OpenTunnel's own, as the node says it
+        // (PodUtils/podssh@T-611).
+        opentunnel: Some(pod_opentunnel::Name::parse("r7k2qmx4.abcdefghijkl.opentunnel.xyz").unwrap()),
     };
     // The stand-in reads the PUT with iroh-dns's own check of the signature.
-    pkarr::publish(&server, &node, &roads, &trust, &ProxyChoice::Direct, LIMIT).await.expect("the record is put");
-    let found = pkarr::lookup(&server, &node.public(), &trust, &ProxyChoice::Direct, LIMIT).await;
+    pkarr::publish(&server, &node, &roads, &trust, &direct(), LIMIT).await.expect("the record is put");
+    let found = pkarr::lookup(&server, &node.public(), &trust, &direct(), LIMIT).await;
     let record: Record = found.expect("an answer").expect("a record");
     assert_eq!(record.relays, vec![relay.clone()]);
     assert_eq!(record.derp, Some(ticket));
@@ -120,8 +125,8 @@ async fn a_record_with_each_road_is_put_and_read_back_whole() {
     assert_eq!(record.onion, roads.onion);
     assert_eq!(record.opentunnel, roads.opentunnel);
     // iroh's own client of pkarr reads the same bytes as a record of a node:
-    // its relay, with podssh's names passed by.
-    let resolver = iroh::dns::DnsResolver::custom(podssh_iroh::resolve::Podssh);
+    // its relay, with the names of `_podssh` passed by.
+    let resolver = iroh::dns::DnsResolver::custom(pod_iroh::resolve::Chain::new(test_relay::resolver()));
     let theirs = PkarrRelayClient::new(stand_in.url.clone(), trusting(&stand_in.der), resolver);
     let packet = theirs.resolve(node.public()).await.expect("iroh's client reads podssh's record");
     let info = EndpointInfo::from_pkarr_signed_packet(&packet).expect("iroh's record of a node");
@@ -133,7 +138,7 @@ async fn a_record_with_each_road_is_put_and_read_back_whole() {
 
 /// A link of the client's race, on either road.
 enum Link {
-    Iroh(podssh_iroh::Stream),
+    Iroh(pod_iroh::Stream),
     Derp(derp_road::Link),
 }
 
@@ -187,10 +192,10 @@ async fn echo() -> Result<DuplexStream, String> {
 async fn record_with_derp(finder: &Finder, key: &iroh::PublicKey) -> Record {
     let deadline = Instant::now() + LIMIT;
     loop {
-        if let Ok(Some(record)) = finder.find(key).await {
-            if record.derp.is_some() {
-                return record;
-            }
+        if let Ok(Some(record)) = finder.find(key).await
+            && record.derp.is_some()
+        {
+            return record;
         }
         assert!(Instant::now() < deadline, "no record that names its DERP home within {} s", LIMIT.as_secs());
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -202,8 +207,8 @@ async fn a_client_with_the_node_s_key_alone_reaches_it_over_derp_when_iroh_is_re
     let dir = scratch("alone");
     let pkarr_stand_in = test_pkarr::spawn(&dir).await.expect("a server of pkarr");
     let (server, trust) = server_of(&pkarr_stand_in);
-    // One key for each road, as a node has (T-087): its identity, and the
-    // same seed as iroh's key, which signs the record.
+    // One key for each road, as a node has (PodUtils/podssh@T-087): its
+    // identity, and the same seed as iroh's key, which signs the record.
     let seed = [0x72; 32];
     let identity = Identity::from_seed(&seed);
     let secret = SecretKey::from_bytes(&seed);
@@ -215,7 +220,7 @@ async fn a_client_with_the_node_s_key_alone_reaches_it_over_derp_when_iroh_is_re
     let (told, roads) = watch::channel(Roads { relay: Some(refused.clone()), ..Roads::default() });
     let said = |line: String| eprintln!("node: {line}");
     let (at, kept_trust) = (server.clone(), trust.clone());
-    let keeping = tokio::spawn(pkarr::keep_roads(secret.clone(), at, kept_trust, ProxyChoice::Direct, roads, said));
+    let keeping = tokio::spawn(pkarr::keep_roads(secret.clone(), at, kept_trust, direct(), roads, said));
     // Its DERP road comes online at the stand-in, under the key that its
     // identity gives, and the record names it then.
     let derp = StandIn::new(0);
@@ -224,8 +229,8 @@ async fn a_client_with_the_node_s_key_alone_reaches_it_over_derp_when_iroh_is_re
         secret: Arc::new(Secret::of_node(&identity)),
         server: StandIn::server(),
         dial: derp.dial(),
-        events: derp_road::events(say("node")),
-        names: derp_road::names(),
+        events: say("node"),
+        names: Names::default(),
     };
     let first = far::connect(&node).await.expect("the node's connection to its DERP home");
     let ticket = Ticket { node: identity.public(), derp: first.key(), server: StandIn::server() };
@@ -234,7 +239,7 @@ async fn a_client_with_the_node_s_key_alone_reaches_it_over_derp_when_iroh_is_re
     told.send_modify(|roads| roads.derp = Some(ticket.clone()));
 
     // The client has the node's key alone: no ticket of either road.
-    let finder = Finder::new(server, trust, ProxyChoice::Direct);
+    let finder = Finder::new(server, trust, direct());
     let found = record_with_derp(&finder, &secret.public()).await;
     assert_eq!(found.derp.as_ref(), Some(&ticket), "the DERP home that the node put");
     assert_eq!(found.relays, vec![refused.clone()]);
@@ -242,6 +247,8 @@ async fn a_client_with_the_node_s_key_alone_reaches_it_over_derp_when_iroh_is_re
     // The iroh road of the record, then its DERP road 250 ms later.
     let options = Options {
         relays: found.relays.clone(),
+        tls: test_relay::tls(),
+        resolve: test_relay::resolver(),
         proxy: ProxyChoice::Direct,
         trust: Trust::Default,
         udp: Udp::Off,
@@ -251,11 +258,11 @@ async fn a_client_with_the_node_s_key_alone_reaches_it_over_derp_when_iroh_is_re
         qad_port: None,
         quic: None,
     };
-    let client = podssh_iroh::bind(&options).await.expect("the client's endpoint");
+    let client = pod_iroh::bind(&options).await.expect("the client's endpoint");
     let addr = found.relays.iter().cloned().fold(EndpointAddr::new(secret.public()), EndpointAddr::with_relay_url);
     let iroh = Dialer::new(client.clone(), addr);
     let (ticket, fleet) = (found.derp.as_ref().unwrap(), derp_road::servers::fleet_with(true));
-    let (events, names) = (derp_road::events(say("client")), derp_road::names());
+    let (events, names) = (say("client"), Names::default());
     let over_derp = derp_road::Dialer::new(ticket, &fleet, derp.dial(), events, names).unwrap();
     let roads: Vec<(Start, Going<'_>)> = vec![
         (Start::After(HEAD_START), Box::pin(async { iroh.link().await.map(Link::Iroh).map_err(|e| e.to_string()) })),

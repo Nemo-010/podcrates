@@ -1,26 +1,27 @@
-//! A record with each road (T-445), with no network: what podssh puts is
-//! read back whole by podssh, and iroh-dns reads its iroh part alone, in
-//! iroh's own words; each road that a record names is checked, and one that
-//! fails its check is set aside while the others stay.
+//! A record with each road (PodUtils/podssh@T-445), with no network: what the
+//! crate puts is read back whole by the crate, and iroh-dns reads its iroh part
+//! alone, in iroh's own words; each road that a record names is checked, and
+//! one that fails its check is set aside while the others stay.
 
 use iroh::endpoint_info::EndpointInfo;
 use iroh::{RelayUrl, SecretKey};
-use podssh_relay::derp::{Key, Server, Ticket};
-use podssh_relay::identity::PublicKey as IdentityKey;
+use pod_derp::{Key, Server, Ticket};
+use pod_identity::PublicKey as IdentityKey;
 use simple_dns::rdata::{RData, TXT};
-use simple_dns::{Name, Packet, ResourceRecord, CLASS};
+use simple_dns::{CLASS, Name, Packet, ResourceRecord};
 
 use super::*;
 use crate::pkarr::TTL;
 
 const QUICK: &str = "four-words-of-a.trycloudflare.com";
 
-/// A free tunnel's name, as Pinggy gave one to the live run (T-548).
+/// A free tunnel's name, as Pinggy gave one to the live run
+/// (PodUtils/podssh@T-548).
 const PINGGY_NAME: &str = "rnwxy-12-34-56-78.run.pinggy-free.link";
 
 /// A Pinggy address of `name`: the name and the pin of a TLS key.
 fn pinggy(name: &str) -> Address {
-    let pin = podssh_relay::pinggy::Pin::of_spki(b"the node's TLS key");
+    let pin = crate::pinggy::Pin::of_spki(b"the node's TLS key");
     Address::parse(&format!("{name}#{pin}")).expect("an address")
 }
 
@@ -52,7 +53,7 @@ fn read_back(secret: &SecretKey, packet: &SignedPacket) -> Result<Record, String
 }
 
 /// A packet of `secret`'s node whose `_podssh` values are `values`, as a
-/// node of another podssh, or a planted one, would sign it.
+/// node of another version, or a planted one, would sign it.
 fn planted(secret: &SecretKey, values: &[&str]) -> SignedPacket {
     let name = format!("{PODSSH_TXT_NAME}.{}", secret.public().to_z32());
     let mut dns = Packet::new_reply(0);
@@ -74,7 +75,7 @@ fn a_record_with_each_road_reads_back_whole_and_iroh_reads_its_relay_alone() {
     assert_eq!(record.quick.as_deref(), Some(QUICK));
     assert_eq!(record.pinggy, roads.pinggy, "the Pinggy address, its pin with it");
     assert!(record.set_aside.is_empty(), "{:?}", record.set_aside);
-    // iroh's own reading: the relay, and nothing of podssh's names.
+    // iroh's own reading: the relay, and nothing of the names of `_podssh`.
     let info = EndpointInfo::from_pkarr_signed_packet(&packet).expect("iroh reads the record as its own");
     assert_eq!(info.relay_urls().cloned().collect::<Vec<_>>(), vec![relay()]);
     // In iroh's own words: what iroh-dns writes for the relay alone.
@@ -251,9 +252,9 @@ fn a_record_with_each_road_at_its_longest_fits_pkarr_s_bytes() {
     assert!(why.contains("Pinggy") && why.contains(&MAX_PINGGY.to_string()), "{why}");
 }
 
-/// The tunnel of HTTP made by `ssh -R` (T-565): its name comes back as the
-/// node put it, in lower case; a value that is no DNS name, or too long, is
-/// set aside unsaid, a second one too, and a node never puts one.
+/// The tunnel of HTTP made by `ssh -R` (PodUtils/podssh@T-565): its name comes
+/// back as the node put it, in lower case; a value that is no DNS name, or too
+/// long, is set aside unsaid, a second one too, and a node never puts one.
 #[test]
 fn a_record_of_a_tunnel_of_ssh_r_names_it_and_sets_a_bad_name_aside() {
     let node = SecretKey::from_bytes(&[0x47; 32]);
@@ -278,9 +279,9 @@ fn a_record_of_a_tunnel_of_ssh_r_names_it_and_sets_a_bad_name_aside() {
 /// An address of Tor's version 3 (the Tor Project's own), and its siblings.
 const ONION: &str = "2gzyxa5ihm7nsggfxnu52rck2vv4rvmdlkiu3zzui5du4xyclen53wid.onion";
 
-/// The onion service (T-578): its address comes back as the node put it, in
-/// lower case; one that is not of version 3, a name under it, or a second
-/// one is set aside unsaid, and a node never puts one.
+/// The onion service (PodUtils/podssh@T-578): its address comes back as the
+/// node put it, in lower case; one that is not of version 3, a name under it,
+/// or a second one is set aside unsaid, and a node never puts one.
 #[test]
 fn a_record_of_an_onion_service_names_it_and_sets_a_bad_address_aside() {
     let node = SecretKey::from_bytes(&[0x4a; 32]);
@@ -311,7 +312,8 @@ fn a_record_of_an_onion_service_names_it_and_sets_a_bad_address_aside() {
     assert!(packet(&node, &bad, TTL).is_err(), "a node never puts what a client would set aside");
 }
 
-/// A name of OpenTunnel's own, as the live service gave one (T-531).
+/// A name of OpenTunnel's own, as the live service gave one
+/// (PodUtils/podssh@T-531).
 const OPENTUNNEL: &str = "r7k2qmx4.abcdefghijkl.opentunnel.xyz";
 
 /// The tunnel's name under a route, of a service that `PODSSH_OPENTUNNEL`
@@ -332,9 +334,9 @@ fn longest_opentunnel() -> String {
     opentunnel_of(MAX_OPENTUNNEL)
 }
 
-/// The OpenTunnel name (T-611): it comes back as the node put it, in lower
-/// case; one that is not ROUTE.ID.DOMAIN, the root route, one too long, or a
-/// second one is set aside unsaid, and a node never puts one.
+/// The OpenTunnel name (PodUtils/podssh@T-611): it comes back as the node put
+/// it, in lower case; one that is not ROUTE.ID.DOMAIN, the root route, one too
+/// long, or a second one is set aside unsaid, and a node never puts one.
 #[test]
 fn a_record_of_an_opentunnel_name_names_it_and_sets_a_bad_name_aside() {
     let node = SecretKey::from_bytes(&[0x4b; 32]);

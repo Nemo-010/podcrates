@@ -1,44 +1,40 @@
-//! The proxy that the environment names, as podssh selects it (T-162): with
-//! `ALL_PROXY` alone, the iroh road reaches its relay through the proxy. An
-//! endpoint with iroh's own selection, the planted defect, reads no
-//! `ALL_PROXY`, and finds no relay. And a SOCKS5 proxy in `ALL_PROXY`
-//! (T-280), the only way to the relay, which gets the relay's name. A test
-//! binary of its own, as it sets the process's environment.
+//! The proxy that an environment names, as the caller reads it with
+//! `pod_proxy::Environment` (PodUtils/podssh@T-162): with `ALL_PROXY` alone,
+//! the iroh road reaches its relay through the proxy. An endpoint with what
+//! iroh's own selection takes of that environment, the planted defect (iroh
+//! reads `HTTP_PROXY` and `HTTPS_PROXY` alone, so no proxy), finds no relay.
+//! And a SOCKS5 proxy in `ALL_PROXY` (PodUtils/podssh@T-280), the only way
+//! to the relay, which gets the relay's name. The environment is a reader
+//! of the test's own: no variable of the process is set.
 
 mod common;
 
+use std::ffi::OsString;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use iroh::endpoint::presets;
 use iroh::tls::CaTlsConfig;
-use iroh::{Endpoint, RelayMode};
-use podssh_iroh::{Options, Udp};
-use podssh_ws::{ProxyChoice, Trust};
+use pod_iroh::test_relay;
+use pod_iroh::{Options, Udp};
+use pod_proxy::{Environment, ProxyChoice};
+use pod_tls::Trust;
 
-use common::{proxy, relay, LIMIT, RELAY_NAME};
+use common::{LIMIT, RELAY_NAME, proxy, relay};
 
-/// The tests of this binary set the same variables: they take turns.
-static ENVIRONMENT: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-
-/// Only `ALL_PROXY`, set to `url`, names a proxy.
-fn all_proxy_alone(url: &str) {
-    for name in ["HTTP_PROXY", "http_proxy", "HTTPS_PROXY", "https_proxy", "NO_PROXY", "no_proxy", "all_proxy"] {
-        // Edition 2024 marks a write of the environment unsafe (a read on another
-        // thread at the same time is undefined); this write is as it was before.
-        unsafe { std::env::remove_var(name) };
-    }
-    // Edition 2024 marks a write of the environment unsafe (a read on another
-    // thread at the same time is undefined); this write is as it was before.
-    unsafe { std::env::set_var("ALL_PROXY", url) };
+/// An environment where only `ALL_PROXY`, set to `url`, names a proxy.
+fn all_proxy_alone(url: &str) -> ProxyChoice {
+    let url = url.to_string();
+    ProxyChoice::FromEnvironment(Environment::read(&|name| (name == "ALL_PROXY").then(|| OsString::from(&url))))
 }
 
-/// An endpoint's options with the proxy of the environment: the relay, with
+/// An endpoint's options with the proxy of `environment`: the relay, with
 /// no UDP; the relay's certificate check skipped, as it is self-signed.
-fn from_environment(relay: &iroh::RelayUrl) -> Options {
+fn from_environment(relay: &iroh::RelayUrl, environment: ProxyChoice) -> Options {
     Options {
         relays: vec![relay.clone()],
-        proxy: ProxyChoice::FromEnvironment,
+        tls: test_relay::tls(),
+        resolve: test_relay::resolver(),
+        proxy: environment,
         trust: Trust::Default,
         udp: Udp::Off,
         secret: None,
@@ -51,48 +47,38 @@ fn from_environment(relay: &iroh::RelayUrl) -> Options {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn all_proxy_reaches_the_relay_where_iroh_s_own_selection_does_not() {
-    let _turn = ENVIRONMENT.lock().await;
     let (relay_url, _relay) = relay().await;
     let (proxy, tunnels) = proxy(relay_url.port().unwrap()).await;
-    all_proxy_alone(&format!("http://{proxy}"));
+    let environment = all_proxy_alone(&format!("http://{proxy}"));
 
-    let endpoint = podssh_iroh::bind(&from_environment(&relay_url)).await.expect("an endpoint");
-    tokio::time::timeout(LIMIT, endpoint.online()).await.expect("podssh's selection reached the relay");
+    let endpoint = pod_iroh::bind(&from_environment(&relay_url, environment)).await.expect("an endpoint");
+    tokio::time::timeout(LIMIT, endpoint.online()).await.expect("the caller's selection reached the relay");
     assert!(tunnels.load(Ordering::SeqCst) > 0, "through the proxy");
     endpoint.close().await;
 
     // The planted defect: iroh's own selection, which reads HTTP_PROXY and
-    // HTTPS_PROXY only, for its relay dial. (Its HTTPS probe of the relay
-    // can still go through the proxy: the HTTP client under it reads
-    // ALL_PROXY itself. A home relay needs both, so the endpoint gets none.)
-    let planted = Endpoint::builder(presets::Minimal)
-        .clear_address_lookup()
-        .relay_mode(RelayMode::Custom(relay_url.clone().into()))
-        .ca_tls_config(CaTlsConfig::insecure_skip_verify())
-        .proxy_from_env()
-        .clear_ip_transports()
-        .bind()
-        .await
-        .expect("an endpoint");
+    // HTTPS_PROXY only, for its relay dial: of this environment, no proxy.
+    let planted = pod_iroh::bind(&from_environment(&relay_url, ProxyChoice::Direct)).await.expect("an endpoint");
     let online = tokio::time::timeout(Duration::from_secs(8), planted.online()).await;
     assert!(online.is_err(), "iroh's own selection reached the relay");
     planted.close().await;
 }
 
-/// A SOCKS5 proxy in `ALL_PROXY` is the only way to the relay, which it
-/// reaches by name (T-280): the relay dial of the patched iroh-relay and the
-/// HTTPS probe that picks the home relay each pass it, with the user and the
-/// password of RFC 1929, and the relay's name with the address type 3. With
-/// the refusal of SOCKS5 restored, the planted defect, no endpoint is made.
+/// A SOCKS5 proxy in `ALL_PROXY` is the only way to the relay, which it reaches
+/// by name (PodUtils/podssh@T-280): the relay dial of the patched iroh-relay
+/// and the HTTPS probe that picks the home relay each pass it, with the user
+/// and the password of RFC 1929, and the relay's name with the address type 3.
+/// With the refusal of SOCKS5 restored, the planted defect, no endpoint is
+/// made.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_socks5_proxy_in_all_proxy_reaches_the_relay_by_name() {
-    let _turn = ENVIRONMENT.lock().await;
     let (relay_url, _relay) = relay().await;
     let port = relay_url.port().unwrap();
     let (proxy, seen) = common::socks5::proxy(port, Some(("alice", "s3cret"))).await;
-    all_proxy_alone(&format!("socks5h://alice:s3cret@{proxy}"));
+    let environment = all_proxy_alone(&format!("socks5h://alice:s3cret@{proxy}"));
 
-    let endpoint = podssh_iroh::bind(&from_environment(&relay_url)).await.expect("an endpoint through SOCKS5");
+    let options = from_environment(&relay_url, environment);
+    let endpoint = pod_iroh::bind(&options).await.expect("an endpoint through SOCKS5");
     tokio::time::timeout(LIMIT, endpoint.online()).await.expect("the relay through the SOCKS5 proxy");
     endpoint.close().await;
     let seen = seen.lock().unwrap().clone();

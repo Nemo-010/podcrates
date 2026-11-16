@@ -1,7 +1,7 @@
-//! The QUIC of the iroh road (T-665): the transport settings that podssh
-//! may set where iroh 1.4's builder lets it, and iroh's own beside them, so
-//! that the A/B run of `scripts/iroh-ab.py` can measure each arm on one
-//! wide-area path before a default depends on it.
+//! The QUIC of the iroh road (PodUtils/podssh@T-665): the transport settings
+//! that the road may set where iroh 1.4's builder lets it, and iroh's own
+//! beside them, so that an A/B run (podssh's `scripts/iroh-ab.py`) can measure
+//! each arm on one wide-area path before a default depends on it.
 //!
 //! READ in iroh 1.4.1 and noq-proto 1.4.0 (the QUIC that iroh builds): an
 //! initial round trip of 333 ms, an initial window of 12000 bytes (Cubic,
@@ -9,7 +9,7 @@
 //! of 1.25 MB, a connection's with no bound, and a first MTU of 1200, the
 //! floor, which osewa takes too.
 //! iroh's sockets already ask for 7 MiB of buffer each way by `SO_RCVBUF`
-//! and `SO_SNDBUF` (netwatch), never the `FORCE` forms, so podssh asks
+//! and `SO_SNDBUF` (netwatch), never the `FORCE` forms, so the road asks
 //! nothing more of them.
 
 use std::sync::Arc;
@@ -18,13 +18,15 @@ use std::time::Duration;
 use iroh::endpoint::{ControllerFactory, QuicTransportConfig, VarInt};
 use noq_proto::congestion::{Bbr3Config, CubicConfig, NewRenoConfig};
 
-/// The variable that chooses the arm: `iroh` (iroh's own), `tuned`, or
-/// words of [`WORDS`] separated by commas.
+/// The variable of the consumer that chooses the arm: `iroh` (iroh's own),
+/// `tuned`, or words of [`WORDS`] separated by commas. The crate reads no
+/// variable: the consumer gives its value to [`Tuning::from_value`], whose
+/// refusal names it.
 pub const QUIC_ENV: &str = "PODSSH_IROH_QUIC";
 
 /// The words of [`QUIC_ENV`], each one setting, and what each sets.
 pub const WORDS: &[(&str, &str)] = &[
-    ("iroh", "iroh's own settings: no word of podssh's"),
+    ("iroh", "iroh's own settings: no other word"),
     ("tuned", "rtt, window and streams"),
     ("rtt", "an initial round trip of 100 ms, for 333 ms"),
     ("window", "an initial window of 32 packets, for 10"),
@@ -44,13 +46,13 @@ pub const PACKET: u64 = 1200;
 /// The receive windows of `streams`: a stream's above the resumable layer's
 /// 4 MiB in flight (its replay buffer), so that QUIC is not what bounds a
 /// session; a connection's for two such streams, a terminal's and a copy's
-/// (T-666), where iroh sets no bound.
+/// (PodUtils/podssh@T-666), where iroh sets no bound.
 pub const STREAM_WINDOW: u64 = 8 << 20;
 pub const CONNECTION_WINDOW: u64 = 16 << 20;
 
 /// The arm when none is named: `tuned`, which beat iroh's own in each
 /// round of the A/B run on a shaped link of 60 ms and 50 Mbit/s each way
-/// (T-665), down and up alike.
+/// (PodUtils/podssh@T-665), down and up alike.
 pub const DEFAULT: &str = "tuned";
 
 /// The congestion controller.
@@ -77,7 +79,7 @@ impl Tuning {
     pub const IROH: Tuning =
         Tuning { initial_rtt: None, initial_packets: None, receive_windows: None, congestion: Congestion::Cubic };
 
-    /// osewa's settings where iroh lets podssh set them, with Cubic.
+    /// osewa's settings where iroh lets the road set them, with Cubic.
     pub const TUNED: Tuning = Tuning {
         initial_rtt: Some(INITIAL_RTT),
         initial_packets: Some(INITIAL_PACKETS),
@@ -85,14 +87,9 @@ impl Tuning {
         congestion: Congestion::Cubic,
     };
 
-    /// The arm of [`QUIC_ENV`]: [`DEFAULT`] when it is unset or empty; a
-    /// word that is not one of [`WORDS`] is refused, as a measurement of the
-    /// wrong arm would say nothing.
-    pub fn from_environment() -> Result<Tuning, String> {
-        Tuning::from_value(std::env::var(QUIC_ENV).ok().as_deref())
-    }
-
-    /// The arm of the variable's value.
+    /// The arm of the variable's value: [`DEFAULT`] when it is unset or
+    /// empty; a word that is not one of [`WORDS`] is refused, as a
+    /// measurement of the wrong arm would say nothing.
     pub fn from_value(value: Option<&str>) -> Result<Tuning, String> {
         let text = value.map(str::trim).filter(|v| !v.is_empty()).unwrap_or(DEFAULT);
         let mut tuning = Tuning::IROH;
@@ -207,6 +204,13 @@ impl Tuning {
                 Arc::new(config)
             }
         }
+    }
+}
+
+/// The arm of [`DEFAULT`], as an unset variable chooses it.
+impl Default for Tuning {
+    fn default() -> Tuning {
+        Tuning::from_value(None).unwrap_or(Tuning::IROH)
     }
 }
 

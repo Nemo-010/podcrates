@@ -1,9 +1,9 @@
-//! The relays of the iroh road (T-165): the flag before the variable before
-//! the table, the URLs that a list of relays takes, and the failover: the
-//! first relay that answers `/ping`, with its certificate checked, is the
-//! home relay. A planted selection that ignores the flag fails the check of
-//! the order. The relay that answers is iroh's own relay server on the
-//! loopback, whose certificate podssh's trust store is given.
+//! The relays of the iroh road (PodUtils/podssh@T-165): the flag before the
+//! variable before the table, the URLs that a list of relays takes, and the
+//! failover: the first relay that answers `/ping`, with its certificate
+//! checked, is the home relay. A planted selection that ignores the flag fails
+//! the check of the order. The relay that answers is iroh's own relay server on
+//! the loopback, whose certificate the trust store is given.
 
 mod cleanup;
 
@@ -11,9 +11,11 @@ use std::collections::BTreeSet;
 use std::time::Duration;
 
 use iroh::{RelayMode, RelayUrl};
-use podssh_iroh::relays::{self, Source};
-use podssh_iroh::{ticket, Options, Udp};
-use podssh_ws::{ProxyChoice, Trust};
+use pod_iroh::relays::{self, Source};
+use pod_iroh::test_relay::{self, direct};
+use pod_iroh::{Options, Udp, ticket};
+use pod_proxy::{Proxy, ProxyChoice};
+use pod_tls::Trust;
 
 const A: &str = "https://relay-a.example";
 const B: &str = "https://relay-b.example:8443";
@@ -90,7 +92,7 @@ fn the_table_is_iroh_s_own_list() {
 
 /// A scratch directory unique to one test.
 fn scratch(name: &str) -> std::path::PathBuf {
-    let dir = std::env::temp_dir().join(format!("podssh-iroh-relays-{name}-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("pod-iroh-relays-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     cleanup::at_test_end(&dir);
@@ -108,17 +110,23 @@ fn silent_relay() -> RelayUrl {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn the_first_relay_that_answers_is_the_home_relay() {
     let dir = scratch("first");
-    let relay = podssh_iroh::test_relay::spawn(&dir).await.expect("a relay on the loopback");
+    let relay = test_relay::spawn(&dir).await.expect("a relay on the loopback");
     let trust = Trust::File(relay.cert.clone());
     let silent = silent_relay();
-    let (home, missed) = relays::home(&[silent, relay.url.clone()], &trust, &ProxyChoice::Direct).await;
+    let (home, missed) = relays::home(&[silent, relay.url.clone()], &trust, &direct()).await;
     assert_eq!(home, vec![relay.url.clone()], "the relay that answered, alone");
     assert_eq!(missed.len(), 1, "{missed:?}");
     // An endpoint given it has it as its home relay, with its certificate
-    // checked by podssh's trust store.
-    let options =
-        Options { relays: home, proxy: ProxyChoice::Direct, trust, udp: Udp::Off, accepts: true, ..Options::default() };
-    let endpoint = podssh_iroh::bind(&options).await.expect("an endpoint");
+    // checked by the trust store.
+    let options = Options {
+        relays: home,
+        proxy: ProxyChoice::Direct,
+        trust,
+        udp: Udp::Off,
+        accepts: true,
+        ..test_relay::options()
+    };
+    let endpoint = pod_iroh::bind(&options).await.expect("an endpoint");
     tokio::time::timeout(LIMIT, endpoint.online()).await.expect("a home relay");
     assert_eq!(ticket::home_relay(&endpoint), Some(relay.url.clone()));
     endpoint.close().await;
@@ -127,33 +135,33 @@ async fn the_first_relay_that_answers_is_the_home_relay() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn with_no_relay_that_answers_iroh_gets_them_all() {
     let dir = scratch("none");
-    let relay = podssh_iroh::test_relay::spawn(&dir).await.expect("a relay on the loopback");
+    let relay = test_relay::spawn(&dir).await.expect("a relay on the loopback");
     let list = [silent_relay(), relay.url.clone()];
-    // podssh's own roots do not hold the test relay's certificate: it does
+    // The default roots do not hold the test relay's certificate: it does
     // not answer either, and the reason says why.
-    let (home, missed) = relays::home(&list, &Trust::Default, &ProxyChoice::Direct).await;
+    let (home, missed) = relays::home(&list, &Trust::Default, &direct()).await;
     assert_eq!(home, list.to_vec(), "each relay, for iroh's own probes");
     assert_eq!(missed.len(), 2, "{missed:?}");
     assert!(missed[1].contains("localhost"), "{missed:?}");
 }
 
-/// A SOCKS5 proxy, which the other roads take since T-070, is taken for the
-/// iroh relay too (T-280), with a password that iroh's `CONNECT` would send
-/// wrong: the patched SOCKS5 dial sends it as RFC 1929 says. The same
-/// password through an HTTP proxy is refused, with no word of it. Nothing
-/// is dialled: the endpoint is made, and closed.
+/// A SOCKS5 proxy, which the other roads take since PodUtils/podssh@T-070, is
+/// taken for the iroh relay too (PodUtils/podssh@T-280), with a password that
+/// iroh's `CONNECT` would send wrong: the patched SOCKS5 dial sends it as RFC
+/// 1929 says. The same password through an HTTP proxy is refused, with no word
+/// of it. Nothing is dialled: the endpoint is made, and closed.
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn a_socks5_proxy_is_taken_with_a_password_that_connect_would_send_wrong() {
     let relays: Vec<RelayUrl> = vec![A.parse().expect("a relay URL")];
     // `a:~~~` is `YTp+fn4=` in base64: iroh's `CONNECT` sends `YTp-fn4=`.
-    let socks5 = podssh_ws::Proxy::parse("socks5h://a:~~~@127.0.0.1:1").expect("a proxy URL");
+    let socks5 = Proxy::parse("socks5h://a:~~~@127.0.0.1:1").expect("a proxy URL");
     let options =
-        Options { relays: relays.clone(), proxy: ProxyChoice::Via(socks5), udp: Udp::Off, ..Options::default() };
-    let endpoint = podssh_iroh::bind(&options).await.expect("an endpoint through a SOCKS5 proxy");
+        Options { relays: relays.clone(), proxy: ProxyChoice::Via(socks5), udp: Udp::Off, ..test_relay::options() };
+    let endpoint = pod_iroh::bind(&options).await.expect("an endpoint through a SOCKS5 proxy");
     endpoint.close().await;
-    let http = podssh_ws::Proxy::parse("http://a:~~~@127.0.0.1:1").expect("a proxy URL");
-    let options = Options { relays, proxy: ProxyChoice::Via(http), udp: Udp::Off, ..Options::default() };
-    let Err(podssh_iroh::BindError::Proxy(why)) = podssh_iroh::bind(&options).await else {
+    let http = Proxy::parse("http://a:~~~@127.0.0.1:1").expect("a proxy URL");
+    let options = Options { relays, proxy: ProxyChoice::Via(http), udp: Udp::Off, ..test_relay::options() };
+    let Err(pod_iroh::BindError::Proxy(why)) = pod_iroh::bind(&options).await else {
         panic!("iroh's CONNECT was given a password that it sends wrong")
     };
     assert!(!why.contains("~~~"), "the password is quoted: {why}");

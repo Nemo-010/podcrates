@@ -1,7 +1,7 @@
-//! A node's address on the iroh road (T-163): `iroh:` and iroh's own ticket
-//! of an endpoint, which holds the node's key and its home relay. A ticket
-//! is an address, not a credential: the node's allowlist of client keys
-//! gives access, so a ticket may go on a command line.
+//! A node's address on the iroh road (PodUtils/podssh@T-163): `iroh:` and
+//! iroh's own ticket of an endpoint, which holds the node's key and its home
+//! relay. A ticket is an address, not a credential: the node's allowlist of
+//! client keys gives access, so a ticket may go on a command line.
 
 use iroh::{Endpoint, EndpointAddr, RelayUrl, Watcher as _};
 use iroh_tickets::endpoint::EndpointTicket;
