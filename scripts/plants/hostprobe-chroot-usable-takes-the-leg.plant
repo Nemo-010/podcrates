@@ -1,0 +1,6 @@
+# chroot_usable takes each row whose name starts with chroot(, so the leg
+# through a user namespace counts as the caller's chroot; the test must fail.
+ENTRY=T-758
+GROUP=hostprobe
+EXPECT='test probes::tests::only_an_ok_chroot_promises_entry \.\.\. FAILED'
+RUN='cargo test -p pod-hostprobe --all-features --lib -- probes::tests::only_an_ok_chroot_promises_entry --exact'
