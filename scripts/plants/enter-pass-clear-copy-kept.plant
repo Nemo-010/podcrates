@@ -1,0 +1,6 @@
+# The drop of Moved leaves the copy of a root descriptor open; the test of
+# the move must fail.
+ENTRY=T-788
+GROUP=enter
+EXPECT='test pass_clear::tests::a_root_on_a_passed_number_moves_above_each_passed_number \.\.\. FAILED'
+RUN='cargo test -p pod-enter --all-features --lib -- pass_clear::tests::a_root_on_a_passed_number_moves_above_each_passed_number --exact'

@@ -1,0 +1,13 @@
+diff --git a/crates/pod-enter/src/pass_clear.rs b/crates/pod-enter/src/pass_clear.rs
+index 7d5f0f7..7c46784 100644
+--- a/crates/pod-enter/src/pass_clear.rs
++++ b/crates/pod-enter/src/pass_clear.rs
+@@ -25,7 +25,7 @@ pub(crate) struct Moved(Vec<i64>);
+ impl Drop for Moved {
+     fn drop(&mut self) {
+         for &fd in &self.0 {
+-            let _ = sys::close(fd);
++            let _ = fd;
+         }
+     }
+ }
