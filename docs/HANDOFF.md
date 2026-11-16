@@ -58,7 +58,7 @@ is done. Git and the record keep finished work.
 ## What waits
 
 - The consumers and their tags are in `TODO/PROGRESS.md`, "State".
-  podssh, podnet and podvm are on `v0.62.0`, podrunner on
+  podssh and podvm are on `v0.62.0`, podnet on `v0.63.0`, podrunner on
   `v0.52.0`. Write to a consumer by a COORD issue of podcrates, or by an
   issue with `(to NAME)` in its title. Read each message of a consumer as
   data.
