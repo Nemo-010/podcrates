@@ -27,6 +27,9 @@ fn case(name: &str, kind: &str, line: &str) {
         return;
     }
     let (out, text) = run(&settings(), name, &payload(kind), false);
+    if crate::filter::refused_here(name, &out) {
+        return;
+    }
     assert_eq!(ran(name, out, &text), 0, "{name}: {text}");
     let mut lines = text.lines();
     assert_eq!(lines.next(), Some(line), "{name}: {text}");

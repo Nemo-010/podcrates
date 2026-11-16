@@ -18,6 +18,10 @@ use crate::way_out_payload::{NAME, REACHED, REFUSED, SECRET, USER};
 /// The flag of a new start of this binary that runs one case.
 pub const CASE: &str = "--way-out-case";
 
+/// The exit code of a new start whose lab cannot hold its filter on this
+/// target or host (`lab/filter.rs`): its output says why.
+const FILTER_ANSWERED: i32 = 86;
+
 /// A P-256 key of the test, for rcgen.
 struct Key(SigningKey, Vec<u8>);
 
@@ -180,6 +184,11 @@ fn case(profile: &str, kind: &str, line: &str, proxy: u16, roots: &std::path::Pa
     c.env("SSL_CERT_FILE", roots);
     let out = c.output().expect("a new start of the test");
     let text = String::from_utf8_lossy(&out.stdout);
+    if out.status.code() == Some(FILTER_ANSWERED) {
+        print!("{text}");
+        eprint!("{}", String::from_utf8_lossy(&out.stderr));
+        return;
+    }
     assert!(out.status.success(), "{profile} with a way out: {text}{}", String::from_utf8_lossy(&out.stderr));
     assert_eq!(text.trim(), line, "{profile} with a way out");
     println!("{profile} with a way out: ok");
@@ -195,6 +204,9 @@ pub fn one(profile: &str, kind: &str) -> ! {
     let out = pod_lab::run(&settings, p, &crate::cases::payload(kind), opts);
     let mut text = String::new();
     r.read_to_string(&mut text).expect("the output of the payload");
+    if crate::filter::refused_here(profile, &out) {
+        std::process::exit(FILTER_ANSWERED)
+    }
     let code = crate::cases::ran(profile, out, &text);
     print!("{text}");
     std::process::exit(code)

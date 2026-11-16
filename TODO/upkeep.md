@@ -2041,6 +2041,10 @@ cargo test -p pod-link --all-features --test poll_lanes
 
 The next nightly proves windows-2025.
 
+## Correction
+
+2026-11-16: `nightly.yml` run 43817142905 at `1739b5f`: the test fails again on windows-2025 at the read of the answer. The cause is a write of TLS with no flush: the last records of the POST stay in the client. T-763 has the measurement and the fix; the `tokio::join!` stays.
+
 ## Done
 
 2026-11-15, commit `15e770ac`. The test reads the answer and the rest at the far end with `tokio::join!`; the assertions stay. `cargo test -p pod-link --all-features`: 219 passed, `--test poll_lanes` 9. No test fails here without the fix: the link on Linux holds the rest. The next nightly proves windows-2025.
@@ -2265,3 +2269,179 @@ sh scripts/plant-each.sh enter-userns-dev-no-remount
 ## Done
 
 2026-11-16, commit ee2f4159 (call C718). The cause is confirmed here: in a mount namespace whose `/dev` is remounted `nosuid,noexec`, `plant-each.sh enter-userns-dev-no-remount` at `e4e0374f` gives "MISSED ... exit 0", as shard 2 of run 43771492486. The runner image of that shard was `ubuntu-24.04` 20261111.370.1; the shard that caught the plant at `7ef7aab` (run 43730541043, shard 1) ran on 20261111.127.1. The logs do not show the options of `/dev` (an inference: the newer image mounts `/dev` with `noexec` too). The fix: `pod_testkit::nobody::again_over_a_bare_dev` starts the test binary again as uid 65534 from a root parent in a private mount namespace whose `/dev` is remounted (`MS_REMOUNT | MS_BIND`, with `rdonly` and `nodev` kept) with no `nosuid` and no `noexec`; `nobody::mount_options` reads the options of a mount. As root, `a_caller_with_no_capabilities_gets_the_devices_of_the_host` of `crates/pod-enter/tests/userns.rs` runs through it and asserts that its `/dev` has neither flag; as another user over a `/dev` with one of the flags, it writes `not seen here: ...` to its standard error and passes. `scripts/ci/userns-tests.sh` prints the options of the host's `/dev` and, as a user that is not root where `sudo -n` works (a GitHub runner), runs that test again with root; a skip line or a `not seen here` line in that run fails the script. Proof here (root): at ee2f4159 the plant gives "caught (exit 1)" with `left: Ok(8)`, over the host's `/dev` (`rw,relatime`) and over a `/dev` remounted `nosuid,noexec`. The path of a runner, with the planted binary over a `/dev` remounted `nosuid,noexec`: as uid 65534 the test writes `not seen here` and passes; as root it fails with `left: Ok(8)`. On a runner the first run is as the runner's user, and the second run with `sudo -n` catches the plant. `sh scripts/ci/userns-tests.sh` passes as root.
+
+# T-761: The nightly at `1739b5f` is red on each cross target: the lab test of `pod-lab` expects a seccomp lab to run where its filter cannot hold
+
+**Source:** `nightly.yml` run 43817142905 at `1739b5f` (jobs `cross` of i686 133131677560, armv7 133131677398, arm 133131677473, aarch64 133131677451, loongarch64 133131677416 and powerpc64le 133131677401).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The test binary `lab` of `crates/pod-lab/tests/lab.rs` stopped at the first case of the host classes (T-714), in `cases::ran`:
+
+- i686 and powerpc64le: "listen-denied: the lab listen-denied does not hold: listen-refused: Refused(Verdict { ... Seen { what: "the hold", state: Fails, errno: None, detail: "on this target a socket call can go through socketcall(2), which the filter does not see" } ... })".
+- armv7, arm, aarch64 and loongarch64 (qemu-user): the same, with the detail "seccomp(SET_MODE_FILTER): ENOSYS (38)".
+
+The binary has no libtest: the cases after the first panic did not run.
+
+## Premise
+
+- Read: the logs of the six jobs; `crates/pod-lab/src/hold.rs` (`cannot`: a lab refuses a seccomp filter of `socket`, `listen` or `getsockname` where the target has `socketcall(2)`; `seccomp`: the error of the kernel call is the reason of the part); the job `cross` of `.github/workflows/nightly.yml` (each test binary runs on the runner, under qemu-user where the target is not x86).
+- The lab answers as the crate defines it: it refuses the run, and names the hold that it cannot set. The cases of `crates/pod-lab/tests/lab/hosts.rs`, `crates/pod-lab/tests/lab/net.rs` and `crates/pod-lab/tests/lab/way_out.rs` expect each lab to run.
+- qemu-user does not give the call `seccomp(2)`: `ENOSYS`.
+- Measured here (x86_64 host, root): the binary for i686-unknown-linux-musl, natively, failed in the same case before the fix. With the case of `listen-denied` refused, it failed next in `proxy-only` (`net.rs`) and in `proxy-only` with a way out (`way_out.rs`), with the same socketcall detail.
+- Not measured: a run under qemu-user (no QEMU on this host).
+
+## Approach
+
+`crates/pod-lab/tests/lab/filter.rs`, `refused_here`, for each case of the three files: on a target with `socketcall(2)`, a lab that filters a socket call must refuse with the reason of socketcall, and the case checks that and ends; a lab that does not refuse there fails the case. On a host where each part that does not hold failed at `seccomp(SET_MODE_FILTER): ENOSYS`, the case writes a skip line. The main target is not changed: a skip line fails `scripts/ci/userns-tests.sh`, and x86_64 has no `socketcall` path in the lab.
+
+## Prove
+
+```sh
+cargo test -p pod-lab --all-features --test lab
+cargo zigbuild -p pod-lab --all-features --test lab --target i686-unknown-linux-musl
+```
+
+Then run the binary for i686 from `crates/pod-lab`. The next nightly proves the targets under qemu-user.
+
+# T-762: The nightly at `1739b5f` is red under qemu-user: the test of the rows of `pod-hostprobe` expects no value of a mount flag that the kernel did not fill
+
+**Source:** `nightly.yml` run 43817142905 at `1739b5f` (jobs `cross` of armv7 133131677398, arm 133131677473, aarch64 133131677451, loongarch64 133131677416 and powerpc64le 133131677401).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The binary `host_rows` of `crates/pod-hostprobe/tests/host_rows.rs` failed on each target under qemu-user:
+
+```text
+host_rows: creat($HOME/.pod-hostprobe)        OK
+host_rows:     noexec unknown
+assertion `left == right` failed: Outcome { verdict: Ok, errno: None, reason: "noexec unknown" }
+  left: Some("unknown")
+ right: None
+```
+
+## Premise
+
+- Read: `crates/pod-hostprobe/src/probes/files.rs` (`flag`: `1`, `0`, or `unknown` where `statfs(2)` gives no `ST_VALID`); `crates/pod-hostprobe/src/sys/statfs.rs` (`Statfs::flag` gives `None` with no `ST_VALID`); `crates/pod-hostprobe/tests/host_rows/rows.rs`.
+- The crate is correct: qemu-user gives no `ST_VALID`, and the row says `unknown`. The test maps `None` to no value. The row `statfs(/etc/ssl)` has the same flaw in its check of `rdonly`; the run stopped before it.
+- On i686 (no emulator) the row gives `noexec 0`, and the test passes.
+- Not measured: a run under qemu-user.
+
+## Approach
+
+The test maps the flag as the crate does: `flag_text` gives `unknown` for `None`. The checks of `noexec` of `HOME` and of `rdonly` of `/etc/ssl` use it.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features --test host_rows
+```
+
+The next nightly proves the targets under qemu-user.
+
+# T-763: The nightly at `1739b5f` is red on windows-2025: a test of `pod-link` writes a POST on TLS and reads the answer with no flush
+
+**Source:** `nightly.yml` run 43817142905 at `1739b5f` (job `test (windows-2025)` 133131677537).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`a_body_up_goes_into_the_link_by_parts_and_a_cut_keeps_its_part` of `crates/pod-link/tests/poll_lanes.rs` failed on windows-2025 again after the fix of T-681: "the answer in time: Elapsed(())", after 30 s, at the read of the answer of the second POST.
+
+## Premise
+
+- Read: the log; `tokio-rustls` 0.26.6, `Stream::poll_write`: it gives the count of the bytes that rustls took when the socket cannot take more, and the records of TLS stay in rustls until the next write or a flush; `poll_read` writes no record. The test writes the POST again (128 KiB) with `write_all` and reads the answer with no flush. Where the socket of the client takes less than the body at once (the small send buffer of Windows), the last records do not go, and the listener waits for the rest of the body.
+- Measured here: a client of TLS through a pipe of 4 KiB to its socket (`connect_narrow` of `crates/pod-link/tests/common/poll.rs`) gives the same failure at the same place, after 30 s. With a flush after the write, the test passes 20 times of 20.
+- The fix of T-681 (`tokio::join!` of the answer and the rest) was not the cause; it stays.
+
+## Approach
+
+The test flushes after the write of the POST, and its second POST goes through `connect_narrow`, so that each host shows the small send buffer of Windows. `ask_on` flushes after its write too.
+
+## Prove
+
+```sh
+cargo test -p pod-link --all-features --test poll_lanes
+sh scripts/plant-each.sh link-poll-tls-write-unflushed
+```
+
+The next nightly proves windows-2025.
+
+# T-764: The nightly at `1739b5f` is red on windows-2025: the lower bound of a silence of `pod-link`'s split test does not allow the tick of the timer of Windows
+
+**Source:** `nightly.yml` run 43817142905 at `1739b5f` (job `test (windows-2025)` 133131677537).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`a_silent_up_half_ends_the_session_with_up_carrier_lost_on_each_side` of `crates/pod-link/tests/split.rs` failed on windows-2025: "a silence is a loss after lost_after alone: 337.5207ms", against a lower bound of `lost_after - beat` (400 ms - 50 ms).
+
+## Premise
+
+- Read: the log; `crates/pod-link/src/split/run.rs` (each sender writes a beat after a sleep of `beat`; each reader takes a silence of `lost_after` from the last frame as the loss).
+- The silence starts at the last frame before the cut. The test took one beat as the most time from that frame to the cut. 400 ms - 337.5 ms = 62.5 ms, which is four ticks of the timer of Windows (15.625 ms): a sleep of 50 ms there takes 62.5 ms.
+- Not measured: the test on Windows; this host has a timer of 1 ms.
+
+## Approach
+
+The bound is `lost_after - 2 * beat` (300 ms), with the reason in a comment. It still sees a loss that comes before `lost_after`, as a plant that halves `lost_after` shows.
+
+## Prove
+
+```sh
+cargo test -p pod-link --all-features --test split
+sh scripts/plant-each.sh link-split-silence-early
+```
+
+The next nightly proves windows-2025.
+
+# T-765: The nightly at `1739b5f` is red on macos-15-intel: a dial of `pod-proxy` to a freed port gets a reset, not a refusal
+
+**Source:** `nightly.yml` run 43817142905 at `1739b5f` (job `test (macos-15-intel)` 133131677450).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`a_failed_dial_keeps_the_kind_of_its_last_error` of `crates/pod-proxy/tests/egress.rs` failed on macos-15-intel: "assertion `left == right` failed; left: Some(ConnectionReset); right: Some(ConnectionRefused)".
+
+## Premise
+
+- Read: the log; `crates/pod-proxy/tests/closed/mod.rs` (`port`: on macOS, the port of a listener that is bound and dropped, as T-067 made it; macOS drops a SYN to a port that a socket holds with no listen); `common::dead()` of `crates/pod-warp/tests/common/mod.rs` (T-680, call C656) and `crates/pod-dns/src/tests/cuts.rs` do the same on macOS.
+- A port with no socket gives a refusal. A reset of a connect needs a socket that took the connection: a listener of a parallel test of the same binary that got the freed port and closed with the connection in its queue. The helpers say that this race is seldom; this run shows it.
+- Not measured: the test on macOS; this host checks the build alone.
+
+## Approach
+
+On macOS the closed port of the three helpers is `127.0.0.1:1`: a bind to port 0 gives a port of the ephemeral range alone, so no listener of a test can take port 1, and nothing listens there. The other hosts keep the socket that is bound with no listen (call C742).
+
+## Prove
+
+```sh
+cargo test -p pod-proxy --all-features --test egress --test dial --test fetch --test get --test dialer
+cargo test -p pod-dns --lib cuts
+sh scripts/agent/check-macos.sh
+```
+
+The next nightly proves macOS.

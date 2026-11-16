@@ -277,9 +277,11 @@ async fn kill(half: Half, mode: Mode) {
         assert_eq!(split::lost_in(&e.to_string()), Some(half), "{e}");
     }
     if mode == Mode::Silent {
-        // The silence started at the last frame, at most one beat before the cut.
+        // The silence started at the last frame, one sleep of a beat before
+        // the cut or less. The timer of Windows ticks each 15.625 ms, so a
+        // sleep of 50 ms there takes 62.5 ms: the bound allows two beats.
         let waited = started.elapsed();
-        assert!(waited >= s.lost_after - s.beat, "a silence is a loss after lost_after alone: {waited:?}");
+        assert!(waited >= s.lost_after - 2 * s.beat, "a silence is a loss after lost_after alone: {waited:?}");
     }
 }
 

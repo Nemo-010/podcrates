@@ -34,6 +34,9 @@ fn landlock_here(name: &str) -> bool {
 /// Run the payload `kind` in the lab `name`, and check its line.
 fn case(name: &str, kind: &str, line: &str) {
     let (out, text) = run(&settings(), name, &payload(kind), false);
+    if crate::filter::refused_here(name, &out) {
+        return;
+    }
     assert_eq!(ran(name, out, &text), 0, "{name}: {text}");
     assert_eq!(text.trim(), line, "{name}");
     println!("{name}: ok");
