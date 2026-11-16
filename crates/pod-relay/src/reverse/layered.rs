@@ -99,7 +99,10 @@ impl<H: Handler> Handler for Layered<H> {
                 Box::new(move || keeper.admit(&admitted, settings.replay_capacity, budget))
             };
             let open = || inner.open_admitted(id, admit);
-            far::serve_admitted(ours, Role::NODE, settings, &keeper, budget, open, admitted).await;
+            // The far end's line of a resume names the relay's session that
+            // carries it (PodUtils/podssh#283).
+            let by = format!("relay session {}", id.as_str());
+            far::serve_admitted_by(ours, by, Role::NODE, settings, &keeper, budget, open, admitted).await;
         });
         Box::pin(async move { Ok(theirs) })
     }

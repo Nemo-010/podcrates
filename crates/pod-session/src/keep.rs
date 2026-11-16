@@ -22,6 +22,10 @@
 //! one before, in [`crate::handover`].
 
 mod handover;
+mod resumed;
+
+pub use resumed::RESUME;
+use resumed::{NotTaken, Taken};
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -64,33 +68,11 @@ pub fn admitted_at_once() -> Admitted {
     Arc::new(AtomicBool::new(true))
 }
 
-/// Why a resume did not take its session.
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum NotTaken {
-    /// The session ended, on its old link, while this one shook hands; the
-    /// words of its `CLOSE`, empty but for one that a handover ended.
-    Ended(String),
-    /// A newer resume came: the client left this link.
-    Newer,
-    /// The old link did not stop in time.
-    Stuck,
-}
-
-impl std::fmt::Display for NotTaken {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            NotTaken::Ended(_) => "the session ended on its old link",
-            NotTaken::Newer => "a newer link resumed the session",
-            NotTaken::Stuck => "the old link of the session did not stop",
-        })
-    }
-}
-
 enum Slot<A> {
     /// A link carries the session; its `watch` stops it, and `done` tells
     /// when it has ended. `state` is the session's, for the count of its
-    /// buffer.
-    Live { watch: Arc<Watch>, done: Arc<Notify>, state: Arc<Mutex<Link>>, admitted: Admitted },
+    /// buffer. `number` is the link's resume, 0 for the first link.
+    Live { watch: Arc<Watch>, done: Arc<Notify>, state: Arc<Mutex<Link>>, admitted: Admitted, number: u64 },
     /// No link: the target and the state wait until `until`.
     Idle { app: A, carry: Carry, until: Instant, admitted: Admitted },
     /// The session ended at this side and its client had each byte, but its
@@ -268,6 +250,7 @@ where
             done: done.clone(),
             state: carry.state.clone(),
             admitted: admitted.clone(),
+            number: 0,
         };
         lock(&self.slots).insert(established.id, live);
         self.carry(established.id, app, link, decoder, carry, &watch, &done, admitted).await
@@ -281,7 +264,7 @@ where
     where
         L: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
-        let number = accepted.resume();
+        let (number, by) = (accepted.resume(), accepted.link_name().to_string());
         let (mut link, decoder, established, settings) = accepted.into_parts();
         let id = established.id;
         // Only raised: an older resume whose task starts late gives way.
@@ -291,25 +274,38 @@ where
             *at = (*at).max(number);
         }
         let (watch, done) = (Arc::new(Watch::far_end().within(settings.window)), Arc::new(Notify::new()));
-        let (mut app, mut carry, admitted) = match self.take(&id, number, &watch, &done).await {
+        let (mut app, mut carry, admitted, stopped) = match self.take(&id, number, &watch, &done).await {
             Ok(taken) => taken,
-            // The client hears the session's end, not a lost link.
-            Err(NotTaken::Ended(reason)) => {
-                last_word(&mut link, &Record::Close { reason: super::record::cut_reason(&reason) }).await;
-                return Err(NotTaken::Ended(reason).to_string());
+            Err(not) => {
+                resumed::not_taken(&self.tell, &id, (number, &by), &resumed::why_not(&not));
+                // The client hears the session's end, not a lost link.
+                if let NotTaken::Ended(reason) = &not {
+                    last_word(&mut link, &Record::Close { reason: super::record::cut_reason(reason) }).await;
+                }
+                return Err(not.to_string());
             }
-            Err(other) => return Err(other.to_string()),
         };
         let mut again = Vec::new();
-        let resumed = lock(&carry.state).resume(established.peer_received, &mut again);
-        if let Err(not_kept) = resumed {
-            lock(&self.slots).remove(&id);
-            self.forget(&id);
-            let _ = app.shutdown().await;
-            done.notify_waiters();
-            last_word(&mut link, &not_kept.refusal()).await;
-            return Err(not_kept.to_string());
-        }
+        let sent_again = lock(&carry.state).resume(established.peer_received, &mut again);
+        let again_bytes = match sent_again {
+            Ok(n) => n,
+            Err(not_kept) => {
+                resumed::not_taken(&self.tell, &id, (number, &by), &format!("{not_kept}; the session ends"));
+                lock(&self.slots).remove(&id);
+                self.forget(&id);
+                let _ = app.shutdown().await;
+                done.notify_waiters();
+                last_word(&mut link, &not_kept.refusal()).await;
+                return Err(not_kept.to_string());
+            }
+        };
+        // The far end's line of the resume: where each end was, and what
+        // held the session (PodUtils/podssh#283).
+        let (client, accepted, received) =
+            (established.peer_received, established.received, lock(&carry.state).received());
+        let held = carry.undelivered();
+        let taken = Taken { number, by, client, accepted, received, held, again: again_bytes, stopped };
+        resumed::took(&self.tell, &id, &taken);
         // The pump sends the bytes that the client lacks while it reads the
         // client's.
         carry.send_again(again);
@@ -317,7 +313,8 @@ where
     }
 
     /// The target and the state of a kept session for resume `number`, the
-    /// link that held it stopped. The new link's `watch` and `done` take the
+    /// link that held it stopped, with the number of that link's resume (0
+    /// for the first link). The new link's `watch` and `done` take the
     /// slot in the same lock that empties it, so a resume that looks next
     /// finds this link, and stops it.
     async fn take(
@@ -326,12 +323,13 @@ where
         number: u64,
         watch: &Arc<Watch>,
         done: &Arc<Notify>,
-    ) -> Result<(A, Carry, Admitted), NotTaken> {
+    ) -> Result<(A, Carry, Admitted, Option<u64>), NotTaken> {
         let deadline = Instant::now() + STOP_WAIT;
+        let mut stopped = None;
         loop {
             match lock(&self.newest).get(id) {
                 Some(newest) if *newest == number => {}
-                Some(_) => return Err(NotTaken::Newer),
+                Some(newest) => return Err(NotTaken::Newer(*newest)),
                 None => return Err(NotTaken::Ended(String::new())),
             }
             let stopping = {
@@ -339,12 +337,13 @@ where
                 match slots.remove(id) {
                     Some(Slot::Idle { app, carry, admitted, .. }) => {
                         let (watch, done, state) = (watch.clone(), done.clone(), carry.state.clone());
-                        slots.insert(*id, Slot::Live { watch, done, state, admitted: admitted.clone() });
-                        return Ok((app, carry, admitted));
+                        slots.insert(*id, Slot::Live { watch, done, state, admitted: admitted.clone(), number });
+                        return Ok((app, carry, admitted, stopped));
                     }
-                    Some(Slot::Live { watch, done, state, admitted }) => {
+                    Some(Slot::Live { watch, done, state, admitted, number: older }) => {
                         watch.stop.notify_one();
-                        slots.insert(*id, Slot::Live { watch, done: done.clone(), state, admitted });
+                        stopped = Some(older);
+                        slots.insert(*id, Slot::Live { watch, done: done.clone(), state, admitted, number: older });
                         Some(done)
                     }
                     // The id stays until its deadline, for each resume

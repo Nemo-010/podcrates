@@ -8115,7 +8115,7 @@ cargo test -p pod-hold --all-features
 **Milestone:** M2
 **Priority:** P1
 **Effort:** M
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -8143,6 +8143,26 @@ gave way; (2) a look at the case of the sixth failure: a new link that the
 relay takes and ends before the far end greets, then a second link that
 resumes 1.1 s later, at the same resume deadline.
 
+The consumer amended the issue (2026-11-16 09:00 UTC): "It fails here too:
+the test fails off the gate now, on a cloud host. `cargo test -p
+podssh-cli --features podssh-cli/iroh-test --test m6_exit -- --ignored
+--exact the_layer_survives_a_stopped_relay_host` at `f5b4f43`, 15 runs one
+after another. Run 8 failed (600 s); each other run took 15 s. The client:
+it resumed twice in a row, 'after 0.0 s, 98304 bytes sent again', then
+'after 0.0 s, 130126 bytes sent again', then said nothing. The client's
+proxy (after the faults' clock started): one CONNECT before the RST of the
+open tunnels, and one CONNECT after it. The node's proxy: one CONNECT after
+the RST and no other. That one is the node's link to the relay ('online
+again'). So the node opened no new connection for the resumed session, and
+yet the client heard a greeting and the resume's proof. The question: which
+way carried the node's half of that second resume? If it is a way that no
+longer reaches the node's live session, the client would hear a resume as
+done and then nothing." The changed asks: (1) the far end's line also names
+which link (connection) carries the resume; (2) "a look at the way a resume
+reaches the node when the relay's open tunnels are cut: in the failure
+above, two resumes came quickly, and the node opened no new connection for
+either."
+
 ## Premise
 
 - Read: PodUtils/podssh#283.
@@ -8159,8 +8179,108 @@ case on the loopback: a first resume whose link ends before the greeting
 of the far end, a second resume 1.1 s later, then bytes both ways; and the
 same with the old link still alive. Fix the cause that the test shows.
 
+Progress (2026-11-16):
+
+- Ask 1 is done. `Keeper::run_resumed` sends one event `session.resume`
+  (`keep::RESUME`, level `Info`) to the sink of `Keeper::with_tell` at each
+  resume: its number, the link's name (`Accepted::by`,
+  `far::serve_admitted_by`; pod-relay's node names its relay session),
+  the client's offset from its `PROOF`, the far end's offset now and in its
+  `ACCEPT`, the bytes not yet written to the target, the bytes sent again,
+  and what held the session (no link, the first link, the link of resume
+  M). A resume that does not take the session says why (an older resume
+  gives way to resume M; the session ended; the old link did not stop; the
+  offsets not kept). `crates/pod-session/README.md` gives the line.
+- Ask 2: `tests/session_resume_again.rs` runs the sixth case (a first new
+  link ends before the greeting, a second resumes after the backoff, bytes
+  both ways on the pair's window) with the old link ended at both ends, and
+  with it still alive at the far end. `tests/session_resume_twice.rs` runs
+  the amended case: the relay host stops (its link silent, open at both
+  ends), a spare resumes, the relay resets each open link at once, and the
+  client resumes again in less than 1 ms; the two resend counts are 0.0 s
+  apart and the second is not a multiple of 32 KiB, as in run 8. With the
+  final tests, 100 runs of the three tests (50 on an idle host, 50 with each
+  of the 4 cores busy) moved the bytes whole each time; in 4 of them the
+  spare came only after 20 s (T-768). In an earlier loop, one run showed a
+  resume that the client called
+  done and that the far end did not take: the far end's resume 1 still
+  waited for the old link to stop when the reset ended its link, and the
+  client's resume 2 came first, so resume 1 gave way; resume 2 took the
+  session and the bytes moved. That is the rule of the newest resume, not
+  a hang.
+- Ruled out by reading: a lost wake of `room` (the reader's `notify_one`
+  keeps a permit), of the writer (`Outbox::wake`) and of the stop of a link
+  (`notify_one` each 50 ms in `take`); a lost `ACK` (each change of the
+  bytes delivered is followed by the reader's check, and the writer's `ACK`
+  takes the newest offset); a gap between the two ends' offsets (the
+  client's offset is exact; the far end's `ACCEPT` can be lower than what
+  it has at the take, which only resends bytes that it drops, and its
+  `PONG` acknowledges them within one heartbeat); a deadlock of the locks
+  (one order: slots or sessions, then state); an old link that does not
+  stop (each wait of the pump is bounded or watches the stop); a resume of
+  a newer number before an older one at the client (the far end numbers
+  each resume before its `ACCEPT`); a target of pod-relay that keeps the
+  waker of an old task (each is tokio's `DuplexStream` or `TcpStream`). The
+  first new link that ended before the greeting touches no state of the
+  session at either end.
+- Open: no test here hangs. At the next failure, the node's line names the
+  relay session of each resume. If the newest resume's line says that it
+  took the session, the far end carries it on that relay session: compare
+  its `ACCEPT` offset with the client's "N bytes sent again" (the client's
+  sent offset less it) and the relay's log of that session. If no line of
+  the newest resume comes, its handshake answered on a link whose task did
+  not reach `run_resumed`. If its line says that it gave way, a newer
+  handshake came that the client did not make.
+
 ## Prove
 
 ```sh
 cargo test -p pod-session --all-features
+```
+
+# T-768: `pod-session`: a spare waits 20 s, not 1 s to 3 s, when the client's writer is held by a full link
+
+**Source:** T-767 (a run of `tests/session_resume_twice.rs`).
+**Category:** defect
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+A spare link opens when a question of the client (`DATA` that the far end
+acknowledges, a `PING`) waited `spare_after` (1 s to 3 s) with nothing from
+the far end, or when nothing came for `SPARE_QUIET` (20 s). The writer of
+the pump (`pump/outbox.rs`, `write`) marks a question with
+`Hearing::asked` only after the write of the record ended. A relay host that
+stopped holds the link open and reads nothing: the link's buffers fill, the
+writer waits in its write of a `DATA` batch, and no question is marked; the
+heartbeat's `PING` waits behind it too. The spare then opens only at
+`SPARE_QUIET`. In one run of `two_resumes_in_quick_succession_after_the_open_links_are_cut_move_bytes_both_ways`
+the spare came after 20.03 s; in the other runs, after 1.0 s.
+
+## Premise
+
+- Read: `pump/outbox.rs` (`write`, `put`), `hearing.rs`, `beside.rs`
+  (`silence`).
+- Measured: the client's notes of one run of
+  `tests/session_resume_twice.rs` (`Spare { quiet: 20.03 s }`).
+- Not measured: how often a stalled relay fills the link before the first
+  question is marked.
+
+## Approach
+
+Mark the question when the writer starts the write of a `DATA` batch that
+the far end acknowledges, or of a `PING`, not when the write ends: a write
+that a full link holds is a question that waits. A far end that only reads
+slowly still sends its `ACK`s and `PING`s, and each of them answers the
+question. A test: a link whose relay stops reading while the client sends
+must get a spare within `SPARE_AFTER`, with a plant that marks the question
+after the write.
+
+## Prove
+
+```sh
+cargo test -p pod-session --all-features --test session_spare
 ```
