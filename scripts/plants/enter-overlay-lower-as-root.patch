@@ -1,13 +1,18 @@
-diff --git a/crates/pod-enter/src/ns_overlay.rs b/crates/pod-enter/src/ns_overlay.rs
-index c6e118b4..4f96b98e 100644
 --- a/crates/pod-enter/src/ns_overlay.rs
 +++ b/crates/pod-enter/src/ns_overlay.rs
-@@ -208,7 +208,7 @@ pub(crate) fn mount(m: &OverlayMount, target: &CBuf, user: bool) -> std::result:
-             r => return r.map(drop).map_err(|e| (NS_OVERLAY_STEP, e)),
-         }
+@@ -208,12 +208,9 @@
+         // keeps the owner of the namespace, as a tree that the run fills.
+         let _ = sys::fchownat(sys::AT_FDCWD as i64, &s.upper, s.uid, s.gid, 0);
      }
--    sys::mount_data(&m.fstype, target, &m.fstype, 0, &m.options).map_err(|e| (NS_OVERLAY_STEP, e))?;
+-    let (first, plain) = m.attempts(user);
+-    let mounted = match (sys::mount_data(&m.fstype, target, &m.fstype, 0, first), plain) {
+-        (Err(e), Some(plain)) if e == sys::EINVAL => sys::mount_data(&m.fstype, target, &m.fstype, 0, plain),
+-        (r, _) => r,
+-    };
+-    mounted.map(drop).map_err(|e| (NS_OVERLAY_STEP, e))
++    let _ = m.attempts(user);
 +    sys::mount(&CBuf::new(".").unwrap(), target, &sys::cempty(), sys::MS_BIND).map_err(|e| (NS_OVERLAY_STEP, e))?;
-     Ok(())
++    Ok(())
  }
  
+ /// Did the chroot land on an overlay that is not the lower directory? An
