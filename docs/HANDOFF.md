@@ -12,18 +12,21 @@ is done. Git and the record keep finished work.
 1. Start the watcher under the Monitor tool and keep it running:
    `python3 -I scripts/agent/watch.py podcrates --state STATE_DIR --every 120`.
    Read the open COORD issues `(to podcrates)`.
-2. Take the unfinished work of the two `wip/` branches (below), finish
-   it, check it, push it to `main`, release it.
-3. Then the work order of `TODO/PROGRESS.md`: T-747, T-755, T-756, then
-   the move of podssh (T-038, T-037, T-029, T-030, T-039, T-036), then
-   T-526.
+2. Read the nightly at `f309b07` (run 43829527325): it must prove T-761
+   to T-765 on the cross targets, windows-2025 and macos-15-intel. A job
+   that is still red needs an entry; T-766 (riscv64) is open.
+3. T-767 (`pod-session`, PodUtils/podssh#283, P1): see "Unfinished work".
+4. Then the work order of `TODO/PROGRESS.md`: T-759 (PodUtils/podssh#282),
+   T-747, T-755, T-756, T-766, then the move of podssh (T-038, T-037,
+   T-029, T-030, T-039, T-036), then T-526.
 
 ## The rules that cost the most time
 
-- A push of a cloud session starts no workflow. Dispatch each run with
-  the MCP tool `actions_run_trigger` (`docs/maintenance.md`, "A run of a
-  workflow"). Only when the dispatch fails, open a `[gh action] requested`
-  issue.
+- A push to `main` starts `ci`, `adoption`, `plants`, `deny`, `secrets`
+  and `issue-sync`; a newer push cancels the runs that wait. Dispatch the
+  other workflows (`nightly.yml`, `release.yml`) with the MCP tool
+  `actions_run_trigger`. Only when a dispatch fails, open a
+  `[gh action] requested` issue.
 - Push nothing to `main` from a dispatch of the gates until its runs
   start, and from a dispatch of `release.yml` until the tag exists.
 - Watch the runs (the watcher reports each run that starts and ends). A
@@ -43,19 +46,17 @@ is done. Git and the record keep finished work.
   build fails with "No space left on device". Give each agent its own
   `CARGO_TARGET_DIR`.
 
-## Unfinished work on `wip/` branches
+## Unfinished work
 
-Each branch holds one commit on `7e454e2` (the record of #205). The
-checks did not run on them. Cherry-pick the commit onto `main`, finish
-the entry, run all the checks, then delete the branch by a
-`[gh action] requested` issue (the proxy of a cloud session cuts
-`git push origin --delete`).
-
-- `wip/T-717-installer-sign` (T-717, T-718) and `wip/T-746-way-out`
-  (T-746, T-751): their work is on `main`; #208 asks for the delete of
-  both and of the two branches below.
-- `wip/egress-part2` and `wip/egress-part3` hold work that is already on
-  `main`; delete them by a request.
+- T-767: an agent of the session works it on the local branch `t767`
+  (worktree `.claude/worktrees/t767`). If the session ends first, the
+  branch goes to `wip/T-767`. The entry has the report of podssh and the
+  two asks (a line of the far end at each resume; a test of the case of a
+  link that ends before the greeting, then a second resume).
+- #208 asks the owner's agent to delete the four merged `wip/` branches
+  (`wip/T-717-installer-sign`, `wip/T-746-way-out`, `wip/egress-part2`,
+  `wip/egress-part3`); the proxy of a cloud session drops
+  `git push origin --delete`.
 
 ## What waits
 
