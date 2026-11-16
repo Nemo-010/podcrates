@@ -38,6 +38,16 @@ pod-hostprobe = { workspace = true }
 pod-confine = { workspace = true }
 # The errno numbers of the build target.
 linux-raw-sys = { workspace = true, features = ["errno"] }
+# The TLS of the stand-ins of a network lab: the pure-Rust provider of
+# pod-tls (no C), rustls, the P-256 keys of the CAs of the lab, and rcgen,
+# which writes the DER with no crypto of its own.
+pod-tls = { workspace = true, default-features = false, features = ["pure"] }
+rustls = { workspace = true }
+rustls-pki-types = { workspace = true }
+p256 = { workspace = true }
+rcgen = { version = "0.14", default-features = false }
+# The credential of the stand-in proxy, and the PEM of a CA.
+base64 = { workspace = true }
 
 [dev-dependencies]
 pod-testkit = { workspace = true }

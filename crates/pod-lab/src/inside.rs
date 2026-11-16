@@ -134,6 +134,8 @@ pub fn lab_fact(fact: LabFact) -> Seen {
         LabFact::NoPasswdEntry => facts::no_passwd_entry(fact),
         LabFact::HomeNoexec => facts::home_noexec(fact),
         LabFact::ReadOnlyMount(path) => facts::read_only(fact, path),
+        // The lab process measures it through its stand-ins.
+        LabFact::Net(f) => crate::net::measure(f, None),
         LabFact::GetsocknameRefused => {
             let fd = match tcp_socket(fact, k::AF_INET) {
                 Ok(fd) => fd,

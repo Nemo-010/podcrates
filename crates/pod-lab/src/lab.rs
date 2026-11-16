@@ -19,7 +19,8 @@ use std::process::{Command, ExitStatus, Stdio};
 use pod_hostprobe::sys as k;
 
 use crate::check::{PartVerdict, Seen, State, Verdict, check_with};
-use crate::profile::{Hold, Profile};
+use crate::net::{CERT_VARIABLE, PROXY_VARIABLES, Ready, Started};
+use crate::profile::{Hold, LabFact, Profile};
 use crate::{Settings, hold, inside, mounts, table};
 
 /// The choices of a run.
@@ -209,9 +210,12 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
         let _ = k::write(out, line.as_bytes());
     };
 
-    let set = setup(profile, &connect);
+    let (set, net) = setup(profile, &connect);
     let findings = inside::measure(&settings.hostprobe, &inside::rows(profile));
-    let mut verdict = check_with(profile, &findings, &inside::lab_fact);
+    let mut verdict = check_with(profile, &findings, &|fact| match fact {
+        LabFact::Net(f) => crate::net::measure(f, net.as_ref()),
+        f => inside::lab_fact(f),
+    });
     for (part, why) in verdict.parts.iter_mut().zip(&set) {
         if let Some(why) = why {
             part.state = State::Fails;
@@ -232,29 +236,51 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
     if profile.parts.iter().any(|p| matches!(p.hold, Hold::Tmpfs { .. })) {
         c.env("TMPDIR", "/tmp");
     }
+    if let Some(lab) = &net {
+        environment(&mut c, lab);
+    }
     let e = c.exec();
     let errno = e.raw_os_error().unwrap_or(0);
     say(&format!("exec-failed\t{errno}\n"));
     std::process::exit(if errno == k::ENOENT.0 { crate::codes::EXIT_NOT_FOUND } else { crate::codes::EXIT_CANNOT_EXEC })
 }
 
-/// Set each part, in the order: the mount namespace, the descriptors and
-/// the session, Landlock and `no_new_privs`, the drop of the
-/// capabilities, then the one seccomp filter last, so that the filter does
-/// not refuse a call of the setup. One entry for each part: `Some(why)`
-/// where the part could not be set.
-fn setup(profile: &Profile, connect: &[u16]) -> Vec<Option<String>> {
+/// The environment of the command in a network lab: no proxy of the
+/// caller, the stand-in proxy where the class has one, and the certificate
+/// file of the lab.
+fn environment(c: &mut Command, lab: &Started) {
+    for v in PROXY_VARIABLES {
+        c.env_remove(v);
+    }
+    if let Some(p) = &lab.net.proxy {
+        let url = crate::net::proxy_url(p);
+        for v in &PROXY_VARIABLES[..4] {
+            c.env(v, &url);
+        }
+    }
+    c.env(CERT_VARIABLE, &lab.cert_file);
+}
+
+/// Set each part, in the order: the mount namespace (and the stand-ins of
+/// a network lab), the descriptors and the session, Landlock and
+/// `no_new_privs`, the drop of the capabilities, then the one seccomp
+/// filter last, so that the filter does not refuse a call of the setup.
+/// One entry for each part: `Some(why)` where the part could not be set;
+/// and the network lab that runs.
+fn setup(profile: &Profile, connect: &[u16]) -> (Vec<Option<String>>, Option<Started>) {
     let mut why: Vec<Option<String>> = profile.parts.iter().map(|p| hold::cannot(p.hold)).collect();
+    let mut net = None;
     // Each mount in one namespace.
     let at: Vec<usize> =
         (0..profile.parts.len()).filter(|&i| why[i].is_none() && mounts::is_mount(profile.parts[i].hold)).collect();
     if !at.is_empty() {
         let holds: Vec<Hold> = at.iter().map(|&i| profile.parts[i].hold).collect();
         match mounts::holds(&holds) {
-            Ok(each) => {
-                for (&i, r) in at.iter().zip(each) {
+            Ok(made) => {
+                for (&i, r) in at.iter().zip(made.each) {
                     why[i] = r.err();
                 }
+                net = start(profile, made.net, &mut why);
             }
             Err(e) => at.iter().for_each(|&i| why[i] = Some(e.clone())),
         }
@@ -303,7 +329,26 @@ fn setup(profile: &Profile, connect: &[u16]) -> Vec<Option<String>> {
             }
         }
     }
-    why
+    (why, net)
+}
+
+/// Start the stand-ins of the network lab of `profile` on the sockets of
+/// `ready`. Where they do not start, each part of the network lab gets the
+/// reason.
+fn start(profile: &Profile, ready: Option<Ready>, why: &mut [Option<String>]) -> Option<Started> {
+    let (ready, net) =
+        (ready?, profile.parts.iter().find_map(|p| if let Hold::LabNet(n) = p.hold { Some(n) } else { None })?);
+    match crate::net::start(ready, net) {
+        Ok(lab) => Some(lab),
+        Err(e) => {
+            for (i, p) in profile.parts.iter().enumerate() {
+                if matches!(p.hold, Hold::LabNet(_)) && why[i].is_none() {
+                    why[i] = Some(e.clone());
+                }
+            }
+            None
+        }
+    }
 }
 
 /// The rank of a hold in [`setup`].

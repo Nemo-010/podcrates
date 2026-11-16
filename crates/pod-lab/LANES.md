@@ -9,8 +9,19 @@ podlab run PROFILE -- COMMAND...
 
 `podlab run` stops with exit 125 when a part of the profile does not
 hold, and the command does not run. `podlab list` gives each profile and
-what holds each part. A profile whose parts are "not here" needs a
-network lab (part 2 of the crate): its lane waits for that lab.
+what holds each part. A profile whose parts are "not here" needs the
+machine tier of podvm: its lane waits for that tier.
+
+A network class (`proxy-only`, `proxy-tls-reterminate`, `proxy-per-name`,
+`sni-allowlist`, `no-proxy-no-dns`, `ws-upgrade-refused`, `ipv6-only`) is
+a network namespace with no route out and stand-ins on its loopback
+(`README.md`, "A network lab"). A command there reaches only the
+stand-ins: the stand-in proxy on `127.0.0.1:3128` (`HTTPS_PROXY`) and the
+stand-in TLS server on port 443, whose CA is in `SSL_CERT_FILE`. Point a
+command at the names `listed.test` and `other.test`, or at `192.0.2.1`,
+to see the class; a name of the real network gets the answer of the
+class for a name that is not on its list. The lab of a real way out is
+T-746 and T-747.
 
 The sources: PodUtils/podssh#268 (podssh), PodUtils/podnet#585 (podnet),
 PodUtils/podrunner#180 (podrunner) and PodUtils/podvm#424 (podvm).
@@ -38,12 +49,12 @@ The commands of a release, in each profile below:
 | `seccomp-nonewprivs` | yes | 1, 2, 3, 4, 5 |
 | `ro-etc-ssl` | yes | 1, 2 |
 | `no-tun` | yes | 1, 2 |
-| `proxy-only` | no | 1 to 6 |
-| `proxy-tls-reterminate` | no | 1, 2 |
-| `proxy-per-name` | no | 1, 2 |
-| `sni-allowlist` | no | 1, 2 |
-| `no-proxy-no-dns` | no | 1, 2 |
-| `ws-upgrade-refused` | no | 1, 2, 6 |
+| `proxy-only` | yes: stand-ins | 1 to 6 |
+| `proxy-tls-reterminate` | yes: stand-ins | 1, 2 |
+| `proxy-per-name` | yes: stand-ins | 1, 2 |
+| `sni-allowlist` | yes: stand-ins | 1, 2 |
+| `no-proxy-no-dns` | yes: stand-ins | 1, 2 |
+| `ws-upgrade-refused` | yes: stand-ins | 1, 2, 6 |
 
 An example:
 
@@ -51,6 +62,7 @@ An example:
 podlab run no-ptmx -- podssh doctor
 podlab run seccomp-nonewprivs -- podssh doctor
 podlab run --allow-connect 3128 bind-denied -- podssh ssh -T git@github.com
+podlab run proxy-tls-reterminate -- podssh doctor
 ```
 
 `bind-denied` refuses each TCP connect. podssh's host refuses each bind
@@ -73,8 +85,13 @@ podssh runs these commands today with `scripts/release-short.sh BINARY
 | `raw-denied` | yes | `link` over `icmp`, `pod --allow-raw icmp` |
 | `no-net-admin` | yes | `pod run` (the seccomp and the netns-raw backends), `warp proxy` |
 | `no-loopback` | yes | `doctor`, `net proxy --listen unix:PATH` |
-| `proxy-only` | no | `doctor`, `tunnel --quick`, `warp proxy` (MASQUE over TCP 443), `relay`, `send` and `receive` |
-| `ipv6-only` | no | `doctor`, `tunnel`, `warp proxy` |
+| `proxy-only` | yes: stand-ins | `doctor`, `tunnel --quick`, `warp proxy` (MASQUE over TCP 443), `relay`, `send` and `receive` |
+| `proxy-tls-reterminate` | yes: stand-ins | `doctor`, `--ca-file "$SSL_CERT_FILE" doctor`, `tunnel --quick` |
+| `proxy-per-name` | yes: stand-ins | `doctor`, `tunnel --quick`, `send FILE` |
+| `sni-allowlist` | yes: stand-ins | `doctor`, `tunnel --quick` |
+| `no-proxy-no-dns` | yes: stand-ins | `doctor`, `tunnel --quick`, `--resolve NAME=192.0.2.1 doctor` |
+| `ws-upgrade-refused` | yes: stand-ins | `doctor`, `relay node --to 127.0.0.1:22`, `tunnel --quick` |
+| `ipv6-only` | yes: stand-ins, on a kernel with IPv6 | `doctor`, `tunnel`, `warp proxy` |
 
 An example:
 
@@ -83,8 +100,10 @@ podlab run no-loopback -- podnet net proxy --listen unix:/tmp/podnet.sock
 podlab run no-net-admin -- podnet warp proxy
 ```
 
-podnet gives the network profiles of part 2 (`proxy-only` and the classes
-of podssh that need a proxy) as data in the form of the table.
+The network classes come from podnet's data (PodUtils/podnet#592,
+`docs/lab-profiles/` of podnet at `dbd432c`); the expected result of each
+command is in its file there. `podlab run proxy-only -- podnet doctor`
+gives podnet its proxy row with a credential, with no `--allow-connect`.
 
 ## podrunner
 

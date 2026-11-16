@@ -82,6 +82,29 @@ fn each_text_of_each_profile_keeps_the_rules() {
         check("lab fact", &f.name());
         check("lab fact", &crate::check::unseen_fact(f).detail);
     }
+    use crate::net::{Ca, NetFact};
+    for f in [
+        NetFact::NoRouteV4,
+        NetFact::Connect { host: "listed.test", port: 443, status: 200 },
+        NetFact::NeedsCredential,
+        NetFact::LiteralReset,
+        NetFact::Issuer { name: "listed.test", ca: Ca::Proxy },
+        NetFact::Issuer { name: "other.test", ca: Ca::Server },
+        NetFact::Silent { port: 22 },
+        NetFact::GetPasses,
+        NetFact::UpgradeRefused,
+        NetFact::Hello { name: Some("listed.test"), passes: true },
+        NetFact::Hello { name: Some("other.test"), passes: false },
+        NetFact::Hello { name: None, passes: true },
+        NetFact::Hello { name: None, passes: false },
+        NetFact::NoResolver,
+        NetFact::LiteralReaches,
+        NetFact::LoopbackReaches,
+        NetFact::V6Reaches,
+    ] {
+        check("network fact", &LabFact::Net(f).name());
+        check("network fact", &crate::net::measure(f, None).detail);
+    }
 }
 
 #[cfg(feature = "manual")]
@@ -150,6 +173,14 @@ fn each_fixed_message_of_the_crate_keeps_the_rules() {
         ("mounts.rs", include_str!("mounts.rs")),
         ("facts.rs", include_str!("facts.rs")),
         ("table/parts.rs", include_str!("table/parts.rs")),
+        ("table/network.rs", include_str!("table/network.rs")),
+        ("net.rs", include_str!("net.rs")),
+        ("net/measure.rs", include_str!("net/measure.rs")),
+        ("net/proxy.rs", include_str!("net/proxy.rs")),
+        ("net/setup.rs", include_str!("net/setup.rs")),
+        ("net/standin.rs", include_str!("net/standin.rs")),
+        ("net/tls.rs", include_str!("net/tls.rs")),
+        ("net/wire.rs", include_str!("net/wire.rs")),
         ("inside.rs", include_str!("inside.rs")),
         ("lab.rs", include_str!("lab.rs")),
         ("manual.rs", include_str!("manual.rs")),

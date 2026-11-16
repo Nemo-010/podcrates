@@ -47,5 +47,35 @@ pub fn facts() -> pod_manual::Facts {
             Var { used_by: "run".into(), ..Var::reads(&["HOME"], "The directory that noexec-home binds with noexec.") },
         ],
     };
-    pod_manual::Facts { variables: vec![lab, pod_manual::pager::variables()], exits, ..pod_manual::Facts::default() }
+    let net = VarGroup {
+        name: "A network lab".into(),
+        vars: vec![
+            Var {
+                used_by: "run".into(),
+                ..Var::sets(
+                    &["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"],
+                    "The stand-in proxy of the lab, where the class has one. Else the lab removes them.",
+                )
+            },
+            Var {
+                used_by: "run".into(),
+                ..Var::sets(
+                    &["ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy"],
+                    "The lab removes them: the command reaches out only as the class lets it.",
+                )
+            },
+            Var {
+                used_by: "run".into(),
+                ..Var::sets(
+                    &["SSL_CERT_FILE"],
+                    "The certificate file of the lab: the CA of the stand-in servers, and the CA of the proxy where the proxy terminates TLS.",
+                )
+            },
+        ],
+    };
+    pod_manual::Facts {
+        variables: vec![lab, net, pod_manual::pager::variables()],
+        exits,
+        ..pod_manual::Facts::default()
+    }
 }

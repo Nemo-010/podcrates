@@ -2503,12 +2503,18 @@ dependencies = [
 name = "pod-lab"
 version = "0.59.0"
 dependencies = [
+ "base64 0.23.1",
  "clap",
  "linux-raw-sys",
+ "p256",
  "pod-confine",
  "pod-hostprobe",
  "pod-manual",
  "pod-testkit",
+ "pod-tls",
+ "rcgen",
+ "rustls",
+ "rustls-pki-types",
  "serde_json",
 ]
 

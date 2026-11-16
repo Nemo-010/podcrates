@@ -1,7 +1,6 @@
 //! The parts and the filters of the classes of podssh
 //! (PodUtils/podssh#268) and podnet (PodUtils/podnet#585). The network
-//! classes that need a proxy or a route out are parts that no lab here
-//! holds; their entry is 716.
+//! classes are in `network.rs`.
 
 use super::*;
 
@@ -96,7 +95,7 @@ pub(super) const LISTEN_REFUSED: Part = Part {
     hold: Hold::Seccomp(LISTEN),
 };
 
-pub(super) const UDP_REFUSED: Part = Part {
+pub(crate) const UDP_REFUSED: Part = Part {
     name: "udp-refused",
     about: "a UDP socket of AF_INET and AF_INET6 gives EPERM",
     observe: &[Observe::Lab(LabFact::UdpRefused)],
@@ -227,65 +226,3 @@ pub(super) const UNIX_ALLOWED: Part = Part {
     observe: &[Observe::Lab(LabFact::UnixAllowed)],
     hold: Hold::Host,
 };
-
-/// A part of a network class that no lab here holds.
-const fn net(name: &'static str, about: &'static str, needs: &'static [Observe]) -> Part {
-    Part { name, about, observe: needs, hold: Hold::Elsewhere(NETWORK) }
-}
-
-const fn needs(text: &'static str) -> Observe {
-    Observe::Nothing { needs: text, entry: 716 }
-}
-
-pub(super) const TLS_RETERMINATED: &[Part] = &[
-    net(
-        "tls-reterminated",
-        "the proxy shows its own CA for some names",
-        &[needs("a TLS handshake through the proxy that shows the CA of the proxy")],
-    ),
-    net(
-        "ssh-port-silent",
-        "CONNECT to port 22 gets 200, then no byte",
-        &[needs("a CONNECT to port 22 that gets 200 and then no byte")],
-    ),
-];
-
-pub(super) const PER_NAME: &[Part] = &[net(
-    "answer-per-name",
-    "the proxy answers 200 for one name and 504 for another",
-    &[needs("two CONNECT requests that get 200 for one name and 504 for another")],
-)];
-
-pub(super) const SNI: &[Part] = &[net(
-    "sni-reset",
-    "a ClientHello with a name not on the list, or with no name, is reset",
-    &[needs("a ClientHello with a name not on the list, and one with no name, that the network resets")],
-)];
-
-pub(super) const NO_DNS: &[Part] = &[
-    net("no-resolver", "a lookup of a name fails", &[needs("a lookup of a name with no proxy")]),
-    net(
-        "literal-reaches",
-        "a TCP connect to an IP literal reaches out",
-        &[needs("a TCP connect to an IP literal outside")],
-    ),
-];
-
-pub(super) const WS_REFUSED: &[Part] = &[net(
-    "upgrade-refused",
-    "the proxy refuses the WebSocket upgrade",
-    &[needs("a WebSocket upgrade through the proxy")],
-)];
-
-pub(super) const IPV6_ONLY: &[Part] = &[
-    net(
-        "no-ipv4-route",
-        "a TCP connect to an IPv4 address outside fails",
-        &[needs("a TCP connect to an IPv4 address outside")],
-    ),
-    net(
-        "ipv6-reaches",
-        "a TCP connect to an IPv6 address outside succeeds",
-        &[needs("a TCP connect to an IPv6 address outside")],
-    ),
-];

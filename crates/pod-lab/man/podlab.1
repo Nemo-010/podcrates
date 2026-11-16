@@ -207,6 +207,21 @@ part puts a tmpfs on /tmp. Used by: run. podlab reads it and sets it.
 \fBHOME\fR
 The directory that noexec\-home binds with noexec. Used by: run.
 .PP
+\fBA network lab:\fR
+.TP
+\fBHTTPS_PROXY\fR, \fBhttps_proxy\fR, \fBHTTP_PROXY\fR, \fBhttp_proxy\fR
+The stand\-in proxy of the lab, where the class has one. Else the lab removes
+them. Used by: run. podlab sets it and does not read it.
+.TP
+\fBALL_PROXY\fR, \fBall_proxy\fR, \fBNO_PROXY\fR, \fBno_proxy\fR
+The lab removes them: the command reaches out only as the class lets it. Used
+by: run. podlab sets it and does not read it.
+.TP
+\fBSSL_CERT_FILE\fR
+The certificate file of the lab: the CA of the stand\-in servers, and the CA
+of the proxy where the proxy terminates TLS. Used by: run. podlab sets it and
+does not read it.
+.PP
 \fBThe pager:\fR
 .TP
 \fBPAGER\fR
@@ -247,10 +262,17 @@ About: getsockname gives EOPNOTSUPP. Parts: getsockname\-refused. Held by:
 getsockname\-refused: seccomp: getsockname. Source: podrunner.
 .TP
 \fBproxy\-only\fR
-About: no direct connection out; only an HTTP proxy reaches out. Parts:
-direct\-refused, proxy\-reaches. Held by: direct\-refused: not here: the
-network labs of podnet; proxy\-reaches: not here: the network labs of podnet.
-Source: podrunner, podssh, podnet.
+About: no direct connection out; only an HTTP proxy with a credential reaches
+out; no UDP. Parts: direct\-refused, proxy\-reaches, proxy\-credential,
+port\-refused, udp\-refused. Held by: direct\-refused: a network namespace
+with no route out, a stand\-in proxy on 127.0.0.1:3128 with a credential;
+proxy\-reaches: a network namespace with no route out, a stand\-in proxy on
+127.0.0.1:3128 with a credential; proxy\-credential: a network namespace with
+no route out, a stand\-in proxy on 127.0.0.1:3128 with a credential;
+port\-refused: a network namespace with no route out, a stand\-in proxy on
+127.0.0.1:3128 with a credential; udp\-refused: seccomp: socket(AF_INET,
+SOCK_DGRAM), socket(AF_INET6, SOCK_DGRAM), io_uring_setup. Source: podrunner,
+podssh, podnet.
 .TP
 \fBsmall\-tmp\fR
 About: TMPDIR on a tmpfs of 1 GiB. Parts: tmpdir\-small. Held by:
@@ -374,33 +396,38 @@ loopback; unix\-allowed: the host. Source: podnet.
 .TP
 \fBproxy\-tls\-reterminate\fR
 About: the proxy shows its own CA for some names. Parts: tls\-reterminated,
-ssh\-port\-silent. Held by: tls\-reterminated: not here: the network labs of
-podnet; ssh\-port\-silent: not here: the network labs of podnet. Source:
-podssh.
+ssh\-port\-silent. Held by: tls\-reterminated: a network namespace with no
+route out, a stand\-in proxy on 127.0.0.1:3128; ssh\-port\-silent: a network
+namespace with no route out, a stand\-in proxy on 127.0.0.1:3128. Source:
+podssh, podnet.
 .TP
 \fBproxy\-per\-name\fR
 About: the proxy answers each name in its own way. Parts: answer\-per\-name.
-Held by: answer\-per\-name: not here: the network labs of podnet. Source:
-podssh.
+Held by: answer\-per\-name: a network namespace with no route out, a stand\-in
+proxy on 127.0.0.1:3128. Source: podssh, podnet.
 .TP
 \fBsni\-allowlist\fR
 About: no proxy; TLS is reset for a name not on the list. Parts: sni\-reset.
-Held by: sni\-reset: not here: the network labs of podnet. Source: podssh.
+Held by: sni\-reset: a network namespace with no route out, a stand\-in server
+on 192.0.2.0/24, a filter of the TLS server name. Source: podssh, podnet.
 .TP
 \fBno\-proxy\-no\-dns\fR
 About: no proxy and no resolver; only IP literals connect. Parts:
-no\-resolver, literal\-reaches. Held by: no\-resolver: not here: the network
-labs of podnet; literal\-reaches: not here: the network labs of podnet.
-Source: podssh.
+no\-resolver, literal\-reaches. Held by: no\-resolver: a network namespace
+with no route out, a stand\-in server on 192.0.2.0/24, no name server;
+literal\-reaches: a network namespace with no route out, a stand\-in server on
+192.0.2.0/24, no name server. Source: podssh, podnet.
 .TP
 \fBws\-upgrade\-refused\fR
 About: the proxy refuses the WebSocket upgrade. Parts: upgrade\-refused. Held
-by: upgrade\-refused: not here: the network labs of podnet. Source: podssh.
+by: upgrade\-refused: a network namespace with no route out, a stand\-in proxy
+on 127.0.0.1:3128. Source: podssh, podnet.
 .TP
 \fBipv6\-only\fR
-About: no IPv4 route. Parts: no\-ipv4\-route, ipv6\-reaches. Held by:
-no\-ipv4\-route: not here: the network labs of podnet; ipv6\-reaches: not
-here: the network labs of podnet. Source: podnet.
+About: no IPv4 route; IPv6 reaches out. Parts: no\-ipv4\-route, ipv6\-reaches.
+Held by: no\-ipv4\-route: a network namespace with no route out, a stand\-in
+server on an IPv6 address; ipv6\-reaches: a network namespace with no route
+out, a stand\-in server on an IPv6 address. Source: podnet.
 .SH "EXIT STATUS"
 .TP
 \fB0\fR (holds)

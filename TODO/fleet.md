@@ -3645,7 +3645,7 @@ cargo test -p pod-hostprobe --all-features
 cargo test -p pod-lab --all-features
 ```
 
-# T-716: `pod-lab`: the labs and the probe rows of the network classes of podssh and podnet (podnet's hand-off)
+# T-716: `pod-lab`: the labs of the network classes of podssh and podnet (podnet's hand-off)
 
 **Source:** T-701; PodUtils/podssh#268, PodUtils/podnet#585.
 **Category:** feature
@@ -3694,6 +3694,142 @@ Podnet's data (PodUtils/podnet#592): `PodUtils/podnet:docs/lab-profiles/` at `db
 
 ```sh
 cargo test -p pod-lab --all-features
+```
+
+# T-745: `pod-hostprobe`: the probe rows of the network classes (a CONNECT through the proxy, the CA of a handshake, a lookup, a direct connect, a ClientHello)
+
+**Source:** T-716 (the part of its Approach that a probe of the host observes).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P2
+**Effort:** M
+**Status:** open
+
+## Problem
+
+The network labs of `pod-lab` measure each fact of a network class from
+inside, through the stand-ins (`LabFact::Net`). A check of a report of a
+host (`podlab check PROFILE`) gives `unseen` for each part of
+`proxy-only`, `proxy-tls-reterminate`, `proxy-per-name`, `sni-allowlist`,
+`no-proxy-no-dns`, `ws-upgrade-refused` and `ipv6-only`: no row of
+`pod-hostprobe` observes a proxy, a resolver or a route. A user cannot
+show that a host is of a class.
+
+## Premise
+
+- Read: `crates/pod-lab/src/net/measure.rs` (the facts), the Approach of
+  T-716.
+- Not measured: a row on a host with a real proxy, with no resolver, or
+  with no IPv4 route.
+
+## Approach
+
+Rows of `pod-hostprobe` that observe the host, each skipped where the host
+has no proxy (`HTTPS_PROXY`) or no network, each with a time limit: a
+`CONNECT` through `HTTPS_PROXY` to a name and port of the settings, with
+its status; the issuer of the leaf of a TLS handshake through the proxy;
+a lookup of a name; a TCP connect to an IPv4 and an IPv6 literal, with the
+errno; a ClientHello with a name and with none, and a reset. The names and
+the addresses are settings of the probe, as a real host needs real ones.
+Then the facts of the parts whose row a host gives move to `Observe::Row`,
+and the lab keeps its stand-ins for its own check. The JSON Schema of the
+report takes the new names.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features
+cargo test -p pod-lab --all-features
+```
+
+# T-746: `pod-lab`: a way out through the stand-in proxy of a proxy class, for the live lanes of the consumers
+
+**Source:** T-716 (the network labs have no route out; PodUtils/podssh#268 and PodUtils/podnet#585 name the live commands of each class).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P2
+**Effort:** M
+**Status:** open
+
+## Problem
+
+A network lab of `pod-lab` has no route out: a command reaches only the
+stand-ins. The lanes of podssh (`podssh ssh` to GitHub through its relay)
+and of podnet (`podnet tunnel --quick`, `warp proxy`) need the real
+network through the proxy of the class, as the hosts of their users give
+it: a real proxy-only host passes a `CONNECT` to a name that it allows.
+In the lab such a name gets the answer of a name that is not on the list.
+
+## Premise
+
+- Read: `crates/pod-lab/src/net/standin.rs`, `crates/pod-lab/src/net/proxy.rs`;
+  podnet's form in `PodUtils/podnet:docs/lab-profiles/proxy-tls-reterminate.md`
+  at `dbd432c` (the proxy outside the namespace on a unix socket, a
+  forwarder inside).
+- Not measured: a forwarder from a network namespace of a user namespace
+  to a unix socket of the host on a runner.
+
+## Approach
+
+An option of `podlab run` (`--way-out`) for the proxy classes: the lab
+starts a second stand-in before it enters the network namespace; it
+listens on a unix socket of a new directory of the temporary directory and
+dials the real network for each `CONNECT` that the rules of the class pass
+(a name of the settings, a port of the class). The stand-in proxy in the
+namespace splices each such `CONNECT` through the unix socket. The rules of
+the class (the credential, the ports, 403, 504, a reset, the silent port,
+the CA of the proxy for a listed name) stay in the stand-in proxy. A test
+runs a listener of the test outside the lab and reaches it from inside
+through the proxy alone; a direct connect still gives `ENETUNREACH`.
+
+## Prove
+
+```sh
+cargo test -p pod-lab --all-features --test lab
+```
+
+# T-747: `pod-lab`: the direct network classes on each address: an SNI filter by `nf_tables`, an IPv6 device with a default route
+
+**Source:** T-716 (C729: the parts that the lab holds at its own addresses only).
+**Category:** feature
+**Milestone:** M8
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+`sni-allowlist` filters the ClientHello at `192.0.2.0/24:443` alone: a
+command that connects to another address gets `ENETUNREACH`, not a reset.
+`ipv6-only` has its address on the loopback with no IPv6 default route, so
+a program that reads the routes (podnet's `pod_dns::route::has_default_route`)
+sees no IPv6 route out. podnet's data names the full forms: `nf_tables` in
+the namespace that redirects each TCP connect to port 443 to the filter
+(`PodUtils/podnet:docs/lab-profiles/sni-allowlist.md`), and a dummy or TUN
+device with `fd00:6c61:62::2/64` and an IPv6 default route
+(`PodUtils/podnet:docs/lab-profiles/ipv6-only.md`), at `dbd432c`.
+
+## Premise
+
+- Read: podnet's two files; `crates/pod-lab/src/net/setup.rs`.
+- Not measured: `nf_tables` and a dummy device in a network namespace of
+  a user namespace on a runner; this host has no IPv6 in its kernel.
+
+## Approach
+
+In the network namespace, before the lab leaves the user namespace that
+owns it: a netlink socket makes a dummy device with the IPv6 address and a
+default route through it (`RTM_NEWLINK`, `RTM_NEWADDR`, `RTM_NEWROUTE`),
+and `nf_tables` rules redirect each TCP connect to port 443 to the
+stand-in filter (`NFT_MSG_NEWTABLE`, a `nat` chain of the hook `output`).
+Where the kernel refuses `nf_tables` in a user namespace, the part says so
+and the lab keeps the filter at its own addresses. A test connects to an
+address that is not of the lab and gets the reset of the filter.
+
+## Prove
+
+```sh
+cargo test -p pod-lab --all-features --test lab
 ```
 
 # T-723: `pod-todo`: a kind `reference` for an issue that holds no work (PodUtils/podvm#435)

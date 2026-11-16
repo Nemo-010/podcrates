@@ -162,13 +162,13 @@ pub fn no_loopback() {
     case("no-loopback", "loopback", "no loopback, unix ok");
 }
 
-/// A network class that needs a proxy or a route out: the run refuses it.
-pub fn a_network_class_is_refused() {
-    for name in ["proxy-tls-reterminate", "sni-allowlist", "ipv6-only"] {
+/// A class of the machine tier of podvm: the run refuses it.
+pub fn a_machine_class_is_refused() {
+    for name in ["cgroup-v1", "arm64-tcg"] {
         let (out, _) = run(&settings(), name, &[OsString::from("/bin/true")], false);
         assert!(matches!(out, Err(pod_lab::RunError::Refused(_))), "{name}: {out:?}");
     }
-    println!("a_network_class_is_refused: ok");
+    println!("a_machine_class_is_refused: ok");
 }
 
 pub fn all() {
@@ -183,5 +183,5 @@ pub fn all() {
     no_tun();
     ro_etc_ssl();
     no_loopback();
-    a_network_class_is_refused();
+    a_machine_class_is_refused();
 }

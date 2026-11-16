@@ -1,6 +1,8 @@
 //! The types of a profile: its parts, what observes each part, and what
 //! holds each part in a lab.
 
+pub use crate::net::{Ca, Net, NetFact, Proxy};
+
 /// One class of hostile host.
 #[derive(Debug)]
 pub struct Profile {
@@ -124,6 +126,8 @@ pub enum LabFact {
     HomeNoexec,
     /// The path is on a read-only mount.
     ReadOnlyMount(&'static str),
+    /// A fact of a network class, through the stand-ins of the lab.
+    Net(NetFact),
 }
 
 impl LabFact {
@@ -147,6 +151,7 @@ impl LabFact {
             LabFact::NoPasswdEntry => "no line of the uid in /etc/passwd and of the gid in /etc/group".to_string(),
             LabFact::HomeNoexec => "HOME is writable and noexec".to_string(),
             LabFact::ReadOnlyMount(path) => format!("{path} is on a read-only mount"),
+            LabFact::Net(f) => f.name(),
         }
     }
 
@@ -171,6 +176,7 @@ impl LabFact {
             | LabFact::NoPasswdEntry
             | LabFact::HomeNoexec
             | LabFact::ReadOnlyMount(_) => 715,
+            LabFact::Net(_) => 745,
         }
     }
 }
@@ -238,6 +244,9 @@ pub enum Hold {
     ReadOnly { path: &'static str },
     /// A new network namespace: its loopback is down and has no address.
     NetNs,
+    /// A new network namespace with its loopback up, and the stand-ins of
+    /// the network lab on it.
+    LabNet(&'static Net),
     /// The host gives it; the lab changes nothing.
     Host,
     /// No lab of this crate holds it: the text names who holds it.
@@ -268,6 +277,7 @@ impl Hold {
             Hold::NoProc => "an empty tmpfs on /proc".to_string(),
             Hold::ReadOnly { path } => format!("{path} bound read-only"),
             Hold::NetNs => "a network namespace with no loopback".to_string(),
+            Hold::LabNet(net) => net.words(),
             Hold::Host => "the host".to_string(),
             Hold::Elsewhere(who) => format!("not here: {who}"),
         }

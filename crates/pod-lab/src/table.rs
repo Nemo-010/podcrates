@@ -75,16 +75,16 @@ const READ_DIR: u64 = k::LANDLOCK_ACCESS_FS_READ_DIR as u64;
 const READ_FILE: u64 = k::LANDLOCK_ACCESS_FS_READ_FILE as u64;
 const WRITE_FILE: u64 = k::LANDLOCK_ACCESS_FS_WRITE_FILE as u64;
 
-/// The machine tier of podvm and the network labs of podnet: part 2 of
-/// T-692.
+/// The machine tier of podvm: part 2 of T-692.
 const MACHINE: &str = "the machine tier of podvm";
-const NETWORK: &str = "the network labs of podnet";
 
 const fn row(row: &'static str, expect: Expect) -> Observe {
     Observe::Row { row, expect }
 }
 
+mod network;
 mod parts;
+use network::*;
 use parts::*;
 
 /// A profile of the classes of podssh and podnet.
@@ -157,22 +157,9 @@ pub static PROFILES: &[Profile] = &[
     },
     Profile {
         name: "proxy-only",
-        about: "no direct connection out; only an HTTP proxy reaches out",
+        about: "no direct connection out; only an HTTP proxy with a credential reaches out; no UDP",
         source: "podrunner, podssh, podnet",
-        parts: &[
-            Part {
-                name: "direct-refused",
-                about: "a direct TCP connect to an outside address fails",
-                observe: &[Observe::Nothing { needs: "a direct TCP connect to an outside address", entry: 692 }],
-                hold: Hold::Elsewhere(NETWORK),
-            },
-            Part {
-                name: "proxy-reaches",
-                about: "a CONNECT through the proxy of the lab reaches out",
-                observe: &[Observe::Nothing { needs: "a CONNECT through the proxy of the lab", entry: 692 }],
-                hold: Hold::Elsewhere(NETWORK),
-            },
-        ],
+        parts: PROXY_ONLY_PARTS,
     },
     Profile {
         name: "small-tmp",
@@ -371,12 +358,12 @@ pub static PROFILES: &[Profile] = &[
     class("no-net-admin", "no CAP_NET_ADMIN and no /dev/net/tun", "podnet", &[NO_NET_ADMIN, TUN_ABSENT]),
     class("ro-etc-ssl", "/etc/ssl is read-only", "podssh", &[ETC_SSL_READ_ONLY]),
     class("no-loopback", "no address on the loopback; AF_UNIX holds", "podnet", &[LOOPBACK_ABSENT, UNIX_ALLOWED]),
-    class("proxy-tls-reterminate", "the proxy shows its own CA for some names", "podssh", TLS_RETERMINATED),
-    class("proxy-per-name", "the proxy answers each name in its own way", "podssh", PER_NAME),
-    class("sni-allowlist", "no proxy; TLS is reset for a name not on the list", "podssh", SNI),
-    class("no-proxy-no-dns", "no proxy and no resolver; only IP literals connect", "podssh", NO_DNS),
-    class("ws-upgrade-refused", "the proxy refuses the WebSocket upgrade", "podssh", WS_REFUSED),
-    class("ipv6-only", "no IPv4 route", "podnet", IPV6_ONLY),
+    class("proxy-tls-reterminate", "the proxy shows its own CA for some names", "podssh, podnet", TLS_RETERMINATED),
+    class("proxy-per-name", "the proxy answers each name in its own way", "podssh, podnet", PER_NAME_PARTS),
+    class("sni-allowlist", "no proxy; TLS is reset for a name not on the list", "podssh, podnet", SNI_PARTS),
+    class("no-proxy-no-dns", "no proxy and no resolver; only IP literals connect", "podssh, podnet", NO_DNS_PARTS),
+    class("ws-upgrade-refused", "the proxy refuses the WebSocket upgrade", "podssh, podnet", WS_PARTS),
+    class("ipv6-only", "no IPv4 route; IPv6 reaches out", "podnet", IPV6_ONLY),
 ];
 
 /// The profile of this name in `profiles`.

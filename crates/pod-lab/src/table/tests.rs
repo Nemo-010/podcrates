@@ -93,7 +93,7 @@ fn each_fact_with_no_row_names_its_entry() {
                     _ => continue,
                 };
                 assert!(
-                    (692..=699).contains(&entry) || (714..=716).contains(&entry),
+                    (692..=699).contains(&entry) || (714..=715).contains(&entry) || entry == 745,
                     "{}/{}: {entry}",
                     p.name,
                     part.name
@@ -134,10 +134,9 @@ fn the_filter_of_each_profile_compiles() {
 }
 
 /// The classes of podssh and podnet that a lab here holds: each part has a
-/// hold here, and each network class that needs a proxy or a route out has
-/// none.
+/// hold here; each network class is a network lab with its stand-ins.
 #[test]
-fn the_classes_of_podssh_and_podnet_are_held_or_named_elsewhere() {
+fn the_classes_of_podssh_and_podnet_are_held_here() {
     let held = [
         "listen-denied",
         "udp-denied",
@@ -156,9 +155,56 @@ fn the_classes_of_podssh_and_podnet_are_held_or_named_elsewhere() {
         let p = find(PROFILES, name).expect("a profile");
         assert!(p.parts.iter().all(|x| x.hold.here()), "{name}");
     }
-    for name in ["proxy-tls-reterminate", "proxy-per-name", "sni-allowlist", "no-proxy-no-dns", "ws-upgrade-refused"] {
+    for name in NETWORK_CLASSES {
         let p = find(PROFILES, name).expect("a profile");
-        assert!(p.parts.iter().all(|x| !x.hold.here()), "{name}");
+        assert!(p.parts.iter().all(|x| x.hold.here()), "{name}");
+        let nets: Vec<_> =
+            p.parts.iter().filter_map(|x| if let Hold::LabNet(n) = x.hold { Some(n) } else { None }).collect();
+        assert!(!nets.is_empty() && nets.iter().all(|n| *n == nets[0]), "{name}: one network lab");
     }
-    assert!(find(PROFILES, "ipv6-only").expect("a profile").parts.iter().all(|x| !x.hold.here()));
+}
+
+const NETWORK_CLASSES: [&str; 7] = [
+    "proxy-only",
+    "proxy-tls-reterminate",
+    "proxy-per-name",
+    "sni-allowlist",
+    "no-proxy-no-dns",
+    "ws-upgrade-refused",
+    "ipv6-only",
+];
+
+/// The parts that podnet marked assumed (PodUtils/podnet#592) say so in
+/// their text, and no other part does.
+#[test]
+fn each_assumed_part_says_so() {
+    let assumed = [
+        "tls-reterminated",
+        "ssh-port-silent",
+        "answer-per-name",
+        "sni-reset",
+        "literal-reaches",
+        "upgrade-refused",
+        "ipv6-reaches",
+    ];
+    for p in PROFILES {
+        for part in p.parts {
+            let says = part.about.contains(". Assumed: ");
+            assert_eq!(says, assumed.contains(&part.name), "{}/{}: {}", p.name, part.name, part.about);
+        }
+    }
+}
+
+/// A network lab with a proxy names it; the others name none.
+#[test]
+fn the_words_of_each_network_lab() {
+    for name in NETWORK_CLASSES {
+        let p = find(PROFILES, name).expect("a profile");
+        for part in p.parts {
+            if let Hold::LabNet(n) = part.hold {
+                assert_eq!(part.hold.words().contains("stand-in proxy"), n.proxy.is_some(), "{name}");
+                assert!(part.hold.words().starts_with("a network namespace with no route out"), "{name}");
+            }
+        }
+    }
 }

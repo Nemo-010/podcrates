@@ -32,6 +32,7 @@ pub fn is_mount(h: Hold) -> bool {
             | Hold::NoProc
             | Hold::ReadOnly { .. }
             | Hold::NetNs
+            | Hold::LabNet(_)
     )
 }
 
@@ -39,7 +40,7 @@ pub fn is_mount(h: Hold) -> bool {
 /// tmpfs can cover their source; `/proc` last, as the others use it.
 fn rank(h: Hold) -> u8 {
     match h {
-        Hold::NetNs => 0,
+        Hold::NetNs | Hold::LabNet(_) => 0,
         Hold::NoPasswdEntry => 1,
         Hold::ReadOnly { .. } | Hold::NoexecHome => 2,
         Hold::DevNoPty => 3,
@@ -48,10 +49,16 @@ fn rank(h: Hold) -> u8 {
     }
 }
 
+/// The mounts of a lab: one result for each hold, in the order of the
+/// holds, and the sockets of a network lab.
+pub struct Made {
+    pub each: Vec<Result<(), String>>,
+    pub net: Option<crate::net::Ready>,
+}
+
 /// Make each mount of `holds` in one new mount namespace. `Err` where the
-/// namespace itself fails: then no hold is set. Else one result for each
-/// hold, in the order of `holds`.
-pub fn holds(holds: &[Hold]) -> Result<Vec<Result<(), String>>, String> {
+/// namespace itself fails: then no hold is set.
+pub fn holds(holds: &[Hold]) -> Result<Made, String> {
     let (uid, gid) = (euid(), egid());
     let proc = k::open(&c("/proc")?, k::O_PATH | k::O_DIRECTORY | k::O_CLOEXEC, 0).map_err(|e| words("/proc", e))?;
     let out = (|| {
@@ -59,7 +66,8 @@ pub fn holds(holds: &[Hold]) -> Result<Vec<Result<(), String>>, String> {
             userns::enter(&userns::Maps::new(uid, gid))
                 .map_err(|(step, e)| format!("the user namespace of the mounts: {}", words(step.name(), e)))?;
         }
-        let net = if holds.contains(&Hold::NetNs) { CLONE_NEWNET } else { 0 };
+        let netns = holds.iter().any(|h| matches!(h, Hold::NetNs | Hold::LabNet(_)));
+        let net = if netns { CLONE_NEWNET } else { 0 };
         k::unshare(k::CLONE_NEWNS | net).map_err(|e| words("unshare(CLONE_NEWNS)", e))?;
         let none = k::cempty();
         k::mount(&none, &c("/")?, &none, k::MS_REC | k::MS_PRIVATE).map_err(|e| words("mount(/, MS_PRIVATE)", e))?;
@@ -68,11 +76,17 @@ pub fn holds(holds: &[Hold]) -> Result<Vec<Result<(), String>>, String> {
         let mut each: Vec<Result<(), String>> = vec![Ok(()); holds.len()];
         // Two parts of one hold (the `/dev` of `no-ptmx`) share one mount.
         let mut done: Vec<(Hold, Result<(), String>)> = Vec::new();
+        let mut ready = None;
         for i in order {
             each[i] = match done.iter().find(|(h, _)| *h == holds[i]) {
                 Some((_, r)) => r.clone(),
                 None => {
-                    let r = one(holds[i], uid, gid);
+                    let r = match holds[i] {
+                        // Before the second user namespace: the lab owns
+                        // the network namespace in the first one.
+                        Hold::LabNet(n) => crate::net::prepare(n).map(|r| ready = Some(r)),
+                        h => one(h, uid, gid),
+                    };
                     done.push((holds[i], r.clone()));
                     r
                 }
@@ -81,7 +95,7 @@ pub fn holds(holds: &[Hold]) -> Result<Vec<Result<(), String>>, String> {
         if uid != 0 {
             back(proc, uid, gid)?;
         }
-        Ok(each)
+        Ok(Made { each, net: ready })
     })();
     let _ = k::close(proc);
     out
@@ -218,8 +232,7 @@ fn dev_no_pty() -> Result<(), String> {
 }
 
 /// `/etc/passwd` with no line of `uid` and `/etc/group` with no line of
-/// `gid`, each written into a new file of the temporary directory, bound
-/// over the file of the host, then unlinked: the bind keeps the file.
+/// `gid`, each bound over the file of the host.
 fn ids(uid: u32, gid: u32) -> Result<(), String> {
     for (file, id) in [("/etc/passwd", uid), ("/etc/group", gid)] {
         let text = match std::fs::read_to_string(file) {
@@ -231,22 +244,32 @@ fn ids(uid: u32, gid: u32) -> Result<(), String> {
         let id = id.to_string();
         let kept: String =
             text.lines().filter(|l| l.split(':').nth(2) != Some(id.as_str())).map(|l| format!("{l}\n")).collect();
-        let name = file.trim_start_matches("/etc/");
-        let tmp = std::env::temp_dir().join(format!("podlab-{name}-{}", k::getpid()));
-        let made = std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .mode(0o644)
-            .open(&tmp)
-            .and_then(|mut f| f.write_all(kept.as_bytes()));
-        if let Err(e) = made {
-            let _ = std::fs::remove_file(&tmp);
-            return Err(format!("{}: {e}", tmp.display()));
-        }
-        let from = c(&tmp.to_string_lossy())?;
-        let bound = k::mount(&from, &c(file)?, &k::cempty(), k::MS_BIND);
-        let _ = std::fs::remove_file(&tmp);
-        bound.map_err(|e| words(&format!("mount(bind, {file})"), e))?;
+        bind_text(file, &kept)?;
     }
     Ok(())
+}
+
+/// `text` written into a new file of the temporary directory, bound over
+/// `file`, then unlinked: the bind keeps the file. A `file` that does not
+/// exist stays absent.
+pub fn bind_text(file: &str, text: &str) -> Result<(), String> {
+    if std::fs::symlink_metadata(file).is_err() {
+        return Ok(());
+    }
+    let name = file.trim_start_matches("/etc/");
+    let tmp = std::env::temp_dir().join(format!("podlab-{name}-{}", k::getpid()));
+    let made = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o644)
+        .open(&tmp)
+        .and_then(|mut f| f.write_all(text.as_bytes()));
+    if let Err(e) = made {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(format!("{}: {e}", tmp.display()));
+    }
+    let from = c(&tmp.to_string_lossy())?;
+    let bound = k::mount(&from, &c(file)?, &k::cempty(), k::MS_BIND);
+    let _ = std::fs::remove_file(&tmp);
+    bound.map(|_| ()).map_err(|e| words(&format!("mount(bind, {file})"), e))
 }

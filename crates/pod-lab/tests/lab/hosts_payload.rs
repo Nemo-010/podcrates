@@ -26,7 +26,7 @@ pub fn main(kind: &str) -> Out {
         "caps" => {
             Ok(format!("CapEff {}", u64::from_str_radix(&status_field("CapEff")?, 16).map_err(|e| e.to_string())?))
         }
-        _ => Err(format!("no payload {kind:?}")),
+        _ => crate::net_payload::main(kind).unwrap_or_else(|| Err(format!("no payload {kind:?}"))),
     }
 }
 

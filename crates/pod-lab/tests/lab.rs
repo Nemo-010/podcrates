@@ -5,7 +5,8 @@
 //! As root, each case runs as root, then the test starts itself again as
 //! uid 65534 (the kernel clears each capability), as CI runs it as a user.
 //! Where uid 65534 cannot reach this binary, the test says so. The classes
-//! of podssh and podnet are in `lab/hosts.rs`. A case that the host
+//! of podssh and podnet are in `lab/hosts.rs`, the network classes in
+//! `lab/net.rs`. A case that the host
 //! cannot give says `skipping` with the reason; `scripts/ci/userns-tests.sh`
 //! fails on that line. No libtest (`harness = false`): the binary reads the
 //! flag of a lab process, of a probe child and of a payload first, and has
@@ -22,6 +23,14 @@ mod hosts_payload;
 #[cfg(target_os = "linux")]
 #[path = "lab/hosts.rs"]
 mod hosts;
+
+#[cfg(target_os = "linux")]
+#[path = "lab/net_payload.rs"]
+mod net_payload;
+
+#[cfg(target_os = "linux")]
+#[path = "lab/net.rs"]
+mod net;
 
 #[cfg(target_os = "linux")]
 mod cases {
@@ -183,13 +192,13 @@ mod cases {
     pub fn a_part_held_elsewhere_refuses_the_run() {
         let m = mark("elsewhere");
         let cmd = sh(&format!("touch {}", m.display()));
-        let (out, _) = run(&settings(), "proxy-only", &cmd, false);
+        let (out, _) = run(&settings(), "cgroup-v1", &cmd, false);
         match out {
             Err(RunError::Refused(v)) => assert!(v.parts.iter().all(|p| p.state != State::Holds), "{v:?}"),
-            other => panic!("proxy-only ran with no proxy part: {other:?}"),
+            other => panic!("cgroup-v1 ran with no lab of its part: {other:?}"),
         }
         assert!(!m.exists(), "the command ran in a lab that does not hold");
-        let (out, _) = run(&settings(), "proxy-only", &cmd, true);
+        let (out, _) = run(&settings(), "cgroup-v1", &cmd, true);
         let ran = out.expect("a partial lab runs");
         assert!(ran.status.success() && m.exists());
         assert!(ran.verdict.parts.iter().all(|p| p.state == State::Fails), "{:?}", ran.verdict);
@@ -252,6 +261,7 @@ fn main() {
     cases::a_part_that_does_not_hold_inside_stops_the_command();
     cases::caps_dropped();
     hosts::all();
+    net::all();
     // As root, each case runs again as uid 65534, as CI runs it as a user.
     if as_root {
         println!("lab: again as uid 65534");
