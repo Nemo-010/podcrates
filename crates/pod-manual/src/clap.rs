@@ -4,6 +4,8 @@
 //! examples. [`parser`] gives the rows of the same tree for
 //! `check::flags`, so that a test proves the model and the parser agree.
 
+mod needs;
+
 use crate::check::{ParserCommand, ParserFlag};
 use crate::model::{Arg, Command, Flag, Manual, Rule};
 
@@ -58,11 +60,12 @@ fn spelling(arg: &::clap::Arg) -> String {
 }
 
 /// The rules between the arguments of `cmd`: its groups of one argument
-/// (`OneOf`) and its conflicts (`Excludes`). A positional argument is
+/// (`OneOf`), its conflicts (`Excludes`) and the needs that the parse of
+/// each argument alone shows (`Needs`, clap's `requires`). A positional argument is
 /// named by its value name, as [`Command::arg`](crate::Command::arg)
 /// finds it. A rule that names a hidden argument is left out: the model
 /// has no hidden argument, and a rule must name what the model holds.
-fn rules(cmd: &::clap::Command) -> Vec<Rule> {
+fn rules(cmd: &::clap::Command, probe: &mut needs::Probe, path: &[String]) -> Vec<Rule> {
     let mut out: Vec<Rule> = Vec::new();
     let shown = |a: &&::clap::Arg| !a.is_hide_set();
     let by_id = |id: &::clap::Id| cmd.get_arguments().find(|a| a.get_id() == id);
@@ -82,10 +85,11 @@ fn rules(cmd: &::clap::Command) -> Vec<Rule> {
             }
         }
     }
+    out.extend(needs::rules(probe, path));
     out
 }
 
-fn walk(cmd: &::clap::Command, path: Vec<String>, out: &mut Vec<Command>) {
+fn walk(cmd: &::clap::Command, path: Vec<String>, probe: &mut needs::Probe, out: &mut Vec<Command>) {
     let args = cmd.get_positionals().filter(|a| !a.is_hide_set());
     let args = args.map(|a| Arg {
         name: value_name(a),
@@ -123,22 +127,24 @@ fn walk(cmd: &::clap::Command, path: Vec<String>, out: &mut Vec<Command>) {
         notes,
         args: args.collect(),
         flags: flags.collect(),
-        rules: rules(cmd),
+        rules: rules(cmd, probe, &path),
         ..Command::default()
     });
     for sub in cmd.get_subcommands().filter(|c| !c.is_hide_set() && c.get_name() != "help") {
         let mut p = path.clone();
         p.push(sub.get_name().to_string());
-        walk(sub, p, out);
+        walk(sub, p, probe, out);
     }
 }
 
 /// The model of the command tree `cmd`: the name, the version, the about
-/// line and each command. The program adds the rest.
+/// line and each command. The program adds the rest. The parses of a copy
+/// of `cmd` give the rules of `requires` (clap has no getter of them).
 pub fn read(mut cmd: ::clap::Command) -> Manual {
+    let mut probe = needs::Probe::new(&cmd);
     cmd.build();
     let mut commands = Vec::new();
-    walk(&cmd, Vec::new(), &mut commands);
+    walk(&cmd, Vec::new(), &mut probe, &mut commands);
     Manual {
         name: cmd.get_name().to_string(),
         version: cmd.get_version().unwrap_or_default().to_string(),

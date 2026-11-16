@@ -100,3 +100,27 @@ fn the_help_of_each_command_comes_from_the_model() {
     let root = m.root().expect("the root");
     assert!(root.groups.len() >= 3 && root.lead.len() >= 3, "{root:?}");
 }
+
+/// The rules of the manual are the rules of the parser: podlab's parser has
+/// one conflict and no `requires` (its required arguments, the argument
+/// after `--` and the port of `--allow-connect` are no needs), and a
+/// `requires` added to it is in the manual.
+#[test]
+fn the_rules_of_the_manual_are_the_rules_of_the_parser() {
+    use pod_manual::Rule;
+    let rules = |m: &pod_manual::Manual| -> Vec<(String, Rule)> {
+        m.commands.iter().flat_map(|c| c.rules.iter().map(|r| (c.name(), r.clone()))).collect()
+    };
+    let conflict = Rule::Excludes { flags: vec!["--json".into(), "--roff".into()] };
+    assert_eq!(rules(&manual()), [("man".to_string(), conflict.clone())]);
+    let cmd = super::cli::command()
+        .mut_subcommand("run", |c| c.mut_arg("allow_connect", |a| a.requires("partial")))
+        .mut_subcommand("man", |c| c.mut_arg("section", |a| a.requires("no_pager")));
+    let needs = |flag: &str, need: &str| Rule::Needs { flag: flag.into(), value: None, needs: vec![need.into()] };
+    let want = [
+        ("run".to_string(), needs("--allow-connect", "--partial")),
+        ("man".to_string(), conflict),
+        ("man".to_string(), needs("SECTION", "--no-pager")),
+    ];
+    assert_eq!(rules(&pod_lab::manual::manual(cmd)), want);
+}

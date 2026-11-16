@@ -219,8 +219,14 @@ impl Status {
 pub enum Rule {
     /// At most one of the flags.
     Excludes { flags: Vec<String> },
-    /// `flag` only with each of `needs`.
-    Needs { flag: String, needs: Vec<String> },
+    /// `flag` only with each of `needs`; with `value`, only where `flag`
+    /// has that value (clap's `requires_if`).
+    Needs {
+        flag: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        value: Option<String>,
+        needs: Vec<String>,
+    },
     /// One of the flags; with `required`, exactly one.
     OneOf { flags: Vec<String>, required: bool },
 }
@@ -230,7 +236,8 @@ impl Rule {
     pub fn sentence(&self) -> String {
         match self {
             Rule::Excludes { flags } => format!("Give only one of {}.", flags.join(", ")),
-            Rule::Needs { flag, needs } => format!("{flag} needs {}.", needs.join(" and ")),
+            Rule::Needs { flag, value: None, needs } => format!("{flag} needs {}.", needs.join(" and ")),
+            Rule::Needs { flag, value: Some(v), needs } => format!("{flag} {v} needs {}.", needs.join(" and ")),
             Rule::OneOf { flags, required: true } => format!("Give one of {}.", flags.join(", ")),
             Rule::OneOf { flags, required: false } => format!("Give one of {}, or none.", flags.join(", ")),
         }
@@ -240,7 +247,7 @@ impl Rule {
     pub fn names(&self) -> Vec<&str> {
         match self {
             Rule::Excludes { flags } | Rule::OneOf { flags, .. } => flags.iter().map(String::as_str).collect(),
-            Rule::Needs { flag, needs } => std::iter::once(flag).chain(needs).map(String::as_str).collect(),
+            Rule::Needs { flag, needs, .. } => std::iter::once(flag).chain(needs).map(String::as_str).collect(),
         }
     }
 }

@@ -24,7 +24,9 @@ fn a_fault_in_each_part_of_the_model_is_found() {
         ("the variable HTTPS_PROXY", Box::new(|m| m.facts.variables[0].vars[0].meaning.push('\u{7}'))),
         (
             "sample tunnel",
-            Box::new(|m| m.commands[1].rules.push(Rule::Needs { flag: "--url".into(), needs: vec!["C681".into()] })),
+            Box::new(|m| {
+                m.commands[1].rules.push(Rule::Needs { flag: "--url".into(), value: None, needs: vec!["C681".into()] })
+            }),
         ),
     ];
     for (at, plant) in plants {
@@ -40,7 +42,7 @@ use crate::model::{Block, Rule};
 #[test]
 fn a_rule_that_names_no_flag_and_a_name_of_two_sections_are_found() {
     let mut m = manual();
-    m.commands[1].rules.push(Rule::Needs { flag: "--url".into(), needs: vec!["--nothing".into()] });
+    m.commands[1].rules.push(Rule::Needs { flag: "--url".into(), value: None, needs: vec!["--nothing".into()] });
     assert_eq!(model(&m).len(), 1, "{:?}", model(&m));
     let mut m = manual();
     m.topics[0].aliases.push("keywords".into());

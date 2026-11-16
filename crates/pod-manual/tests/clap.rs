@@ -157,3 +157,73 @@ fn the_help_of_each_command_comes_from_the_model() {
     let j: serde_json::Value = serde_json::from_str(&j).unwrap();
     assert_eq!(j["command"]["path"], serde_json::json!(["tunnel"]));
 }
+
+/// A tree with clap's `requires` and `requires_if`: a chain of two needs, a
+/// need of one value, a need of a value that a parser of addresses takes,
+/// a need of a positional argument, a need of a group and of a hidden flag.
+/// The flag that `--password-file` needs takes `PATH` as its variable, set
+/// in each test run: the probe must not take a variable as given.
+fn needs_sample() -> clap::Command {
+    let value = |id: &'static str, name: &'static str| clap::Arg::new(id).long(id).value_name(name);
+    clap::Command::new("podnet").subcommand(
+        clap::Command::new("login")
+            .about("Log in")
+            .arg(clap::Arg::new("target").value_name("TARGET").required(true).help("The host"))
+            .arg(clap::Arg::new("extra").value_name("EXTRA").requires("verbose").help("More"))
+            .arg(value("user", "NAME").requires("password-file"))
+            .arg(value("password-file", "FILE").requires("realm"))
+            .arg(value("realm", "REALM").env("PATH"))
+            .arg(value("mode", "MODE").value_parser(["plain", "tls"]).requires_if("tls", "cert"))
+            .arg(value("cert", "FILE"))
+            .arg(value("bind", "ADDR").value_parser(clap::value_parser!(std::net::Ipv4Addr)).requires("host"))
+            .arg(value("host", "HOST"))
+            .arg(clap::Arg::new("verbose").long("verbose").action(clap::ArgAction::SetTrue))
+            .arg(clap::Arg::new("audit").long("audit").action(clap::ArgAction::SetTrue).requires("out"))
+            .arg(clap::Arg::new("json").long("json").action(clap::ArgAction::SetTrue))
+            .arg(clap::Arg::new("text").long("text").action(clap::ArgAction::SetTrue))
+            .group(clap::ArgGroup::new("out").args(["json", "text"]))
+            .arg(clap::Arg::new("debug").long("debug").action(clap::ArgAction::SetTrue).requires("trace"))
+            .arg(clap::Arg::new("trace").long("trace").hide(true).action(clap::ArgAction::SetTrue)),
+    )
+}
+
+fn needs(flag: &str, value: Option<&str>, needs: &[&str]) -> Rule {
+    let needs = needs.iter().map(|n| n.to_string()).collect();
+    Rule::Needs { flag: flag.into(), value: value.map(str::to_string), needs }
+}
+
+/// The reader gives clap's `requires` and `requires_if` as `Needs`, each
+/// need once (a need of a need is not repeated), and the text names them.
+#[test]
+fn the_reader_gives_each_rule_of_requires() {
+    assert!(std::env::var_os("PATH").is_some(), "the test needs PATH");
+    let m = pod_manual::clap::read(needs_sample());
+    let login = m.command("login").unwrap();
+    let want = [
+        needs("--user", None, &["--password-file"]),
+        needs("--password-file", None, &["--realm"]),
+        needs("--mode", Some("tls"), &["--cert"]),
+        needs("--bind", None, &["--host"]),
+        needs("EXTRA", None, &["--verbose"]),
+    ];
+    let got: Vec<&Rule> = login.rules.iter().filter(|r| matches!(r, Rule::Needs { .. })).collect();
+    assert_eq!(got, want.iter().collect::<Vec<_>>(), "the group of --audit and the hidden --trace are left out");
+    assert_none(model(&m));
+    let t = text::render(&m);
+    for s in ["--user needs --password-file.", "--mode tls needs --cert.", "EXTRA needs --verbose."] {
+        assert!(t.contains(s), "{s}: {t}");
+    }
+    let j: serde_json::Value = serde_json::from_str(&json::text(&json::document(&m))).unwrap();
+    let rules = j["commands"].as_array().unwrap().iter().find(|c| c["path"] == serde_json::json!(["login"])).unwrap();
+    assert_eq!(rules["rules"][1], serde_json::json!({"rule": "needs", "flag": "--user", "needs": ["--password-file"]}));
+    assert_eq!(rules["rules"][3]["value"], "tls");
+}
+
+/// A tree with no `requires` gives no `Needs`: the required arguments and
+/// the groups of the sample are no needs of a flag.
+#[test]
+fn a_tree_with_no_requires_gives_no_needs() {
+    let m = manual();
+    let any = m.commands.iter().flat_map(|c| &c.rules).find(|r| matches!(r, Rule::Needs { .. }));
+    assert_eq!(any, None);
+}

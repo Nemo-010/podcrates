@@ -9,8 +9,9 @@ repository.workspace = true
 
 [features]
 # The reader of a clap command tree, and the rows of its parser for the
-# check of the flags. clap's `env` gives the variable of each flag.
-clap = ["dep:clap", "clap/env"]
+# check of the flags. clap's `env` gives the variable of each flag; the
+# context of an error of clap names the arguments that a flag needs.
+clap = ["dep:clap", "clap/env", "clap/error-context", "clap/usage"]
 # The exit codes of the failure classes of pod-core, as facts.
 core = ["dep:pod-core"]
 
