@@ -9082,3 +9082,51 @@ give true. Here: `cargo test -p pod-hostprobe --all-features --lib` (174
 unit tests). The plant `hostprobe-chroot-usable-takes-the-leg` is caught.
 podvm removes its shadow of the function (PodUtils/podvm@T-1921) at the tag
 that carries it, `v0.61.0`.
+
+# T-786: `pod-enter`: the ids inside the user namespace of the namespace rung, so that a payload runs as the user of its image (PodUtils/podvm#447)
+
+**Source:** PodUtils/podvm#447 (COORD-154 of podvm; PodUtils/podvm@T-1927; PodUtils/podrunner#196).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P1
+**Effort:** S
+**Status:** open
+
+## Problem
+
+podvm: "pod-enter's entry through a user namespace (`ns_user.rs`,
+`pod_hostprobe::userns::Maps`) maps the effective ids of the caller to 0
+(`map_line(id)` writes `0 <id> 1`). So the payload of `podvm run -d` of a
+user with no root is root of a one-uid namespace, also where the image
+names a `USER`, and docker runs the image's `USER` by default." podrunner's
+runner image has `USER runner` (uid 1001); as root the official runner
+refuses to run, GNU tar fails at each chown to an id that is not mapped,
+and npm 6 runs its scripts as `nobody`. The ask: "A field of `Plan` (or of
+the entry through a user namespace) that names the ids inside the
+namespace, with 0 as the default. For example `Plan::userns_ids:
+Option<(u32, u32)>`, which writes `<uid> <caller-uid> 1` and `<gid>
+<caller-gid> 1`." The probe legs (`USERNS_LEG`, `USERNS_CHROOT`) keep the
+map to 0.
+
+## Premise
+
+- Read: PodUtils/podvm#447.
+- Not measured: the rung with an inside id that is not 0.
+
+## Approach
+
+`Plan` gets the inside ids (default 0, so each caller keeps the map of
+now); the entry through a user namespace writes the one-line maps with
+them. The process that makes the namespace keeps each capability in it
+whatever its inside id, so the mounts of the rung stay as they are; the
+`execve` of the payload with a uid that is not 0 drops the capabilities.
+A test of the namespace rung as uid 65534: a payload with the inside ids
+1001:1001 sees `id -u` 1001, the files of the tree as owned by 1001, and
+no capability; the default stays 0.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+sh scripts/ci/userns-tests.sh
+```

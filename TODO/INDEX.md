@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**609 entries: 118 open, 13 partial, 6 blocked, 472 done.**
+**610 entries: 119 open, 13 partial, 6 blocked, 472 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 12 | 7 | 0 | 138 | 157 |
+| P1 | 13 | 7 | 0 | 138 | 158 |
 | P2 | 52 | 3 | 4 | 245 | 304 |
 | P3 | 54 | 3 | 2 | 87 | 146 |
-| **All** | 118 | 13 | 6 | 472 | 609 |
+| **All** | 119 | 13 | 6 | 472 | 610 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -656,3 +656,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-766](upkeep.md) | P2 | S | M5 | defect | open | The nightly at `1739b5f` is red on riscv64: two time limits of tests that the emulation of QEMU outruns |
 | [T-767](relay.md) | P1 | M | M2 | defect | open | `pod-session`: a resume that the client calls done, after which the session never moves (PodUtils/podssh#283) |
 | [T-773](fleet.md) | P2 | S | M8 | defect | open | the installer core: a tree copy with no pins stops on a host with cosign (PodUtils/podnet#597) |
+| [T-786](podvm.md) | P1 | S | M6 | feature | open | `pod-enter`: the ids inside the user namespace of the namespace rung, so that a payload runs as the user of its image (PodUtils/podvm#447) |
