@@ -8861,3 +8861,32 @@ sh scripts/plant-each.sh hostprobe-userns-chroot-no-userns
 ## Done
 
 2026-11-16. `USERNS_CHROOT` and `p_userns_chroot` in `crates/pod-hostprobe`; `schemas/hostprobe-report.v1.schema.json` names the row; `tests/userns_leg.rs` runs both rows as uid 65534 and requires the chroot where the mount leg holds (both OK on this host). The plant `hostprobe-userns-chroot-no-userns` is caught.
+
+# T-739: `pod-enter`: a rule of the confinement on a guest path of a volume is checked in the image, not in the volume
+
+**Source:** T-738 (a finding of its work).
+**Category:** defect
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+On a rung with a chroot, `confine::compile` opens each path of the rules under the descriptor of the image before the fork (`Spec::compile_in`), and a path that does not exist is a refusal by name. The child opens each path again after its mounts and the chroot (`Compiled::open_paths`), so the rule holds the file that the payload sees. With the volumes of T-738, a rule on a guest path of a volume that the image does not hold (`-v /srv/data:/data` and a write rule on `/data`) is refused before the fork, though the child would bind it; and a rule on a path that the image holds is checked against the directory of the image under the mount point, not against the host side of the volume.
+
+## Premise
+
+- Read: `crates/pod-enter/src/confine.rs` (`compile`), `crates/pod-enter/src/ns_volume.rs` (`check_workdir`, which resolves a guest path in a volume through `Maps::of_binds`), the README of `pod-enter` ("a path that does not exist is a refusal by name before the fork").
+- Not measured: a confined plan with a volume on the namespace rung.
+
+## Approach
+
+Where the plan has volumes, check each path of the rules through the table of the volumes (`Maps::of_binds`, the resolver of `abi::GuestRoot`): a path at or under the guest path of a volume resolves in its host side, each other path in the image; the child opens each path again after the binds, as now. A test on the namespace rung as root: a write rule on a volume that the image does not hold lets the payload write there, and a write outside the rules fails with `EACCES`.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+sh scripts/ci/root-enter-confine-tests.sh
+```

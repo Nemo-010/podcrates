@@ -116,11 +116,13 @@ impl Maps {
         Ok(maps)
     }
 
-    /// The table of the volumes of the namespace rung ([`crate::VolumeBind`]),
-    /// checked by `ns_volume::prepare`: the resolver of the working
-    /// directory, where a guest path in a volume is a path of its host
-    /// side. No rule of the interposer applies: no variable spells it.
-    pub(crate) fn of_binds(rootfs: &str, binds: &[crate::VolumeBind]) -> Maps {
+    /// The table of the volumes of the namespace rung ([`crate::VolumeBind`]):
+    /// the resolver of a guest path, where a path in a volume is a path of
+    /// its host side. A caller gives it to [`crate::check_workdir`] before
+    /// a spawn with volumes; each entry checks the volumes and resolves its
+    /// working directory through it too. No rule of the interposer
+    /// applies: no variable spells this table.
+    pub fn of_binds(rootfs: &str, binds: &[crate::VolumeBind]) -> Maps {
         let mut maps = Maps::of_root(rootfs);
         for b in binds {
             let guest = b.guest.trim_end_matches('/');
