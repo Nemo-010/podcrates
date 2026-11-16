@@ -67,6 +67,36 @@ The entries:
   line to the payload's standard error and the rung goes on; a refused
   remount removes the bind. The bind needs the host's `/proc` before the
   chroot. The rung as root binds nothing: there `mknod` works.
+* The volumes of a plan on the namespace rung (`Plan::volumes`, a
+  `Vec<VolumeBind { host, guest, read_only }>`, PodUtils/podvm#440), as
+  root and through a user namespace, in their order. Before the banner
+  and the fork, the entry refuses by name a guest path that is not an
+  absolute normal path (`volume_guest_parts`: no `.`, `..` or empty
+  component, not `/`), a guest path that two volumes give, a host path
+  that is not absolute or does not exist, and more than `VOLUMES_MOST`
+  (255) volumes. In the child, after the private remount of `/`, the
+  tmpfs, the optional mounts and the device binds, before the chroot: the
+  root opens by its path, and each component of the guest path opens under
+  it with `openat2(RESOLVE_IN_ROOT | RESOLVE_NO_SYMLINKS)`. A missing
+  directory is made (mode 0755), and a missing last component is an empty
+  file where the host side is not a directory. A symbolic link of the
+  image on the path gives `ELOOP` (`NS_VOLUME_LINK_STEP` 34: "the guest
+  path of a volume crosses a symbolic link of the image", `Class::Policy`);
+  another refused open or make is `NS_VOLUME_POINT_STEP` 33. Then
+  `mount(host, /proc/self/fd/N, MS_BIND | MS_REC)` (`NS_VOLUME_BIND_STEP`
+  35). A read-only volume opens again through the bind, `fstatfs` reads
+  the flags of that mount, and `MS_REMOUNT | MS_BIND | MS_RDONLY` gives
+  `nosuid`, `nodev`, `noexec`, the atime flags and `nosymfollow` again
+  where the mount has them (`volume_remount_flags`; `NS_VOLUME_REMOUNT_STEP`
+  36): a user namespace locks them. The mounts under the host path keep
+  their flags. A refused step stops the payload: the error is
+  `Error::Runtime` with the volume (`volume_label`, `HOST:GUEST[:ro]`), the
+  step and the errno, never a run with a volume missing, and never a
+  fallback to chroot. The chroot rung, the ladder and the entry with no
+  chroot refuse a plan with a volume (the entry with no chroot takes its
+  volumes in `userland::Maps`). A join (`spawn_joined`) binds none: the
+  mount namespace of the run holds them. A working directory in a volume
+  resolves in the host side of the volume before the fork.
 * The overlay root of the namespace rung (`spawn_namespace_root`,
   `run_namespace_root` with `Root::Overlay { lower, upper }`): the
   caller's tree is the read-only lower layer of an overlay, so a shared
@@ -185,7 +215,7 @@ each entry takes; the payload owns the standard output.
 | Item | What |
 | --- | --- |
 | `Names` | `product`, `mode_request`, `mode_active`, `cache`, `maps`, `lib_path`, `exec_table`, `device_spec`, `device_fds`, `cache_marker`, `memfd_label`, `reserved` (the guest paths that the interposer of the caller never rewrites; `Maps::new` refuses a volume under one). `Names::DEFAULT` gives `pod-enter`, `POD_ENTER_MODE`, `POD_ENTER_ACTIVE_MODE`, `POD_ENTER_CACHE`, `POD_ENTER_MAPS`, `POD_ENTER_LIB_PATH`, `POD_ENTER_EXEC_TABLE`, `POD_ENTER_DEVICE_SPEC`, `POD_ENTER_DEVICE_FDS`, `.pod-enter-cache-complete`, `pod-enter-payload`, no reserved path |
-| `Plan { argv, env, working_dir, fds, banner, path_dirs, names, limits, no_new_privs, die_with_parent, confine, hostname }`, `Program` | what the payload will be; `Plan::{argv_for, env_for(&names, ..), set_active_mode(&names, ..), path_from, program, program_candidates, DEFAULT_PATH}`; `confine: Option<pod_confine::Spec>` (guest paths on a rung with a chroot, host paths on the entry with no chroot); `hostname: Option<String>` (the namespace rung enters a UTS namespace and sets it; each other entry refuses a plan with a name, and the rung does not fall back to chroot with one) |
+| `Plan { argv, env, working_dir, fds, banner, path_dirs, names, limits, no_new_privs, die_with_parent, confine, hostname, volumes }`, `Program`, `VolumeBind { host, guest, read_only }` | what the payload will be; `Plan::{argv_for, env_for(&names, ..), set_active_mode(&names, ..), path_from, program, program_candidates, DEFAULT_PATH}`; `confine: Option<pod_confine::Spec>` (guest paths on a rung with a chroot, host paths on the entry with no chroot); `hostname: Option<String>` (the namespace rung enters a UTS namespace and sets it; each other entry refuses a plan with a name, and the rung does not fall back to chroot with one); `volumes: Vec<VolumeBind>` (the namespace rung binds each one, in order; each entry with no mount namespace refuses a plan with one, a join binds none, and the rung does not fall back to chroot with one) |
 | `limits` | `Limit { resource, soft, hard }`, `Resource` (`from_word` of docker's `--ulimit` word, `word`, `number` of the kernel of this architecture, `name`), `INFINITY`, `MOST` (64): the child of each entry sets each limit (`prlimit64` on itself) and then `PR_SET_NO_NEW_PRIVS` where `Plan::no_new_privs` asks, after the root change and the `chdir`, before the exec; a refused call stops the payload and is named (`setrlimit(RLIMIT_NOFILE): EPERM`); `repeated` names the first resource that a list gives two times, and each entry refuses such a plan before the fork with `Error::LimitTwice`: the caller coalesces first (docker keeps the last value) |
 | `RootDir::open`, `Fds`, `Child`, `Bounded` | the held root; the descriptors of the payload (a passed descriptor onto the number of the root or of the memfd is refused before the fork; the readiness pipe moves clear of each passed number, and the child opens the paths of the rules of the confinement after the passes; a descriptor passed onto its own number loses its close-on-exec flag, so the payload holds it); a started payload (`wait`, `wait_forwarding`, `wait_bounded`) |
 | `spawn`, `run`, `spawn_ladder`, `run_ladder`, `spawn_userland`, `run_userland`, `spawn_namespace`, `run_namespace`, `spawn_namespace_root`, `run_namespace_root`, `spawn_joined`, `spawn_joined_root`, `spawn_selected`, `run_selected` | the entries; a `run_*` waits and forwards SIGINT and SIGTERM. `spawn_userland` and `run_userland` take `&Maps` after the plan: the working directory resolves through it before the fork, and a table whose root is not `root.path` is refused |
@@ -201,6 +231,7 @@ each entry takes; the payload owns the standard output.
 | `device` | `parse`, `Mapping`, `canon`, `spec_entry`, `serve_entry`, `banner_line(&names, ..)`, `open_all`, `Opened`, `specs_of(&names, ..)`, `push_spec(&names, ..)`, `push_serve(&names, ..)`, `CHILD_FD_BASE`, `HOST_FD_FLOOR`, `SEP_ENTRY` |
 | `NS_USER_STEP`, `NS_SETGROUPS_STEP`, `NS_UID_MAP_STEP`, `NS_GID_MAP_STEP`, `calls_for_user_namespace`, `both_refused` | the namespace rung through a user namespace (PodUtils/podvm#406): the steps in `ns_setup_step`, the refusal that calls for the retry (`EPERM` of `unshare(CLONE_NEWNS)`), the cause of the fallback line |
 | `DEVICES`, `Kind`, `kind_of`, `Choice`, `choose`, `NS_DEV_POINT_STEP`, `NS_DEV_BIND_STEP`, `NS_DEV_REMOUNT_STEP`, `ns_dev_refused_start(&names, ..)`, `ns_dev_skipped_line(&names, ..)`, `no_dev_line(&names)` | the device nodes of the host on the namespace rung through a user namespace (PodUtils/podvm#414): the choice of each path, the steps in `ns_setup_step`, the lines |
+| `NS_VOLUME_POINT_STEP`, `NS_VOLUME_LINK_STEP`, `NS_VOLUME_BIND_STEP`, `NS_VOLUME_REMOUNT_STEP`, `VOLUMES_MOST`, `volume_label`, `volume_guest_parts`, `volume_remount_flags` | the volumes of the namespace rung (PodUtils/podvm#440): the steps 33 to 36 in `ns_setup_step` (a refused one is `Error::Runtime` with the volume, not `NsSetup`), at most 255 volumes, `HOST:GUEST[:ro]`, the components of a guest path or why it is not one, the flags of the read-only remount for the `f_flags` of `statfs` |
 | `uts` | `NS_UTS_STEP`, `NS_HOSTNAME_STEP` (the steps of `unshare(CLONE_NEWUTS)` and `sethostname` in `ns_setup_step`), `MOST` (64 bytes): the host name of the payload on the namespace rung (PodUtils/podvm#403) |
 | `userland` | `Family`, `LoaderPlan` (`inhibit_cache`: the loader is glibc 2.16 or later, so a caller can give `--inhibit-cache`), `lib_dirs` (the loader's directory, the standard ones with `/usr/local/lib`, then the image's `/etc/ld.so.conf` or `/etc/ld-musl-ARCH.path`; each resolved inside the image), `takes_inhibit_cache`, `ldconf` (`configured_dirs`, the bounds `MOST_FILES`, `MOST_DEPTH`, `MOST_DIRS`, `MOST_BYTES`), `invocation_path`, `loader_argv_for`, `loader_plan` (the three take a `GuestRoot`), `host_env(&names, ..)`; `Volume { guest, host }`, `Maps` (`of_root(rootfs)`, `new(&names, rootfs, &volumes)` with the refusals of more than `MAX_MAP_PAIRS - 1` volumes (by the name of `names.maps`), of a guest side that is not absolute, is `/`, is not a normal path, repeats one, or is a reserved path of `names` or is under one (by name), and of a host side that is not absolute; `rootfs`, `volumes`, `volume_at`), `userland_maps_table(&names, &maps)` (the root pair, then each volume pair), `userland_volume_table(&names, &maps)` (the volume pairs only), `MAX_MAP_SIDE` (4096 bytes), `MAX_MAP_PAIRS` (32): each side that the variable cannot spell is refused with its own name (the rootfs path, the guest side or the host side of the volume) |
 | `binfmt` | `support_for`, `Support`, `copy_in_target`, `copy_interpreter_in`, and the reader of `pod_hostprobe::binfmt` |
@@ -259,7 +290,7 @@ Against podvm `crates/podvm-enter` at `284f429`:
 | `podvm_enter::{abi, binfmt, fuse, plan}` | `pod_enter::*`, re-exported |
 | `podvm_enter::{ladder, memfd, device, userland, stage}` | `pod_enter::*` with the functions that take `&Names` wrapped by `podvm_enter` with podvm's signature |
 | `PODVM_MODE`, `PODVM_ACTIVE_MODE`, `PODVM_CACHE`, `PODVM_MAPS`, `PODVM_DEVICE_SPEC`, `PODVM_DEVICE_FDS`, `.podvm-cache-complete`, `podvm-payload`, `podvm:` | `podvm_enter::NAMES` |
-| `Plan { .. }` | `Plan { .., names: podvm_enter::NAMES, limits: Vec::new(), no_new_privs: false, die_with_parent: false, confine: None, hostname: None }` (`--ulimit` and `--security-opt no-new-privileges` fill the limits; the launcher of a detached run sets `die_with_parent`; podvm's record of a detached run keeps them in its own fields) |
+| `Plan { .. }` | `Plan { .., names: podvm_enter::NAMES, limits: Vec::new(), no_new_privs: false, die_with_parent: false, confine: None, hostname: None, volumes: Vec::new() }` (`--ulimit` and `--security-opt no-new-privileges` fill the limits; the launcher of a detached run sets `die_with_parent`; podvm's record of a detached run keeps them in its own fields) |
 | the confine layer of PodUtils/podvm@T-1658 (the profile keys `fs.read`, `fs.write`, `fs.execute`, `net.ports`) | `Plan::confine: Some(pod_confine::Spec)`: `Spec::new().allow(path, Access::READ)` for each key (`Access::WRITE`, `Access::EXECUTE`), `connect_to(port)` (and `bind_to(port)` where a profile asks); `podvm probe` reports `pod_confine::probe()` |
 | `Plan::env_for(image, caller)`, `Plan::MODE_REQUEST_VAR` | `Plan::env_for(&NAMES, image, caller)`, `NAMES.mode_request` |
 | `ladder::Mode::parse(s)` | `podvm_enter::ladder::parse_mode(s)` |
@@ -324,10 +355,21 @@ leaves there, the payload reads 2000000 bytes of `/dev/urandom` and of
 `/dev/random`, `/dev/null` and `/dev/tty` are character devices, a write
 to `/dev/full` fails with `ENOSPC`, the bind of `/dev/urandom` is
 `nosuid` and `noexec` and not `nodev`, and a link at `/dev/zero` stays a
-link with one line; `scripts/ci/userns-tests.sh` runs it
+link with one line. Its test of the volumes (`tests/userns/volumes.rs`)
+runs as root and as the caller with no capabilities, each over a tmpfs
+with `nosuid`, `nodev`, `noexec` and `noatime` that holds the host sides
+(`pod_testkit::nobody::again_over_a_flagged_tmpfs`): the payload reads and
+writes a volume (the host sees the write), a write into a read-only
+volume fails with `EROFS` and its mount holds `ro` and the four flags, a
+volume on a path that the image does not hold and a file volume work (the
+image keeps an empty mount point), a guest path through a link of the
+image is refused with its step, and a host path that does not exist is
+refused before the banner. `scripts/ci/userns-tests.sh` runs it
 in CI and fails on a skip. The plants `enter-userns-not-tried`,
 `enter-userns-no-maps`, `enter-userns-banner-twice`,
-`enter-userns-dev-bind-over-link` and `enter-userns-dev-no-remount` prove it.
+`enter-userns-dev-bind-over-link`, `enter-userns-dev-no-remount`,
+`enter-volume-skipped`, `enter-volume-ro-writable`,
+`enter-volume-flags-dropped` and `enter-volume-through-a-link` prove it.
 `tests/overlay_root.rs` is podvm's acceptance test of the overlay root
 (PodUtils/podvm#323) with an upper directory of the caller: the writes
 are in the upper layer, the image is the same byte for byte, and a file

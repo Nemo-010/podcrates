@@ -1,0 +1,6 @@
+# pod-enter: the walk of a guest path follows a symbolic link of the image; the live test of the volumes must fail where the bind lands through the link (T-738).
+ENTRY=T-738
+GROUP=enter
+EXPECT='the run with a volume through a link: Ok\(3\)'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

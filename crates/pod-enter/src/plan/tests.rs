@@ -127,6 +127,7 @@ fn a_name_with_a_slash_is_a_path_and_never_searched_on_path() {
         die_with_parent: false,
         confine: None,
         hostname: None,
+        volumes: Vec::new(),
     };
     assert_eq!(p.program_candidates(), v(&["/bin/echo"]));
 

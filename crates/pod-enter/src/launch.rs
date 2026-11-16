@@ -5,7 +5,7 @@ use std::io::Write;
 use pod_core::Class;
 use pod_hostprobe::sys::{self, CBuf};
 
-use crate::entry::{NsEntry, chroot_landed, ns_setup_step, refuse_workdir, workdir_kind};
+use crate::entry::{NsEntry, chroot_landed, ns_setup_step};
 use crate::names::var_name;
 use crate::status::{NOT_FOUND, invocable_but_refused};
 use crate::userland::Maps;
@@ -104,14 +104,18 @@ pub(crate) fn spawn_with(
     let rootpath = CBuf::new(&root.path).ok_or_else(|| nul("the root path contains a NUL byte".to_string()))?;
     let hostname = crate::uts::checked(plan)?;
     let hostname_len = plan.hostname.as_ref().map_or(0, String::len);
-    if !matches!(ns, Some(NsEntry::Own(_))) {
-        let entry = match (&ns, userland) {
-            (Some(NsEntry::Join(..)), _) => "a join of the mount namespace of the payload",
-            (_, Some(_)) => "the entry with no chroot",
-            _ => "the chroot rung",
-        };
+    let entry = match (&ns, userland) {
+        (Some(NsEntry::Own(_)), _) => None,
+        (Some(NsEntry::Join(..)), _) => Some("a join of the mount namespace of the payload"),
+        (_, Some(_)) => Some("the entry with no chroot"),
+        _ => Some("the chroot rung"),
+    };
+    if let Some(entry) = entry {
         crate::uts::refuse_without_namespace(plan, entry)?;
     }
+    // The volumes: a join binds none, as the mount namespace of the run
+    // holds them; an entry with no mount namespace refuses them.
+    let volumes = crate::ns_volume::prepare(plan, root, entry.filter(|_| ns.is_none()))?;
 
     let mut argv: Vec<*const u8> = argv_owned.iter().map(|c| c.ptr() as *const u8).collect();
     argv.push(std::ptr::null());
@@ -138,19 +142,10 @@ pub(crate) fn spawn_with(
     // one is refused here with its name, and the payload never runs from
     // the wrong directory with exit 0. A NUL byte failed at the `CBuf`
     // above. With no chroot the check is the resolution through the table.
+    // A directory in a volume resolves in the host side of the volume.
     let workdir_host = match userland {
         Some(maps) => crate::userland::userland_workdir(root, maps, &plan.working_dir)?,
-        None => {
-            if let Err(kind) = workdir_kind(root.path.as_str(), &plan.working_dir) {
-                return Err(refuse_workdir(
-                    &plan.working_dir,
-                    &format!("in the image's rootfs {:?}", root.path),
-                    kind,
-                    None,
-                ));
-            }
-            None
-        }
+        None => crate::ns_volume::check_workdir(root, plan).map(|()| None)?,
     };
 
     // The confinement of the payload, compiled before the banner and the
@@ -265,6 +260,11 @@ pub(crate) fn spawn_with(
                 // `/proc`, `/dev/pts` and the host's devices: a refused one
                 // writes one line and the rung goes on.
                 crate::ns_optional::mount_each(m);
+                // The volumes of the plan, after each mount of the rung: a
+                // refused one stops the payload (`ns_volume`).
+                if let Err((step, e, at)) = crate::ns_volume::bind_each(&volumes) {
+                    report_at(step, e, at);
+                }
                 if let Some(name) = &hostname
                     && let Err((step, e)) = crate::uts::enter(name, hostname_len)
                 {
@@ -423,6 +423,10 @@ pub(crate) fn spawn_with(
         return Err(crate::confine::failure(confined.as_ref(), &buf));
     }
     let errno = sys::Errno(i32::from(buf[1]) | (i32::from(buf[2]) << 8));
+    // A refused volume names the volume, and never falls back.
+    if let Some(e) = crate::ns_volume::failure(plan, buf[0], errno, buf[3]) {
+        return Err(e);
+    }
     // A failure of the namespace setup does not fail the run: the caller
     // enters chroot, so these steps come back as `NsSetup`.
     if let Some(step) = ns_setup_step(buf[0]) {

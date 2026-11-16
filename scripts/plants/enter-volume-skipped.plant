@@ -1,0 +1,6 @@
+# pod-enter: the child skips a volume whose bind failed and runs the payload; the live test of the volumes must fail where a volume through a link of the image runs with no volume (T-738).
+ENTRY=T-738
+GROUP=enter
+EXPECT='the run with a volume through a link: Ok\(4\)'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

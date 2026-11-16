@@ -303,6 +303,14 @@ pub fn ns_setup_step(step: u8) -> Option<&'static str> {
         NS_OVERLAY_STEP => Some("mounting overlay on the root"),
         crate::uts::NS_UTS_STEP => Some("unshare(CLONE_NEWUTS)"),
         crate::uts::NS_HOSTNAME_STEP => Some("sethostname"),
+        // The steps of a volume come back as a refusal that names the
+        // volume, never as `NsSetup` (`ns_volume::failure`).
+        crate::ns_volume::NS_VOLUME_POINT_STEP => Some("opening the mount point of a volume in the image"),
+        crate::ns_volume::NS_VOLUME_LINK_STEP => {
+            Some("the guest path of a volume crosses a symbolic link of the image")
+        }
+        crate::ns_volume::NS_VOLUME_BIND_STEP => Some("binding the host path of a volume"),
+        crate::ns_volume::NS_VOLUME_REMOUNT_STEP => Some("remounting the bind of a read-only volume read-only"),
         _ => crate::ns_user::step_name(step),
     }
 }
@@ -333,6 +341,14 @@ pub(crate) fn namespace_entry(root: &RootDir, plan: &Plan, banner: bool, err: &m
                 format!("the host name {name:?} needs the namespace rung, and {cause}"),
             ));
         }
+        // A volume has no place on the chroot rung either.
+        if let Some(v) = plan.volumes.first() {
+            let label = crate::ns_volume::volume_label(v);
+            return Err(Error::runtime(
+                Class::Unsupported,
+                format!("the volume {label} needs the namespace rung, and {cause}"),
+            ));
+        }
         let _ = writeln!(err, "{}", ns_fallback_line(names, cause));
         spawn_with(root, plan, ENTERED_RUNG.word(), None, None, None, None, banner, err)
     };
@@ -359,7 +375,9 @@ pub(crate) fn namespace_entry(root: &RootDir, plan: &Plan, banner: bool, err: &m
 
 /// Enter `root` in the mount namespace of the running process of `pidfd`
 /// and exec: the payload of an exec sees the `/tmp` and the `/proc` of
-/// the payload of the run. The entry mounts nothing of its own. Where the
+/// the payload of the run. The entry mounts nothing of its own, and binds
+/// no volume of the plan: the mount namespace of the run holds its
+/// volumes (a fallback below binds them). Where the
 /// payload is in a user namespace that is not the one of the caller (a run
 /// of a caller with no capabilities), the entry joins it too (`ns_join`).
 ///

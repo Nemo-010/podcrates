@@ -4,7 +4,8 @@
 //! user, the test runs in its own process. [`again_over_a_bare_proc`] also
 //! gives the test a proc with no flags of the host, and
 //! [`again_over_a_bare_dev`] (root only) a `/dev` with no `nosuid` and no
-//! `noexec`.
+//! `noexec`; [`again_over_a_flagged_tmpfs`] gives it a tmpfs with
+//! `nosuid`, `nodev`, `noexec` and `noatime`.
 
 use std::os::unix::process::CommandExt;
 
@@ -116,6 +117,71 @@ fn bare_dev() -> std::io::Result<()> {
     os(unsafe { libc::setgroups(0, std::ptr::null()) })?;
     os(unsafe { libc::setresgid(NOBODY, NOBODY, NOBODY) })?;
     os(unsafe { libc::setresuid(NOBODY, NOBODY, NOBODY) })?;
+    Ok(())
+}
+
+/// Start this test binary again with `args` and `env` in a mount namespace
+/// of its own, where a fresh tmpfs with `nosuid`, `nodev`, `noexec` and
+/// `noatime` (mode 0777) is on `dir`, a directory that exists. A test of a
+/// bind then sees the flags of its source mount on each host. As root: the
+/// binary runs as root where `as_root`, else as [`NOBODY`] with no
+/// supplementary groups. As another user: in a user namespace of its own
+/// that maps the uid and the gid of the caller to themselves, so the exec
+/// clears each capability; `as_root` is then an `Err`. The mounts of the
+/// host do not change.
+pub fn again_over_a_flagged_tmpfs(
+    dir: &std::path::Path,
+    as_root: bool,
+    args: &[&str],
+    env: &[(&str, &str)],
+) -> Result<i32, String> {
+    if as_root && !is_root() {
+        return Err("a run as root over a flagged tmpfs needs root".to_string());
+    }
+    let exe = std::env::current_exe().map_err(|e| format!("the path of this test binary: {e}"))?;
+    let target = std::ffi::CString::new(dir.as_os_str().as_encoded_bytes()).map_err(|e| format!("{e}"))?;
+    let maps = (!is_root()).then(|| {
+        let (uid, gid) = unsafe { (libc::geteuid(), libc::getegid()) };
+        (format!("{uid} {uid} 1"), format!("{gid} {gid} 1"))
+    });
+    let to_nobody = is_root() && !as_root;
+    let mut command = std::process::Command::new(&exe);
+    command.args(args).envs(env.iter().copied());
+    // SAFETY: the closure runs in the child between the fork and the exec,
+    // and makes only calls of the C library with no allocation.
+    unsafe {
+        command.pre_exec(move || {
+            let maps = maps.as_ref().map(|(u, g)| (u.as_bytes(), g.as_bytes()));
+            flagged_tmpfs(&target, maps, to_nobody)
+        })
+    };
+    let status = command.status().map_err(|e| format!("{} over a flagged tmpfs: {e}", exe.display()))?;
+    Ok(status.code().unwrap_or(128))
+}
+
+/// The child of [`again_over_a_flagged_tmpfs`]: the namespaces (a user
+/// namespace where `maps` gives its two lines), the tmpfs, then the change
+/// to [`NOBODY`] where `to_nobody`.
+fn flagged_tmpfs(dir: &std::ffi::CStr, maps: Option<(&[u8], &[u8])>, to_nobody: bool) -> std::io::Result<()> {
+    let none = std::ptr::null();
+    match maps {
+        Some((uid_map, gid_map)) => {
+            os(unsafe { libc::unshare(libc::CLONE_NEWUSER | libc::CLONE_NEWNS) })?;
+            put(b"/proc/self/setgroups\0", b"deny")?;
+            put(b"/proc/self/uid_map\0", uid_map)?;
+            put(b"/proc/self/gid_map\0", gid_map)?;
+        }
+        None => drop(os(unsafe { libc::unshare(libc::CLONE_NEWNS) })?),
+    }
+    os(unsafe { libc::mount(none, c"/".as_ptr(), none, libc::MS_REC | libc::MS_PRIVATE, none.cast()) })?;
+    let flags = libc::MS_NOSUID | libc::MS_NODEV | libc::MS_NOEXEC | libc::MS_NOATIME;
+    let tmpfs = c"tmpfs".as_ptr();
+    os(unsafe { libc::mount(tmpfs, dir.as_ptr(), tmpfs, flags, c"mode=0777".as_ptr().cast()) })?;
+    if to_nobody {
+        os(unsafe { libc::setgroups(0, std::ptr::null()) })?;
+        os(unsafe { libc::setresgid(NOBODY, NOBODY, NOBODY) })?;
+        os(unsafe { libc::setresuid(NOBODY, NOBODY, NOBODY) })?;
+    }
     Ok(())
 }
 

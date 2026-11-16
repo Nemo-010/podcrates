@@ -54,6 +54,7 @@ fn run_in_overlay(lower: &Path, upper: &Path, argv: &[&str]) -> Result<i32, Stri
         no_new_privs: false,
         die_with_parent: false,
         hostname: None,
+        volumes: Vec::new(),
         confine: None,
     };
     let root = Root::Overlay { lower: &lower, upper: Upper::Dir { upper: &upper, work: &work } };

@@ -29,6 +29,7 @@ fn plan_with(limits: Vec<Limit>, no_new_privs: bool, die_with_parent: bool) -> P
         die_with_parent,
         confine: None,
         hostname: None,
+        volumes: Vec::new(),
     }
 }
 

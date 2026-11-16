@@ -17,6 +17,7 @@ fn plan(pass: Vec<(i64, i64)>) -> Plan {
         die_with_parent: false,
         confine: None,
         hostname: None,
+        volumes: Vec::new(),
     }
 }
 

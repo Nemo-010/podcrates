@@ -166,6 +166,12 @@ fn statfs_reads_the_magic_of_the_file_system() {
         return;
     };
     assert_eq!(fs.f_type, PROC_SUPER_MAGIC, "f_type {:#x} of /proc/self", fs.f_type);
+    // `fstatfs` of an `O_PATH` descriptor reads the same file system.
+    let fd = open(&CBuf::new("/proc/self").expect("a path"), O_PATH | O_CLOEXEC, 0).expect("O_PATH of /proc/self");
+    let by_fd = fstatfs(fd);
+    let _ = close(fd);
+    let by_fd = by_fd.expect("fstatfs of an O_PATH descriptor");
+    assert_eq!((by_fd.f_type, by_fd.f_flags), (fs.f_type, fs.f_flags), "fstatfs and statfs of /proc/self");
 }
 
 /// `f_flags` is the field of the kernel on each width: `/` has

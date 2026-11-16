@@ -1,0 +1,6 @@
+# pod-enter: a read-only volume is not remounted read-only; the live test of the volumes must fail where the payload writes into it (T-738).
+ENTRY=T-738
+GROUP=enter
+EXPECT='left: Ok\(5\)'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

@@ -155,10 +155,13 @@ pub use id_calls::{
     SYS_GETEGID, SYS_GETEUID, SYS_GETGID, SYS_GETGROUPS, SYS_GETUID, SYS_SETGID, SYS_SETGROUPS, SYS_SETUID,
 };
 pub const SYS_STATFS: i64 = nr!(statfs, __NR_statfs);
+pub const SYS_FSTATFS: i64 = nr!(fstatfs, __NR_fstatfs);
 /// The wide form of a 32-bit kernel: `statfs` there writes the narrow
 /// struct into a buffer of the wide one.
 #[cfg(target_pointer_width = "32")]
 pub const SYS_STATFS64: i64 = nr!(statfs64, __NR_statfs64);
+#[cfg(target_pointer_width = "32")]
+pub const SYS_FSTATFS64: i64 = nr!(fstatfs64, __NR_fstatfs64);
 pub const SYS_FLOCK: i64 = nr!(flock, __NR_flock);
 pub const SYS_FCNTL: i64 = nr!(fcntl, __NR_fcntl);
 pub const SYS_IOCTL: i64 = nr!(ioctl, __NR_ioctl);
@@ -324,6 +327,12 @@ pub const MS_REMOUNT: u64 = 0x20;
 pub const MS_NOSUID: u64 = 0x2;
 pub const MS_NODEV: u64 = 0x4;
 pub const MS_NOEXEC: u64 = 0x8;
+/// The atime flags and `MS_NOSYMFOLLOW`. A remount in a user namespace
+/// must give each locked flag of the mount again, the atime flags too.
+pub const MS_NOSYMFOLLOW: u64 = 0x100;
+pub const MS_NOATIME: u64 = 0x400;
+pub const MS_NODIRATIME: u64 = 0x800;
+pub const MS_RELATIME: u64 = 0x0020_0000;
 /// `MS_BIND`, from the headers of the kernel.
 pub const MS_BIND: u64 = 0x1000;
 pub const MS_REC: u64 = 0x4000;
@@ -365,6 +374,9 @@ pub use fs::*;
 
 mod proc;
 pub use proc::*;
+
+mod statfs;
+pub use statfs::*;
 
 mod pidfd;
 pub use pidfd::*;

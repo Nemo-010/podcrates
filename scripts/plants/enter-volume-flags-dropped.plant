@@ -1,0 +1,6 @@
+# pod-enter: the read-only remount of a volume drops the flags of its mount; the live test of the volumes must fail: as root the mount loses them, and in a user namespace the kernel refuses the remount (T-738).
+ENTRY=T-738
+GROUP=enter
+EXPECT='the read-only volume lost the flag nosuid|read-only volume read-only failed with EPERM'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

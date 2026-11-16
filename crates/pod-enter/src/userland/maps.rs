@@ -116,6 +116,20 @@ impl Maps {
         Ok(maps)
     }
 
+    /// The table of the volumes of the namespace rung ([`crate::VolumeBind`]),
+    /// checked by `ns_volume::prepare`: the resolver of the working
+    /// directory, where a guest path in a volume is a path of its host
+    /// side. No rule of the interposer applies: no variable spells it.
+    pub(crate) fn of_binds(rootfs: &str, binds: &[crate::VolumeBind]) -> Maps {
+        let mut maps = Maps::of_root(rootfs);
+        for b in binds {
+            let guest = b.guest.trim_end_matches('/');
+            maps.parts.push(guest.split('/').filter(|c| !c.is_empty()).map(str::to_string).collect());
+            maps.volumes.push(Volume { guest: guest.to_string(), host: b.host.clone() });
+        }
+        maps
+    }
+
     /// The host path of the root file system, as given.
     pub fn rootfs(&self) -> &str {
         &self.rootfs

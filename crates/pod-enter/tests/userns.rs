@@ -5,7 +5,8 @@
 //! is not the `/tmp` of the image, and a `/proc` (a bind of the host's,
 //! T-672). An exec that joins the run sees the `/tmp` of the run (T-671).
 //! The device nodes of the host replace the regular files of the image
-//! (T-688).
+//! (T-688). The volumes of a plan are bound as root and as the caller with
+//! no capabilities (T-738, `userns/volumes.rs`).
 //!
 //! As root, the test makes the image and starts its own binary again as
 //! uid and gid 65534 with no groups (`pod_testkit::nobody`). The test of
@@ -33,6 +34,9 @@ use pod_enter::{Fds, Names, Plan, RootDir, run_namespace, spawn_joined, spawn_na
 use pod_hostprobe::sys;
 use pod_testkit::host::skip_line;
 use pod_testkit::nobody;
+
+#[path = "userns/volumes.rs"]
+mod volumes;
 
 const NAME: &str = "unit2";
 /// The image that the root parent made for the child of uid 65534.
@@ -69,7 +73,7 @@ fn image(bb: &Path, tag: &str) -> PathBuf {
     fs::write(root.join("tmp/of-the-image"), "x").unwrap();
     fs::copy(bb, root.join("bin/busybox")).unwrap();
     fs::set_permissions(root.join("bin/busybox"), fs::Permissions::from_mode(0o755)).unwrap();
-    for applet in ["sh", "id", "uname", "test", "touch", "grep", "sleep", "head", "wc"] {
+    for applet in ["sh", "id", "uname", "test", "touch", "grep", "sleep", "head", "wc", "cat"] {
         std::os::unix::fs::symlink("busybox", root.join("bin").join(applet)).unwrap();
     }
     root
@@ -90,6 +94,7 @@ fn plan(script: &str, hostname: Option<&str>) -> Plan {
         die_with_parent: false,
         confine: None,
         hostname: hostname.map(str::to_string),
+        volumes: Vec::new(),
     }
 }
 
@@ -152,6 +157,11 @@ fn a_caller_with_no_capabilities_enters_the_namespace_rung() {
 #[test]
 fn a_caller_with_no_capabilities_gets_the_devices_of_the_host() {
     as_nobody("a_caller_with_no_capabilities_gets_the_devices_of_the_host", "dev", devices_of_the_host);
+}
+
+#[test]
+fn the_namespace_rung_binds_the_volumes_of_a_plan() {
+    volumes::as_root_and_nobody("the_namespace_rung_binds_the_volumes_of_a_plan");
 }
 
 #[test]

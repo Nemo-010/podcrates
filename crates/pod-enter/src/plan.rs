@@ -55,6 +55,30 @@ pub struct Plan {
     /// refuses a plan with a name, and the namespace rung does not fall back
     /// to chroot with one: the payload never sees the host's name instead.
     pub hostname: Option<String>,
+    /// The volumes of the payload, bound in this order on the namespace
+    /// rung ([`VolumeBind`], `ns_volume`). A later volume can be under an
+    /// earlier one. A join of a run binds none: the mount namespace of the
+    /// run holds them. Each other entry refuses a plan with a volume, and
+    /// the namespace rung does not fall back to chroot with one: the
+    /// payload never runs with a volume missing.
+    pub volumes: Vec<VolumeBind>,
+}
+
+/// One volume of the namespace rung: a recursive bind of the host path
+/// `host` on the guest path `guest` (`-v HOST:GUEST[:ro]`).
+///
+/// `host` is an absolute path that exists. A directory gives a directory
+/// as the mount point, each other file an empty file. `guest` is an
+/// absolute normal path that is not `/`; the child makes each missing
+/// directory of it, and refuses a path through a symbolic link of the
+/// image. `read_only` remounts the bind read-only and keeps each flag of
+/// the mount that a user namespace locks. The mounts under `host` keep
+/// their own flags, as docker's `ro`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VolumeBind {
+    pub host: String,
+    pub guest: String,
+    pub read_only: bool,
 }
 
 impl Plan {

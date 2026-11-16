@@ -197,7 +197,7 @@ fn fd_path(fd: i64, buf: &mut [u8; 32]) -> u64 {
 
 /// `mount(2)` onto the file of the descriptor `fd`: the magic link names
 /// that file, and no link of the image redirects it.
-fn mount_on_fd(source: &CBuf, fd: i64, flags: u64, empty: &CBuf) -> sys::Sysres {
+pub(crate) fn mount_on_fd(source: &CBuf, fd: i64, flags: u64, empty: &CBuf) -> sys::Sysres {
     let mut buf = [0u8; 32];
     let target = fd_path(fd, &mut buf);
     unsafe { sys::sys(sys::SYS_MOUNT, [source.ptr(), target, empty.ptr(), flags, 0, 0]) }
