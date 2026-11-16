@@ -10,6 +10,8 @@
   43827650390 and its run on the tag 43828067548, which signed
   `SHA256SUMS`): T-746, T-751, T-757, T-758, T-717, T-718. The hand-off is
   COORD-121 (#209).
+- In release: `v0.62.0` (`docs/releases/v0.62.0.md`): T-759, T-760, T-786,
+  T-767 (partial: the line of each resume), T-761 to T-765.
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.60.0` (`cbef76d`, PodUtils/podssh#281; no patch): it runs the one
