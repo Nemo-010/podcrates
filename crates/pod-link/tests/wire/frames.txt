@@ -1,0 +1,91 @@
+# The frame cases of pod-link: the bytes that come to a decoder, and the
+# frames or the error that it gives (WIRE.md, rules W-01 to W-08).
+#
+# Form of a case: ID PREFACE SPLIT HEX => RESULT
+#   PREFACE  yes (Decoder::with_preface) or no (Decoder::new).
+#   SPLIT    the bytes of each push, or all (one push).
+#   HEX      pieces joined by a dot: hex digits, or hex digits and *N for
+#            N copies of them.
+#   RESULT   ok and the frames, or err and the error and, after "after",
+#            the frames that came first. Frames are in the Debug form of
+#            Frame, joined by "; "; the body of a Data is in the form of
+#            HEX, with a run of 4 or more equal bytes as one piece.
+# A comment line starts with # and names the rule of the cases below it.
+count 55
+
+# W-02, W-03, W-04, W-05: each type at its smallest and its largest body.
+open-min no all 0100000001000000 => ok Open(1)
+open-max-id no all 01ffffffff000000 => ok Open(4294967295)
+data-one no all 0200000003000001.68 => ok Data(3, 68)
+data-max no all 0200000001100000.07*1048576 => ok Data(1, 07*1048576)
+window-link no all 030000000000000400000001 => ok Window(0, 1)
+window-max no all 0300000002000004ffffffff => ok Window(2, 4294967295)
+close no all 0400000004000000 => ok Close(4)
+reset-cancel no all 050000000500000400000000 => ok Reset(5, 0)
+ping-zero no all 0600000000000008.00*8 => ok Ping(0)
+ping-max no all 0600000000000008.ff*8 => ok Ping(18446744073709551615)
+pong no all 07000000000000080000000000000001 => ok Pong(1)
+goaway-normal no all 080000000000000400000000 => ok GoAway(0)
+
+# W-07: each code is valid.
+reset-caller-code no all 0500000005000004ffffffff => ok Reset(5, 4294967295)
+goaway-unknown-code no all 0800000000000004000000ff => ok GoAway(255)
+
+# W-01: the preface, whole and one byte at a time.
+preface-then-open yes all 504f444c494e4b01.0100000001000000 => ok Open(1)
+preface-byte-at-a-time yes 1 504f444c494e4b01.0100000001000000 => ok Open(1)
+preface-cut yes all 504f444c => ok
+
+# W-02: a header split at each byte, and other splits.
+header-split-each-byte no 1 0200000003000002.6869 => ok Data(3, 6869)
+header-split-3 no 3 0200000003000002.6869 => ok Data(3, 6869)
+data-split-7 no 7 0200000001000010.55*16 => ok Data(1, 55*16)
+data-run-and-literal no all 0200000001000007.616263.00*4 => ok Data(1, 616263.00*4)
+stream-life yes all 504f444c494e4b01.0100000001000000.0200000001000005.68656c6c6f.030000000100000400004000.0400000001000000.050000000300000400000001.0600000000000008.00*7.2a.0700000000000008.00*7.2a.080000000000000400000000 => ok Open(1); Data(1, 68656c6c6f); Window(1, 16384); Close(1); Reset(3, 1); Ping(42); Pong(42); GoAway(0)
+two-frames-one-push no all 0100000001000000.0200000001000001.41 => ok Open(1); Data(1, 41)
+header-cut no all 01000000 => ok
+body-cut no all 0200000001000004.4142 => ok
+frame-and-cut no 5 0100000001000000.04000000 => ok Open(1)
+
+# W-01: a wrong preface fails at its first wrong byte.
+preface-wrong-first yes all 47455420 => err Preface
+preface-wrong-last yes all 504f444c494e4b02 => err Preface
+preface-wrong-split-1 yes 1 504f58 => err Preface
+
+# W-03: a type byte that no frame has, before and after the header is whole.
+unknown-type-0 no all 00 => err UnknownKind(0)
+unknown-type-9-alone no all 09 => err UnknownKind(9)
+unknown-type-ff-header no all ff00000001000000 => err UnknownKind(255)
+unknown-after-frame no all 0100000001000000.09 => err UnknownKind(9) after Open(1)
+
+# W-04: the id 0 on a stream frame, and an id on a link frame.
+open-id-zero no all 0100000000000000 => err LinkId(1)
+data-id-zero no all 0200000000000001.41 => err LinkId(2)
+close-id-zero no all 0400000000000000 => err LinkId(4)
+reset-id-zero no all 050000000000000400000000 => err LinkId(5)
+ping-with-id no all 0600000009000008 => err StreamId { kind: 6, id: 9 }
+pong-with-id no all 0700000001000008 => err StreamId { kind: 7, id: 1 }
+goaway-with-id no all 0800000002000004 => err StreamId { kind: 8, id: 2 }
+
+# W-05: a length that does not fit its type, checked at the header.
+open-with-body no all 0100000001000001 => err BadLength { kind: 1, len: 1 }
+window-short no all 0300000000000003 => err BadLength { kind: 3, len: 3 }
+reset-long no all 0500000001000005 => err BadLength { kind: 5, len: 5 }
+ping-long no all 0600000000000009 => err BadLength { kind: 6, len: 9 }
+data-empty no all 0200000001000000 => err EmptyData
+data-too-long-header no all 0200000001100001 => err TooLong(1048577)
+data-largest-length no all 0200000001ffffff => err TooLong(16777215)
+
+# W-06: a credit of 0.
+window-zero no all 030000000500000400000000 => err ZeroCredit
+window-zero-link no all 030000000000000400000000 => err ZeroCredit
+window-zero-split-1 no 1 030000000500000400000000 => err ZeroCredit
+
+# The order of the checks of the decoder: the type, the id, the length.
+order-type-first no all 0900000000000005 => err UnknownKind(9)
+order-link-id-before-length no all 0100000000000005 => err LinkId(1)
+order-stream-id-before-length no all 0600000009000003 => err StreamId { kind: 6, id: 9 }
+order-link-id-before-empty no all 0200000000000000 => err LinkId(2)
+
+# W-08: after an error, the decoder reads no more frames.
+error-stays no all 0200000001000000.0100000001000000 => err EmptyData

@@ -8377,7 +8377,7 @@ wire of the link; `CONTROL_LIMIT`, `MAX_CREDIT`, `MIN_QUEUE` and
 **Milestone:** M2
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -8441,6 +8441,33 @@ cargo test --manifest-path fuzz/Cargo.toml --lib
 
 A case with a wrong result, and a count line one too high, each make
 the test fail with the id or the count named.
+
+## Done
+
+2026-11-16, the commit of the change. `crates/pod-link/tests/wire/frames.txt`
+holds 55 cases (26 valid, 29 invalid) in the form of the entry, with one
+addition: a HEX field is pieces joined by a dot, and a piece `bb*N` is N
+copies, so that a body of 1 MiB fits on one line; the body of a `Data`
+in a result has the same form (a run of 4 or more equal bytes is one
+piece). A result `err` lists the frames that came before the error after
+the word "after". The cases: each type at its smallest and largest body,
+a `DATA` of 1 MiB, each code that the protocol does not name, the preface
+whole, one byte at a time and cut, a header split at each byte and at 3,
+two frames in one push, the life of a stream in one push, a header, a
+body and a frame cut, the preface wrong at its first and its last byte,
+each variant of `FrameError`, a type byte that fails alone and after a
+frame, a body over 1 MiB and the largest length at the header, the order
+type, id, length of the decoder, and an error that stays. The test
+`tests/wire_frames.rs` runs each case, checks W-08 (the same error again,
+no byte taken after it), encodes the frames of each valid case to the
+bytes that the decoder took, and fails on a count line that differs. A
+result `Close(5)` for the bytes of `Close(4)` fails with "close: the
+decoder gives ok Close(4)"; a count of 55 for 54 cases fails with "the
+count line says Some(55), the file has 54 cases". `fuzz/src/frame_seeds.rs`
+writes one seed of `link_frame` for each case with at most 4 KiB of input
+(54 seeds; the case of 1 MiB stays out of the tree), and its test checks
+that the directory holds these seeds and no other; the 6 seeds written by
+hand went, as the cases hold each of them.
 
 # T-776: `pod-link`: scripted cases of a link on a paused clock, and the table of the classes of defects
 

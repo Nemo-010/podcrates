@@ -9,6 +9,8 @@ pub mod targets;
 #[cfg(test)]
 mod arq_seeds;
 #[cfg(test)]
+mod frame_seeds;
+#[cfg(test)]
 mod kcp_seeds;
 #[cfg(test)]
 mod poll_seeds;

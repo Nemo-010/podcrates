@@ -32,7 +32,7 @@ is done. Git and the record keep finished work.
    cause; T-768 beside it. Answer podssh's ask 3 on the hand-off of
    `v0.64.0`.
 5. Then the work order of `TODO/PROGRESS.md`: the contract of `pod-link`
-   (T-775 to T-778), then the move of podssh (T-038, T-037, T-029, T-030,
+   (T-776 to T-778), then the move of podssh (T-038, T-037, T-029, T-030,
    T-039, T-036), then T-526.
 
 ## The rules that cost the most time

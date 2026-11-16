@@ -6,7 +6,9 @@ the crate in the same commit does these rules. A change of a rule, of the
 order of the checks or of a constant changes this document in the same
 commit. The test `tests/wire_doc.rs` compares each table of this document
 with the constants and the decoder of the crate, and each rule id with
-its definition.
+its definition. The file `tests/wire/frames.txt` gives the bytes of
+frames with the result of each (W-01 to W-08), and the test
+`tests/wire_frames.rs` runs each case.
 
 The carriers (tcp, ws, h2, quic, udp, poll, dns, icmp, s3, split) and the
 ARQ are not part of this document: the README of the crate gives their
