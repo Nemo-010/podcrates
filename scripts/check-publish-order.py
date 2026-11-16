@@ -7,13 +7,28 @@ cargo packs a crate before each crate that depends on it, and keeps each
 dev-dependency that has a version. A crate P with a versioned
 dev-dependency on a crate D of the workspace, where D depends on P, makes a
 cycle: the pack of P asks for a version of D that is not there yet. Give
-such a dev-dependency a path only (cargo drops it from the package). Exit 1
-with each cycle; exit 0 with the count of crates.
+such a dev-dependency a path only (cargo drops it from the package). Each
+crate that cargo packs also has its text of the licence, `LICENSE` beside
+its manifest: a consumer's inventory of the licences of a release reads it
+(PodUtils/podvm#456). Exit 1 with each cycle and each crate with no
+`LICENSE`; exit 0 with the count of crates.
 """
 
 import json
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
+
+
+def licence_faults(packages: list[dict]) -> list[str]:
+    out = []
+    for p in packages:
+        if p.get("publish") == []:
+            continue
+        if not (Path(p["manifest_path"]).parent / "LICENSE").is_file():
+            out.append(f"{p['name']}: no LICENSE beside {p['manifest_path']}")
+    return out
 
 
 def faults(packages: list[dict]) -> list[str]:
@@ -62,6 +77,16 @@ def self_test() -> int:
     cycle[0]["dependencies"][0]["req"] = "^1.0"
     cycle[0]["publish"] = []
     assert not faults(cycle), "a crate that is not packed is no fault"
+    with tempfile.TemporaryDirectory() as tmp:
+        manifest = Path(tmp) / "Cargo.toml"
+        manifest.write_text("")
+        crate = {"name": "c", "publish": None, "manifest_path": str(manifest)}
+        assert len(licence_faults([crate])) == 1, "a packed crate with no LICENSE is a fault"
+        (Path(tmp) / "LICENSE").write_text("0BSD")
+        assert not licence_faults([crate]), "a packed crate with a LICENSE is no fault"
+        (Path(tmp) / "LICENSE").unlink()
+        crate["publish"] = []
+        assert not licence_faults([crate]), "a crate that is not packed needs no LICENSE"
     print("check-publish-order: self-test passed")
     return 0
 
@@ -74,12 +99,12 @@ def main(argv: list[str]) -> int:
         capture_output=True, text=True, check=True,
     ).stdout
     packages = json.loads(meta)["packages"]
-    found = faults(packages)
+    found = faults(packages) + licence_faults(packages)
     for line in found:
         print(f"check-publish-order: {line}", file=sys.stderr)
     if found:
         return 1
-    print(f"check-publish-order: {len(packages)} crates, no cycle of a versioned dev-dependency")
+    print(f"check-publish-order: {len(packages)} crates, no cycle of a versioned dev-dependency, a LICENSE in each packed crate")
     return 0
 
 

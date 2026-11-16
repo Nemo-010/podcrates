@@ -9379,3 +9379,51 @@ the primary volume descriptor that the watch reads (`pvd-sha256`,
 service. podvm compares the sha256 with its catalog when it takes the tag;
 a path under `direct-downloads/` other than `archive-virtio/` names the
 same file only where its sha256 agrees.
+
+# T-804: `pod-qga` has no `LICENSE` beside its manifest; a check of each crate that cargo packs (PodUtils/podvm#456)
+
+**Source:** PodUtils/podvm#456 (COORD-163 of podvm, its second ask).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+podvm: "`crates/pod-qga` at `v0.63.0` has no `LICENSE` file, where
+`pod-guest` and the other crates have one. podvm's licence inventory of a
+release (`podvm-release-licenses`) found no text for `pod-qga 0.63.0` and
+stopped the nightly trial 43906889533." No check of podcrates held the
+file: a new crate could ship with none.
+
+## Premise
+
+- Read: PodUtils/podvm#456; each directory of `crates/` and `examples/`:
+  `pod-qga` and the new `pod-tor` have no `LICENSE`; the two probes of
+  `examples/` have `publish = false`.
+- Read: `scripts/check-publish-order.py` reads each crate of `cargo
+  metadata` and knows which one cargo packs.
+
+## Approach
+
+`LICENSE` (the 0BSD text of the root) in `pod-qga` and `pod-tor`.
+`check-publish-order.py`, which `ci.yml` runs on each push, fails for a
+crate that cargo packs with no `LICENSE` beside its manifest; its
+self-test has the cases.
+
+## Prove
+
+```sh
+python3 -I scripts/check-publish-order.py --self-test
+python3 -I scripts/check-publish-order.py
+```
+
+## Done
+
+2026-11-16, the commit of the change. `crates/pod-qga/LICENSE` and
+`crates/pod-tor/LICENSE`; `scripts/check-publish-order.py` checks each
+packed crate (`licence_faults`), with three cases in its self-test. With
+the file of `pod-qga` removed it fails with "pod-qga: no LICENSE beside
+.../crates/pod-qga/Cargo.toml". podvm can drop its fall back to the text
+of the root for this crate when it takes the tag after `v0.64.0`.
