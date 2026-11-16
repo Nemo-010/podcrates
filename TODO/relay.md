@@ -8190,7 +8190,9 @@ Progress (2026-11-16):
   and what held the session (no link, the first link, the link of resume
   M). A resume that does not take the session says why (an older resume
   gives way to resume M; the session ended; the old link did not stop; the
-  offsets not kept). `crates/pod-session/README.md` gives the line.
+  offsets not kept). `crates/pod-session/README.md` gives the line. The
+  plant `session-t767-stop-unsaid` (no record of the stopped link) is
+  caught by `tests/session_resume_again.rs`.
 - Ask 2: `tests/session_resume_again.rs` runs the sixth case (a first new
   link ends before the greeting, a second resumes after the backoff, bytes
   both ways on the pair's window) with the old link ended at both ends, and
