@@ -567,6 +567,12 @@ when UDP is refused.
   `iroh-relay/tls-ring`, `iroh-dns/tls-ring`; in its default features) beside
   `tls-aws-lc-rs`: the crate takes `tls-ring`, so no aws-lc is in its tree
   and the question of aws-lc-sys on the four targets above does not come up.
+- Read: the pinggy client stays in podssh (its `podssh-relay`, 1,223 lines;
+  no entry of podcrates takes it). The crate uses it only in the pkarr
+  record of a node (`pkarr_record.rs`: a road at Pinggy as `NAME#PIN`, and
+  `urls::is_name`): the adaptation either keeps the road of the record as
+  its text, which podssh's glue reads with its own pinggy, or moves that
+  small parse with the crate; a call decides it.
 
 ## Approach
 
