@@ -505,8 +505,10 @@ server.
 - PodUtils/podnet#604 (COORD-098, ask 1): the relay of the pool held the
   socket of a node for minutes after a reset, and answered `409` to each
   new connect of the node; the role must drop the socket of a node at once
-  after a reset or a failed write. The import takes the fix, or makes it
-  (T-805 is the node's side).
+  after a reset or a failed write, and say why a node does not open (a
+  second run of podnet failed at the relay with 1013, a node open timeout,
+  at 18:15 UTC). The import takes the fix, or makes it (T-805 is the node's
+  side).
 
 ## Approach
 
