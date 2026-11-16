@@ -183,6 +183,14 @@ impl OverlayMount {
     pub(crate) fn userxattr(&self, user: bool) -> bool {
         user || self.caller_userns
     }
+
+    /// The options of the mount, and the options to try where the kernel
+    /// refuses the first with `EINVAL`: with `userxattr` first in a user
+    /// namespace, then with none (a kernel before 5.11, which reads no
+    /// opaque directory); elsewhere the plain options alone.
+    pub(crate) fn attempts(&self, user: bool) -> (&CBuf, Option<&CBuf>) {
+        if self.userxattr(user) { (&self.options_userxattr, Some(&self.options)) } else { (&self.options, None) }
+    }
 }
 
 /// Mount the overlay on `target`, the root path, in the child: no
@@ -200,16 +208,12 @@ pub(crate) fn mount(m: &OverlayMount, target: &CBuf, user: bool) -> std::result:
         // keeps the owner of the namespace, as a tree that the run fills.
         let _ = sys::fchownat(sys::AT_FDCWD as i64, &s.upper, s.uid, s.gid, 0);
     }
-    // A kernel before 5.11 has no `userxattr` (EINVAL): the mount then
-    // goes on with no such option, and reads no opaque directory.
-    if m.userxattr(user) {
-        match sys::mount_data(&m.fstype, target, &m.fstype, 0, &m.options_userxattr) {
-            Err(e) if e == sys::EINVAL => {}
-            r => return r.map(drop).map_err(|e| (NS_OVERLAY_STEP, e)),
-        }
-    }
-    sys::mount_data(&m.fstype, target, &m.fstype, 0, &m.options).map_err(|e| (NS_OVERLAY_STEP, e))?;
-    Ok(())
+    let (first, plain) = m.attempts(user);
+    let mounted = match (sys::mount_data(&m.fstype, target, &m.fstype, 0, first), plain) {
+        (Err(e), Some(plain)) if e == sys::EINVAL => sys::mount_data(&m.fstype, target, &m.fstype, 0, plain),
+        (r, _) => r,
+    };
+    mounted.map(drop).map_err(|e| (NS_OVERLAY_STEP, e))
 }
 
 /// Did the chroot land on an overlay that is not the lower directory? An

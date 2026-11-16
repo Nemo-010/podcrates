@@ -59,3 +59,24 @@ fn a_relative_upper_directory_is_refused() {
     assert!(OverlayMount::new(&lower, Upper::Tmpfs { size: 1 << 20 }).is_ok());
     let _ = std::fs::remove_dir_all(d);
 }
+
+/// In a user namespace the mount tries `userxattr` first, then the plain
+/// options (a kernel before 5.11); a mount of a host root tries the plain
+/// options alone. A kernel can read an opaque directory with no such
+/// option (Ubuntu's), so the live test alone does not hold this (T-755).
+#[test]
+fn the_mount_in_a_user_namespace_tries_userxattr_first() {
+    let d = std::env::temp_dir().join(format!("pod-enter-overlay-attempts-{}", std::process::id()));
+    std::fs::create_dir_all(d.join("tmp")).unwrap();
+    let lower = RootDir::open(d.to_str().unwrap()).unwrap();
+    let mut m = OverlayMount::new(&lower, Upper::Dir { upper: "/u", work: "/w" }).unwrap();
+    let (first, plain) = m.attempts(true);
+    assert!(std::ptr::eq(first, &m.options_userxattr), "the first try in a user namespace has userxattr");
+    assert!(plain.is_some_and(|p| std::ptr::eq(p, &m.options)), "then the plain options");
+    m.caller_userns = false;
+    let (first, plain) = m.attempts(false);
+    assert!(std::ptr::eq(first, &m.options) && plain.is_none(), "a host root: the plain options alone");
+    m.caller_userns = true;
+    assert!(std::ptr::eq(m.attempts(false).0, &m.options_userxattr), "a caller in a user namespace of its own");
+    let _ = std::fs::remove_dir_all(d);
+}

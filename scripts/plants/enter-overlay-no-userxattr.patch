@@ -1,13 +1,11 @@
-diff --git a/crates/pod-enter/src/ns_overlay.rs b/crates/pod-enter/src/ns_overlay.rs
-index c6e118b4..69382cb5 100644
 --- a/crates/pod-enter/src/ns_overlay.rs
 +++ b/crates/pod-enter/src/ns_overlay.rs
-@@ -202,7 +202,7 @@ pub(crate) fn mount(m: &OverlayMount, target: &CBuf, user: bool) -> std::result:
+@@ -189,7 +189,7 @@
+     /// namespace, then with none (a kernel before 5.11, which reads no
+     /// opaque directory); elsewhere the plain options alone.
+     pub(crate) fn attempts(&self, user: bool) -> (&CBuf, Option<&CBuf>) {
+-        if self.userxattr(user) { (&self.options_userxattr, Some(&self.options)) } else { (&self.options, None) }
++        if false && self.userxattr(user) { (&self.options_userxattr, Some(&self.options)) } else { (&self.options, None) }
      }
-     // A kernel before 5.11 has no `userxattr` (EINVAL): the mount then
-     // goes on with no such option, and reads no opaque directory.
--    if m.userxattr(user) {
-+    if false && m.userxattr(user) {
-         match sys::mount_data(&m.fstype, target, &m.fstype, 0, &m.options_userxattr) {
-             Err(e) if e == sys::EINVAL => {}
-             r => return r.map(drop).map_err(|e| (NS_OVERLAY_STEP, e)),
+ }
+ 
