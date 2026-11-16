@@ -9217,3 +9217,53 @@ the behaviour of now until a consumer asks for `setresuid`.
 cargo test -p pod-enter --all-features
 ```
 
+# T-791: `pod-enter`: the ids of the plan for a host root (a change of ids with no user namespace)
+
+**Source:** T-787, a finding (`docs/decisions.md`, C760).
+**Category:** feature
+**Milestone:** M6
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`Plan::userns_ids` names the ids of the payload. A caller that is uid 0
+of a user namespace that is not the initial one gets them through a nested
+user namespace (T-787). A host root (uid 0 of the initial user namespace)
+makes the mount namespace with no user namespace, and the child sets no
+ids: the payload of an image with `USER runner` runs as root of the host,
+where docker runs it as the user of the image. No consumer runs as a host
+root with ids now: podvm's foreground run as root enters no user
+namespace of its own, and asked only for the nested case
+(PodUtils/podvm#452).
+
+## Premise
+
+- Read: `crates/pod-enter/src/ns_user.rs` (`nested_for`: the ids apply
+  only where the map is not the initial one),
+  `crates/pod-enter/src/launch.rs` (the child sets no ids before the
+  `execve`).
+- Not measured: a host root of a consumer with an image that names a
+  `USER`.
+
+## Approach
+
+Where the caller is a host root and the plan names ids, the child calls
+`setgroups(0, NULL)`, `setresgid` and `setresuid` with the ids of the plan.
+The `chroot` needs `CAP_SYS_CHROOT`, which `setresuid` to a uid that is
+not 0 removes: the change of ids comes after the `chroot`, the `chdir` and
+the landing check, before the confinement and the exec. A refused call stops the
+payload with a step of its own. A tree that root extracted keeps the
+owners of the image, so the ids of the plan are the ids of the image. A
+test as root: the payload with 1001:1001 sees `id -u` 1001 and `CapEff` 0.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features
+```
+
+## Start condition
+
+A consumer asks for the ids of the plan for a host root.

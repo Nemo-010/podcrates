@@ -94,7 +94,8 @@ pub use ns_overlay::{
 };
 pub use ns_proc_bind::{NS_PROC_BIND_STEP, NS_PROC_REMOUNT_STEP, proc_of_this_pid_namespace};
 pub use ns_user::{
-    NS_GID_MAP_STEP, NS_SETGROUPS_STEP, NS_UID_MAP_STEP, NS_USER_STEP, both_refused, calls_for_user_namespace,
+    NS_GID_MAP_STEP, NS_NESTED_GID_MAP_STEP, NS_NESTED_SETGROUPS_STEP, NS_NESTED_UID_MAP_STEP, NS_NESTED_USER_STEP,
+    NS_SETGROUPS_STEP, NS_UID_MAP_STEP, NS_USER_STEP, both_refused, calls_for_user_namespace,
 };
 pub use ns_volume::{
     MOST as VOLUMES_MOST, NS_VOLUME_BIND_STEP, NS_VOLUME_LINK_STEP, NS_VOLUME_POINT_STEP, NS_VOLUME_REMOUNT_STEP,

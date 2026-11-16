@@ -92,6 +92,16 @@ impl Maps {
     }
 }
 
+/// Is `uid_map` (the text of `/proc/self/uid_map`) the map of the initial
+/// user namespace: one line `0 0 4294967295`? Each other map is the map of
+/// a user namespace that a process made, also a full map that a runtime
+/// wrote: the kernel gives the initial namespace alone each id.
+pub fn is_initial_map(uid_map: &str) -> bool {
+    let mut lines = uid_map.lines().filter(|l| !l.trim().is_empty());
+    let first = lines.next().map(|l| l.split_whitespace().collect::<Vec<_>>());
+    first.as_deref() == Some(&["0", "0", "4294967295"][..]) && lines.next().is_none()
+}
+
 /// Write `bytes` into the file at `path` in one `write(2)`: the kernel
 /// takes a map in one write only. No allocation.
 fn write_file(path: &CBuf, bytes: &[u8]) -> Result<(), Errno> {
@@ -154,6 +164,19 @@ mod tests {
         let m = Maps::of_caller_inside((1001, 1001));
         assert_eq!(m.uid_line(), map_line(1001, euid).as_bytes());
         assert_eq!(m.gid_line(), map_line(1001, egid).as_bytes());
+    }
+
+    /// The kernel writes each field in a width of 10; only one line of the
+    /// full range from 0 is the initial namespace.
+    #[test]
+    fn only_the_full_map_from_0_is_the_initial_namespace() {
+        assert!(is_initial_map("         0          0 4294967295\n"));
+        assert!(is_initial_map("0 0 4294967295"));
+        for other in
+            ["         0       1000          1\n", "0 0 4294967294\n", "0 0 4294967295\n1 1 1\n", "1001 0 1\n", ""]
+        {
+            assert!(!is_initial_map(other), "{other:?}");
+        }
     }
 
     #[test]

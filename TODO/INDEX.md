@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**623 entries: 128 open, 14 partial, 6 blocked, 475 done.**
+**624 entries: 129 open, 14 partial, 6 blocked, 475 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 12 | 8 | 0 | 139 | 159 |
 | P2 | 60 | 3 | 4 | 247 | 314 |
-| P3 | 56 | 3 | 2 | 87 | 148 |
-| **All** | 128 | 14 | 6 | 475 | 623 |
+| P3 | 57 | 3 | 2 | 87 | 149 |
+| **All** | 129 | 14 | 6 | 475 | 624 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -670,3 +670,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-788](upkeep.md) | P2 | S | M5 | defect | open | The nightly at `f309b07` is red on ppc64le: a test of `pod-enter`'s `pass_clear` reads a closed number that another test thread can take |
 | [T-789](upkeep.md) | P2 | S | M5 | defect | open | The nightly at `f309b07` is red on armv7: two tests of the MQTT board of `pod-wormhole` against the stand-in |
 | [T-790](upkeep.md) | P2 | S | M5 | chore | done | `pod-services`: the Syncthing relay of the device DVWOU27 moved to 1.168.112.83 |
+| [T-791](podvm.md) | P3 | S | M6 | feature | open | `pod-enter`: the ids of the plan for a host root (a change of ids with no user namespace) |

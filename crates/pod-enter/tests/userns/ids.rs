@@ -11,7 +11,7 @@ use std::os::unix::fs::MetadataExt;
 use super::*;
 
 /// The file of the caller in the image.
-const OF_THE_CALLER: &str = "of-the-caller";
+pub const OF_THE_CALLER: &str = "of-the-caller";
 
 /// The ids inside of the test.
 const IDS: (u32, u32) = (1001, 1001);

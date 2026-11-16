@@ -91,3 +91,63 @@ fn the_ids_of_the_plan_are_the_ids_inside() {
         assert!(e.contains("the kernel maps no id 4294967295"), "{e}");
     }
 }
+
+/// The steps of the nested user namespace have bytes of their own, and no
+/// byte is a setup step of the rung: a refusal stops the payload and
+/// never falls back to chroot as 0.
+#[test]
+fn the_nested_steps_are_not_setup_steps() {
+    let nested = [NS_NESTED_USER_STEP, NS_NESTED_SETGROUPS_STEP, NS_NESTED_UID_MAP_STEP, NS_NESTED_GID_MAP_STEP];
+    for (b, s) in nested.iter().zip([Step::Unshare, Step::Setgroups, Step::UidMap, Step::GidMap]) {
+        assert_eq!(nested_step(*b), Some(s));
+        assert_eq!(ns_setup_step(*b), None, "the byte {b} is a setup step");
+    }
+    for b in 1..=36 {
+        assert_eq!(nested_step(b), None, "the byte {b} is the byte of another step");
+    }
+    assert_ne!(crate::confine::STEP, NS_NESTED_USER_STEP);
+}
+
+/// Only uid 0 with ids and a map that is not the initial one takes a nested
+/// namespace. A caller that is not uid 0 does not read its map; a map that
+/// cannot be read is refused with the ids.
+#[test]
+fn only_uid_0_of_a_user_namespace_takes_a_nested_one() {
+    let host = || Ok("         0          0 4294967295\n".to_string());
+    let podvm = || Ok("         0       1000          1\n".to_string());
+    let unread = || -> std::io::Result<String> { panic!("the map is read for a caller that is not uid 0") };
+    let ids = Some((1001, 1002));
+    assert_eq!(nested_ids(ids, 0, podvm).unwrap(), ids);
+    assert_eq!(nested_ids(ids, 0, host).unwrap(), None);
+    assert_eq!(nested_ids(None, 0, podvm).unwrap(), None);
+    assert_eq!(nested_ids(ids, 1000, unread).unwrap(), None);
+    let gone = || Err(std::io::Error::from_raw_os_error(2));
+    let e = nested_ids(ids, 0, gone).unwrap_err().to_string();
+    assert!(e.contains("the ids 1001:1002 of the plan: /proc/self/uid_map cannot be read"), "{e}");
+}
+
+/// A join and the entry with no chroot take no nested namespace, whatever
+/// the ids; a plan with no ids takes none on each entry.
+#[test]
+fn a_join_and_the_entry_with_no_chroot_take_no_nested_namespace() {
+    let join = NsEntry::Join(crate::ns_join::Join { pidfd: -1, overlay: false, user: false }, None);
+    let p = plan(Some((1001, 1001)));
+    assert!(nested_for(&p, Some(&join), false).unwrap().is_none());
+    assert!(nested_for(&p, None, true).unwrap().is_none());
+    assert!(nested_for(&plan(None), None, false).unwrap().is_none());
+    let e = nested_for(&plan(Some((u32::MAX, 1))), None, false).err().map(|e| e.to_string());
+    assert!(e.is_some_and(|e| e.contains("the kernel maps no id 4294967295")));
+}
+
+/// A refused step of the nested namespace names the ids, the call and the
+/// errno, and says that the payload did not run.
+#[test]
+fn a_refused_nested_step_names_the_ids_and_the_call() {
+    let p = plan(Some((1001, 1002)));
+    let e = nested_failure(&p, NS_NESTED_UID_MAP_STEP, sys::EPERM).unwrap().to_string();
+    assert!(e.contains("the ids 1001:1002 of the plan need a nested user namespace"), "{e}");
+    assert!(e.contains("writing /proc/self/uid_map failed with EPERM (1); the payload did not run"), "{e}");
+    assert!(nested_failure(&p, NS_UID_MAP_STEP, sys::EPERM).is_none());
+    let e = crate::status::step_failure(&p, NS_NESTED_USER_STEP, sys::EINVAL, 0).to_string();
+    assert!(e.contains("unshare(CLONE_NEWUSER) failed with EINVAL (22)"), "{e}");
+}
