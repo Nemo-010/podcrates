@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**606 entries: 117 open, 13 partial, 6 blocked, 470 done.**
+**607 entries: 118 open, 13 partial, 6 blocked, 470 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 12 | 7 | 0 | 137 | 156 |
-| P2 | 51 | 3 | 4 | 244 | 302 |
+| P2 | 52 | 3 | 4 | 244 | 303 |
 | P3 | 54 | 3 | 2 | 87 | 146 |
-| **All** | 117 | 13 | 6 | 470 | 606 |
+| **All** | 118 | 13 | 6 | 470 | 607 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -653,3 +653,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-763](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `1739b5f` is red on windows-2025: a test of `pod-link` writes a POST on TLS and reads the answer with no flush |
 | [T-764](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `1739b5f` is red on windows-2025: the lower bound of a silence of `pod-link`'s split test does not allow the tick of the timer of Windows |
 | [T-765](upkeep.md) | P1 | S | M5 | defect | done | The nightly at `1739b5f` is red on macos-15-intel: a dial of `pod-proxy` to a freed port gets a reset, not a refusal |
+| [T-766](upkeep.md) | P2 | S | M5 | defect | open | The nightly at `1739b5f` is red on riscv64: two time limits of tests that the emulation of QEMU outruns |

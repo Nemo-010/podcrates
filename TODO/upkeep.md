@@ -2466,3 +2466,51 @@ The next nightly proves macOS.
 
 2026-11-16, commit `6f6bb0a` (call C742). On macOS `closed::port` of `pod-proxy`, `common::dead()` of `pod-warp` and the refused port of `cuts` of `pod-dns` are `127.0.0.1:1`. `cargo test --all-features`: `pod-proxy` 210 passed, `pod-dns` 77, `pod-warp` 209. `sh scripts/agent/check-macos.sh`: 0 faults. No test fails here without the fix, and no plant: the change is in the path of macOS alone. The next nightly proves macOS.
 
+
+# T-766: The nightly at `1739b5f` is red on riscv64: two time limits of tests that the emulation of QEMU outruns
+
+**Source:** nightly run 43817142905, job 133131677430 (`cross (riscv64gc-unknown-linux-musl, riscv64)`), beside T-761 and T-762.
+**Category:** defect
+**Milestone:** M5
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+Under qemu-user for riscv64, two tests failed that pass on each other
+target of the run:
+
+- `crates/pod-guest/src/ready/tests.rs`,
+  `a_black_screen_or_the_first_screen_again_is_not_ready`: "pointer: each
+  frame was read, and the last one again". The wait has 300 ms; under the
+  emulation the stand-in of the screen gives fewer dumps than the frames
+  and one more in that time.
+- `crates/pod-egress/tests/vless.rs`, `a_session_goes_over_a_websocket_and_each_mode_of_xhttp`
+  and `http1_alone_carries_packet_up_and_stream_up_on_two_connections`:
+  "the bytes within the limit: Elapsed(())" (the echo of the session in
+  `LIMIT * 2`).
+
+## Premise
+
+- Read: the log of the job (the two tests, the panics at
+  `ready/tests.rs:217` and `vless.rs:57`); the tests.
+- Not measured: the time that each step takes under the emulation of
+  riscv64; the tests pass on x86_64 here.
+
+## Approach
+
+Measure each step under qemu-user for riscv64 (`scripts/binfmt.sh`).
+The screen test waits for a count of dumps, not for a fixed 300 ms: the
+deadline grows until the stand-in gave each frame and one more, with a
+bound. The VLESS test takes its limit from one setting of the test kit
+for a slow target (the scale of the timers of QEMU, as the other cross
+jobs read it), with the reason in a comment. No check of the main target
+grows weaker.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features --lib -- ready::tests
+cargo test -p pod-egress --all-features --test vless
+```
