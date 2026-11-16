@@ -1,0 +1,6 @@
+# pod-enter: a join of an overlay run checks its working directory in the lower layer alone; the live test of the upper layer must fail where the joined exec is refused.
+ENTRY=T-750
+GROUP=enter
+EXPECT='[-]w of the upper layer alone in a joined exec'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

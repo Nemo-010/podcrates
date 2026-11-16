@@ -1,0 +1,5 @@
+# pod-enter: the view reads no opaque directory; the test of the view must fail where an entry under an opaque directory shows.
+ENTRY=T-750
+GROUP=enter
+EXPECT='test ns_upper::tests::the_view_shows_the_upper_layer_over_the_lower_one \.\.\. FAILED'
+RUN='cargo test -p pod-enter --all-features --lib ns_upper'

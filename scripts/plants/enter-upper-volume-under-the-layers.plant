@@ -1,0 +1,5 @@
+# pod-enter: the view reads the layers under a volume; the test of the volume must fail.
+ENTRY=T-750
+GROUP=enter
+EXPECT='test ns_upper::tests::a_volume_hides_both_layers \.\.\. FAILED'
+RUN='cargo test -p pod-enter --all-features --lib ns_upper'

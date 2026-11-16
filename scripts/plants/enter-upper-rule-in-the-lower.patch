@@ -1,0 +1,13 @@
+diff --git a/crates/pod-enter/src/launch.rs b/crates/pod-enter/src/launch.rs
+index 6f9bdaf2..cce12f6e 100644
+--- a/crates/pod-enter/src/launch.rs
++++ b/crates/pod-enter/src/launch.rs
+@@ -154,7 +154,7 @@ pub(crate) fn spawn_with(
+     // The confinement of the payload, compiled before the banner and the
+     // fork: the child opens the paths of its rules and applies it
+     // ([`crate::confine`]).
+-    let mut confined = crate::confine::compile(plan, chroot.then_some(root), upper)?;
++    let mut confined = crate::confine::compile(plan, chroot.then_some(root), None)?;
+     // The child puts each passed descriptor onto its number first: the
+     // root descriptor and the memfd move clear of each such number.
+     let mut moved = crate::pass_clear::Moved::default();

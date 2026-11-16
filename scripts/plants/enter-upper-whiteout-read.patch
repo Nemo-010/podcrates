@@ -1,0 +1,13 @@
+diff --git a/crates/pod-enter/src/ns_upper.rs b/crates/pod-enter/src/ns_upper.rs
+index 8e42206d..561d0651 100644
+--- a/crates/pod-enter/src/ns_upper.rs
++++ b/crates/pod-enter/src/ns_upper.rs
+@@ -73,7 +73,7 @@ impl View {
+ 
+ /// A whiteout of overlayfs: a character device 0:0.
+ fn whiteout(m: &std::fs::Metadata) -> bool {
+-    m.file_type().is_char_device() && m.rdev() == 0
++    m.file_type().is_char_device() && m.rdev() == 0 && false
+ }
+ 
+ /// Is the directory `dir` opaque? A directory that does not open (no read

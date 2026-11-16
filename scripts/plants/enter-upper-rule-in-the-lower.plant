@@ -1,0 +1,6 @@
+# pod-enter: the compile of the confinement reads the lower layer of an overlay root alone; the live test of the upper layer must fail where a rule on a directory of the upper layer alone is refused.
+ENTRY=T-750
+GROUP=enter
+EXPECT='a rule on a directory of the upper layer alone'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

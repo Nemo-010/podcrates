@@ -1,0 +1,13 @@
+diff --git a/crates/pod-enter/src/abi/search.rs b/crates/pod-enter/src/abi/search.rs
+index 72ac5363..11da3599 100644
+--- a/crates/pod-enter/src/abi/search.rs
++++ b/crates/pod-enter/src/abi/search.rs
+@@ -341,7 +341,7 @@ pub(crate) fn walk_in<G: GuestRoot + ?Sized>(root: &G, guest: &str) -> Result<(P
+         let mut probe = out.clone();
+         probe.push(p.clone());
+         let (disk, mount) = root.host_of(&probe);
+-        let read = if root.hidden(&probe) {
++        let read = if false {
+             Err(std::io::ErrorKind::NotFound.into())
+         } else if mount {
+             std::fs::metadata(&disk)

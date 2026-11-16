@@ -1,0 +1,5 @@
+# pod-enter: the view reads no whiteout; the test of the opener must fail where a rule on a whiteout opens.
+ENTRY=T-750
+GROUP=enter
+EXPECT='test ns_upper::tests::a_rule_opens_in_the_view \.\.\. FAILED'
+RUN='cargo test -p pod-enter --all-features --lib ns_upper'
