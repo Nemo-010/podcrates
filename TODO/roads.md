@@ -697,6 +697,13 @@ podssh, podssh-cli takes `pod-tor` with its feature `tor` and gives it
 Tor with Arti, each first hop and each transport of a bridge through the
 caller's way out, and an onion service.
 
+2026-11-16: `ci.yml` run 43914083793 at `3c2bcd5` failed in the step "Docs"
+of the job `lint`: the module document of `pod-tor` linked the private
+module `socks` (`rustdoc::private-intra-doc-links`); the checks of this
+entry ran `cargo doc` before the crate existed. The document names the
+file now (`125c5c0`), and `cargo doc` with `-D warnings` runs in the checks
+before each push.
+
 # T-039: `pod-ts`: a Tailscale node in the process
 
 **Source:** `docs/design.md`, section 4 (M4); `docs/decisions.md`, call
