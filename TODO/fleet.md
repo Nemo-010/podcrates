@@ -3652,7 +3652,7 @@ cargo test -p pod-lab --all-features
 **Milestone:** M8
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -3697,6 +3697,89 @@ cargo test -p pod-lab --all-features
 sh scripts/ci/userns-tests.sh
 sh scripts/plant-each.sh --group lab
 ```
+
+## Done
+
+2026-11-16, commits fbc0eead, 03fae0c6, 8af451f3 and the next one (local
+branch `net716`); calls C725 to C729.
+
+- `crates/pod-lab/src/net.rs` and `src/net/`: the network lab
+  (`Hold::LabNet(&Net)`, `LabFact::Net(NetFact)`). A network namespace with
+  no route out, in the user namespace of the mounts, its loopback up; a
+  stand-in process (two forks, a pidfd of the lab, one thread for each
+  connection) with a `CONNECT` proxy on `127.0.0.1:3128` and a TLS server
+  on port 443; two CAs made for each run (the pure provider of `pod-tls`,
+  rcgen); `SSL_CERT_FILE` and the variables of a proxy for the command;
+  the check of each fact from inside before the command.
+- How each profile is held, each with no root (a user namespace; as root a
+  network namespace alone):
+  - `proxy-only`: no direct route (`ENETUNREACH`); the stand-in proxy with
+    the made-up credential `podlab` (407 with none), the ports 443, 80 and
+    8443 (403 for port 22); UDP refused by the seccomp rules of
+    `udp-denied`. The credential is in `.github/secrets-allow.txt`.
+  - `proxy-tls-reterminate`: the proxy terminates TLS of `listed.test`
+    with its CA (in `SSL_CERT_FILE`), passes `other.test` to the CA of the
+    server, answers 200 and then no byte on port 22.
+  - `proxy-per-name`: 200 for `listed.test`, 504 for `other.test`, a reset
+    for `192.0.2.1`.
+  - `sni-allowlist`: no proxy; the server at `192.0.2.0/24:443` resets a
+    ClientHello for another name or with no name. Not held: the filter on
+    each address (T-747).
+  - `no-proxy-no-dns`: no proxy; `/etc/resolv.conf` with no server,
+    `/etc/hosts` with `localhost`, `hosts: files dns`; TLS to
+    `192.0.2.1:443` checks the address.
+  - `ws-upgrade-refused`: the proxy terminates TLS of `listed.test`, gives
+    200 to a plain `GET` and 403 to an upgrade.
+  - `ipv6-only`: `fd00:6c61:62::1` on the loopback, no IPv4 address but
+    the loopback. Held on a kernel with IPv6 (a runner of GitHub). This
+    host has no IPv6 (`socket(AF_INET6)` gives `EAFNOSUPPORT`): the run
+    refuses it with that reason, and the test checks the refusal. The held
+    path is not measured here. Not held: an IPv6 device with a default
+    route (T-747).
+  - Not held here: a route out of a lab to the real network (T-746 for
+    the proxy classes, T-747 for the direct classes).
+- The answer to podnet: what changed from
+  `PodUtils/podnet:docs/lab-profiles/` at `dbd432c` (C729). The needs became lab facts; their rows are T-745.
+  The names `good.lab` and `bad.lab` are `listed.test` and `other.test`;
+  `192.0.2.1` and `fd00:6c61:62::1` stay. `source` is `podssh, podnet` for
+  the five classes of podssh. `tls-reterminated` keeps podnet's two
+  observations and adds that the other CA does not take the chain.
+  `ssh-port-silent` waits 1 s, not 5 s. `answer-per-name` takes podnet's
+  reset of an IP literal; `sni-reset` podnet's listed name that passes;
+  `upgrade-refused` podnet's plain request that passes (403 for the
+  upgrade); `no-ipv4-route` podnet's `ENETUNREACH` and the loopback that
+  stays. `no-resolver` checks that `/etc/resolv.conf` names no server and
+  that `127.0.0.1:53` refuses a TCP connect, not a query of the server of
+  the file. `literal-reaches` is TLS to `192.0.2.1:443`, not `1.1.1.1`.
+  `ipv6-reaches` reaches the address on the loopback, with no dummy
+  device. Each part that podnet marked assumed ends its text with
+  "Assumed: WHAT" (C727): `tls-reterminated`, `ssh-port-silent`,
+  `answer-per-name` (the 504), `sni-reset`, `literal-reaches`,
+  `upgrade-refused`, `ipv6-reaches`. `ipv6-only` gets the about "no IPv4
+  route; IPv6 reaches out".
+- Tests: 30 unit tests (the table: one network lab for each class, the
+  assumed parts; the head of HTTP, the server name of a ClientHello of
+  rustls, `nsswitch.conf`); 6 of the binary (1 ignored), 4 of
+  `tests/cli.rs`; `tests/lab.rs` 26 cases, each as root and as uid 65534
+  (52 lines "ok"), with `tests/lab/net.rs`: each network class with a
+  payload that reads `HTTPS_PROXY` and `SSL_CERT_FILE`, then the removal of
+  the certificate file. `scripts/ci/userns-tests.sh`: passes, no skip.
+- Plants (group `lab`): 10 new (`lab-proxy-credential-ignored`,
+  `lab-proxy-own-ca-dropped`, `lab-silent-port-answers`,
+  `lab-sni-filter-open`, `lab-upgrade-passes`, `lab-literal-reset-dropped`,
+  `lab-resolver-file-kept`, `lab-outside-address-everywhere`,
+  `lab-proxy-variable-unset`, `lab-cert-file-left`), three patches written
+  again, one EXPECT changed; `plant-each.sh --group lab`: 33 caught;
+  `--apply`: 0 stale.
+- Static: `podlab` for `x86_64-unknown-linux-musl` (cargo zigbuild,
+  `SOURCE_DATE_EPOCH`): `check-static.sh`, `check-strings.py` and
+  `check-man.sh` pass; the static binary holds each network lab here but
+  `ipv6-only`.
+- `man/podlab.1` regenerated; `LANES.md`: the network classes are held
+  (stand-ins) in the lanes of podssh and podnet; the README has "A network
+  lab". T-702 (the installer) can now run in the network labs (C711).
+- Findings: T-745 (the probe rows), T-746 (a way out through the stand-in
+  proxy), T-747 (the direct classes on each address).
 
 # T-745: `pod-hostprobe`: the probe rows of the network classes (a CONNECT through the proxy, the CA of a handshake, a lookup, a direct connect, a ClientHello)
 
