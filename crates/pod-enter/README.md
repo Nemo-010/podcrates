@@ -144,8 +144,13 @@ The entries:
   work directories in it (the upper one with the mode of the lower root),
   and mounts overlayfs on the root path with `lowerdir=.`: the lower layer
   is the descriptor, not a path (`overlay_options`; `overlay_escape`
-  escapes `,`, `:` and `\` of a path). Then the rung goes on as for a
-  tree. The landing check asks for an overlay (`OVERLAYFS_SUPER_MAGIC`)
+  escapes `,`, `:` and `\` of a path). In a user namespace (the one
+  that the rung makes, or the one of a caller that is uid 0 of a user
+  namespace that is not the initial one) the mount has `userxattr`
+  (`USERXATTR`): overlayfs then reads and writes `user.overlay.*`, as it
+  cannot read `trusted.` there; a kernel before 5.11 refuses the option
+  (`EINVAL`), and the mount goes on without it. Then the rung goes on as
+  for a tree. The landing check asks for an overlay (`OVERLAYFS_SUPER_MAGIC`)
   whose device is not the device of the lower directory. A refusal at any
   step (an older kernel, a host policy, a lower layer that overlayfs does
   not take) is `Error::Overlay { step, errno }`, which names `overlay`,
@@ -156,8 +161,10 @@ The entries:
   the upper directory over the lower one, as overlayfs shows them
   (`ns_upper`, the rules of `pod-rootfs`): an entry of the upper layer
   hides the same name of the lower one, a whiteout (a character device
-  0:0) removes it, and a directory with `trusted.overlay.opaque` or
-  `user.overlay.opaque` set to `y` hides the lower one; a volume hides
+  0:0) removes it, and a directory whose opaque attribute is `y` hides
+  the lower one (`trusted.overlay.opaque` for a mount of a host root,
+  `user.overlay.opaque` for a mount with `userxattr`: the attribute that
+  the mount reads); a volume hides
   both layers. So `-w` or a rule on a path that only the upper directory
   holds passes, and a path that it removes is a refusal by name before
   the fork. A join of an overlay run reads the same view.
@@ -273,7 +280,7 @@ each entry takes; the payload owns the standard output.
 | `limits` | `Limit { resource, soft, hard }`, `Resource` (`from_word` of docker's `--ulimit` word, `word`, `number` of the kernel of this architecture, `name`), `INFINITY`, `MOST` (64): the child of each entry sets each limit (`prlimit64` on itself) and then `PR_SET_NO_NEW_PRIVS` where `Plan::no_new_privs` asks, after the root change and the `chdir`, before the exec; a refused call stops the payload and is named (`setrlimit(RLIMIT_NOFILE): EPERM`); `repeated` names the first resource that a list gives two times, and each entry refuses such a plan before the fork with `Error::LimitTwice`: the caller coalesces first (docker keeps the last value) |
 | `RootDir::open`, `Fds`, `Child`, `Bounded` | the held root; the descriptors of the payload (a passed descriptor onto the number of the root or of the memfd is refused before the fork; the readiness pipe moves clear of each passed number, and the child opens the paths of the rules of the confinement after the passes; a descriptor passed onto its own number loses its close-on-exec flag, so the payload holds it); a started payload (`wait`, `wait_forwarding`, `wait_bounded`) |
 | `spawn`, `run`, `spawn_ladder`, `run_ladder`, `spawn_userland`, `run_userland`, `spawn_namespace`, `run_namespace`, `spawn_namespace_root`, `run_namespace_root`, `spawn_joined`, `spawn_joined_root`, `spawn_selected`, `run_selected` | the entries; a `run_*` waits and forwards SIGINT and SIGTERM. `spawn_userland` and `run_userland` take `&Maps` after the plan: the working directory resolves through it before the fork, and a table whose root is not `root.path` is refused |
-| `Root` (`Tree(&RootDir)`, `Overlay { lower, upper }`, `dir`), `Upper` (`Tmpfs { size }`, 0 is the default of the kernel; `Dir { upper, work }`, both absolute), `overlay_escape`, `overlay_options`, `OVERLAY_OPTIONS_MOST` (4095: longer options are a refusal before the fork), `NS_OVERLAY_TMPFS_STEP`, `NS_OVERLAY_DIRS_STEP`, `NS_OVERLAY_STEP` | the overlay root of the namespace rung |
+| `Root` (`Tree(&RootDir)`, `Overlay { lower, upper }`, `dir`), `Upper` (`Tmpfs { size }`, 0 is the default of the kernel; `Dir { upper, work }`, both absolute), `overlay_escape`, `overlay_options`, `USERXATTR`, `OVERLAY_OPTIONS_MOST` (4095: longer options, with `USERXATTR`, are a refusal before the fork), `NS_OVERLAY_TMPFS_STEP`, `NS_OVERLAY_DIRS_STEP`, `NS_OVERLAY_STEP` | the overlay root of the namespace rung |
 | `check_exec(&plan, program)` | whether the confinement of the plan lets the program at a host path run on the entry with no chroot: `Ok` with no confinement or under an execute path, `Error::CannotInvoke` outside each one, `Error::NotFound` where the path does not resolve |
 | `ENTERED_RUNG`, `entered_rung`, `entered_word` | the rung that a selection of `pod_hostprobe::select` enters |
 | `check_workdir(&root, ..)` (`root` is a `GuestRoot`: a path or a `Maps`; a missing directory inside a volume names the volume `HOST:GUEST`, and the image otherwise), `ns_tmp_target`, `ns_fallback_line(&names, ..)`, `ns_setup_step`, `chroot_landed`, `NsMount` | the checks of the entries, pure where they can be |
@@ -462,6 +469,7 @@ in CI and fails on a skip. The plants `enter-userns-not-tried`,
 `enter-upper-rule-in-the-lower`, `enter-upper-hidden-read`,
 `enter-upper-volume-under-the-layers`, `enter-upper-join-in-the-lower`,
 `enter-upper-whiteout-read`, `enter-upper-opaque-read`,
+`enter-overlay-no-userxattr`, `enter-view-reads-both-opaque`,
 `enter-userns-ids-ignored` and `enter-userns-nested-ids-ignored` prove it.
 `tests/overlay_root.rs` is podvm's acceptance test of the overlay root
 (PodUtils/podvm#323) with an upper directory of the caller: the writes

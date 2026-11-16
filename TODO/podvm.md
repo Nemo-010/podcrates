@@ -8996,7 +8996,7 @@ call C738. Found: T-755.
 **Milestone:** M6
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -9033,6 +9033,26 @@ for each case.
 cargo test -p pod-enter --all-features
 sh scripts/ci/userns-tests.sh
 ```
+
+## Done
+
+2026-11-16. Measured on kernel 6.18 (python, `setxattr`, `mount -t overlay`
+as root and as uid 65534 in `unshare -Urm`): a mount of a host root with no
+`userxattr` reads `trusted.overlay.opaque` alone; a mount with `userxattr`
+reads `user.overlay.opaque` alone; a mount in a user namespace with no
+`userxattr` reads neither (a `trusted.` mark that root set does not hide the
+lower directory). Call C765. The overlay of the rung in a user namespace
+has `userxattr` (`ns_overlay::USERXATTR`; `OverlayMount::userxattr`: the
+namespace of the rung, or a caller that is uid 0 of a user namespace that
+is not the initial one); a kernel that refuses the option with `EINVAL`
+gets the mount with no such option. The check before the fork reads the one
+attribute that the mount reads (`ns_upper::UpperDir`, `NsEntry::upper`; a
+join reads the namespace of the run). Tests: `ns_upper::tests` (the mark of
+`user.` makes no opaque directory on a mount of a host root), and
+`tests/userns/upper.rs`, as root and as uid 65534: a payload on an overlay
+root does not see a file of the image under an opaque directory of the
+upper layer, and a rule on that path is refused before the fork. Plants
+`enter-overlay-no-userxattr`, `enter-view-reads-both-opaque`.
 
 # T-758: `pod-hostprobe`: `chroot_usable` takes the row of the leg through a user namespace as the caller's chroot (PodUtils/podvm#443)
 

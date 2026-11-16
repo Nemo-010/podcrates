@@ -89,8 +89,8 @@ pub use ns_dev_bind::{
 pub use ns_join::{NS_JOIN_USER_STEP, fdinfo_pid, other_user_namespace};
 pub use ns_optional::{NS_PROC_STEP, NS_PTS_STEP, ns_proc_refused, ns_proc_target, ns_pts_target, ns_refused_line};
 pub use ns_overlay::{
-    NS_OVERLAY_DIRS_STEP, NS_OVERLAY_STEP, NS_OVERLAY_TMPFS_STEP, OVERLAY_OPTIONS_MOST, Root, Upper, overlay_escape,
-    overlay_options, run_namespace_root, spawn_namespace_root,
+    NS_OVERLAY_DIRS_STEP, NS_OVERLAY_STEP, NS_OVERLAY_TMPFS_STEP, OVERLAY_OPTIONS_MOST, Root, USERXATTR, Upper,
+    overlay_escape, overlay_options, run_namespace_root, spawn_namespace_root,
 };
 pub use ns_proc_bind::{NS_PROC_BIND_STEP, NS_PROC_REMOUNT_STEP, proc_of_this_pid_namespace};
 pub use ns_user::{

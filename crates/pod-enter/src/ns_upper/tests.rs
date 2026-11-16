@@ -98,8 +98,10 @@ fn layers(tag: &str) -> Option<Layers> {
     made.then_some(l)
 }
 
+/// The view of a mount in a user namespace, with `userxattr`: the mark of
+/// `opaque_at` is the one that it reads.
 fn view(l: &Layers, volumes: Vec<VolumeBind>) -> View {
-    View::new(&l.root, &plan(volumes), Some(&l.upper))
+    View::new(&l.root, &plan(volumes), Some(UpperDir { path: &l.upper, userxattr: true }))
 }
 
 /// The upper layer adds and hides entries, a whiteout removes one, an
@@ -122,6 +124,10 @@ fn the_view_shows_the_upper_layer_over_the_lower_one() {
     if l.opaque {
         assert_eq!(resolve_in(&v, "/op/old"), Err(ResolveKind::Absent), "an entry under an opaque directory");
     }
+    // A mount of a host root reads `trusted.` alone: the mark of `user.`
+    // makes no opaque directory there.
+    let host_root = View::new(&l.root, &plan(Vec::new()), Some(UpperDir { path: &l.upper, userxattr: false }));
+    assert_eq!(resolve_in(&host_root, "/op/old"), Ok(lower.join("op/old")), "user. on a mount of a host root");
     // With no upper layer, the image alone.
     let bare = View::new(&l.root, &plan(Vec::new()), None);
     assert_eq!(resolve_dir_in(&bare, "/only"), Err(ResolveKind::Absent));
@@ -151,10 +157,12 @@ fn the_working_directory_is_checked_in_the_view() {
     let Some(l) = layers("workdir") else { return };
     let mut p = plan(Vec::new());
     p.working_dir = "/only".to_string();
-    assert!(crate::ns_volume::check_workdir(&l.root, &p, Some(&l.upper)).is_ok());
+    assert!(crate::ns_volume::check_workdir(&l.root, &p, Some(UpperDir { path: &l.upper, userxattr: true })).is_ok());
     assert!(crate::ns_volume::check_workdir(&l.root, &p, None).is_err(), "the image alone has no /only");
     p.working_dir = "/gonedir".to_string();
-    let e = crate::ns_volume::check_workdir(&l.root, &p, Some(&l.upper)).unwrap_err().to_string();
+    let e = crate::ns_volume::check_workdir(&l.root, &p, Some(UpperDir { path: &l.upper, userxattr: true }))
+        .unwrap_err()
+        .to_string();
     assert!(e.contains("\"/gonedir\"") && e.contains(&format!("under the upper layer {:?}", l.upper)), "{e}");
 }
 

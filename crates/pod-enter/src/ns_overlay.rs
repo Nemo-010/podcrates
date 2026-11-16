@@ -91,6 +91,18 @@ pub fn overlay_options(upper: &str, work: &str) -> String {
     format!("lowerdir=.,upperdir={},workdir={}", overlay_escape(upper), overlay_escape(work))
 }
 
+/// The option that makes overlayfs read and write its attributes as
+/// `user.overlay.*`: a mount in a user namespace cannot read `trusted.`,
+/// and with no `userxattr` it reads no opaque directory at all.
+pub const USERXATTR: &str = ",userxattr";
+
+/// Is the caller in a user namespace that is not the initial one? Its
+/// overlay mount then needs `userxattr` too. A map that cannot be read
+/// counts as the initial one: the mount keeps the options of a host root.
+pub(crate) fn caller_in_user_namespace() -> bool {
+    std::fs::read_to_string("/proc/self/uid_map").is_ok_and(|m| !pod_hostprobe::userns::is_initial_map(&m))
+}
+
 /// The tmpfs of the layers and its two directories, built before the fork.
 pub(crate) struct Staging {
     tmpfs: CBuf,
@@ -110,6 +122,10 @@ pub(crate) struct OverlayMount {
     staging: Option<Staging>,
     fstype: CBuf,
     options: CBuf,
+    /// [`OverlayMount::options`] with [`USERXATTR`].
+    options_userxattr: CBuf,
+    /// The caller is in a user namespace that is not the initial one.
+    caller_userns: bool,
     /// The upper directory of the caller (`Upper::Dir`).
     upper: Option<String>,
 }
@@ -144,26 +160,35 @@ impl OverlayMount {
             }
         };
         let options = overlay_options(&upper_path, &work_path);
-        if options.len() > OVERLAY_OPTIONS_MOST {
+        if options.len() + USERXATTR.len() > OVERLAY_OPTIONS_MOST {
             return Err(usage(format!(
                 "its options are {} bytes, and mount(2) takes at most {OVERLAY_OPTIONS_MOST}",
-                options.len()
+                options.len() + USERXATTR.len()
             )));
         }
         let upper = staging.is_none().then_some(upper_path);
-        Ok(OverlayMount { staging, fstype: cbuf("overlay")?, options: cbuf(&options)?, upper })
+        let options_userxattr = cbuf(&format!("{options}{USERXATTR}"))?;
+        let (fstype, options) = (cbuf("overlay")?, cbuf(&options)?);
+        let caller_userns = caller_in_user_namespace();
+        Ok(OverlayMount { staging, fstype, options, options_userxattr, caller_userns, upper })
     }
 
     /// The upper directory of the caller, where the upper layer is one.
     pub(crate) fn upper_dir(&self) -> Option<&str> {
         self.upper.as_deref()
     }
+
+    /// Does the mount have `userxattr`: in the user namespace of the rung
+    /// (`user`), or in the one of the caller?
+    pub(crate) fn userxattr(&self, user: bool) -> bool {
+        user || self.caller_userns
+    }
 }
 
 /// Mount the overlay on `target`, the root path, in the child: no
 /// allocation. The working directory is the lower descriptor, set before
 /// the unshare. `Err` gives the step byte and the errno.
-pub(crate) fn mount(m: &OverlayMount, target: &CBuf) -> std::result::Result<(), (u8, Errno)> {
+pub(crate) fn mount(m: &OverlayMount, target: &CBuf, user: bool) -> std::result::Result<(), (u8, Errno)> {
     if let Some(s) = &m.staging {
         sys::mount_data(&s.tmpfs, target, &s.tmpfs, 0, &s.data).map_err(|e| (NS_OVERLAY_TMPFS_STEP, e))?;
         for dir in [&s.upper, &s.work] {
@@ -174,6 +199,14 @@ pub(crate) fn mount(m: &OverlayMount, target: &CBuf) -> std::result::Result<(), 
         // An owner with no map in the namespace is EINVAL: the root then
         // keeps the owner of the namespace, as a tree that the run fills.
         let _ = sys::fchownat(sys::AT_FDCWD as i64, &s.upper, s.uid, s.gid, 0);
+    }
+    // A kernel before 5.11 has no `userxattr` (EINVAL): the mount then
+    // goes on with no such option, and reads no opaque directory.
+    if m.userxattr(user) {
+        match sys::mount_data(&m.fstype, target, &m.fstype, 0, &m.options_userxattr) {
+            Err(e) if e == sys::EINVAL => {}
+            r => return r.map(drop).map_err(|e| (NS_OVERLAY_STEP, e)),
+        }
     }
     sys::mount_data(&m.fstype, target, &m.fstype, 0, &m.options).map_err(|e| (NS_OVERLAY_STEP, e))?;
     Ok(())

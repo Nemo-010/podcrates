@@ -256,7 +256,7 @@ pub(crate) fn spawn_with(
                 // The overlay root on the root path, before each mount
                 // under it (`ns_overlay`).
                 if let Some(o) = &m.overlay
-                    && let Err((step, e)) = crate::ns_overlay::mount(o, &rootpath)
+                    && let Err((step, e)) = crate::ns_overlay::mount(o, &rootpath, m.user.is_some())
                 {
                     report(step, e);
                 }

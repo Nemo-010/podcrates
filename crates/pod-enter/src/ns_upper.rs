@@ -6,8 +6,12 @@
 //! The rules of overlayfs, as `pod-rootfs` reads a root of two layers: an
 //! entry of the upper layer hides the same name of the lower layer; a
 //! whiteout (a character device 0:0) hides the name; a directory of the
-//! upper layer with `trusted.overlay.opaque` or `user.overlay.opaque` set to
-//! `y` hides each entry of the lower layer under it. A volume hides both
+//! upper layer whose opaque attribute is `y` hides each entry of the lower
+//! layer under it. The attribute is the one that the mount reads:
+//! `trusted.overlay.opaque` for a mount of a host root,
+//! `user.overlay.opaque` for a mount in a user namespace, which has
+//! `userxattr` (`ns_overlay`). A mount in a user namespace with no
+//! `userxattr` reads neither (kernel 6.18). A volume hides both
 //! layers at its guest path, as the child binds it over the merged root.
 //! `Upper::Tmpfs` has no upper directory here: its upper layer starts
 //! empty, so the lower layer is the view.
@@ -22,9 +26,21 @@ use crate::abi::GuestRoot;
 use crate::userland::Maps;
 use crate::{Plan, RootDir};
 
-/// The attributes that mark an opaque directory of overlayfs: `trusted.`
-/// for a mount of root, `user.` for a mount with `userxattr`.
-const OPAQUE: [&str; 2] = ["trusted.overlay.opaque", "user.overlay.opaque"];
+/// The upper directory of an overlay root, and whether its mount has
+/// `userxattr`: the mount then reads `user.overlay.opaque`, else
+/// `trusted.overlay.opaque`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct UpperDir<'a> {
+    pub(crate) path: &'a str,
+    pub(crate) userxattr: bool,
+}
+
+impl UpperDir<'_> {
+    /// The attribute of an opaque directory that the mount reads.
+    fn opaque(&self) -> &'static str {
+        if self.userxattr { "user.overlay.opaque" } else { "trusted.overlay.opaque" }
+    }
+}
 
 /// The guest root of the checks before the fork.
 pub(crate) struct View {
@@ -32,13 +48,19 @@ pub(crate) struct View {
     maps: Maps,
     /// The upper directory of an overlay root.
     upper: Option<PathBuf>,
+    /// The attribute of an opaque directory that the mount reads.
+    opaque: &'static str,
 }
 
 impl View {
     /// The view of `root` with the volumes of `plan` and the upper
     /// directory `upper`, where the root is an overlay with one.
-    pub(crate) fn new(root: &RootDir, plan: &Plan, upper: Option<&str>) -> View {
-        View { maps: Maps::of_binds(&root.path, &plan.volumes), upper: upper.map(PathBuf::from) }
+    pub(crate) fn new(root: &RootDir, plan: &Plan, upper: Option<UpperDir<'_>>) -> View {
+        View {
+            maps: Maps::of_binds(&root.path, &plan.volumes),
+            upper: upper.map(|u| PathBuf::from(u.path)),
+            opaque: upper.map_or("trusted.overlay.opaque", |u| u.opaque()),
+        }
     }
 
     /// The host path that the two layers show at `parts`, or `None` where
@@ -47,6 +69,7 @@ impl View {
     fn merged(&self, upper: &Path, parts: &[String]) -> Option<PathBuf> {
         let lower = self.maps.root().to_path_buf();
         let Some((last, dirs)) = parts.split_last() else { return Some(lower) };
+        let opaque = |dir: &Path| opaque(dir, self.opaque);
         let mut layers = (Some(upper.to_path_buf()), (!opaque(upper)).then_some(lower));
         for name in dirs {
             let (path, m, in_upper) = entry(&layers, name)?;
@@ -76,17 +99,15 @@ fn whiteout(m: &std::fs::Metadata) -> bool {
     m.file_type().is_char_device() && m.rdev() == 0
 }
 
-/// Is the directory `dir` opaque? A directory that does not open (no read
-/// permission) is not.
-fn opaque(dir: &Path) -> bool {
+/// Is the directory `dir` opaque by the attribute `attr`? A directory that
+/// does not open (no read permission) is not.
+fn opaque(dir: &Path, attr: &str) -> bool {
     let Some(c) = CBuf::from_bytes(dir.as_os_str().as_bytes()) else { return false };
     let Ok(fd) = sys::open(&c, sys::O_RDONLY | sys::O_DIRECTORY | sys::O_NOFOLLOW | sys::O_CLOEXEC, 0) else {
         return false;
     };
-    let set = OPAQUE.iter().any(|n| {
-        let mut b = [0u8; 2];
-        CBuf::new(n).is_some_and(|c| sys::fgetxattr(fd, &c, &mut b) == Ok(1) && b[0] == b'y')
-    });
+    let mut b = [0u8; 2];
+    let set = CBuf::new(attr).is_some_and(|c| sys::fgetxattr(fd, &c, &mut b) == Ok(1) && b[0] == b'y');
     let _ = sys::close(fd);
     set
 }

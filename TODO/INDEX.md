@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**628 entries: 125 open, 14 partial, 6 blocked, 483 done.**
+**628 entries: 124 open, 14 partial, 6 blocked, 484 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 143 | 162 |
 | P2 | 59 | 3 | 4 | 249 | 315 |
-| P3 | 55 | 3 | 2 | 89 | 149 |
-| **All** | 125 | 14 | 6 | 483 | 628 |
+| P3 | 54 | 3 | 2 | 90 | 149 |
+| **All** | 124 | 14 | 6 | 484 | 628 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -642,7 +642,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-747](fleet.md) | P3 | M | M8 | feature | done | `pod-lab`: the direct network classes on each address: an SNI filter by `nf_tables`, an IPv6 device with a default route |
 | [T-750](podvm.md) | P2 | M | M6 | defect | done | `pod-enter`: on an overlay root with an upper directory, the working directory and the paths of the rules are checked in the lower layer alone |
 | [T-751](fleet.md) | P3 | M | M8 | feature | done | `pod-hostprobe`: the rows of the network classes that send a packet out, behind a setting of the caller that is off by default |
-| [T-755](podvm.md) | P3 | S | M6 | measurement | open | `pod-enter`: the opaque attribute that overlayfs reads on an overlay root in a user namespace is not measured |
+| [T-755](podvm.md) | P3 | S | M6 | measurement | done | `pod-enter`: the opaque attribute that overlayfs reads on an overlay root in a user namespace is not measured |
 | [T-756](fleet.md) | P3 | S | M8 | feature | done | `pod-manual`: the model has no rule "needs one of" for clap's `requires` of a group |
 | [T-757](transport.md) | P2 | S | M1 | defect | done | `pod-term`: the tmux oracle of the calibration test fails at random with "server exited unexpectedly" |
 | [T-758](podvm.md) | P1 | S | M6 | defect | done | `pod-hostprobe`: `chroot_usable` takes the row of the leg through a user namespace as the caller's chroot (PodUtils/podvm#443) |

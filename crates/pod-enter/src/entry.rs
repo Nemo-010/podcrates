@@ -167,11 +167,18 @@ impl<'a> NsEntry<'a> {
     }
 
     /// The upper directory of the caller of an overlay root
-    /// (`Upper::Dir`): the checks before the fork read it over the image.
-    pub(crate) fn upper(&self) -> Option<&'a str> {
-        match *self {
-            NsEntry::Own(m) => m.overlay.as_ref().and_then(|o| o.upper_dir()),
-            NsEntry::Join(_, upper) => upper,
+    /// (`Upper::Dir`), with the attribute of an opaque directory that its
+    /// mount reads: the checks before the fork read it over the image.
+    pub(crate) fn upper(&self) -> Option<crate::ns_upper::UpperDir<'a>> {
+        match self {
+            NsEntry::Own(m) => m.overlay.as_ref().and_then(|o| {
+                let userxattr = o.userxattr(m.user.is_some());
+                o.upper_dir().map(|path| crate::ns_upper::UpperDir { path, userxattr })
+            }),
+            NsEntry::Join(j, upper) => {
+                let userxattr = j.user || crate::ns_overlay::caller_in_user_namespace();
+                upper.map(|path| crate::ns_upper::UpperDir { path, userxattr })
+            }
         }
     }
 }

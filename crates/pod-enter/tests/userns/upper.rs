@@ -27,6 +27,27 @@ fn layers(root: &Path, vols: &Path) -> (String, String) {
     (upper.to_str().unwrap().to_string(), work.to_str().unwrap().to_string())
 }
 
+/// The image gets `/op/old`; the upper directory gets `op/` with the opaque
+/// attribute that the mount reads (T-755): `trusted.` for a host root,
+/// `user.` in a user namespace, where the mount has `userxattr`. False
+/// where the file system takes no such attribute.
+fn opaque_dir(root: &Path, upper: &str) -> bool {
+    fs::create_dir_all(root.join("op")).unwrap();
+    fs::write(root.join("op/old"), "old").unwrap();
+    let op = Path::new(upper).join("op");
+    fs::create_dir_all(&op).unwrap();
+    let initial = fs::read_to_string("/proc/self/uid_map").is_ok_and(|m| pod_hostprobe::userns::is_initial_map(&m));
+    let attr = if nobody::is_root() && initial { "trusted.overlay.opaque" } else { "user.overlay.opaque" };
+    let c = sys::CBuf::new(op.to_str().unwrap()).unwrap();
+    let fd = sys::open(&c, sys::O_RDONLY | sys::O_DIRECTORY | sys::O_CLOEXEC, 0).unwrap();
+    let set = sys::fsetxattr(fd, &sys::CBuf::new(attr).unwrap(), b"y", 0).is_ok();
+    let _ = sys::close(fd);
+    if !set {
+        skip_line(&format!("no {attr} on the tmpfs of the volumes"));
+    }
+    set
+}
+
 fn spec() -> Spec {
     Spec::new().allow("/bin", Access::READ | Access::EXECUTE).allow("/only", Access::READ | Access::WRITE)
 }
@@ -85,6 +106,24 @@ pub fn layered(root: &Path, vols: &Path) {
             "a rule on a path that a whiteout removes: {code:?}"
         );
         assert!(!err.contains("the banner"), "the refusal of the rule came after the banner: {err}");
+    }
+
+    // An opaque directory of the upper layer hides the image under it, in
+    // the payload's view and in the check before the fork (T-755).
+    if opaque_dir(root, &upper) {
+        let mut p = plan("test -e /op/old && exit 28; exit 0", None);
+        p.working_dir = "/op".to_string();
+        let (code, err) = run(overlay, &p);
+        assert_eq!(code, Ok(0), "the payload sees a file under an opaque directory as {who}: {err}");
+        if landlock.is_ok() {
+            let mut p = plan("exit 0", None);
+            p.confine = Some(spec().allow("/op/old", Access::READ));
+            let (code, _) = run(overlay, &p);
+            assert!(
+                code.as_ref().is_err_and(|e| e.contains("\"/op/old\"") && e.contains("does not exist")),
+                "a rule on a path under an opaque directory as {who}: {code:?}"
+            );
+        }
     }
 
     // A volume over a directory of the upper layer wins: `/only/sub` is in

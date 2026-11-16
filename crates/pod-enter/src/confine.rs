@@ -35,7 +35,11 @@ pub(crate) const STEP: u8 = 15;
 /// not cover the tmpfs that the namespace rung mounts on `/tmp`. No
 /// descriptor of a rule crosses the fork, so a passed descriptor takes the
 /// number of no rule.
-pub(crate) fn compile(plan: &Plan, root: Option<&RootDir>, upper: Option<&str>) -> Result<Option<Compiled>> {
+pub(crate) fn compile(
+    plan: &Plan,
+    root: Option<&RootDir>,
+    upper: Option<crate::ns_upper::UpperDir<'_>>,
+) -> Result<Option<Compiled>> {
     let Some(spec) = &plan.confine else { return Ok(None) };
     let abi = pod_confine::check()?;
     let mut compiled = match root {
