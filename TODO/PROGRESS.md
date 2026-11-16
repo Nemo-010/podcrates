@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 598 entries: 115 open, 15 partial, 6 blocked, 462 done.
+`TODO/INDEX.md` holds 599 entries: 115 open, 15 partial, 6 blocked, 463 done.
 
 ## State
 
@@ -9,7 +9,7 @@
   43797570607, adoption 43797574794, release 43800608238; the request
   #205): T-716, T-714, T-715, T-745, T-726, T-750. The hand-off is
   COORD-119 (#206).
-- In release: `v0.61.0` (`docs/releases/v0.61.0.md`): T-746, T-751, T-757;
+- In release: `v0.61.0` (`docs/releases/v0.61.0.md`): T-746, T-751, T-757, T-758;
   T-717 and T-718 (partial: the first run of the signature and of the job
   `install-os`).
 - The consumers and their tags (the details of each take are on its

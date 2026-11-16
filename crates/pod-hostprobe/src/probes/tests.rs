@@ -140,6 +140,12 @@ fn only_an_ok_chroot_promises_entry() {
     assert!(!chroot_usable(&findings(vec![(chroot, Outcome::denied(crate::sys::Errno(1)))])));
     assert!(!chroot_usable(&findings(vec![(chroot, Outcome::skip(None, "nope"))])));
     assert!(!chroot_usable(&findings(vec![])));
+    // The leg through a user namespace is no chroot of the caller
+    // (PodUtils/podvm#443).
+    let leg = (USERNS_CHROOT, Outcome::ok());
+    assert!(!chroot_usable(&findings(vec![(chroot, Outcome::denied(crate::sys::Errno(1))), leg.clone()])));
+    assert!(!chroot_usable(&findings(vec![leg.clone()])));
+    assert!(chroot_usable(&findings(vec![(chroot, Outcome::ok()), leg])));
 }
 
 /// The FUSE row is a Census leg in the outer environment before

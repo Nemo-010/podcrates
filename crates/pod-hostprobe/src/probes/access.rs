@@ -114,9 +114,11 @@ pub(super) fn p_creat_toplevel() -> Outcome {
 /// One home for the question that a run, a create and a start all ask before
 /// a fixup changes the rootfs: only the chroot row with an `Ok` verdict
 /// promises entry. A `Skip` never ran, so it promises nothing; a `Denied`
-/// row is the refusal itself.
+/// row is the refusal itself. The row of the caller's own chroot alone: the
+/// leg through a user namespace ([`super::USERNS_CHROOT`]) is another
+/// driver, which a caller reads by its name.
 pub fn chroot_usable(findings: &crate::Findings) -> bool {
-    findings.rows.iter().any(|(n, out)| n.starts_with("chroot(") && matches!(out.verdict, crate::verdict::Verdict::Ok))
+    findings.rows.iter().any(|(n, out)| *n == super::CHROOT && matches!(out.verdict, crate::verdict::Verdict::Ok))
 }
 
 /// Whether `-t` may promise a pty.

@@ -9033,3 +9033,52 @@ for each case.
 cargo test -p pod-enter --all-features
 sh scripts/ci/userns-tests.sh
 ```
+
+# T-758: `pod-hostprobe`: `chroot_usable` takes the row of the leg through a user namespace as the caller's chroot (PodUtils/podvm#443)
+
+**Source:** PodUtils/podvm#443 (COORD-150 of podvm; PodUtils/podvm@T-1921).
+**Category:** defect
+**Milestone:** M6
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+podvm: "`probes::chroot_usable` takes each row whose name starts with
+`chroot(`. On a host that refuses `chroot` to the caller (`chroot(/tmp)` =
+EPERM) but opens a user namespace, the leg passes, so `chroot_usable` is
+true." As uid 1000, `podvm exec` of a stopped run took the chroot sequence
+and exited 125 with "chroot into the rootfs failed with EPERM"; each other
+caller of `chroot_usable` in podvm got the same wrong answer. The row
+`USERNS_CHROOT` of T-744 (`v0.59.0`) starts with `chroot(`.
+
+## Premise
+
+- Read: PodUtils/podvm#443; `crates/pod-hostprobe/src/probes/access.rs`
+  (`chroot_usable`); the rows of `crates/pod-hostprobe/src/probes.rs`.
+- Not measured: the host of podvm; the defect is in the match of the name.
+
+## Approach
+
+`chroot_usable` reads the row of the caller's own chroot alone, by the new
+constant `probes::CHROOT`. A caller that wants the leg reads
+`USERNS_CHROOT` by name. A test with the leg `Ok` and the caller's row
+denied expects false.
+
+## Prove
+
+```sh
+cargo test -p pod-hostprobe --all-features --lib -- probes::tests::only_an_ok_chroot_promises_entry --exact
+sh scripts/plant-each.sh hostprobe-chroot-usable-takes-the-leg
+```
+
+## Done
+
+2026-11-16. `probes::CHROOT` (`chroot(/tmp)`) and `chroot_usable` that
+matches it alone. `only_an_ok_chroot_promises_entry` adds the leg: the leg
+`Ok` with the caller's row denied, and the leg alone, give false; both `Ok`
+give true. Here: `cargo test -p pod-hostprobe --all-features --lib` (174
+unit tests). The plant `hostprobe-chroot-usable-takes-the-leg` is caught.
+podvm removes its shadow of the function (PodUtils/podvm@T-1921) at the tag
+that carries it, `v0.61.0`.

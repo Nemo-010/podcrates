@@ -169,7 +169,7 @@ pub static PROBES: &[Probe] = &[
             kind: Kind::Child { ns_flags: 0, body: p_lchown_0_42 } },
     Probe { name: "chown(f,1000,0)", group: Group::Census,
             kind: Kind::Child { ns_flags: 0, body: p_chown_1000_0 } },
-    Probe { name: "chroot(/tmp)", group: Group::Census,
+    Probe { name: CHROOT, group: Group::Census,
             kind: Kind::Child { ns_flags: 0, body: p_chroot } },
     Probe { name: "memfd_create", group: Group::Census,
             kind: Kind::Child { ns_flags: 0, body: p_memfd } },
@@ -345,6 +345,9 @@ pub static PROBES: &[Probe] = &[
 /// [`crate::userns::enter`], then `unshare(CLONE_NEWNS)`, `/` private and a
 /// tmpfs on `/tmp`. [`crate::select`] reads it through this name.
 pub const USERNS_LEG: &str = "mount(tmpfs,/tmp) in unshare(NEWUSER+maps,NEWNS)";
+
+/// The row of the caller's own chroot ([`chroot_usable`]).
+pub const CHROOT: &str = "chroot(/tmp)";
 
 /// `chroot(/tmp)` after the sequence of [`crate::userns::enter`]: what a
 /// driver with no root gets, where the row `chroot(/tmp)` of the caller

@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**598 entries: 115 open, 15 partial, 6 blocked, 462 done.**
+**599 entries: 115 open, 15 partial, 6 blocked, 463 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 7 | 0 | 131 | 149 |
+| P1 | 11 | 7 | 0 | 132 | 150 |
 | P2 | 50 | 5 | 4 | 242 | 301 |
 | P3 | 54 | 3 | 2 | 87 | 146 |
-| **All** | 115 | 15 | 6 | 462 | 598 |
+| **All** | 115 | 15 | 6 | 463 | 599 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -645,3 +645,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-755](podvm.md) | P3 | S | M6 | measurement | open | `pod-enter`: the opaque attribute that overlayfs reads on an overlay root in a user namespace is not measured |
 | [T-756](fleet.md) | P3 | S | M8 | feature | open | `pod-manual`: the model has no rule "needs one of" for clap's `requires` of a group |
 | [T-757](transport.md) | P2 | S | M1 | defect | done | `pod-term`: the tmux oracle of the calibration test fails at random with "server exited unexpectedly" |
+| [T-758](podvm.md) | P1 | S | M6 | defect | done | `pod-hostprobe`: `chroot_usable` takes the row of the leg through a user namespace as the caller's chroot (PodUtils/podvm#443) |
