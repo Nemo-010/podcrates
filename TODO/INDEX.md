@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**628 entries: 126 open, 14 partial, 6 blocked, 482 done.**
+**628 entries: 125 open, 14 partial, 6 blocked, 483 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 143 | 162 |
 | P2 | 59 | 3 | 4 | 249 | 315 |
-| P3 | 56 | 3 | 2 | 88 | 149 |
-| **All** | 126 | 14 | 6 | 482 | 628 |
+| P3 | 55 | 3 | 2 | 89 | 149 |
+| **All** | 125 | 14 | 6 | 483 | 628 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -639,7 +639,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-744](podvm.md) | P2 | S | M6 | feature | done | `pod-hostprobe`: the row `chroot(/tmp) in unshare(NEWUSER+maps)`, the chroot of a driver with no root (PodUtils/podrunner#191) |
 | [T-745](fleet.md) | P2 | M | M8 | feature | done | `pod-hostprobe`: the probe rows of the network classes (a CONNECT through the proxy, the CA of a handshake, a lookup, a direct connect, a ClientHello) |
 | [T-746](fleet.md) | P2 | M | M8 | feature | done | `pod-lab`: a way out through the stand-in proxy of a proxy class, for the live lanes of the consumers |
-| [T-747](fleet.md) | P3 | M | M8 | feature | open | `pod-lab`: the direct network classes on each address: an SNI filter by `nf_tables`, an IPv6 device with a default route |
+| [T-747](fleet.md) | P3 | M | M8 | feature | done | `pod-lab`: the direct network classes on each address: an SNI filter by `nf_tables`, an IPv6 device with a default route |
 | [T-750](podvm.md) | P2 | M | M6 | defect | done | `pod-enter`: on an overlay root with an upper directory, the working directory and the paths of the rules are checked in the lower layer alone |
 | [T-751](fleet.md) | P3 | M | M8 | feature | done | `pod-hostprobe`: the rows of the network classes that send a packet out, behind a setting of the caller that is off by default |
 | [T-755](podvm.md) | P3 | S | M6 | measurement | open | `pod-enter`: the opaque attribute that overlayfs reads on an overlay root in a user namespace is not measured |

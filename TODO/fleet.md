@@ -4076,7 +4076,7 @@ cargo test -p pod-lab --all-features --test lab
 **Milestone:** M8
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -4115,6 +4115,27 @@ the default route in the lab, `ipv6-reaches` also reads the row
 ```sh
 cargo test -p pod-lab --all-features --test lab
 ```
+
+## Done
+
+2026-11-16, `7a6ddbe` (with the plants `30902f9`, `683ca7c`). The Approach
+changed for the filter (call C764): a local route of `0.0.0.0/0` on the
+loopback of the lab (`RTM_NEWROUTE`, table `local`), not `nf_tables`;
+`Net::each_v4`. A ClientHello to port 443 of each IPv4 address reaches the
+stand-in filter; another port gets `ECONNREFUSED`. `ipv6-only` makes the
+dummy device `lab0` (`RTM_NEWLINK`) with `fd00:6c61:62::2/64`
+(`RTM_NEWADDR`, no duplicate address detection) and the IPv6 default route
+through it (`RTM_NEWROUTE`); the part `ipv6-reaches` reads the row
+`read(/proc/net/ipv6_route)` with `default` 1. The netlink requests are in
+`crates/pod-lab/src/net/link.rs`, with three unit tests. The lab checks
+`NetFact::HelloElsewhere` at `198.51.100.7:443` (the listed name passes,
+no name is reset); the payloads of `tests/lab/net.rs` check the other
+address and the IPv6 default route on a device that is not the loopback.
+Here: `cargo test -p pod-lab --all-features` passes as root and as uid
+65534 (`ipv6-only` refuses here: no IPv6 in this kernel). CI at `bd2eef6`
+(job `test`, `scripts/ci/userns-tests.sh`): "ipv6-only: ok" and
+"sni-allowlist: ok" on the runner. Plant `lab-sni-filter-lab-addresses-only`
+(the route left out) is caught by the check of `sni-reset`.
 
 # T-751: `pod-hostprobe`: the rows of the network classes that send a packet out, behind a setting of the caller that is off by default
 
