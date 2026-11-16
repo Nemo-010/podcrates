@@ -125,20 +125,22 @@ both, PodUtils/podssh@T-280).
 | Consumer | Old path | New path |
 | --- | --- | --- |
 | podssh | `podssh_iroh::{..}` | `pod_iroh::{..}`, the same names |
-| podssh | `Options { proxy: ProxyChoice::FromEnvironment, trust, .. }`, `Options::default()` | `Options { tls, resolve, proxy: ProxyChoice::FromEnvironment(Environment::read(..)), trust, .. }`, `Options::new(tls, resolve)`: podssh's TLS context, resolver and proxy choice |
-| podssh | `relays::home(relays, trust, &proxy)`, `relays::ping(.., &proxy, ..)` | `relays::home(relays, trust, &way)`, `relays::ping(.., &way, ..)` |
+| podssh | `Options { proxy: ProxyChoice::FromEnvironment, trust, .. }`, `Options::default()` | `Options::new(podssh_ws::tls::context().clone(), podssh_ws::resolve::resolver())` with `proxy = podssh_ws::dial::settings(&ProxyChoice::FromEnvironment, false).proxy` (a `pod_proxy::ProxyChoice::FromEnvironment` of the process's variables), `udp`, `quic`, then `relays`, `trust`, `secret`, `accepts`: one function of podssh-cli (`iroh_way::options`) |
+| podssh | `relays::home(relays, trust, &proxy)`, `relays::ping(.., &proxy, ..)`, `relays::ping_kept(.., &proxy, ..)` | `relays::home(relays, trust, &way)`, `relays::ping(.., &way, ..)`, `relays::ping_kept(.., &way, ..)`; the way is `podssh_ws::client::way(&ProxyChoice::FromEnvironment)` |
 | podssh | `pkarr::{publish, lookup, keep, keep_roads}(.., proxy, ..)`, `Finder::new(server, trust, proxy)` | the same with `way` (`pod_ws::Way`) |
 | podssh | `version::{refusal, online}(.., &proxy)`, `version::notice(relay, words)` | `(.., &way, REMEDY)`, `notice(relay, words, REMEDY)`: podssh keeps its words ("podssh update brings a newer podssh, or --iroh-relay URL names a relay that serves this one") |
-| podssh | `keys::load(place, entropy)` | `keys::load(places, place, entropy)` (`pod_core::files::Places` of podssh) |
-| podssh | `Udp::from_environment()` | `Udp::from_value(var(UDP_ENV).as_deref())` |
-| podssh | `Tuning::from_environment()`, `BindError::Quic` | `Tuning::from_value(var(QUIC_ENV).as_deref())` before `Options::quic`, podssh's own error |
-| podssh | `relays::from_environment(flag)` | `relays::select(flag, var(relays::ENV))` |
-| podssh | `pkarr::choose(relays)`, `pkarr::choice_from_environment()` | `pkarr::server_for(&pkarr::choice(var(pkarr::ENV).as_deref())?, relays)` |
+| podssh | `keys::load(place, entropy)` | `keys::load(places, place, entropy)`: `podssh_relay::cache::pod_places()`, also in the tests of podssh-cli |
+| podssh | `Udp::from_environment()` | `Udp::from_value(var("PODSSH_IROH_UDP").as_deref())` |
+| podssh | `Tuning::from_environment()`, `BindError::Quic` | `Tuning::from_value(var("PODSSH_IROH_QUIC").as_deref())` before `Options::quic`, podssh's own error ("the QUIC settings of the iroh road: ..."); `None` is the default arm, not the variable |
+| podssh | `relays::from_environment(flag)` | `relays::select(flag, var("PODSSH_IROH_RELAY"))` |
+| podssh | `pkarr::choose(relays)`, `pkarr::choice_from_environment()` | `pkarr::server_for(&pkarr::choice(var("PODSSH_IROH_PKARR").as_deref())?, relays)` |
+| podssh | the variables, read in podssh-iroh | read by name in podssh-cli, as the test of the manual's facts finds a variable by its quoted name; a unit test compares each name with `relays::ENV`, `pkarr::ENV`, `endpoint::UDP_ENV`, `tuning::QUIC_ENV`. The scan of the facts reads that file only in a build with the feature `iroh` |
 | podssh | `far::serve(..)` with podssh's `budget::told()` | `far::serve_kept(.., Arc::new(Keeper::new(deadline).with_tell(told())))` |
 | podssh | `record.pinggy: podssh_relay::pinggy::Address` | `pod_iroh::pinggy::Address`: podssh's `Address::parse(&address.to_string())` |
 | podssh | `resolve::Podssh` | `resolve::Chain::new(resolver)` |
-| podssh | `iroh` with `tls-aws-lc-rs` in podssh-cli's tests | `tls-ring`, or none: the endpoint takes podssh's provider |
-| podssh | `crates/podssh-iroh/tests/`, `vendor/iroh-relay`, `vendor/patches/iroh-relay`, the `[patch.crates-io]` of its root | the tests of this crate; the fork and the `[patch.crates-io]` of podcrates' root. podssh keeps a `[patch.crates-io] iroh-relay` of its own (a `[patch]` of a git dependency does not reach its consumer): `{ git = "https://github.com/PodUtils/podcrates", tag = "vX.Y.Z" }` |
+| podssh | `iroh` with `tls-aws-lc-rs` in podssh-cli's dependencies (the types) | no TLS feature: this crate takes `tls-ring`, and the endpoint takes podssh's provider. podssh-cli takes `pod-ws` too, for the type of the way |
+| podssh | `crates/podssh-iroh/tests/`, `vendor/iroh-relay`, `vendor/patches/iroh-relay`, the `[patch.crates-io]` of its root | the tests of this crate; the fork and the `[patch.crates-io]` of podcrates' root. podssh keeps a `[patch.crates-io] iroh-relay` of its own (a `[patch]` of a git dependency does not reach its consumer): `{ git = "https://github.com/PodUtils/podcrates", tag = "vX.Y.Z" }`. Cargo finds the package in `vendor/iroh-relay`, which the workspace of podcrates excludes (measured, T-810). The lock then names that git source: podssh's scan of the patches (`scripts/repo_scans.py`) takes it |
+| podssh | its plants `t445-record-no-derp`, `t611-name-not-read`, `t665-quic-unset`, `t666-share-while-made` | the plants of this crate (`scripts/plants/iroh-*`): the files that they change are here |
 
 ## The fork of iroh-relay
 

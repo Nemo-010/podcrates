@@ -1,0 +1,8 @@
+# The endpoint takes iroh's own QUIC settings whatever arm the caller gives,
+# so an A/B run would measure one arm twice: the test that reads the tuned
+# arm's first round trip in the endpoint's own settings must fail (podssh's
+# t665-quic-unset).
+ENTRY=T-037
+GROUP=link
+EXPECT='test tuning::tests::an_endpoint_takes_the_arm_s_settings \.\.\. FAILED'
+RUN='cargo test -p pod-iroh --all-features --lib -- tuning::'

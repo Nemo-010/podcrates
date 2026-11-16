@@ -193,8 +193,8 @@ fn relay_mode(relays: &[RelayUrl], qad_port: Option<u16>) -> RelayMode {
 /// command is refused: iroh dials a proxy on TCP alone.
 ///
 /// A SOCKS5 proxy keeps its scheme at that address (PodUtils/podssh@T-280):
-/// the relay dial of the patched iroh-relay sends the relay's name with
-/// `socks5://` and `socks5h://` alike, so this host needs no DNS for it.
+/// the patched relay dial sends the relay's name to `socks5h://`, and to
+/// `socks5://` an address of the relay that iroh's resolver gives (T-808).
 async fn proxy_url(
     choice: &ProxyChoice,
     mode: &RelayMode,
