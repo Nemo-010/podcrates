@@ -4759,6 +4759,13 @@ changes in a session, so the caps must change on the live link.
   `accept`, `close`, `rtt` and no priority of a stream and no change of
   the settings. The writer bounds its queue (`queue_limit` in
   `crates/pod-link/src/state.rs`).
+- Measured by the study of zmux (`docs/research/zmux.md`, section 2;
+  2026-11-16, one host, the memory carrier, the default settings): a
+  round trip of 64 bytes takes p50 18 to 26 us and p99 49 to 66 us on an
+  idle link, and p50 18 to 23 us and p99 46 to 62 us while a bulk stream
+  of 128 MiB runs on the same link. On a fast carrier the bounded queue
+  keeps the wait of a small write low; the wait of up to 64 KiB of bulk
+  `DATA` shows only on a slow carrier, as the test of this entry has it.
 - The workstream of the crate is T-300 (partial); T-310 and T-420 to
   T-424 are podnet's next parts. This ask is new.
 - The owner's ruling "podswarm" (2026-11-13, `docs/decisions.md`; call
@@ -8164,3 +8171,365 @@ same with the old link still alive. Fix the cause that the test shows.
 ```sh
 cargo test -p pod-session --all-features
 ```
+
+# T-774: `pod-link`: a normative document of the wire, with the order of the checks and the rule of the timers, held to the code by a test
+
+**Source:** The study of zmux (`docs/research/zmux.md`, lesson 1; the ruling "zmux", 2026-11-16).
+**Category:** docs
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The rules of the wire of `pod-link` are in the README of the crate
+(sections "The wire" and "Settings") and in the code. Two kinds of rule
+are only in the code. (1) The order of the checks: when a frame breaks
+two rules, the code decides which error the link gives. `shape` in
+`crates/pod-link/src/frame.rs` checks the type, then id 0 on a stream
+frame, then an id on a link frame, then the length; `on_data` in
+`crates/pod-link/src/inbound.rs` checks the window of the link, then a
+stream that never existed, then `DATA` after `CLOSE`, then the window of
+the stream. (2) The rule of the timers: the keepalive fires at the first
+moment where `now >= last_heard + dead_after`
+(`crates/pod-link/src/link.rs:254` says "if now >= dead {"). No text says
+which rules are normative, and no test holds the README to the
+constants. The study found that a reader of the README takes the wrong
+model: it looked for a varint and a "bad reset code", and `pod-link` has
+neither (fixed widths, big endian; each reset code is valid).
+
+## Premise
+
+- Read: `crates/pod-link/README.md`, `crates/pod-link/src/frame.rs`,
+  `state.rs`, `inbound.rs`, `link.rs`, `settings.rs`, `error.rs`; the
+  report of the study (`docs/research/zmux.md`, section 1, "The method of
+  test").
+- Read: `crates/pod-job/src/schemas.rs` writes its schemas when a
+  variable is set and else fails on a difference: the pattern of a drift
+  test in this workspace.
+- Not measured: a second implementation from the README alone.
+
+## Approach
+
+Move the link part of "The wire" and the table "Settings" of the README
+into one document of the crate, crates/pod-link/WIRE.md, in ASD-STE100
+(call C750). The README keeps one paragraph and a link to it.
+
+- A status line: the document is normative for the link of `pod-link`,
+  and names the version of the crate that it describes.
+- Each rule once, with an id (W-01, W-02, ...), and each other text
+  names the id. The carriers (tcp, ws, h2, s3, split) and the ARQ stay
+  in the README: they are the wire of a carrier, not of the link.
+- A section "The order of the checks": the decoder's order, then the
+  link's order for each frame type, as the code does it now. A change of
+  the order changes the document in the same commit.
+- A section "Time": each duration T fires at the first moment where
+  `now >= t0 + T`; t0 of each timer (the last byte heard for `dead_after`;
+  the later of the last byte heard and the last `PING` for `keepalive`).
+- A section "Constants": the type bytes, the reset and `GOAWAY` codes
+  with names, `INITIAL_WINDOW`, the limits of each setting, the limit of
+  8192 frames that wait (`CONTROL_LIMIT`) and the queue of `DATA`
+  (`queue_limit`).
+- A test of the crate (wire_doc) reads the tables of the document and
+  compares each value with the constant of the crate (`frame::kind`,
+  `ResetCode`, `GoAwayCode`, `settings`). A difference fails with the
+  row and the constant. Make `CONTROL_LIMIT` and the queue limit
+  readable by the test (a `pub` constant or a function).
+
+## Prove
+
+```sh
+cargo test -p pod-link --all-features --test wire_doc
+cargo todo check
+```
+
+A changed type byte in the document, and a changed limit in
+`settings.rs`, each make the test fail with the row named.
+
+# T-775: `pod-link`: a table of frames in bytes with the result of each, read by one test
+
+**Source:** The study of zmux (`docs/research/zmux.md`, lesson 2; the ruling "zmux", 2026-11-16).
+**Category:** chore
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The tests of the frame codec are Rust code with literal bytes
+(`crates/pod-link/tests/frames.rs`). The fuzz seeds of `link_frame`
+(`fuzz/seeds/link_frame/`, 6 files) are bytes with no expected result:
+`fuzz/src/targets/link.rs` checks invariants (a decoded frame encodes to
+bytes that decode to the same frame), not the frames or the error of
+each input. No data file gives, for each input, the frames that the
+decoder must give or the error that it must give by name. Such a file
+can be read by a second reader of the wire and by T-776, and it is the
+evidence that each row of T-774 has a case.
+
+## Premise
+
+- Read: `crates/pod-link/src/frame.rs` (`FrameError` has 8 variants:
+  `Preface`, `UnknownKind`, `TooLong`, `BadLength`, `LinkId`, `StreamId`,
+  `EmptyData`, `ZeroCredit`); `crates/pod-link/tests/frames.rs`;
+  `fuzz/src/targets/link.rs`; `fuzz/src/arq_seeds.rs` (a test that the
+  seeds on disk are the ones that a writer makes).
+- Read: the decoder accepts each stream id and each reset code. A wrong
+  parity, an id used again and a frame of a stream that never existed
+  are errors of the link (`crates/pod-link/src/inbound.rs`), not of the
+  decoder: they belong to T-776.
+- Not measured: the number of rows that cover each rule of T-774.
+
+## Approach
+
+One text file, crates/pod-link/tests/wire/frames.txt, in podcrates' own
+form (call C750): a line of the count, then one case on each line:
+
+```text
+ID  PREFACE  SPLIT  HEX  =>  RESULT
+```
+
+`PREFACE` is `yes` or `no` (`Decoder::with_preface` or `new`). `SPLIT`
+is the size of each push (1 for one byte at a time, `all` for one push).
+`RESULT` is `ok` and the frames in the `Debug` form of `Frame`, or `err`
+and the variant of `FrameError` with its fields. A comment line starts
+with `#` and names the rule of T-774. Start at 20 valid and 20 invalid
+cases: each frame type at its smallest and largest body, a `DATA` of
+1 MiB, a header split at each byte, two frames in one push, the
+preface cut and wrong, each variant of `FrameError`, a type byte that
+fails before its header is whole, a body over 1 MiB that fails at its
+header.
+
+A test of the crate (wire_frames) reads the file, runs each case, and
+gives the id of a case that fails. It fails when the count line and the
+cases differ. Each valid case also encodes: the bytes of
+`Frame::encode` are the bytes of the case (the fixed widths make the
+encoding unique). An ignored writer test puts the bytes of each case
+into `fuzz/seeds/link_frame/`, and a test checks that the seeds on disk
+are the ones it writes, as `fuzz/src/arq_seeds.rs` does.
+
+## Prove
+
+```sh
+cargo test -p pod-link --all-features --test wire_frames
+cargo test --manifest-path fuzz/Cargo.toml --lib
+```
+
+A case with a wrong result, and a count line one too high, each make
+the test fail with the id or the count named.
+
+# T-776: `pod-link`: scripted cases of a link on a paused clock, and the table of the classes of defects
+
+**Source:** The study of zmux (`docs/research/zmux.md`, lesson 3; the ruling "zmux", 2026-11-16).
+**Category:** chore
+**Milestone:** M2
+**Priority:** P2
+**Effort:** M
+**Status:** open
+
+## Problem
+
+The rules of the link (credit, parity, half close, reset, `GOAWAY`, the
+keepalive, the limit of the frames that wait) are tested by Rust tests
+of the crate, each written by hand (`crates/pod-link/tests/limits.rs`,
+`streams.rs`, `windows.rs`, `keepalive.rs`). No list says which rule of
+the wire each test holds, and no list says, for each kind of defect that
+a multiplexer can have (a credit that is lost, a stream that never
+ends, a frame of a gone stream that ends the link), whether a test
+catches it or the design makes it impossible. The study showed a form
+for both: a script of steps that a runner plays against one end, with a
+peer whose bytes are fully scripted and a clock that moves only at a
+step, and a table of classes with a disposition for each.
+
+## Premise
+
+- Read: `crates/pod-link/tests/common/mod.rs` has `RawPeer`, a peer that
+  sends and reads raw frames against one `Link`;
+  `crates/pod-link/tests/keepalive.rs` runs on a paused clock
+  (`start_paused`). The link has no source of chance: the value of a
+  `PING` is a counter.
+- Read: the report of the study, the six obligations of a runner
+  (`docs/research/zmux.md`, section 1).
+- Not measured: how many of the present tests a case can replace.
+
+## Approach
+
+Cases as text files under crates/pod-link/tests/cases/, one case for
+each file, in podcrates' own form (call C750). A header names the role
+of the end under test, its settings when not the default, the rules of
+T-774 that the case holds, and the class of defect. Steps:
+`send FRAME` (the peer writes a frame), `expect FRAME` (the next frame
+from the end), `expect-quiet` (no frame), `open`, `accept`,
+`write STREAM BYTES`, `read STREAM COUNT`, `close STREAM`,
+`reset STREAM CODE`, `advance DURATION`, `expect-end ERROR`.
+
+The runner (a test cases, over `RawPeer`):
+
+- applies the settings before the first step;
+- runs the steps in order and gives the file and the step at a failure;
+- moves the clock only at `advance`;
+- lets the end run until it is idle before each `expect`;
+- takes the end of the link as an event; only an `expect` decides;
+- fails when the link ended and no `expect-end` covered it;
+- asserts the count of the cases (a line in a file of the directory).
+
+Start with 20 cases: open and data both ways, half close, reset by each
+end, a window that runs out and comes back, the doubling of a window,
+the limit of streams (`REFUSED`), `GOAWAY` with streams open, the dead
+time and the `PING`s before it, a frame of a gone stream that is
+dropped and gives its credit back, a frame of a stream that never
+existed, a wrong parity, an id used again, `DATA` after `CLOSE`, `DATA`
+past each window, the order of two errors in one frame (T-774), and a
+peer that sends `PING`s and reads nothing (8192 frames).
+
+The table of the classes goes into crates/pod-link/WIRE.md (T-774): the
+classes (credit, streams, close, time, memory), each class with a case,
+or with the invariant of the code that makes it impossible. A fix of a
+defect of the link adds a case and its row in the same commit.
+
+## Prove
+
+```sh
+cargo test -p pod-link --all-features --test cases
+```
+
+A case with a wrong `expect`, and a count one too high, each make the
+test fail with the file and the step named. Each class of the table
+names a case that exists or an invariant.
+
+## Start condition
+
+T-774 gives the ids of the rules.
+
+# T-777: `pod-link`: a committed measurement of the link: throughput, round trips, allocations for each frame and memory
+
+**Source:** The study of zmux (`docs/research/zmux.md`, lesson 4 and section 2; the ruling "zmux", 2026-11-16).
+**Category:** measurement
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+podcrates has no benchmark: no `benches/` directory, no `[[bench]]` and
+no measurement of the multiplexer of `pod-link` in the tree. A change of
+the data path (T-778) or of the writer's queue (T-442) has no number to
+compare with. The study measured the link once, with a harness that is
+not in this repository, on one host: bulk on one stream 1.52 to
+2.19 GB/s (median 1.75), on eight streams 1.72 to 2.63 GB/s (median
+2.51), a round trip of 64 bytes p50 18 to 26 us idle and 18 to 23 us
+under bulk, all on the memory carrier. It did not measure allocations,
+memory or the tcp carrier. The zmux benchmark reported allocations for
+each frame and the live heap of a session, which do not change with the
+speed of the host.
+
+## Premise
+
+- Measured by the study (2026-11-16, one host, 8 vCPU): the numbers
+  above; the bulk samples vary by up to about 50 % between runs.
+- Read: T-525 recorded the throughput of the poll carrier on the
+  loopback; nothing else records a number of the link.
+- Not measured: allocations, memory, the tcp carrier, an emulated
+  target.
+
+## Approach
+
+podcrates' own harness (call C751): one ignored test, measure, in
+`pod-link`, with no new dependency.
+
+- One line for each result: `MEASURE scen=NAME key=value ...`, with the
+  carrier, the settings that differ from the default, and the run.
+- Scenarios: bulk on 1 stream and on 8 streams (a byte counts when the
+  reader took it and acknowledged the end); a round trip of 64 bytes,
+  idle and under a bulk stream on the same link (each stream says its
+  role in its first bytes, not by the order of accept); each on the
+  memory carrier, and on the tcp carrier over the loopback when the
+  feature `tcp` is on.
+- A counting allocator in the test binary alone (`#[global_allocator]`
+  of the test file; design rule 7 keeps it out of the crate): the
+  allocations and the bytes for each `DATA` frame of a bulk run, and the
+  peak of the live bytes of the two ends.
+- The wake latency of the host (p50, p99 of a task that a `Notify`
+  wakes), so that a later gate on latency can be relative to the host.
+- Three runs of each bulk scenario; the median and the range.
+- The README of the crate gets a section "Measurement": the command,
+  the meaning of each key, and one baseline (the host class, the date,
+  the commit). No gate on throughput. The gate on allocations comes with
+  T-778.
+
+## Prove
+
+```sh
+cargo test --release -p pod-link --all-features --test measure -- --ignored --nocapture
+```
+
+The output has one `MEASURE` line for each scenario and run, each with
+the allocations for each frame and the peak of the live bytes.
+
+# T-778: `pod-link`: no allocation for each `DATA` frame, and fewer copies of each byte
+
+**Source:** The study of zmux (`docs/research/zmux.md`, lesson 5; the ruling "zmux", 2026-11-16).
+**Category:** feature
+**Milestone:** M2
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+The data path of a link allocates a `Vec` for each `DATA` frame at each
+end, and copies each byte six times inside the crate.
+`crates/pod-link/src/stream.rs:135` says
+"self.push_out(Frame::Data(id, bytes[..n].to_vec()));"; the writer then
+encodes the frame into its batch. At the reader, the bytes of the
+carrier go into the decoder's buffer (`Decoder::push`), the decoder
+copies the body into a new `Vec` (`crates/pod-link/src/frame.rs:265`
+says "kind::DATA => Frame::Data(id, body.to_vec()),"), `on_data` copies
+it into the buffer of the stream (`crates/pod-link/src/inbound.rs:122`),
+and a read copies it into the caller's buffer. The Rust core of zmux
+measured 0.0000 allocations for each frame on its bulk path, and
+0.0005 to 0.0007 over TCP.
+
+## Premise
+
+- Read: the files above at `567a56c`.
+- Not measured: the cost of the allocations and the copies; T-777
+  measures it.
+
+## Approach
+
+After T-777 gives the baseline:
+
+1. The decoder gives a `DATA` body as a slice of its own buffer (a
+   borrowed frame), and `on_data` copies it straight into the buffer of
+   the stream: no `Vec` for each body.
+2. The read loop reads from the carrier into the free end of the
+   decoder's buffer: no second buffer.
+3. A write of a stream puts the header and the bytes straight into the
+   queue of the link (a byte queue that keeps the bounds of each frame
+   and the count of `DATA` bytes): no `Vec` for each frame, one copy
+   less.
+4. `Frame` and `Decoder::next` stay for the fuzz target and for the
+   tests, or change with them (design rule 3).
+
+Keep each change only when T-777 shows a gain. A test of the crate then
+asserts the allocations for each `DATA` frame of a bulk run of 64 MiB
+with the counting allocator: 0 after the first frames, with a margin of
+16 allocations for the whole run.
+
+## Prove
+
+```sh
+cargo test --release -p pod-link --all-features --test measure -- --ignored --nocapture
+cargo test -p pod-link --all-features
+```
+
+The allocations for each `DATA` frame are 0 at steady state; the median
+of bulk on 1 stream is not lower than the baseline of T-777 on the same
+host. A planted `to_vec` in `on_data` makes the test of allocations fail.
+
+## Start condition
+
+T-777 is done.
