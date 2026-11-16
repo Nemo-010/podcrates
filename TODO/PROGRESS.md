@@ -5,13 +5,11 @@
 ## State
 
 - `docs/HANDOFF.md` has what is in flight and what waits.
-- Last release: `v0.57.0` at `0d6421c` (`docs/releases/v0.57.0.md`; ci
-  43773301549 after one red run of T-731, adoption 43771488468, release
-  43775650432; the request #197): T-724 (the build of `pod-todo` in
-  `issue-sync.yml`, PodUtils/podvm#437). Before it: `v0.56.0` at `93bf133`
-  (T-723), `v0.55.0` at `e3c3e1d` (T-703, T-701; the hand-off #194).
-- In release: `v0.58.0` (`docs/releases/v0.58.0.md`): T-725, T-737, T-731,
-  T-702 part 1.
+- Last release: `v0.58.0` at `ca1107f` (`docs/releases/v0.58.0.md`; ci
+  43782163204, adoption 43782166425, release 43784336026; the hand-off
+  #200, COORD-116): T-725, T-737, T-731, T-702 part 1; `podlab` and its
+  installer are assets of the release.
+- On `main` for the next tag: T-736, T-732 (tests).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.56.0` (`0363272`, PodUtils/podssh#277): it runs the one
