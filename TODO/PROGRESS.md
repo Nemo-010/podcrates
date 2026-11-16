@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 634 entries: 123 open, 14 partial, 6 blocked, 491 done.
+`TODO/INDEX.md` holds 636 entries: 125 open, 14 partial, 6 blocked, 491 done.
 
 ## State
 
@@ -109,9 +109,9 @@ for podnet (item 3c): T-526. Then the items below, in order.
       `pod-link` and the gate of E2-1. The tag after: T-419 (the facts of
       the file hosts from the live run of the file hosts, `live.yml`); T-526 (partial: the fix of `kcp`
       upstream).
-   d. Then: T-496 (DNS stream), T-498 (a WireGuard peer), T-499 (NAT
+   d. Then: T-802 (a NAT probe of `pod-turn`, #212, before T-499), T-496 (DNS stream), T-498 (a WireGuard peer), T-499 (NAT
       traversal with the relay), T-515 (the congestion window of the ARQ,
-      with the first carrier over a shared path), T-514 (a stream-aware
+      with the first carrier over a shared path), T-803 (a parity datagram of the ARQ, #213, after T-515), T-514 (a stream-aware
       ARQ, when podnet asks), T-501 (`pod-turn` with RFC 6062),
       T-214 and T-215 (`pod-transit`, `pod-wormhole`).
    e. Then: T-029 and T-030 (`pod-cloudflare`), T-302

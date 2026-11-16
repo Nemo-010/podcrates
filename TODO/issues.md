@@ -216,5 +216,7 @@ kinds and the rules.
 | #209 | coord | COORD-121: v0.61.0: podlab run --way-out, the rows that send a packet out, the fix of chroot_usable (podvm#443), the signed installer (to all) | open | T-746, T-751, T-758, T-717, T-718 |
 | #210 | coord | COORD-122: v0.62.0: the servers of the command in a network lab (podssh#282), the ids inside the user namespace (podvm#447), the line of each resume (podssh#283) (to all) | open | T-759, T-760, T-786, T-767 |
 | #211 | coord | COORD-123: v0.63.0: the ids of the plan for a foreground podvm run (podvm#452), the installer for a copy of a tree (podnet#597), the rule "needs one of" of pod-manual (to all) | open | T-787, T-773, T-756, T-788 |
+| #212 | report | pod-turn has no STUN client, so the NAT probe lives in podssh | open | T-802 |
+| #213 | report | the pod-link ARQ has no forward erasure code | open | T-803 |
 
 #79 to #81 are pull requests.

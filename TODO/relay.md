@@ -8969,3 +8969,104 @@ role then takes the session as one link.
 ```sh
 cargo test -p pod-relay --all-features --test http_road_layer
 ```
+
+# T-802: `pod-turn`: a NAT probe (the mapping, the filtering and the port of RFC 5780) on the caller's datagrams (GitHub #212)
+
+**Source:** GitHub #212 (an issue from outside the team, verified and confirmed).
+**Category:** feature
+**Milestone:** M2
+**Priority:** P2
+**Effort:** M
+**Status:** open
+
+## Problem
+
+No crate of podcrates classifies a NAT. `pod-turn` has the codec of STUN
+(`crates/pod-turn/src/stun.rs`) and the TURN client, which reads its
+mapped address; `crates/pod-services-watch/src/stun.rs` asks one server for
+a Binding and gives no class. podssh's doctor has the only NAT probe
+(the file `nat.rs` of `podssh-cli` in PodUtils/podssh): it binds one IPv4 socket,
+stops at two answers, calls two different mapped addresses "hole punching
+will not work here" and never compares the mapped port with the local port.
+T-499 (NAT traversal) needs the class of each end.
+
+## Premise
+
+- Read: GitHub #212 (its claims checked against the tree; its "only probe"
+  claim is wrong: `pod-services-watch` has a Binding client too);
+  `crates/pod-turn/src/stun.rs`, `settings.rs` (`UdpSource`, `SystemUdp`),
+  `client.rs`; podssh's `nat.rs` at `0370b0b`.
+- Read: the issue proposes a probe that binds its own `0.0.0.0:0` socket
+  (against design rule 5: the caller gives the way out) and a test
+  `mapped == local` that cannot match on a socket bound to the
+  unspecified address.
+- Not measured: a host with two ways out (multi-WAN).
+
+## Approach
+
+`pod_turn::nat::probe` (feature `nat`) on the caller's datagrams (a
+`UdpSource`, the system's by default): RFC 5780's tests with
+OTHER-ADDRESS, RESPONSE-ORIGIN and CHANGE-REQUEST where a server gives
+them, else two servers; the mapping (endpoint-independent, address- or
+address-and-port-dependent), the filtering where the server can change
+its address, the preservation of the port, and `Unknown` with its reason.
+The local address comes from a connect of the socket, as podssh's
+`own_address` does. podcrates writes its own code from the mechanism; it
+takes no code of the project that the issue names. A test against a
+stand-in STUN server with two addresses on the loopback, before T-499.
+
+## Prove
+
+```sh
+cargo test -p pod-turn --all-features --test nat
+```
+
+# T-803: `pod-link`: an adaptive parity datagram for the ARQ, off on a clean link (GitHub #213)
+
+**Source:** GitHub #213 (an issue from outside the team, verified and confirmed).
+**Category:** feature
+**Milestone:** M2
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+The ARQ of `pod-link` (`crates/pod-link/src/arq/`) has no forward erasure
+code. A lost fragment with three or more acknowledged frames after it goes
+again after a fast retransmit (`arq/send.rs`, a threshold of 3), about one
+round trip; a lost fragment at the tail of a burst waits for its RTO (at
+least 200 ms, and 1 s before the first sample), and the ordered stream
+stalls behind it.
+
+## Premise
+
+- Read: GitHub #213 (its claims checked against the tree). Two claims are
+  wrong: each loss does not wait for the RTO (the fast retransmit exists),
+  and the ARQ is one for each link, not for each stream, so its ring is
+  about 32 KiB for each link, not 8 MiB.
+- Read: `arq/wire.rs` (four kinds; an unknown kind fails `decode`, and
+  `on_datagram` counts it as dropped), `arq/machine.rs`, `arq/send.rs`,
+  `arq/recv.rs`, `arq/settings.rs`.
+- Not measured: the stall of a tail loss on a lossy carrier.
+
+## Approach
+
+`ArqSettings::fec` (off by default): a datagram of kind 5, `PARITY`, the
+XOR of a group of DATA datagrams, sent where a moving mean of the loss is
+over a bound; the receiver rebuilds one lost datagram of a group. Its
+bytes count in the congestion window of T-515. Only the sender needs the
+setting. podcrates writes its own code from the mechanism; it takes no
+code of the project that the issue names. Tests on the lossy carrier of
+the tests at 2 % and 10 % loss (the stall of a tail loss before and
+after), a fuzz case of kind 5 (T-516), and a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-link --all-features --test arq_machine
+```
+
+## Start condition
+
+T-515 is done.

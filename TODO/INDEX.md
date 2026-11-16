@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**634 entries: 123 open, 14 partial, 6 blocked, 491 done.**
+**636 entries: 125 open, 14 partial, 6 blocked, 491 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 144 | 163 |
-| P2 | 56 | 3 | 4 | 254 | 317 |
-| P3 | 56 | 3 | 2 | 91 | 152 |
-| **All** | 123 | 14 | 6 | 491 | 634 |
+| P2 | 57 | 3 | 4 | 254 | 318 |
+| P3 | 57 | 3 | 2 | 91 | 153 |
+| **All** | 125 | 14 | 6 | 491 | 636 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -681,3 +681,5 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-799](relay.md) | P3 | M | M2 | feature | open | `pod-link`: two copies less of each byte: a read into the buffer of the decoder, and a writer queue of bytes |
 | [T-800](podvm.md) | P2 | S | M6 | feature | done | `pod-services`: the host of the virtio-win guest tools, fedorapeople.org (PodUtils/podvm#456) |
 | [T-801](relay.md) | P2 | M | M2 | feature | open | `pod-relay`: a link of the resumable layer over the HTTP road, where the way refuses the upgrade of a link (PodUtils/podssh#287) |
+| [T-802](relay.md) | P2 | M | M2 | feature | open | `pod-turn`: a NAT probe (the mapping, the filtering and the port of RFC 5780) on the caller's datagrams (GitHub #212) |
+| [T-803](relay.md) | P3 | M | M2 | feature | open | `pod-link`: an adaptive parity datagram for the ARQ, off on a clean link (GitHub #213) |
