@@ -11,8 +11,9 @@
   (#211).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
-  - podssh: `v0.62.0` (`9151ebc`, PodUtils/podssh#285; no patch; its lane
-    passes through `--way-out` in three proxy classes; its finding T-792 is done): it runs the one
+  - podssh: `v0.63.0` (`5340fbb`, PodUtils/podssh#286, with the installer
+    core; no patch; its lane passes behind five network classes with
+    `podlab run --serve`, ssh and a copy of 20 MiB in each): it runs the one
     watcher and the sync of the issues; its lane passes in the ten labs
     that hold its classes (`podssh doctor`, `release-short.sh`, `ssh`, `cp`
     of 200 MiB), with the release asset of `podlab`; `pod-manual` is
