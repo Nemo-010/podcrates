@@ -9128,7 +9128,7 @@ that the relay answers `409` for its own socket for longer than
 `lost_hold`, counted from the first such `409`, says one line
 (`held_line`: the time of the `409`, the operators' connections reach the
 held socket, take a new pair or another relay) and ends with
-`Exit::LostSocketHeld`; `rejoin` stays the bound of the whole wait (C770).
+`Exit::NameInUse` (no new variant: a `match` of a consumer stays whole); `rejoin` stays the bound of the whole wait (C770).
 Test: `tests/blocking_held.rs`, a stand-in that drops the socket and then
 answers `409`: the node ends at its hold of 2 s with one line, not at the
 10 minutes of `rejoin`. The four tests of `409` in `blocking_plain.rs`

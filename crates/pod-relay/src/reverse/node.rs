@@ -107,14 +107,11 @@ pub enum Exit {
     Stopped,
     /// `409`: another node holds the name, at the first registration; or
     /// the relay held the old socket longer than `Settings::rejoin` after a
-    /// loss (podssh T-261).
+    /// loss (podssh T-261), or answered `409` for it longer than
+    /// `Settings::lost_hold` (PodUtils/podnet#604; the line of
+    /// [`held_line`] said so): the operators' connections reach that socket.
+    /// A new pair, or another relay of the pool, serves at once.
     NameInUse,
-    /// `409` for the node's own lost socket for longer than
-    /// `Settings::lost_hold`: the relay did not drop that socket, and the
-    /// operators' connections reach it. A new pair, or another relay of the
-    /// pool, serves at once; this pair on this relay waits for the relay
-    /// (PodUtils/podnet#604). The node said so in one line.
-    LostSocketHeld,
     /// `1001 operator stopped reverse relay`: the pair is over, and its stored
     /// copy is deleted.
     PairStopped,
@@ -216,7 +213,8 @@ pub fn refused_upgrade(body: &str) -> String {
     }
 }
 
-/// The line of [`Exit::LostSocketHeld`], after `held` of `409`.
+/// The line of a node that ends with [`Exit::NameInUse`] at
+/// `Settings::lost_hold`, after `held` of `409`.
 pub fn held_line(held: Duration) -> String {
     format!(
         "the relay still holds the node's lost socket after {} s of 409: an operator's connection reaches that \
@@ -344,7 +342,7 @@ where
                             if let Some(say) = config.say {
                                 say(held_line(since.elapsed()));
                             }
-                            return Exit::LostSocketHeld;
+                            return Exit::NameInUse;
                         }
                         (rejoin.min(hold), "the node's lost socket")
                     }

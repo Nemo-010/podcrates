@@ -1,6 +1,6 @@
 //! A node whose relay holds its lost socket (PodUtils/podnet#604): after a
 //! loss, a relay that answers `409` for longer than `Settings::lost_hold`
-//! ends the node with `Exit::LostSocketHeld` and one line, long before
+//! ends the node with `Exit::NameInUse` and one line, long before
 //! `Settings::rejoin`. Plain `ws://` against the stand-in relay, as
 //! `blocking_plain.rs`.
 #![cfg(all(feature = "blocking", feature = "plain-ws"))]
@@ -62,7 +62,7 @@ fn a_held_lost_socket_ends_the_node_at_its_hold() {
     let exit = in_time_within(Duration::from_secs(30), move || {
         client().run_node(&mut test_pair(&relay, NAME, 0), echo, &options, &Stopper::new())
     });
-    assert!(matches!(exit, Ok(Exit::LostSocketHeld)), "{exit:?}");
+    assert!(matches!(exit, Ok(Exit::NameInUse)), "{exit:?}");
     let since = lost_rx.recv().unwrap().elapsed();
     assert!(since >= Duration::from_secs(2), "the node tried again for its 2 s: {since:?}");
     let lines = lines.lock().unwrap();

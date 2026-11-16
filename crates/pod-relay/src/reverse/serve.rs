@@ -74,8 +74,8 @@ pub struct Settings {
     /// own lost socket, from the first such `409` (PodUtils/podnet#604):
     /// the relay did not drop that socket, and an operator's connection
     /// reaches it and stops. Then the node says so in one line and ends
-    /// with [`super::node::Exit::LostSocketHeld`], so that its caller can
-    /// take a new pair or another relay. `rejoin` stays the bound of the
+    /// with [`super::node::Exit::NameInUse`], so that its caller can take a
+    /// new pair or another relay. `rejoin` stays the bound of the
     /// whole wait; a value of `rejoin` or more gives the wait of `rejoin`.
     pub lost_hold: Duration,
     /// The sessions that the relay role keeps readied ahead for this node's

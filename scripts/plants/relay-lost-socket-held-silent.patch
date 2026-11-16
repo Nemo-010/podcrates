@@ -1,12 +1,12 @@
 diff --git a/crates/pod-relay/src/reverse/node.rs b/crates/pod-relay/src/reverse/node.rs
 --- a/crates/pod-relay/src/reverse/node.rs
 +++ b/crates/pod-relay/src/reverse/node.rs
-@@ -342,7 +342,7 @@ where
+@@ -340,7 +340,7 @@ where
                          let hold = config.settings.lost_hold.saturating_sub(since.elapsed());
                          if hold.is_zero() && !rejoin.is_zero() {
                              if let Some(say) = config.say {
 -                                say(held_line(since.elapsed()));
 +                                let _ = (say, held_line(since.elapsed()));
                              }
-                             return Exit::LostSocketHeld;
+                             return Exit::NameInUse;
                          }

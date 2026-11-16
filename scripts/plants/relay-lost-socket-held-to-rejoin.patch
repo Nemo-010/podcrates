@@ -1,7 +1,7 @@
 diff --git a/crates/pod-relay/src/reverse/node.rs b/crates/pod-relay/src/reverse/node.rs
 --- a/crates/pod-relay/src/reverse/node.rs
 +++ b/crates/pod-relay/src/reverse/node.rs
-@@ -340,7 +340,7 @@ where
+@@ -338,7 +338,7 @@ where
                          let rejoin = config.settings.rejoin.saturating_sub(at.elapsed());
                          let since = *held.get_or_insert_with(Instant::now);
                          let hold = config.settings.lost_hold.saturating_sub(since.elapsed());
