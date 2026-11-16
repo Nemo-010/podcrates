@@ -240,7 +240,12 @@ pub fn lab_main(settings: &Settings, args: &[OsString]) -> ! {
     if let Some(lab) = &net {
         environment(lab);
     }
-    let findings = inside::measure(&settings.hostprobe, &inside::rows(profile));
+    // The rows that send a packet out reach the stand-ins of the lab.
+    let mut probe = settings.hostprobe.clone();
+    if let Some(lab) = &net {
+        probe.network = Some(crate::net::lab_targets(lab.net));
+    }
+    let findings = inside::measure(&probe, &inside::rows(profile));
     let mut verdict = check_with(profile, &findings, &|fact| match fact {
         LabFact::Net(f) => crate::net::measure(f, net.as_ref()),
         f => inside::lab_fact(f),

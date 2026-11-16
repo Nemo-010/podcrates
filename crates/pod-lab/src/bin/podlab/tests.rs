@@ -102,9 +102,10 @@ fn the_help_of_each_command_comes_from_the_model() {
 }
 
 /// The rules of the manual are the rules of the parser: podlab's parser has
-/// one conflict and no `requires` (its required arguments, the argument
-/// after `--` and the port of `--allow-connect` are no needs), and a
-/// `requires` added to it is in the manual.
+/// one conflict and the three `requires` of the targets of `check`
+/// (its required arguments, the argument after `--` and the port of
+/// `--allow-connect` are no needs), and a `requires` added to it is in the
+/// manual.
 #[test]
 fn the_rules_of_the_manual_are_the_rules_of_the_parser() {
     use pod_manual::Rule;
@@ -112,12 +113,27 @@ fn the_rules_of_the_manual_are_the_rules_of_the_parser() {
         m.commands.iter().flat_map(|c| c.rules.iter().map(|r| (c.name(), r.clone()))).collect()
     };
     let conflict = Rule::Excludes { flags: vec!["--json".into(), "--roff".into()] };
-    assert_eq!(rules(&manual()), [("man".to_string(), conflict.clone())]);
+    let needs = |flag: &str| {
+        ("check".to_string(), Rule::Needs { flag: flag.into(), value: None, needs: vec!["--network".into()] })
+    };
+    assert_eq!(
+        rules(&manual()),
+        [
+            needs("--network-other"),
+            needs("--network-literal"),
+            needs("--network-closed"),
+            ("man".to_string(), conflict.clone())
+        ]
+    );
     let cmd = super::cli::command()
         .mut_subcommand("run", |c| c.mut_arg("allow_connect", |a| a.requires("partial")))
         .mut_subcommand("man", |c| c.mut_arg("section", |a| a.requires("no_pager")));
     let needs = |flag: &str, need: &str| Rule::Needs { flag: flag.into(), value: None, needs: vec![need.into()] };
+    let check = |flag: &str| ("check".to_string(), needs(flag, "--network"));
     let want = [
+        check("--network-other"),
+        check("--network-literal"),
+        check("--network-closed"),
         ("run".to_string(), needs("--allow-connect", "--partial")),
         ("man".to_string(), conflict),
         ("man".to_string(), needs("SECTION", "--no-pager")),

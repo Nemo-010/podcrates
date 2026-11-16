@@ -4114,7 +4114,7 @@ cargo test -p pod-lab --all-features --test lab
 **Milestone:** M8
 **Priority:** P3
 **Effort:** M
-**Status:** partial
+**Status:** done
 
 ## Problem
 
@@ -4149,15 +4149,16 @@ that names the setting. `podlab check` takes the setting as an option, and
 the parts of the network classes read the rows; the lab keeps its
 stand-ins as `Observe::LabCheck`.
 
-
-Part 1 is done (2026-11-16). `pod-hostprobe`: `Settings::network` (`Network`: a name and its port, another name, a closed port, an IP literal, a time limit), off by default; nine census rows of `Kind::Network` (`probes::NETWORK_ROWS`, `crates/pod-hostprobe/src/probes/send.rs`): four `CONNECT` rows through the proxy of the host (with and with no credential, another name, a literal), the closed port with an SSH banner, three TLS rows (a ClientHello of TLS 1.2 with no TLS library, `probes/send/hello.rs`; the certificate of `SSL_CERT_FILE` that issued the chain), and a lookup. With no setting each row is a skip that names it, and no child runs; the spawner gives the targets in `POD_HOSTPROBE_NETWORK` and drops that variable of the caller. The schema names the rows. Tests: `probes::send::tests` (the setting through the variable, the URL of a proxy and a reason with no host or credential, a `CONNECT` on the loopback with and with no credential, the end of a `CONNECT` with no status, the chain across records, the issuer in a PEM file, base64) and `the_rows_that_send_a_packet_are_off_by_default` (plant `hostprobe-network-rows-on-by-default`). Here: `cargo test -p pod-hostprobe --all-features` (174 unit tests). Part 2, open: `podlab check` takes the setting as an option, and the parts of the network classes read these rows (`unseen` now).
-
 ## Prove
 
 ```sh
 cargo test -p pod-hostprobe --all-features
 cargo test -p pod-lab --all-features
 ```
+
+## Done
+
+2026-11-16. Part 1: `pod-hostprobe`: `Settings::network` (`Network`: a name and its port, another name, a closed port, an IP literal, a time limit), off by default; nine census rows of `Kind::Network` (`probes::NETWORK_ROWS`, `crates/pod-hostprobe/src/probes/send.rs`): four `CONNECT` rows through the proxy of the host (with and with no credential, another name, a literal), the closed port with an SSH banner, three TLS rows (a ClientHello of TLS 1.2 with no TLS library, `probes/send/hello.rs`; the certificate of `SSL_CERT_FILE` that issued the chain), and a lookup. With no setting each row is a skip that names it, and no child runs; the spawner gives the targets in `POD_HOSTPROBE_NETWORK` and drops that variable of the caller. The schema names the rows. Tests: `probes::send::tests` (the setting through the variable, the URL of a proxy and a reason with no host or credential, a `CONNECT` on the loopback with and with no credential, the end of a `CONNECT` with no status, the chain across records, the issuer in a PEM file, base64) and `the_rows_that_send_a_packet_are_off_by_default` (plant `hostprobe-network-rows-on-by-default`). Here: `cargo test -p pod-hostprobe --all-features` (174 unit tests). Part 2: `pod-lab`: the parts of the network classes that need a packet out read these rows (`crates/pod-lab/src/table/network.rs`): `proxy-reaches` (`status 200`, `hello 1`), `proxy-credential` (407), `port-refused` (403), `tls-reterminated` (`issuer file` for the name, `hello 1` for the other), `ssh-port-silent` (200, `bytes 0`), `answer-per-name` (200, 504, `end reset` for the literal), `sni-reset` (`hello 1`, then `end reset` for the other name and for no name), `literal-reaches` and `ipv6-reaches` (`hello 1` to the literal); the facts of the stand-ins stay beside them as `LabCheck`. `upgrade-refused` has no row; `no-resolver` keeps its rows with no packet out (a part holds only when each row holds, and the lookup is no fact of the class). A lab measures the rows against its stand-ins (`net::lab_targets`: `listed.test:443`, `other.test`, port 22, the address outside of IPv4 or IPv6). `podlab check PROFILE --network NAME:PORT` (`--network-other`, `--network-literal`, `--network-closed`) runs them on this host; with no option they are skips that name the setting. Tests: `check::rows::the_rows_that_send_a_packet_out_decide_the_network_parts` (holds, fails, unseen with no row and with a skip, through a report), `tests/cli.rs` `the_targets_of_the_rows_that_send_a_packet_out`, and the lab: each network class holds with the rows measured inside (TLS 1.2 hellos to the stand-ins included). Here (root, kernel 6.18): `cargo test -p pod-hostprobe --all-features` (174 unit tests), `cargo test -p pod-lab --all-features` (51 unit tests, the binary 7, `cli` 5, `lab` as root and as uid 65534: each case ok). The pod-manual model of `podlab` gives the three `requires` of the targets; the manual is generated again.
 
 
 # T-723: `pod-todo`: a kind `reference` for an issue that holds no work (PodUtils/podvm#435)

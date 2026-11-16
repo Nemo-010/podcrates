@@ -10,12 +10,19 @@
 //! packet out: the variable of a proxy, the certificate file, the resolver
 //! and the default routes. Those facts are parts of their own, so that a
 //! check of a report gives them a verdict. A fact that needs a packet
-//! through a proxy or to a server stays a lab fact: a check of a report
-//! cannot see it.
+//! through a proxy or to a server reads the rows that send a packet out
+//! (`pod_hostprobe::probes::NETWORK_ROWS`): a report holds them where its
+//! caller set `Settings::network`, else they are unseen. The lab measures
+//! the same rows against its stand-ins, and checks the fact of its own
+//! stand-ins beside them. The upgrade of a WebSocket has no row.
 
 use super::parts::UDP_REFUSED;
 use super::*;
 use crate::net::{Ca, LISTED, NO_PROXY, Net, NetFact, OPEN, OTHER, Proxy};
+use pod_hostprobe::probes::{
+    CONNECT_CLOSED, CONNECT_LITERAL, CONNECT_NAME, CONNECT_NO_CREDENTIAL, CONNECT_OTHER, TLS_LITERAL, TLS_NAME,
+    TLS_OTHER,
+};
 
 const fn fact(f: NetFact) -> Observe {
     Observe::Lab(LabFact::Net(f))
@@ -24,6 +31,11 @@ const fn fact(f: NetFact) -> Observe {
 /// A fact that the lab checks of its own stand-ins, beside the rows.
 const fn lab_check(f: NetFact) -> Observe {
     Observe::LabCheck(LabFact::Net(f))
+}
+
+/// A row that sends a packet out gives `key value`.
+const fn sends(name: &'static str, key: &'static str, value: &'static str) -> Observe {
+    row(name, Expect::Value { key, value })
 }
 
 const PROXY: &str = "getenv(HTTPS_PROXY)";
@@ -84,16 +96,23 @@ pub(super) const PROXY_ONLY_PARTS: &[Part] = &[
         "proxy-reaches",
         "a CONNECT through the proxy with its credential reaches a TLS server",
         &[
-            fact(NetFact::Connect { host: LISTED, port: 443, status: 200 }),
-            fact(NetFact::Issuer { name: LISTED, ca: Ca::Server }),
+            sends(CONNECT_NAME, "status", "200"),
+            sends(TLS_NAME, "hello", "1"),
+            lab_check(NetFact::Connect { host: LISTED, port: 443, status: 200 }),
+            lab_check(NetFact::Issuer { name: LISTED, ca: Ca::Server }),
         ],
         &PROXY_ONLY,
     ),
-    part("proxy-credential", "a CONNECT with no credential gets 407", &[fact(NetFact::NeedsCredential)], &PROXY_ONLY),
+    part(
+        "proxy-credential",
+        "a CONNECT with no credential gets 407",
+        &[sends(CONNECT_NO_CREDENTIAL, "status", "407"), lab_check(NetFact::NeedsCredential)],
+        &PROXY_ONLY,
+    ),
     part(
         "port-refused",
         "the proxy reaches the ports 443, 80 and 8443 only: port 22 gets 403",
-        &[fact(NetFact::Connect { host: LISTED, port: 22, status: 403 })],
+        &[sends(CONNECT_CLOSED, "status", "403"), lab_check(NetFact::Connect { host: LISTED, port: 22, status: 403 })],
         &PROXY_ONLY,
     ),
     UDP_REFUSED,
@@ -110,13 +129,22 @@ pub(super) const TLS_RETERMINATED: &[Part] = &[
     part(
         "tls-reterminated",
         "the proxy shows its own CA for a listed name, and passes another name. Assumed: the names that a real proxy terminates",
-        &[fact(NetFact::Issuer { name: LISTED, ca: Ca::Proxy }), fact(NetFact::Issuer { name: OTHER, ca: Ca::Server })],
+        &[
+            sends(TLS_NAME, "issuer", "file"),
+            sends(TLS_OTHER, "hello", "1"),
+            lab_check(NetFact::Issuer { name: LISTED, ca: Ca::Proxy }),
+            lab_check(NetFact::Issuer { name: OTHER, ca: Ca::Server }),
+        ],
         &RETERMINATE,
     ),
     part(
         "ssh-port-silent",
         "CONNECT to port 22 gets 200, then no byte. Assumed: port 22; podnet measured the form on other ports",
-        &[fact(NetFact::Silent { port: 22 })],
+        &[
+            sends(CONNECT_CLOSED, "status", "200"),
+            sends(CONNECT_CLOSED, "bytes", "0"),
+            lab_check(NetFact::Silent { port: 22 }),
+        ],
         &RETERMINATE,
     ),
 ];
@@ -127,9 +155,12 @@ pub(super) const PER_NAME_PARTS: &[Part] = &[
         "answer-per-name",
         "the proxy answers 200 for one name, 504 for another, and a reset for an IP literal. Assumed: the 504",
         &[
-            fact(NetFact::Connect { host: LISTED, port: 443, status: 200 }),
-            fact(NetFact::Connect { host: OTHER, port: 443, status: 504 }),
-            fact(NetFact::LiteralReset),
+            sends(CONNECT_NAME, "status", "200"),
+            sends(CONNECT_OTHER, "status", "504"),
+            sends(CONNECT_LITERAL, "end", "reset"),
+            lab_check(NetFact::Connect { host: LISTED, port: 443, status: 200 }),
+            lab_check(NetFact::Connect { host: OTHER, port: 443, status: 504 }),
+            lab_check(NetFact::LiteralReset),
         ],
         &PER_NAME,
     ),
@@ -141,9 +172,12 @@ pub(super) const SNI_PARTS: &[Part] = &[
         "sni-reset",
         "a ClientHello with a name not on the list, or with no name, is reset. Assumed: the whole class",
         &[
-            fact(NetFact::Hello { name: Some(LISTED), passes: true }),
-            fact(NetFact::Hello { name: Some(OTHER), passes: false }),
-            fact(NetFact::Hello { name: None, passes: false }),
+            sends(TLS_NAME, "hello", "1"),
+            sends(TLS_OTHER, "end", "reset"),
+            sends(TLS_LITERAL, "end", "reset"),
+            lab_check(NetFact::Hello { name: Some(LISTED), passes: true }),
+            lab_check(NetFact::Hello { name: Some(OTHER), passes: false }),
+            lab_check(NetFact::Hello { name: None, passes: false }),
         ],
         &SNI,
     ),
@@ -167,7 +201,7 @@ pub(super) const NO_DNS_PARTS: &[Part] = &[
     part(
         "literal-reaches",
         "a TCP connect to an IP literal reaches out. Assumed: the stand-in server of the lab",
-        &[fact(NetFact::LiteralReaches)],
+        &[sends(TLS_LITERAL, "hello", "1"), lab_check(NetFact::LiteralReaches)],
         &NO_DNS,
     ),
 ];
@@ -194,7 +228,7 @@ pub(super) const IPV6_ONLY: &[Part] = &[
     part(
         "ipv6-reaches",
         "a TCP connect to an IPv6 address succeeds. Assumed: the stand-in server of the lab",
-        &[fact(NetFact::V6Reaches)],
+        &[sends(TLS_LITERAL, "hello", "1"), lab_check(NetFact::V6Reaches)],
         &V6,
     ),
 ];

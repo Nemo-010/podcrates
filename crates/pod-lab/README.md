@@ -46,6 +46,17 @@ refusal. `Expect::Shows` holds the same way, and is `unseen` on another
 answer: a host can hold the class in a way that the row does not read (a
 filter in place of no route, a server of the file that does not answer).
 
+The parts of the network classes that need a packet out (`proxy-reaches`,
+`proxy-credential`, `port-refused`, `tls-reterminated`, `ssh-port-silent`,
+`answer-per-name`, `sni-reset`, `literal-reaches`, `ipv6-reaches`) read the
+rows of `pod_hostprobe::probes::NETWORK_ROWS`. These rows run only where the
+caller sets `pod_hostprobe::Settings::network`: `podlab check PROFILE
+--network NAME:PORT` (with `--network-other NAME`, `--network-literal
+ADDRESS` and `--network-closed PORT`), or a report whose caller set it.
+With no such setting the parts are `unseen`. A lab measures the same rows
+against its stand-ins (`net::lab_targets`), and checks the facts of its
+stand-ins beside them (`LabCheck`). `upgrade-refused` has no row.
+
 ### `run`
 
 `run` starts the binary again with the lab flag: a lab process with one

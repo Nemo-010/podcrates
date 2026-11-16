@@ -94,8 +94,29 @@ The name of the profile.
 \fB\-\-report\fR \fIFILE\fR
 A JSON report of pod\-hostprobe to check, in place of the probes of this host.
 .TP
+\fB\-\-network\fR \fINAME:PORT\fR
+Run the rows that send a packet past this host, to this name and port. The
+probes use the proxy of HTTPS_PROXY. With no value, these rows do not run.
+.TP
+\fB\-\-network\-other\fR \fINAME\fR
+A second name for the rows that send a packet out.
+.TP
+\fB\-\-network\-literal\fR \fIADDRESS\fR
+An IP address for the rows that send a packet out.
+.TP
+\fB\-\-network\-closed\fR \fIPORT\fR
+The port that the proxy refuses or holds with no byte. Default: 22.
+.TP
 \fB\-h\fR, \fB\-\-help\fR
 Print the help of this command.
+.PP
+\fBRules:\fR
+.PP
+\-\-network\-other needs \-\-network.
+.PP
+\-\-network\-literal needs \-\-network.
+.PP
+\-\-network\-closed needs \-\-network.
 .PP
 \fBExamples:\fR
 .PP

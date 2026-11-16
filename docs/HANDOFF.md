@@ -55,8 +55,7 @@ the entry, run all the checks, then delete the branch by a
   (T-746, T-751): their work is on `main`; #208 asks for the delete of both and of the two branches below. T-717
   and T-718 stay `partial` until the first run of `release.yml` on a tag
   (the signature) and the first run of the job `install-os` of
-  `nightly.yml`. T-751 part 2 is open: `podlab check` reads the rows that
-  send a packet out.
+  `nightly.yml`.
 - `wip/egress-part2` and `wip/egress-part3` hold work that is already on
   `main`; delete them by a request.
 

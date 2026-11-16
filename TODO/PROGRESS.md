@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 597 entries: 115 open, 16 partial, 6 blocked, 460 done.
+`TODO/INDEX.md` holds 597 entries: 115 open, 15 partial, 6 blocked, 461 done.
 
 ## State
 
@@ -68,7 +68,7 @@ First: the next tag (the fixes of
 PodUtils/podssh#262, on `main`). Then the ruling "Discipline": T-692
 (`pod-lab`, part 1), T-700 (`pod-manual`, PodUtils/podnet#584; part 1
 done, then the take of each consumer; its findings T-704 and T-705),
-T-751 (the rows of the network classes that send a packet out; part 2: `podlab check` reads them), T-747 (the direct network
+T-747 (the direct network
 classes on each address), T-703 (the issues against
 the record) and T-702 (the installer; then T-717 and T-718). Then the move of podssh's waves 3 and 4 (the
 ruling "The move of podssh", PodUtils/podssh#248): T-038, T-037, T-029, T-030, T-039; T-036. Then the link carriers of M2

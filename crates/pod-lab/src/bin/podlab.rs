@@ -43,6 +43,20 @@ mod cli {
             /// probes of this host.
             #[arg(long, value_name = "FILE")]
             report: Option<std::path::PathBuf>,
+            /// Run the rows that send a packet past this host, to this
+            /// name and port. The probes use the proxy of HTTPS_PROXY. With
+            /// no value, these rows do not run.
+            #[arg(long, value_name = "NAME:PORT", value_parser = target)]
+            network: Option<(String, u16)>,
+            /// A second name for the rows that send a packet out.
+            #[arg(long, value_name = "NAME", requires = "network")]
+            network_other: Option<String>,
+            /// An IP address for the rows that send a packet out.
+            #[arg(long, value_name = "ADDRESS", requires = "network")]
+            network_literal: Option<std::net::IpAddr>,
+            /// The port that the proxy refuses or holds with no byte.
+            #[arg(long, value_name = "PORT", requires = "network", default_value_t = 22)]
+            network_closed: u16,
         },
         /// Run a command in a lab of a profile. The lab checks itself
         /// before the command; a part that does not hold stops the run.
@@ -120,6 +134,19 @@ mod cli {
         Cli::command()
     }
 
+    /// A `NAME:PORT` of `--network`: a host name and a port.
+    fn target(text: &str) -> Result<(String, u16), String> {
+        let (name, port) = text.rsplit_once(':').ok_or("give NAME:PORT")?;
+        let port = port.parse::<u16>().map_err(|_| "the port is not a number from 0 to 65535".to_string())?;
+        let ok = !name.is_empty()
+            && name.len() <= 253
+            && name.bytes().all(|b| b.is_ascii_alphanumeric() || b"-._".contains(&b));
+        if !ok {
+            return Err("the name is not a host name".to_string());
+        }
+        Ok((name.to_string(), port))
+    }
+
     /// The manual of this binary, as the name of `argv[0]` shows it.
     pub(super) fn manual(argv0: &str) -> pod_manual::Manual {
         pod_lab::manual::manual(Cli::command()).named(argv0)
@@ -172,7 +199,7 @@ mod cli {
                 }
                 EXIT_HOLDS
             }
-            Cmd::Check { profile: name, report } => {
+            Cmd::Check { profile: name, report, network, network_other, network_literal, network_closed } => {
                 let p = match profile(&settings, &name) {
                     Ok(p) => p,
                     Err(c) => return c,
@@ -188,7 +215,16 @@ mod cli {
                             return EXIT_USAGE;
                         }
                     },
-                    None => pod_lab::check(p, &pod_lab::measure(&settings.hostprobe, &pod_lab::rows(p))),
+                    None => {
+                        let mut probe = settings.hostprobe.clone();
+                        probe.network = network.map(|(name, port)| pod_hostprobe::Network {
+                            other: network_other,
+                            literal: network_literal,
+                            closed_port: network_closed,
+                            ..pod_hostprobe::Network::new(name, port)
+                        });
+                        pod_lab::check(p, &pod_lab::measure(&probe, &pod_lab::rows(p)))
+                    }
                 };
                 print(&v);
                 code(&v)

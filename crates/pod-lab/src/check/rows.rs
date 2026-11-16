@@ -214,3 +214,33 @@ fn a_lab_check_counts_in_a_lab_alone() {
     assert_eq!((direct.state, direct.seen.len()), (State::Fails, 3), "{direct:?}");
     assert_eq!(state(&check(p, &f), "direct-refused"), State::Holds);
 }
+
+/// The rows that send a packet out decide the parts of a CONNECT and of a
+/// handshake in a report; a report with no such row (no
+/// `Settings::network`) leaves them unseen, and a skip of a row is unseen.
+#[test]
+fn the_rows_that_send_a_packet_out_decide_the_network_parts() {
+    use pod_hostprobe::probes::{CONNECT_CLOSED, CONNECT_LITERAL, CONNECT_NAME, CONNECT_OTHER, TLS_NAME};
+    let reaches = |connect: &str, hello: &str| vec![(CONNECT_NAME, ok(connect)), (TLS_NAME, ok(hello))];
+    let v = verdict("proxy-only", &reaches("status 200", "path proxy; hello 1; certs 2; issuer other"));
+    assert_eq!(state(&v, "proxy-reaches"), State::Holds);
+    let v = verdict("proxy-only", &reaches("status 403", "path proxy; status 403"));
+    assert_eq!(state(&v, "proxy-reaches"), State::Fails);
+    let off = Outcome::skip(None, pod_hostprobe::probes::send::OFF);
+    let v = verdict("proxy-only", &[(CONNECT_NAME, off.clone()), (TLS_NAME, off)]);
+    assert_eq!(state(&v, "proxy-reaches"), State::Unseen);
+    assert_eq!(state(&verdict("proxy-only", &[]), "proxy-reaches"), State::Unseen);
+
+    let v = verdict("proxy-only", &[(CONNECT_CLOSED, ok("status 403"))]);
+    assert_eq!(state(&v, "port-refused"), State::Holds);
+    let v = verdict("proxy-tls-reterminate", &[(CONNECT_CLOSED, ok("status 200; bytes 0"))]);
+    assert_eq!(state(&v, "ssh-port-silent"), State::Holds);
+    let v = verdict("proxy-tls-reterminate", &[(CONNECT_CLOSED, ok("status 200; bytes 1"))]);
+    assert_eq!(state(&v, "ssh-port-silent"), State::Fails);
+    let per_name = [
+        (CONNECT_NAME, ok("status 200")),
+        (CONNECT_OTHER, ok("status 504")),
+        (CONNECT_LITERAL, ok("status none; end reset")),
+    ];
+    assert_eq!(state(&verdict("proxy-per-name", &per_name), "answer-per-name"), State::Holds);
+}

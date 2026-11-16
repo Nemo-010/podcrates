@@ -66,3 +66,19 @@ fn the_help_of_each_command_comes_from_the_model() {
     let o = podlab(&["run", "no-such-profile", "--", "true", "--help"]);
     assert_eq!(o.status.code(), Some(2), "{}", String::from_utf8_lossy(&o.stderr));
 }
+
+/// The targets of the rows that send a packet out: a target with no
+/// `--network`, or a `--network` that is not `NAME:PORT`, is a usage error;
+/// a check with no `--network` runs no such row.
+#[test]
+fn the_targets_of_the_rows_that_send_a_packet_out() {
+    let o = podlab(&["check", "proxy-only", "--network-other", "other.example"]);
+    assert_eq!(o.status.code(), Some(2), "{}", String::from_utf8_lossy(&o.stderr));
+    for bad in ["example.org", "example.org:http", "a b:443", ":443"] {
+        let o = podlab(&["check", "proxy-only", "--network", bad]);
+        assert_eq!(o.status.code(), Some(2), "{bad}: {}", String::from_utf8_lossy(&o.stderr));
+    }
+    let o = podlab(&["check", "proxy-only"]);
+    let text = stdout(&o);
+    assert!(text.contains("Settings::network is not set"), "{text}");
+}

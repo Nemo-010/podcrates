@@ -243,6 +243,23 @@ pub fn proxy_url(proxy: &Proxy) -> String {
     format!("http://{auth}127.0.0.1:{PROXY_PORT}")
 }
 
+/// The targets of the rows that send a packet out
+/// (`pod_hostprobe::Settings::network`), in a lab of `net`: the two names
+/// of the lab, the port of the stand-in server, the closed port 22, and the
+/// address outside (of IPv6 in a lab of IPv6).
+pub fn lab_targets(net: &Net) -> pod_hostprobe::Network {
+    let literal = if net.outside_v6 {
+        std::net::IpAddr::V6(outside_v6())
+    } else {
+        std::net::IpAddr::V4(std::net::Ipv4Addr::from(OUTSIDE_V4))
+    };
+    pod_hostprobe::Network {
+        other: Some(OTHER.to_string()),
+        literal: Some(literal),
+        ..pod_hostprobe::Network::new(LISTED, TLS_PORT)
+    }
+}
+
 /// The value of `Proxy-Authorization` for the credential of the lab.
 pub fn credential() -> String {
     use base64::Engine as _;
