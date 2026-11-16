@@ -3685,6 +3685,9 @@ on its loopback (`pod-netlab`), for the parts that need no outside
 network; the others stay in the live jobs of podnet. Ask podnet by a COORD
 issue for the hand-off.
 
+
+Podnet's data (PodUtils/podnet#592): `PodUtils/podnet:docs/lab-profiles/` at `dbd432c`, one file for each of the six classes, in the form of `crates/pod-lab/src/table/`, each part with the way a lab can hold it (no root, a user namespace, root only, a stand-in proxy) and the podnet code it cites. The parts that podnet did not measure are marked "assumed". Take them into the table; say what changes.
+
 ## Prove
 
 ```sh
