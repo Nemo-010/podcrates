@@ -36,8 +36,7 @@ fn opaque_dir(root: &Path, upper: &str) -> bool {
     fs::write(root.join("op/old"), "old").unwrap();
     let op = Path::new(upper).join("op");
     fs::create_dir_all(&op).unwrap();
-    let initial = fs::read_to_string("/proc/self/uid_map").is_ok_and(|m| pod_hostprobe::userns::is_initial_map(&m));
-    let attr = if nobody::is_root() && initial { "trusted.overlay.opaque" } else { "user.overlay.opaque" };
+    let attr = if in_userns() { "user.overlay.opaque" } else { "trusted.overlay.opaque" };
     let c = sys::CBuf::new(op.to_str().unwrap()).unwrap();
     let fd = sys::open(&c, sys::O_RDONLY | sys::O_DIRECTORY | sys::O_CLOEXEC, 0).unwrap();
     let set = sys::fsetxattr(fd, &sys::CBuf::new(attr).unwrap(), b"y", 0).is_ok();
@@ -46,6 +45,20 @@ fn opaque_dir(root: &Path, upper: &str) -> bool {
         skip_line(&format!("no {attr} on the tmpfs of the volumes"));
     }
     set
+}
+
+/// Whether the overlay of the rung is in a user namespace: each caller but
+/// root of the initial namespace.
+fn in_userns() -> bool {
+    let initial = fs::read_to_string("/proc/self/uid_map").is_ok_and(|m| pod_hostprobe::userns::is_initial_map(&m));
+    !(nobody::is_root() && initial)
+}
+
+/// Whether the kernel is `major.minor` or later.
+fn kernel_at_least(major: u32, minor: u32) -> bool {
+    let release = fs::read_to_string("/proc/sys/kernel/osrelease").unwrap_or_default();
+    let mut parts = release.trim().split(|c: char| !c.is_ascii_digit()).filter_map(|n| n.parse::<u32>().ok());
+    (parts.next().unwrap_or(0), parts.next().unwrap_or(0)) >= (major, minor)
 }
 
 fn spec() -> Spec {
@@ -111,6 +124,15 @@ pub fn layered(root: &Path, vols: &Path) {
     // An opaque directory of the upper layer hides the image under it, in
     // the payload's view and in the check before the fork (T-755).
     if opaque_dir(root, &upper) {
+        // The option itself, where the mount is in a user namespace: a
+        // kernel can hide the image under an opaque directory with no
+        // `userxattr` (the kernel of Ubuntu does), so the view alone does
+        // not show it. A kernel before 5.11 has no such option.
+        if in_userns() && kernel_at_least(5, 11) {
+            let script = "grep -Eq ' / / .* - overlay [^ ]+ .*userxattr' /proc/self/mountinfo || exit 29; exit 0";
+            let (code, err) = run(overlay, &plan(script, None));
+            assert_eq!(code, Ok(0), "the overlay in a user namespace has userxattr as {who}: {err}");
+        }
         let mut p = plan("test -e /op/old && exit 28; exit 0", None);
         p.working_dir = "/op".to_string();
         let (code, err) = run(overlay, &p);

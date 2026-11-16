@@ -1,8 +1,10 @@
 # pod-enter: the overlay of the rung in a user namespace has no userxattr,
-# so it reads no opaque directory; the live test of the upper layer must
-# fail where the payload sees a file under an opaque directory.
+# so it reads no opaque directory on a kernel with no patch of its own; the
+# live test of the upper layer must fail where the root mount of the
+# payload has no userxattr (a kernel of Ubuntu hides the opaque directory
+# with no such option, so the view alone does not catch it).
 ENTRY=T-755
 GROUP=enter
-EXPECT='the payload sees a file under an opaque directory as a caller with no capabilities'
+EXPECT='the overlay in a user namespace has userxattr as a caller with no capabilities'
 RUN='sh scripts/ci/userns-tests.sh'
 LIMIT=1800

@@ -11,7 +11,8 @@
   (#211).
 - In release: `v0.64.0` (`docs/releases/v0.64.0.md`; the version is in
   `Cargo.toml` since `2204ec2`; no tag yet): T-767 (partial: the line of
-  each wait that holds), T-792, T-747, T-755, T-793 to T-795.
+  each wait that holds), T-792, T-747, T-755, T-793 to T-795, T-796,
+  T-774 to T-778.
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.63.0` (`5340fbb`, PodUtils/podssh#286, with the installer
