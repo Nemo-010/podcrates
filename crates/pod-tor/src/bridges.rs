@@ -1,14 +1,14 @@
-//! Bridges (T-385): relays that the directory does not list, which a user
+//! Bridges (PodUtils/podssh@T-385): relays that the directory does not list, which a user
 //! names by bridge lines, as Tor gives them out. A line is a plain bridge
-//! (`ADDRESS:PORT FINGERPRINT`), or one of the two transports that podssh
-//! speaks itself, meek_lite and WebTunnel (`NAME ADDRESS FINGERPRINT
+//! (`ADDRESS:PORT FINGERPRINT`), or one of the two transports that this
+//! crate speaks itself, meek_lite and WebTunnel (`NAME ADDRESS FINGERPRINT
 //! k=v...`); a leading `Bridge`, as in a torrc, is dropped. Arti asks each
 //! line for the bridge's RSA fingerprint, so a line with none is refused
 //! here, as is a transport that would be another program (obfs4,
-//! snowflake): podssh starts none.
+//! snowflake): this crate starts none.
 //!
 //! In Arti's configuration ([`apply`]): the bridges in use, each of
-//! podssh's transports as one that Arti does not manage, at its sentinel
+//! this crate's transports as one that Arti does not manage, at its sentinel
 //! ([`crate::transport`]), and the first hops on any address, as a bridge
 //! of a transport has a dummy one that a rule of ports would drop. A
 //! network's own file may name no transport ([`refuse_transports`]): one
@@ -20,7 +20,7 @@ use tor_netdoc::types::policy::AddrPortPattern;
 
 use crate::transport::Kind;
 
-/// A bridge line that podssh can use.
+/// A bridge line that this crate can use.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Bridge {
     line: String,
@@ -28,8 +28,8 @@ pub struct Bridge {
 }
 
 impl Bridge {
-    /// A line of a bridge, or why podssh cannot use it. podssh's words
-    /// repeat no part of the line but a transport's name: a bridge that is
+    /// A line of a bridge, or why it cannot be used. The words repeat no
+    /// part of the line but a transport's name: a bridge that is
     /// not public is a secret of sorts.
     pub fn parse(text: &str) -> Result<Bridge, String> {
         let mut words: Vec<&str> = text.split_ascii_whitespace().collect();
@@ -43,8 +43,8 @@ impl Bridge {
             let kind = Kind::by_name(first).ok_or_else(|| {
                 let name = if first.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') { *first } else { "?" };
                 format!(
-                    "the transport {name} is another program, which podssh does not start; podssh speaks meek_lite \
-                     and webtunnel itself, and takes a plain bridge's ADDRESS:PORT FINGERPRINT"
+                    "the transport {name} is another program, which is not started; meek_lite and webtunnel run in \
+                     this process, and a plain bridge is ADDRESS:PORT FINGERPRINT"
                 )
             })?;
             (Some(kind), words.get(2..).unwrap_or_default())
@@ -63,10 +63,10 @@ impl Bridge {
         // before anything connects.
         match transport {
             Some(Kind::Meek) => {
-                podssh_ws::meek::Args::parse(&settings)?;
+                pod_egress::meek::Args::parse(&settings)?;
             }
             Some(Kind::WebTunnel) => {
-                podssh_ws::webtunnel::Args::parse(&settings)?;
+                pod_egress::webtunnel::Args::parse(&settings)?;
             }
             None => {}
         }
@@ -85,7 +85,7 @@ impl Bridge {
 }
 
 /// `1 bridge over meek_lite`, `2 bridges over meek_lite and webtunnel`:
-/// for a line of podssh's, with no word of a bridge line.
+/// for a line of the caller's, with no word of a bridge line.
 pub fn summary(bridges: &[Bridge]) -> String {
     let mut names: Vec<&str> = Vec::new();
     for bridge in bridges {
@@ -110,13 +110,13 @@ pub fn refuse_transports(network: &str) -> Result<(), String> {
     let named = table.get("bridges").and_then(toml::Value::as_table).is_some_and(|b| b.contains_key("transports"));
     match named {
         true => Err("the network's configuration names a pluggable transport (bridges.transports), which Arti \
-                     would run as another program; podssh starts none, and gives its own transports"
+                     would run as another program; none is started, and this process gives its own transports"
             .into()),
         false => Ok(()),
     }
 }
 
-/// Put `bridges` in `builder`: in use, with podssh's transports at their
+/// Put `bridges` in `builder`: in use, with this crate's transports at their
 /// sentinels, and the first hops on any address.
 pub fn apply(builder: &mut TorClientConfigBuilder, bridges: &[Bridge]) -> Result<(), String> {
     let section = builder.bridges();

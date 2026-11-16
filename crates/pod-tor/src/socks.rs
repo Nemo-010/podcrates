@@ -38,7 +38,7 @@ pub async fn accept<S: AsyncRead + AsyncWrite + Unpin>(s: &mut S) -> Result<Vec<
         (false, true) => 0,
         (false, false) => {
             let _ = s.write_all(&[5, 0xff]).await;
-            return Err("no method of SOCKS5 that podssh takes was offered".into());
+            return Err("no method of SOCKS5 that this transport takes was offered".into());
         }
     };
     s.write_all(&[5, method]).await.map_err(io)?;

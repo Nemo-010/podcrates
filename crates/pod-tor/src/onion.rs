@@ -1,4 +1,4 @@
-//! Tor's onion services (T-578): a node reached by its onion address, with no
+//! Tor's onion services (PodUtils/podssh@T-578): a node reached by its onion address, with no
 //! listener of its own and no account, through volunteers' relays. The node's
 //! service is Arti's, in this process: its circuits to its introduction
 //! points and to each client's rendezvous point are connections out to Tor
@@ -30,7 +30,7 @@ use tor_hsservice::{HsNickname, RunningOnionService, StreamRequest};
 use tor_llcrypto::pk::curve25519;
 use tor_proto::stream::IncomingStreamRequest;
 
-use crate::client::{arti_failure, failure, Failure, Tor, TorStream};
+use crate::client::{Failure, Tor, TorStream, arti_failure, failure};
 
 /// A key of restricted discovery: an x25519 secret that a client holds, and
 /// whose public half the service lists. A caller may make it of a secret

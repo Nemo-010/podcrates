@@ -1,11 +1,11 @@
 //! The runtime that Arti runs on: tokio and rustls as Arti's own, with a
-//! TCP provider whose connections are podssh-ws's [`dial`]: through the
-//! proxy that the environment names, else directly. Arti asks for a relay
-//! by its address and port alone, which a proxy's CONNECT carries as they
-//! are, with no name to resolve. It never listens: a client of Tor needs no
-//! listener (`AGENTS.md`, section 5, rule 2).
+//! TCP provider whose connections are the dials of the caller's way out
+//! ([`pod_ws::Way`]): through the proxy that the caller chose, else
+//! directly. Arti asks for a relay by its address and port alone, which a
+//! proxy's CONNECT carries as they are, with no name to resolve. It never
+//! listens: a client of Tor needs no listener.
 //!
-//! A bridge's transport (T-385) is a sentinel address that Arti dials as a
+//! A bridge's transport (PodUtils/podssh@T-385) is a sentinel address that Arti dials as a
 //! SOCKS5 proxy; the provider gives it a pipe in memory whose far end is the
 //! transport in this process ([`crate::transport`]). Any other address is a
 //! relay, dialled as above.
@@ -17,8 +17,11 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 
 use futures::io::{AsyncRead, AsyncWrite};
-use podssh_ws::dial::{dial, ProxyChoice};
-use podssh_ws::Trust;
+use pod_core::{BoxedIo, Target};
+use pod_egress::pt::Reach;
+use pod_tls::Trust;
+use pod_ws::Way;
+use sync_wrapper::SyncWrapper;
 use tokio::io::DuplexStream;
 use tokio_util::compat::{Compat, TokioAsyncReadCompatExt as _};
 use tor_rtcompat::{NetStreamListener, NetStreamProvider, StreamOps, TcpConnectOptions, TcpListenOptions};
@@ -28,19 +31,19 @@ use crate::transport::{Kind, Said, TRANSPORT_WAIT};
 /// How long one connection to a relay may take, the proxy's CONNECT included.
 pub const CONNECT_WAIT: Duration = Duration::from_secs(20);
 
-/// The TCP provider: each connection through podssh-ws's dial.
+/// The TCP provider: each connection through the dial of the way out.
 #[derive(Clone, Debug)]
 pub struct ProxiedTcp {
-    proxy: ProxyChoice,
+    way: Way,
     wait: Duration,
     trust: Trust,
     said: Said,
 }
 
 impl ProxiedTcp {
-    /// Connections through `proxy`, each within `wait`.
-    pub fn new(proxy: ProxyChoice, wait: Duration) -> Self {
-        ProxiedTcp { proxy, wait, trust: Trust::Default, said: Said::default() }
+    /// Connections through `way`, each within `wait`.
+    pub fn new(way: Way, wait: Duration) -> Self {
+        ProxiedTcp { way, wait, trust: Trust::Default, said: Said::default() }
     }
 
     /// The roots that a bridge's transport checks its TLS with.
@@ -62,14 +65,16 @@ pub struct ProxiedStream {
 }
 
 enum Inner {
-    Tcp(Compat<tokio::net::TcpStream>),
+    // Arti asks for a stream that is `Sync`; the stream of a dial is `Send`
+    // alone, and the wrapper gives it only through `&mut`.
+    Tcp(SyncWrapper<Compat<BoxedIo>>),
     Pipe(Compat<DuplexStream>),
 }
 
 impl AsyncRead for ProxiedStream {
     fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &mut [u8]) -> Poll<IoResult<usize>> {
         match &mut self.inner {
-            Inner::Tcp(s) => Pin::new(s).poll_read(cx, buf),
+            Inner::Tcp(s) => Pin::new(s.get_mut()).poll_read(cx, buf),
             Inner::Pipe(s) => Pin::new(s).poll_read(cx, buf),
         }
     }
@@ -78,19 +83,19 @@ impl AsyncRead for ProxiedStream {
 impl AsyncWrite for ProxiedStream {
     fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, buf: &[u8]) -> Poll<IoResult<usize>> {
         match &mut self.inner {
-            Inner::Tcp(s) => Pin::new(s).poll_write(cx, buf),
+            Inner::Tcp(s) => Pin::new(s.get_mut()).poll_write(cx, buf),
             Inner::Pipe(s) => Pin::new(s).poll_write(cx, buf),
         }
     }
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
         match &mut self.inner {
-            Inner::Tcp(s) => Pin::new(s).poll_flush(cx),
+            Inner::Tcp(s) => Pin::new(s.get_mut()).poll_flush(cx),
             Inner::Pipe(s) => Pin::new(s).poll_flush(cx),
         }
     }
     fn poll_close(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<IoResult<()>> {
         match &mut self.inner {
-            Inner::Tcp(s) => Pin::new(s).poll_close(cx),
+            Inner::Tcp(s) => Pin::new(s.get_mut()).poll_close(cx),
             Inner::Pipe(s) => Pin::new(s).poll_close(cx),
         }
     }
@@ -115,7 +120,7 @@ impl NetStreamListener<SocketAddr> for NoListener {
 }
 
 fn refused() -> Error {
-    Error::new(ErrorKind::Unsupported, "podssh's road through Tor listens on no socket")
+    Error::new(ErrorKind::Unsupported, "the road through Tor listens on no socket")
 }
 
 #[async_trait::async_trait]
@@ -128,14 +133,18 @@ impl NetStreamProvider<SocketAddr> for ProxiedTcp {
     async fn connect(&self, addr: &SocketAddr, _: &TcpConnectOptions) -> IoResult<ProxiedStream> {
         // A transport's sentinel is a key, never dialled.
         if let Some(kind) = Kind::by_addr(addr) {
-            let reach = podssh_ws::pt::reach(&self.proxy, self.trust.clone(), TRANSPORT_WAIT);
+            let reach = Reach { way: self.way.clone(), trust: self.trust.clone(), wait: TRANSPORT_WAIT };
             let pipe = crate::transport::spawn(kind, reach, self.said.clone());
             return Ok(ProxiedStream { inner: Inner::Pipe(pipe.compat()) });
         }
-        let stream = dial(&addr.ip().to_string(), addr.port(), &self.proxy, self.wait)
+        let deadline = tokio::time::Instant::now() + self.wait;
+        let connected = self
+            .way
+            .dial
+            .dial(&Target::Addr(*addr), deadline)
             .await
             .map_err(|e| Error::new(ErrorKind::ConnectionRefused, e.to_string()))?;
-        Ok(ProxiedStream { inner: Inner::Tcp(stream.compat()) })
+        Ok(ProxiedStream { inner: Inner::Tcp(SyncWrapper::new(connected.io.compat())) })
     }
 
     async fn listen(&self, _: &SocketAddr, _: &TcpListenOptions) -> IoResult<NoListener> {

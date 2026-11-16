@@ -1,4 +1,4 @@
-//! A bridge's transport answered in this process (T-385), against Arti's
+//! A bridge's transport answered in this process (PodUtils/podssh@T-385), against Arti's
 //! own client of a transport that it does not manage: tor-chanmgr's
 //! `ExternalProxyPlugin`, which joins the bridge's arguments into SOCKS5's
 //! user and password and dials the transport's address through the
@@ -7,12 +7,13 @@
 //! the loopback, which echo. A provider that dials the sentinel for real
 //! (no SOCKS greeting reaches podssh) fails the first two tests.
 
+mod common;
+
 use std::time::Duration;
 
 use futures::io::{AsyncReadExt as _, AsyncWriteExt as _};
-use podssh_tor::runtime::ProxiedTcp;
-use podssh_tor::transport::Kind;
-use podssh_ws::dial::ProxyChoice;
+use pod_tor::runtime::ProxiedTcp;
+use pod_tor::transport::Kind;
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::net::{TcpListener, TcpStream};
 use tor_chanmgr::transport::{ExternalProxyPlugin, TransportImplHelper as _};
@@ -121,7 +122,7 @@ async fn webtunnel_stand_in() -> (u16, tokio::task::JoinHandle<String>) {
 
 /// `ping` through Arti's client of `kind` for `bridge`, and its echo.
 async fn ping(kind: Kind, target: &OwnedChanTarget) -> Result<[u8; 4], String> {
-    let tcp = ProxiedTcp::new(ProxyChoice::Direct, Duration::from_secs(10));
+    let tcp = ProxiedTcp::new(common::direct(), Duration::from_secs(10));
     let said = tcp.said();
     let plugin = ExternalProxyPlugin::new(tcp, kind.at(), SocksVersion::V5);
     let connected = tokio::time::timeout(LIMIT, plugin.connect(target)).await.map_err(|_| "no channel in time")?;
@@ -168,7 +169,7 @@ async fn a_transport_that_cannot_open_fails_the_channel_and_says_why() {
     let port = closed.local_addr().unwrap().port();
     drop(closed);
     let url = format!("http://127.0.0.1:{port}/");
-    let tcp = ProxiedTcp::new(ProxyChoice::Direct, Duration::from_secs(10));
+    let tcp = ProxiedTcp::new(common::direct(), Duration::from_secs(10));
     let said = tcp.said();
     let plugin = ExternalProxyPlugin::new(tcp, Kind::Meek.at(), SocksVersion::V5);
     let target = bridge(Kind::Meek, &[("url", url.as_str())]);

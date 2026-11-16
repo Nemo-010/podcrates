@@ -1,7 +1,7 @@
-//! Tor's onion services (T-578) against a Tor network of C tor on this host,
+//! Tor's onion services (PodUtils/podssh@T-578) against a Tor network of C tor on this host,
 //! software that podssh did not write: chutney's network `basic` (four
 //! authorities and five exits, each an HSDir, as chutney's `TestingTorNetwork`
-//! votes), whose arti-client configuration `PODSSH_TEST_TOR_NETWORK` names
+//! votes), whose arti-client configuration `POD_TEST_TOR_NETWORK` names
 //! (`scripts/tor-net.sh start`). A node's service, Arti's in this process,
 //! publishes its descriptor there and takes a client's stream through a
 //! rendezvous point; restricted discovery hides it from a client with no
@@ -9,14 +9,15 @@
 //! network the tests say so and pass, as the other tests of this crate do.
 //! The live run on Tor's own network is asked for alone.
 
+mod common;
+
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use podssh_tor::{Discovery, Options, ServiceOptions, Tor};
-use podssh_ws::dial::ProxyChoice;
+use pod_tor::{Discovery, Options, ServiceOptions, Tor};
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 
-const NETWORK_ENV: &str = "PODSSH_TEST_TOR_NETWORK";
+const NETWORK_ENV: &str = "POD_TEST_TOR_NETWORK";
 /// The service's virtual port, as podssh's node serves it.
 const PORT: u16 = 22;
 /// A bootstrap in the private network: a few seconds, with room.
@@ -40,7 +41,7 @@ fn network() -> Option<String> {
 
 /// A home of the test's own, made empty.
 fn home(name: &str) -> PathBuf {
-    let home = std::env::temp_dir().join(format!("podssh-tor-onion-{name}-{}", std::process::id()));
+    let home = std::env::temp_dir().join(format!("pod-tor-onion-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&home);
     home
 }
@@ -48,23 +49,23 @@ fn home(name: &str) -> PathBuf {
 /// A client of the private network whose state and cache are under `home`;
 /// the relays are on this host, reached directly.
 async fn tor(home: &Path, network: &str) -> Tor {
-    client(home, Some(network), ProxyChoice::Direct).await
+    client(home, Some(network), common::direct()).await
 }
 
-/// A client of `network`, else of Tor's own, through `proxy`.
-async fn client(home: &Path, network: Option<&str>, proxy: ProxyChoice) -> Tor {
-    let _ = podssh_ws::crypto::provider().install_default();
+/// A client of `network`, else of Tor's own, through `way`.
+async fn client(home: &Path, network: Option<&str>, way: pod_ws::Way) -> Tor {
+    common::provider();
     let options = Options {
         state_dir: home.join("state"),
         cache_dir: home.join("cache"),
-        proxy,
+        way,
         // chutney's relays listen on ports from 5000 up; Tor's own network
         // is reached as the host allows.
         first_hop_ports: None,
         trust_directories: true,
         network: network.map(str::to_string),
         bridges: Vec::new(),
-        trust: podssh_ws::Trust::Default,
+        trust: pod_tls::Trust::Default,
     };
     Tor::bootstrap(&options, BOOTSTRAP).await.unwrap_or_else(|f| panic!("{f}"))
 }
@@ -90,7 +91,7 @@ async fn a_node_s_onion_service_carries_a_mebibyte_each_way_and_hides_from_a_str
     let node = tor(&node_home, &network).await;
     let onion = node.serve_onion(&service(vec![key.public()])).unwrap_or_else(|f| panic!("{f}"));
     let address = onion.address().to_string();
-    assert!(podssh_tor::onion::is_onion(&address), "{address}");
+    assert!(pod_tor::onion::is_onion(&address), "{address}");
     let began = std::time::Instant::now();
     onion.published(PUBLISH).await.unwrap_or_else(|f| panic!("{f}"));
     eprintln!("the descriptor was published in {} s", began.elapsed().as_secs());
@@ -120,7 +121,7 @@ async fn a_node_s_onion_service_carries_a_mebibyte_each_way_and_hides_from_a_str
 
 /// The node's side: each stream to the service echoed, as a far end of the
 /// layer answers, until the task is stopped, which stops the service.
-fn echo(mut onion: podssh_tor::Onion) -> tokio::task::JoinHandle<()> {
+fn echo(mut onion: pod_tor::Onion) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         while let Some(stream) = onion.accept().await {
             tokio::spawn(async move {
@@ -152,24 +153,24 @@ async fn carry(client: &Tor, address: &str, key: &Discovery) {
 }
 
 /// The live run of the entry's Decision (Q91), asked for with
-/// `PODSSH_TEST_TOR_ONION_LIVE=yes`: on Tor's own network, through
+/// `POD_TEST_TOR_ONION_LIVE=yes`: on Tor's own network, through
 /// `HTTPS_PROXY` when one is set, a service of a throwaway key (a new state,
 /// removed at the end), one bootstrap at each end, 1 MiB each way, and the
 /// service stopped, so that its descriptor expires unused.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn live_a_throwaway_service_on_tor_s_own_network_carries_a_mebibyte_each_way() {
-    if std::env::var("PODSSH_TEST_TOR_ONION_LIVE").ok().as_deref() != Some("yes") {
-        eprintln!("PODSSH_TEST_TOR_ONION_LIVE is not yes: no live run on Tor's own network");
+    if std::env::var("POD_TEST_TOR_ONION_LIVE").ok().as_deref() != Some("yes") {
+        eprintln!("POD_TEST_TOR_ONION_LIVE is not yes: no live run on Tor's own network");
         return;
     }
     let (node_home, client_home) = (home("live-node"), home("live-client"));
     let key = Discovery::from_secret(rand_secret());
-    let node = client(&node_home, None, ProxyChoice::FromEnvironment).await;
+    let node = client(&node_home, None, common::from_environment()).await;
     let onion = node.serve_onion(&service(vec![key.public()])).unwrap_or_else(|f| panic!("{f}"));
     let address = onion.address().to_string();
     onion.published(LIVE_PUBLISH).await.unwrap_or_else(|f| panic!("{f}"));
     let stopped = echo(onion);
-    let visitor = client(&client_home, None, ProxyChoice::FromEnvironment).await;
+    let visitor = client(&client_home, None, common::from_environment()).await;
     carry(&visitor, &address, &key).await;
     stopped.abort();
     drop(node);

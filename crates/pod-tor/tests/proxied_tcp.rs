@@ -1,14 +1,15 @@
-//! The Tor road's TCP provider (T-353) against a stand-in proxy on the
+//! The Tor road's TCP provider (PodUtils/podssh@T-353) against a stand-in proxy on the
 //! loopback: each relay is asked of the proxy by its address, a refusal is
 //! the connection's error, and the provider listens on nothing.
+
+mod common;
 
 use std::io::ErrorKind;
 use std::net::SocketAddr;
 use std::time::Duration;
 
 use futures::io::{AsyncReadExt as _, AsyncWriteExt as _};
-use podssh_tor::runtime::ProxiedTcp;
-use podssh_ws::dial::ProxyChoice;
+use pod_tor::runtime::ProxiedTcp;
 use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tor_rtcompat::{NetStreamProvider as _, TcpConnectOptions, TcpListenOptions};
 
@@ -32,8 +33,8 @@ async fn each_relay_is_asked_of_the_proxy_by_its_address() {
         s.write_all(b"pong").await.unwrap();
         (String::from_utf8(head).unwrap(), ping)
     });
-    let choice = ProxyChoice::Via(podssh_ws::proxy::Proxy::parse(&format!("http://{at}")).unwrap());
-    let tcp = ProxiedTcp::new(choice, Duration::from_secs(10));
+    let way = common::via(&format!("http://{at}"));
+    let tcp = ProxiedTcp::new(way, Duration::from_secs(10));
     let relay: SocketAddr = "198.51.100.7:443".parse().unwrap();
     let mut stream = tcp.connect(&relay, &TcpConnectOptions::default()).await.unwrap();
     stream.write_all(b"ping").await.unwrap();
@@ -55,8 +56,8 @@ async fn a_refusal_of_the_proxy_is_an_error_of_the_connection() {
         let _ = s.read(&mut buf).await;
         let _ = s.write_all(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n").await;
     });
-    let choice = ProxyChoice::Via(podssh_ws::proxy::Proxy::parse(&format!("http://{at}")).unwrap());
-    let tcp = ProxiedTcp::new(choice, Duration::from_secs(10));
+    let way = common::via(&format!("http://{at}"));
+    let tcp = ProxiedTcp::new(way, Duration::from_secs(10));
     let relay: SocketAddr = "198.51.100.7:9001".parse().unwrap();
     let err = tcp.connect(&relay, &TcpConnectOptions::default()).await.err().expect("a refusal");
     assert!(err.to_string().contains("403"), "{err}");
@@ -65,7 +66,7 @@ async fn a_refusal_of_the_proxy_is_an_error_of_the_connection() {
 /// The road listens on nothing.
 #[tokio::test]
 async fn it_listens_on_nothing() {
-    let tcp = ProxiedTcp::new(ProxyChoice::Direct, Duration::from_secs(1));
+    let tcp = ProxiedTcp::new(common::direct(), Duration::from_secs(1));
     let any: SocketAddr = "127.0.0.1:0".parse().unwrap();
     let err = tcp.listen(&any, &TcpListenOptions::default()).await.err().expect("no listener");
     assert_eq!(err.kind(), ErrorKind::Unsupported);

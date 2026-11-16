@@ -1,21 +1,22 @@
-//! The Tor road against a Tor network of C tor on the loopback (T-353),
+//! The Tor road against a Tor network of C tor on the loopback (PodUtils/podssh@T-353),
 //! software that podssh did not write: chutney's network `basic-min`,
-//! whose arti-client configuration (`arti.toml`) `PODSSH_TEST_TOR_NETWORK`
+//! whose arti-client configuration (`arti.toml`) `POD_TEST_TOR_NETWORK`
 //! names (`scripts/tor-net.sh` starts it). Arti bootstraps from its
 //! authorities with each first hop through a stand-in proxy, and a stream
 //! through its exit reaches a service on the loopback. With no network the
 //! test says so and passes, as each test of another program's server does
 //! where that program is missing.
 
+mod common;
+
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use podssh_tor::{Options, Tor};
-use podssh_ws::dial::ProxyChoice;
+use pod_tor::{Options, Tor};
 use tokio::io::{AsyncBufReadExt as _, AsyncReadExt as _, AsyncWriteExt as _, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 
-const NETWORK_ENV: &str = "PODSSH_TEST_TOR_NETWORK";
+const NETWORK_ENV: &str = "POD_TEST_TOR_NETWORK";
 
 /// A proxy of HTTP CONNECT on the loopback that carries each connection
 /// and keeps the target of each CONNECT.
@@ -79,21 +80,21 @@ async fn a_stream_through_a_private_network_reaches_the_service() {
         return;
     };
     let network = std::fs::read_to_string(&file).unwrap();
-    let _ = podssh_ws::crypto::provider().install_default();
+    common::provider();
     let (proxy_port, asked) = proxy().await;
     let service = target().await;
-    let home = std::env::temp_dir().join(format!("podssh-tor-private-{}", std::process::id()));
+    let home = std::env::temp_dir().join(format!("pod-tor-private-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&home);
     let options = Options {
         state_dir: home.join("state"),
         cache_dir: home.join("cache"),
-        proxy: ProxyChoice::Via(podssh_ws::proxy::Proxy::parse(&format!("http://127.0.0.1:{proxy_port}")).unwrap()),
+        way: common::via(&format!("http://127.0.0.1:{proxy_port}")),
         // chutney's relays listen on ports from 5000 up.
         first_hop_ports: None,
         trust_directories: true,
         network: Some(network),
         bridges: Vec::new(),
-        trust: podssh_ws::Trust::Default,
+        trust: pod_tls::Trust::Default,
     };
     let tor = Tor::bootstrap(&options, Duration::from_secs(120)).await.unwrap_or_else(|f| panic!("{f}"));
     let mut stream = tor.connect("127.0.0.1", service, Duration::from_secs(60)).await.unwrap_or_else(|f| panic!("{f}"));

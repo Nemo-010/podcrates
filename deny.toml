@@ -36,6 +36,18 @@ ignore = [
   # 0.10.0: the watch verifies the RSA host key of a relay with its public
   # key, and its own key is Ed25519.
   { id = "RUSTSEC-2023-0071", reason = "pod-tls and the russh client of pod-services-watch verify with RSA public keys only; the advisory concerns private-key operations" },
+  # SQLite before 3.54.0 can give stale memory of its page cache when it
+  # opens a database with a crafted `-wal` file of another page size. Only
+  # pod-tor links it, through arti's tor-dirmgr, and each arti release up to
+  # 0.48 (tor-dirmgr `rusqlite >=0.36, <0.41`) refuses the rusqlite 0.41 that
+  # brings the fixed libsqlite3-sys 0.39. Arti opens only the database of
+  # the caller's cache directory, which its check of permissions
+  # (fs-mistrust) refuses when another user can write it. Take the fix when
+  # arti takes rusqlite 0.41 (call C766). Read 2026-11-16.
+  { id = "RUSTSEC-2026-0459", reason = "no arti release takes the fixed libsqlite3-sys; arti opens only the database of the caller's own cache, which its check of permissions keeps to the user" },
+  # paste: a proc-macro at build time, no code at run time; pod-tor brings
+  # it through pwd-grp of arti's fs-mistrust (call C766). Read 2026-11-16.
+  { id = "RUSTSEC-2024-0436", reason = "unmaintained build-time proc-macro, only through arti's fs-mistrust (pod-tor)" },
 ]
 
 [licenses]
@@ -52,6 +64,18 @@ allow = [
   "MIT",
   "Unicode-3.0",
   "Zlib",
+]
+
+# The crates of arti under pod-tor (T-038, call C766), each unchanged and
+# named: copyleft for each file (MPL-2.0: option-ext), two dedications to the public
+# domain (Unlicense, CC0-1.0) and Boost's permissive license (BSL-1.0, of
+# tor-hsservice's growable-bloom-filter). A consumer that links pod-tor ships
+# the notice of each.
+exceptions = [
+  { allow = ["MPL-2.0"], crate = "option-ext" },
+  { allow = ["Unlicense"], crate = "async_executors" },
+  { allow = ["CC0-1.0"], crate = "notify" },
+  { allow = ["BSL-1.0"], crate = "xxhash-rust" },
 ]
 
 [bans]

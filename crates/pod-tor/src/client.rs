@@ -1,6 +1,6 @@
-//! A client of Tor: Arti on podssh's runtime ([`crate::runtime`]), its state
-//! and its copy of the directory in podssh's cache, bootstrapped once for a
-//! run, then a stream through a circuit to each `host:port` that the run
+//! A client of Tor: Arti on the runtime of this crate ([`crate::runtime`]),
+//! its state and its copy of the directory in the caller's directories,
+//! bootstrapped once for a run, then a stream through a circuit to each `host:port` that the run
 //! asks for. The exit resolves the name, so no name of a target is resolved
 //! here, and none leaves this host but inside Tor.
 
@@ -10,14 +10,15 @@ use std::time::Duration;
 
 use arti_client::config::{CfgPath, TorClientConfigBuilder};
 use arti_client::{DataStream, TorClient};
-use podssh_ws::dial::ProxyChoice;
+use pod_ws::Way;
 use tor_netdoc::types::policy::AddrPortPattern;
 use tor_rtcompat::tokio::TokioRustlsRuntime;
 use tor_rtcompat::{CompoundRuntime, RuntimeSubstExt as _};
 
-use crate::runtime::{ProxiedTcp, CONNECT_WAIT};
+use crate::runtime::{CONNECT_WAIT, ProxiedTcp};
 
-/// The runtime of the client: tokio and rustls, with podssh's TCP provider.
+/// The runtime of the client: tokio and rustls, with the TCP provider of
+/// the way out.
 pub type Runtime = CompoundRuntime<
     TokioRustlsRuntime,
     TokioRustlsRuntime,
@@ -35,8 +36,9 @@ pub struct Options {
     pub state_dir: PathBuf,
     /// Arti's copy of the directory, so that a later run starts sooner.
     pub cache_dir: PathBuf,
-    /// The proxy of each first hop.
-    pub proxy: ProxyChoice,
+    /// The way out of each first hop and of each transport of a bridge:
+    /// the caller's dialer and TLS context.
+    pub way: Way,
     /// The ports that a first hop may have, or `None` for any: through a
     /// proxy that allows 443 alone, a guard on 9001 can never be reached.
     pub first_hop_ports: Option<Vec<u16>>,
@@ -48,11 +50,11 @@ pub struct Options {
     /// (`arti.toml`), whose authorities, caches and rules of paths replace
     /// Tor's. The directories, the proxy and the first hops above still hold.
     pub network: Option<String>,
-    /// Bridges (T-385): with any, Arti's first hops are these alone,
+    /// Bridges (PodUtils/podssh@T-385): with any, Arti's first hops are these alone,
     /// through their transports, and `first_hop_ports` does not hold.
     pub bridges: Vec<crate::bridges::Bridge>,
     /// The roots that a bridge's transport checks its TLS with.
-    pub trust: podssh_ws::Trust,
+    pub trust: pod_tls::Trust,
 }
 
 /// Why the client could not be made, or a stream not opened.
@@ -99,7 +101,7 @@ impl Tor {
     /// a tokio runtime, with a default `CryptoProvider` of rustls installed.
     pub async fn bootstrap(options: &Options, wait: Duration) -> Result<Tor, Failure> {
         let base = TokioRustlsRuntime::current().map_err(|e| failure("the runtime", e))?;
-        let tcp = ProxiedTcp::new(options.proxy.clone(), CONNECT_WAIT).with_trust(options.trust.clone());
+        let tcp = ProxiedTcp::new(options.way.clone(), CONNECT_WAIT).with_trust(options.trust.clone());
         let said = tcp.said();
         let runtime: Runtime = base.with_tcp_provider(tcp);
         let mut builder = match &options.network {
@@ -111,8 +113,8 @@ impl Tor {
             }
             None => TorClientConfigBuilder::default(),
         };
-        // podssh's directories, as `from_directories` sets them, whatever the
-        // network's configuration names.
+        // The caller's directories, whatever the network's configuration
+        // names.
         builder
             .storage()
             .cache_dir(CfgPath::new_literal(&options.cache_dir))

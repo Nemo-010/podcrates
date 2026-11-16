@@ -1,15 +1,14 @@
-//! A bridge's pluggable transport, answered in this process (T-385). Arti
+//! A bridge's pluggable transport, answered in this process (PodUtils/podssh@T-385). Arti
 //! reaches a transport that it does not manage as a SOCKS5 proxy at the
-//! transport's `proxy_addr`, through its runtime's TCP provider: podssh's
-//! ([`crate::runtime`]). Each of podssh's two transports has a sentinel
+//! transport's `proxy_addr`, through its runtime's TCP provider: this
+//! crate's ([`crate::runtime`]). Each of the two transports has a sentinel
 //! address there, and the provider answers a dial of one with one end of a
 //! pipe in memory; a task here holds the other end, answers Arti's SOCKS5
 //! handshake ([`crate::socks`]), whose user and password carry the bridge's
-//! arguments, opens the transport through podssh-ws (its dial, its proxy,
-//! its TLS), says whether it opened, and carries the bytes.
+//! arguments, opens the transport through `pod-egress` (the dial and the
+//! TLS of the way out), says whether it opened, and carries the bytes.
 //!
-//! Nothing binds, listens or starts (`AGENTS.md`, section 5, rules 2 and 3):
-//! a sentinel is a key that the provider matches, never dialled. That Arti
+//! Nothing binds, listens or starts: a sentinel is a key that the provider matches, never dialled. That Arti
 //! dials a transport through its runtime is its code at 0.47, not a promise
 //! of its API; a test drives Arti's own client against the sentinel, so
 //! that a release which changes it fails there.
@@ -18,7 +17,7 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use podssh_ws::pt::Reach;
+use pod_egress::pt::Reach;
 use tokio::io::DuplexStream;
 
 use crate::socks;
@@ -31,7 +30,7 @@ const HANDSHAKE_WAIT: Duration = Duration::from_secs(10);
 /// The pipe in memory, each way.
 const PIPE: usize = 256 * 1024;
 
-/// A transport that podssh speaks.
+/// A transport that this crate speaks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     Meek,
@@ -98,8 +97,8 @@ pub(crate) fn spawn(kind: Kind, reach: Reach, said: Said) -> DuplexStream {
 /// An open transport.
 enum Open {
     // A session holds its fronts and its reach; boxed, as the stream is small.
-    Meek(Box<podssh_ws::meek::Session>),
-    WebTunnel(podssh_ws::url::Stream),
+    Meek(Box<pod_egress::meek::Session>),
+    WebTunnel(pod_ws::url::Stream),
 }
 
 /// The far end: the handshake, the transport, then its bytes.
@@ -144,12 +143,12 @@ async fn serve(kind: Kind, mut far: DuplexStream, reach: Reach, said: Said) {
 async fn open(kind: Kind, settings: &[(String, String)], reach: &Reach) -> Result<Open, String> {
     match kind {
         Kind::Meek => {
-            let args = podssh_ws::meek::Args::parse(settings)?;
-            podssh_ws::meek::open(&args, reach).await.map(|session| Open::Meek(Box::new(session)))
+            let args = pod_egress::meek::Args::parse(settings)?;
+            pod_egress::meek::open(&args, reach).await.map(|session| Open::Meek(Box::new(session)))
         }
         Kind::WebTunnel => {
-            let args = podssh_ws::webtunnel::Args::parse(settings)?;
-            podssh_ws::webtunnel::open(&args, reach).await.map(Open::WebTunnel)
+            let args = pod_egress::webtunnel::Args::parse(settings)?;
+            pod_egress::webtunnel::open(&args, reach).await.map(Open::WebTunnel)
         }
     }
 }
