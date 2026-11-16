@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 610 entries: 119 open, 13 partial, 6 blocked, 472 done.
+`TODO/INDEX.md` holds 618 entries: 127 open, 13 partial, 6 blocked, 472 done.
 
 ## State
 
@@ -130,7 +130,8 @@ for podnet (item 3c): T-526. Then the items below, in order.
 5. **M1, the transport:** T-200 (a Bare node whose WebSocket passes, for PodUtils/podssh@T-740); T-151 (the watch scripts that leave podssh and podnet); T-041 when a crate or a consumer needs
    it; then T-189, T-192, T-193 (the proposals of PodUtils/podnet#437 for
    `pod-proxy` and `pod-core`).
-6. **M2, the relay:** T-212; T-290 (the layer of
+6. **M2, the relay:** the contract of `pod-link` from the study of zmux
+   (`docs/research/zmux.md`): T-774, T-775, T-777, T-776, then T-778; T-212; T-290 (the layer of
    `pod-relay` as a feature); then T-204 (a random failure of
    `pod-session`); then
    T-124 (the failover of the reverse road across the relays of several
@@ -141,7 +142,9 @@ for podnet (item 3c): T-526. Then the items below, in order.
 8. **M4, the roads:** T-131 (a defect of `pod-gsr` on Windows ARM64)
    first; then T-036, T-037,
    T-038, T-039.
-9. **M5, the upkeep:** T-312 (a
+9. **M5, the upkeep:** T-780 (a test that reads the pipes of its child
+   after the child ends), T-781 (the findings of the study of zmux for the
+   consumers), T-779; T-312 (a
    code fence that is not closed in the record). A "port" entry for each
    change that scripts/check-sources.py finds; T-199 after a release of snow on
    `chacha20poly1305` 0.11. The live calls of CI (`docs/live-calls.md`,

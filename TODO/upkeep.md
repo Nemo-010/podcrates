@@ -2514,3 +2514,192 @@ grows weaker.
 cargo test -p pod-guest --all-features --lib -- ready::tests
 cargo test -p pod-egress --all-features --test vless
 ```
+
+# T-779: `pod-identity`: one stack of curve25519 and of SHA-2: take `ed25519-dalek` 3
+
+**Source:** The study of zmux (`docs/research/zmux.md`, lesson 6; the dependency list of `pod-link` that the study captured).
+**Category:** chore
+**Milestone:** M5
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The default build of `pod-link` (no feature) has two stacks of each
+curve and hash crate, both through `pod-identity`: `ed25519-dalek` 2.2.0
+takes `curve25519-dalek` 4.1.3, `sha2` 0.10.9 and `digest` 0.10.7;
+`x25519-dalek` 3.0.0 takes `curve25519-dalek` 5.0.0; `pod-identity`
+itself takes `sha2` 0.11.1 and `hkdf` 0.13 (`digest` 0.11.3). Each binary
+with `pod-identity` (each consumer) compiles and links both. The
+workspace pins `ed25519-dalek` 2 (`Cargo.toml`), while `ed25519-dalek`
+3.0.0, on `curve25519-dalek` 5 and `sha2` 0.11, is in `Cargo.lock`
+already through `russh`.
+
+## Premise
+
+- Measured (2026-11-16, at `567a56c`): `cargo tree -p pod-link -e normal
+  -d` names `curve25519-dalek` 4.1.3 and 5.0.0, `sha2` 0.10.9 and
+  0.11.1, `digest` 0.10.7 and 0.11.3; the study's list at `62b8223` has
+  the same.
+- Read: `crates/pod-identity/Cargo.toml`; the entries of `ed25519-dalek`
+  in `Cargo.lock`; `deny.toml` (`multiple-versions = "warn"`).
+- Not measured: the size that a release binary saves; the API changes
+  of `ed25519-dalek` 3 in `pod-tls` and `pod-relay`.
+- The RSA verifier of `pod-tls` (feature `rsa`) keeps `digest` 0.10
+  through `rsa` 0.9: out of the default build, not part of this entry.
+
+## Approach
+
+Set the workspace dependency `ed25519-dalek` to 3, with the features of
+today. Change the calls of `pod-identity`, `pod-tls` and `pod-relay` to
+its API (the keys from bytes, the `rand_core` 0.10 traits, the PKCS#8
+features where a crate reads or writes a key file). The key files and the
+signatures do not change: Ed25519 is the same algorithm. Run the tests of
+each crate that takes `pod-identity`, the static probe, and the
+adoption trials.
+
+## Prove
+
+```sh
+cargo tree -p pod-link -e normal -d
+cargo test -p pod-identity --all-features
+cargo test -p pod-tls --all-features
+cargo test -p pod-relay --all-features
+python3 -I scripts/check-probe.py
+```
+
+The first command names no second version of `curve25519-dalek`,
+`sha2` or `digest`.
+
+# T-780: A test reads the pipes of its child only after the child ends: a child that writes more than a pipe holds stops (`pod-term` calibration)
+
+**Source:** The study of zmux (`docs/research/zmux.md`, lesson 7; a failure of podssh that the study measured).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The study ran the tests of podssh away from CI. The test of
+`podssh doctor` (`PodUtils/podssh:crates/podssh-cli/tests/doctor_upgrade.rs`)
+spawns the command with its stdout and stderr piped, then polls
+`try_wait()` and reads nothing until the child ends. `podssh doctor`
+wrote 87,463 bytes; the pipe holds 65,536; the child waited in
+`pipe_write` by the third second, and the test failed at its limit of
+120 s. The same form is in podcrates:
+`crates/pod-term/tests/calibration.rs:171` polls `try_wait()` on a tmux
+child whose pipes it reads only after the end (`wait_with_output`). A
+pane of tmux is small today, so it passes; a larger pane, a verbose
+tmux or a pipe of 16 KiB (the first size on macOS) makes it a stop at
+the limit with a message that names the time, not the pipe.
+
+The study also found a test of podvm that cleared the proxy variables of
+`https://` and `all_proxy` for its child but not `http_proxy`: the child
+took the host's proxy. `pod-proxy` reads eight variables in four lists
+(`PROXY_VARS`, `HTTP_PROXY_VARS`, `NO_PROXY_VARS` and the orders of
+podnet in `crates/pod-proxy/src/env.rs`); `pod-lab` keeps its own list of
+eight for its test. No helper gives a child an environment with no way
+out.
+
+## Premise
+
+- Measured by the study (2026-11-16): the numbers of podssh above.
+- Read: `crates/pod-term/tests/calibration.rs`,
+  `crates/pod-testkit/src/lib.rs`, `crates/pod-proxy/src/env.rs`,
+  `crates/pod-lab/tests/lab/way_out.rs`; the other calls of
+  `try_wait` in `crates/` (`pod-guest`, `pod-egress`, `pod-testkit`)
+  give the child no pipe or a file.
+- Not measured: the calibration test with a pane of more than 64 KiB.
+
+## Approach
+
+1. `pod-testkit` gets a function that runs a `Command` within a limit
+   (scaled for an emulator, as `host::scaled` does): it spawns the child
+   with both pipes, reads each pipe on a thread while it waits, and at
+   the limit kills the child and gives an error with the limit and the
+   bytes read until then. The calibration test of `pod-term` takes it.
+2. `pod-testkit` gets a function that removes from a `Command` each
+   variable that names a proxy or its bypass (the eight of `pod-proxy`).
+   A test of `pod-proxy` checks that the list of `pod-testkit` holds each
+   name of `PROXY_VARS`, `HTTP_PROXY_VARS` and `NO_PROXY_VARS`.
+3. `docs/development.md` names both functions in the rules of a test
+   that runs a child.
+
+## Prove
+
+```sh
+cargo test -p pod-testkit
+cargo test -p pod-proxy --all-features
+cargo test -p pod-term --all-features --test calibration
+```
+
+A test of `pod-testkit` runs a child that writes 1 MiB to stdout and
+1 MiB to stderr, and gets both whole within the limit; a child that
+sleeps past the limit gives the error with the limit named.
+
+# T-781: The findings of the study of zmux for the tests of podssh, podnet and podvm, by COORD issues
+
+**Source:** The study of zmux (`docs/research/zmux.md`, lesson 8 and section 3).
+**Category:** chore
+**Milestone:** M5
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The study ran the test gates of the consumers on one host away from CI
+(2026-11-16) and found tests that encode the environment of CI. A
+session of podcrates does not edit a consumer (`AGENTS.md`, section 1),
+so the evidence goes to each session:
+
+- podssh (at `b551245`):
+  `PodUtils/podssh:crates/podssh-cli/tests/doctor_upgrade.rs`, test
+  `the_three_failures_of_the_upgrade_are_named_apart`,
+  failed with "podssh doctor still ran after 120 s (refuse:403)". The
+  test polls `try_wait()` with both pipes piped and unread; the command
+  wrote 87,463 bytes against a pipe of 65,536, and waited in
+  `pipe_write`.
+- podnet (at `830c722`):
+  `PodUtils/podnet:tests/pod_seccomp_diff.rs`, test
+  `seccomp_errnos_match_the_host`, failed on a
+  host with no route: "udp connect: host "errno 101", pod "0"". The
+  parity test needs a route to `192.0.2.10` and does not say so.
+- podvm (at `8f88ff1`): `PodUtils/podvm:crates/podvm/src/broker/upstream_tests.rs`
+  resolves `example.com` and fails with `EAI_AGAIN` with no DNS;
+  `the_store_root_prefers_podvm_store_and_never_falls_to_tmpdir_silently`
+  fails when `XDG_DATA_HOME` is set, which `Store::default_root` reads
+  first; `PodUtils/podvm:crates/podvm-image/tests/proxy_pull.rs` removes `https_proxy`,
+  `all_proxy` and `no_proxy` (both cases) for its child but not
+  `http_proxy`, and the pull took the host's proxy (403). The run was
+  green after the four changes of the environment and `sshd` on `PATH`.
+
+## Premise
+
+- Read: the logs of the study (the report and its data are not in this
+  repository; `docs/research/zmux.md`, section 3, has the facts); the
+  list of the proxy variables of podvm's test through the forge mirror
+  (2026-11-16).
+- Not measured: the same tests on the CI of each consumer; the trees of
+  the consumers after the pins of the study.
+
+## Approach
+
+One COORD issue for each consumer (`(to podssh)`, `(to podnet)`,
+`(to podvm)`, `docs/maintenance.md`, "Talk between sessions"), each with
+its findings above, the log line, the mechanism, and the offer of the
+helpers of T-780 (a child within a limit with its pipes read; a child
+with no way out) after their release. Map each issue in `TODO/issues.md`
+and `TODO/github.txt`. Close each one on the answer of its session.
+
+## Prove
+
+```sh
+cargo todo check
+python3 -I scripts/check-github-numbers.py
+```
+
+Each of the three issues is in `TODO/issues.md` with its state.

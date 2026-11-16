@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**610 entries: 119 open, 13 partial, 6 blocked, 472 done.**
+**618 entries: 127 open, 13 partial, 6 blocked, 472 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 13 | 7 | 0 | 138 | 158 |
-| P2 | 52 | 3 | 4 | 245 | 304 |
-| P3 | 54 | 3 | 2 | 87 | 146 |
-| **All** | 119 | 13 | 6 | 472 | 610 |
+| P2 | 58 | 3 | 4 | 245 | 310 |
+| P3 | 56 | 3 | 2 | 87 | 148 |
+| **All** | 127 | 13 | 6 | 472 | 618 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -656,4 +656,12 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-766](upkeep.md) | P2 | S | M5 | defect | open | The nightly at `1739b5f` is red on riscv64: two time limits of tests that the emulation of QEMU outruns |
 | [T-767](relay.md) | P1 | M | M2 | defect | open | `pod-session`: a resume that the client calls done, after which the session never moves (PodUtils/podssh#283) |
 | [T-773](fleet.md) | P2 | S | M8 | defect | open | the installer core: a tree copy with no pins stops on a host with cosign (PodUtils/podnet#597) |
+| [T-774](relay.md) | P2 | S | M2 | docs | open | `pod-link`: a normative document of the wire, with the order of the checks and the rule of the timers, held to the code by a test |
+| [T-775](relay.md) | P2 | S | M2 | chore | open | `pod-link`: a table of frames in bytes with the result of each, read by one test |
+| [T-776](relay.md) | P2 | M | M2 | chore | open | `pod-link`: scripted cases of a link on a paused clock, and the table of the classes of defects |
+| [T-777](relay.md) | P2 | S | M2 | measurement | open | `pod-link`: a committed measurement of the link: throughput, round trips, allocations for each frame and memory |
+| [T-778](relay.md) | P3 | M | M2 | feature | open | `pod-link`: no allocation for each `DATA` frame, and fewer copies of each byte |
+| [T-779](upkeep.md) | P3 | S | M5 | chore | open | `pod-identity`: one stack of curve25519 and of SHA-2: take `ed25519-dalek` 3 |
+| [T-780](upkeep.md) | P2 | S | M5 | defect | open | A test reads the pipes of its child only after the child ends: a child that writes more than a pipe holds stops (`pod-term` calibration) |
+| [T-781](upkeep.md) | P2 | S | M5 | chore | open | The findings of the study of zmux for the tests of podssh, podnet and podvm, by COORD issues |
 | [T-786](podvm.md) | P1 | S | M6 | feature | open | `pod-enter`: the ids inside the user namespace of the namespace rung, so that a payload runs as the user of its image (PodUtils/podvm#447) |
