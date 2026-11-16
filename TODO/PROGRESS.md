@@ -14,7 +14,8 @@
   T-767 (partial: the line of each resume), T-761 to T-765.
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
-  - podssh: `v0.60.0` (`cbef76d`, PodUtils/podssh#281; no patch): it runs the one
+  - podssh: `v0.61.0` (`d13ab01`, PodUtils/podssh#284, with the installer
+    core; no patch): it runs the one
     watcher and the sync of the issues; its lane passes in the ten labs
     that hold its classes (`podssh doctor`, `release-short.sh`, `ssh`, `cp`
     of 200 MiB), with the release asset of `podlab`; `pod-manual` is
