@@ -206,9 +206,17 @@ async fn measure_copy(pair: &Pair) -> Result<(Vec<f64>, f64), String> {
             };
             operator::run(&config, io).await.map_err(|e| e.to_string())
         });
-        user.write_all(&[SINK]).await.map_err(|e| e.to_string())?;
-        for _ in 0..COPY_SESSION / chunk.len() {
-            user.write_all(&chunk).await.map_err(|e| e.to_string())?;
+        // A write that fails names the end of the session and the bytes
+        // that went: a cut of the relay, or an end of the node.
+        let mut sent = 0usize;
+        let mut wrote = user.write_all(&[SINK]).await;
+        while wrote.is_ok() && sent < COPY_SESSION {
+            wrote = user.write_all(&chunk).await;
+            sent += chunk.len();
+        }
+        if let Err(e) = wrote {
+            let outcome = tokio::time::timeout(LIMIT, session).await;
+            return Err(format!("session {} after {} MiB: {e}; its end: {outcome:?}", each.len() + 1, sent / MIB));
         }
         user.shutdown().await.map_err(|e| e.to_string())?;
         let mut rest = Vec::new();
