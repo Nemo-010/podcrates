@@ -60,6 +60,8 @@ struct Note {
     addr: Option<SocketAddr>,
     /// The dial sent the checked name to an upstream that takes names only.
     by_name: bool,
+    /// The name had no local answer, and only the upstream resolved it.
+    upstream_resolved: bool,
 }
 
 impl Note {
@@ -72,6 +74,9 @@ impl Note {
         line.set("addr", self.addr.map(|a| a.to_string()));
         if self.by_name {
             line.set("sent", "name");
+        }
+        if self.upstream_resolved {
+            line.set("resolved", "upstream");
         }
         line
     }
@@ -107,7 +112,15 @@ impl Broker {
 
     async fn serve_one(&self, mut io: BoxedIo, bound: Option<&str>) {
         let job = bound.map(str::to_string);
-        let mut note = Note { started: Instant::now(), job, kind: "request", target: None, addr: None, by_name: false };
+        let mut note = Note {
+            started: Instant::now(),
+            job,
+            kind: "request",
+            target: None,
+            addr: None,
+            by_name: false,
+            upstream_resolved: false,
+        };
         let read = tokio::time::timeout(self.settings.head_timeout, read_request(&mut io, Vec::new())).await;
         let (request, rest) = match read {
             Ok(Ok(read)) => read,
@@ -278,7 +291,18 @@ impl Broker {
         };
         let addrs = match &target.host {
             Host::Ip(ip) => vec![SocketAddr::new(*ip, target.port)],
-            Host::Name(name) => self.resolve_once(name, target.port).await?,
+            Host::Name(name) => match self.resolve_once(name, target.port).await {
+                Ok(addrs) => addrs,
+                // In names mode the upstream resolves the name. A host whose
+                // names resolve only through its proxy has no answer here: the
+                // name passed each deny and the policy, and the canary says
+                // whether the upstream refuses a non-public address.
+                Err(refusal) if self.settings.names_upstream && refusal.rule == "resolve" => {
+                    note.upstream_resolved = true;
+                    Vec::new()
+                }
+                Err(refusal) => return Err(refusal),
+            },
         };
         for addr in &addrs {
             if let Some(rule) = self.denies(lease).find_map(|d| d.check_ip(addr.ip())) {

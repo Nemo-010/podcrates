@@ -4,7 +4,9 @@
 //! address ([`crate::Settings::names_upstream`]). The broker still checks
 //! the name against each deny and resolves it once, and each address
 //! passes each deny; but the upstream resolves the name again, and can
-//! reach another address. So the broker asks the upstream at the start
+//! reach another address. Where the host has no answer for the name (its
+//! names resolve only through its proxy), the name goes to the upstream
+//! with no address check, and the audit line says `"resolved":"upstream"`. So the broker asks the upstream at the start
 //! whether it refuses a name of a non-public address (the canary): an
 //! upstream that takes one holds a job as `advisory` only, and a consumer
 //! serves no untrusted job through it.

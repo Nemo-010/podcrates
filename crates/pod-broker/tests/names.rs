@@ -203,3 +203,36 @@ async fn an_upstream_that_takes_names_only_needs_names_mode() {
     assert!(!heads[1].contains(TOKEN), "{}", heads[1]);
     assert_eq!(status(&broker, &connect("names.example:8080")).await, 502);
 }
+
+/// A host whose names resolve only through its proxy (PodUtils/podrunner#215):
+/// in names mode a name with no local answer goes to the upstream, which
+/// resolves it, and the audit line says so; in address mode it is refused,
+/// as there is no address to dial.
+#[tokio::test]
+async fn names_mode_sends_a_name_that_only_the_upstream_resolves() {
+    let far = Far::new(Kind::Echo);
+    let (broker, audit) = broker_with(names(), far.clone(), Answers::new(&[&[]]));
+    load(&broker, "job1", TOKEN, OPEN);
+    let (head, mut tunnel) = ask(&broker, &connect("github.com:443")).await;
+    assert_eq!(status_of(&head), 200, "{head}");
+    assert_eq!(round_trip(&mut tunnel, b"no local resolver").await, b"no local resolver");
+    assert_eq!(far.dialed(), [Target::Name { host: "github.com".into(), port: 443 }]);
+    tunnel.shutdown().await.unwrap();
+    let line = audit.connection("allow").await;
+    assert_eq!(line.fields["resolved"].as_str(), Some("upstream"));
+    assert!(line.fields["addr"].is_null());
+
+    // The deny of a name and the policy still hold with no local answer.
+    let far = Far::new(Kind::Echo);
+    let (broker, _) = broker_with(names(), far.clone(), Answers::new(&[&[]]));
+    load(&broker, "job1", TOKEN, r#"{"schema":1,"mode":"allow","allow":[{"host":"github.com"}]}"#);
+    assert_eq!(status(&broker, &connect("other.example:443")).await, 403);
+    assert_eq!(status(&broker, &connect("localhost:443")).await, 403);
+    assert!(far.dialed().is_empty(), "{:?}", far.dialed());
+
+    let far = Far::new(Kind::Echo);
+    let (broker, _) = broker_with(Settings::default(), far.clone(), Answers::new(&[&[]]));
+    load(&broker, "job1", TOKEN, OPEN);
+    assert_eq!(status(&broker, &connect("github.com:443")).await, 502);
+    assert!(far.dialed().is_empty(), "{:?}", far.dialed());
+}
