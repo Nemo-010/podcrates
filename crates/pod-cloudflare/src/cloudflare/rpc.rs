@@ -173,6 +173,12 @@ struct RegisterArgs {
     options: ConnectionOptions,
 }
 
+/// The name of the client in its version text: `podnet/0.4.0` gives
+/// `podnet`.
+fn client_name(version: &str) -> &str {
+    version.split('/').next().unwrap_or(version)
+}
+
 fn encode_register(auth: &TunnelAuth, tunnel_id: Uuid, conn_index: u8, options: &ConnectionOptions) -> RegisterArgs {
     RegisterArgs { auth: auth.clone(), tunnel_id, conn_index, options: options.clone() }
 }
@@ -245,8 +251,8 @@ impl<W: AsyncWrite + Unpin> Session<W> {
                 let question = call.get_u32(0);
                 let interface = call.get_u64(1);
                 let method = call.get_u16(2);
-                debug!(interface = %format!("{interface:#x}"), method, "the edge called podnet");
-                self.send(exception_return(question, "not implemented by podnet")).await?;
+                debug!(interface = %format!("{interface:#x}"), method, "the edge called the client");
+                self.send(exception_return(question, "not implemented by the client")).await?;
             }
             MSG_FINISH | MSG_RELEASE => {}
             MSG_ABORT => {
@@ -254,7 +260,7 @@ impl<W: AsyncWrite + Unpin> Session<W> {
                 warn!(%reason, "the edge aborted the control stream");
                 return Ok(false);
             }
-            MSG_UNIMPLEMENTED => debug!("the edge did not understand a message of podnet"),
+            MSG_UNIMPLEMENTED => debug!("the edge did not understand a message of the client"),
             other => debug!(kind = other, "ignored an RPC message"),
         }
         Ok(true)
@@ -371,6 +377,7 @@ impl<W: AsyncWrite + Unpin> Session<W> {
                 match read_register_results(&results)? {
                     Ok(details) => Ok(details),
                     Err(err) => Err(Failure::from(Refused {
+                        client: client_name(&args.options.version).to_string(),
                         cause: err.cause.clone(),
                         should_retry: err.should_retry,
                         retry_after: Duration::from_nanos(err.retry_after.max(0) as u64),
@@ -381,7 +388,8 @@ impl<W: AsyncWrite + Unpin> Session<W> {
                 bail!(
                     Stage::EdgeRegister,
                     Class::Protocol,
-                    "registerConnection failed: {reason} (podnet speaks {})",
+                    "registerConnection failed: {reason} ({} speaks {})",
+                    client_name(&args.options.version),
                     crate::cloudflare::speaks()
                 )
             }
@@ -389,7 +397,8 @@ impl<W: AsyncWrite + Unpin> Session<W> {
                 bail!(
                     Stage::EdgeRegister,
                     Class::Protocol,
-                    "registerConnection answered with kind {kind} (podnet speaks {})",
+                    "registerConnection answered with kind {kind} ({} speaks {})",
+                    client_name(&args.options.version),
                     crate::cloudflare::speaks()
                 )
             }

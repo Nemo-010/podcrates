@@ -7,6 +7,7 @@ use super::*;
 async fn a_retryable_refusal_of_the_first_registration_is_tried_again() {
     let refused = |retry: bool| {
         pod_core::Failure::from(rpc::Refused {
+            client: "podnet".into(),
             cause: "Unauthorized: Tunnel not found".into(),
             should_retry: retry,
             retry_after: Duration::from_secs(1),
@@ -72,6 +73,7 @@ async fn a_slow_registration_completes_in_the_serial_limit() {
                 tokio::time::sleep(quic_dial::HANDSHAKE_TIMEOUT / 2).await;
                 if n < REGISTER_TRIES {
                     Err(pod_core::Failure::from(rpc::Refused {
+                        client: "podnet".into(),
                         cause: "Unauthorized: Tunnel not found".into(),
                         should_retry: true,
                         retry_after: REGISTER_WAIT_MAX,
@@ -91,8 +93,9 @@ async fn a_slow_registration_completes_in_the_serial_limit() {
 fn podnet_udp_and_the_probe_shape_the_plan() {
     use crate::udp::{Choice, Egress};
     use LegKind::*;
+    let words = crate::testing::podnet_words();
     let all = || vec![QuicDirect, H2Direct, QuicWarp];
-    let plan = |udp, egress: Option<Egress>| plan_with_udp(all(), udp, egress.as_ref());
+    let plan = |udp, egress: Option<Egress>| plan_with_udp(all(), udp, egress.as_ref(), &words);
     assert_eq!(plan(Choice::Off, None).unwrap().0, vec![H2Direct, QuicWarp]);
     assert_eq!(plan(Choice::On, None).unwrap().0, all());
     let refused = Egress::Refused("EPERM".into());
@@ -104,9 +107,9 @@ fn podnet_udp_and_the_probe_shape_the_plan() {
         assert_eq!(plan(Choice::Probe, Some(egress)).unwrap().0, all());
     }
     // PODNET_UDP=off with QUIC on UDP 7844 as the only leg is an error.
-    let err = plan_with_udp(vec![QuicDirect], Choice::Off, None).unwrap_err();
+    let err = plan_with_udp(vec![QuicDirect], Choice::Off, None, &words).unwrap_err();
     assert_eq!(crate::fail::class_of(&err), Some(Class::Config));
-    assert_eq!(plan_with_udp(vec![H2Direct], Choice::Off, None).unwrap().0, vec![H2Direct]);
+    assert_eq!(plan_with_udp(vec![H2Direct], Choice::Off, None, &words).unwrap().0, vec![H2Direct]);
     let _ = refused;
 }
 
@@ -114,30 +117,32 @@ fn podnet_udp_and_the_probe_shape_the_plan() {
 // quic keeps it, with a note.
 #[test]
 fn a_proxy_and_the_quic_leg() {
+    let words = crate::testing::podnet_words();
     let proxy = pod_proxy::Proxy::parse_trusted("http://127.0.0.1:3128").unwrap().label();
-    let auto = leg_plan(Protocol::Auto, Transport::Auto).unwrap();
-    let (plan, note) = plan_with_proxy(auto, Protocol::Auto, Some(&proxy));
+    let auto = leg_plan(Protocol::Auto, Transport::Auto, &words).unwrap();
+    let (plan, note) = plan_with_proxy(auto, Protocol::Auto, Some(&proxy), &words);
     assert!(!plan.contains(&LegKind::QuicDirect));
     assert!(note.unwrap().contains("does not try QUIC"));
-    let quic = leg_plan(Protocol::Quic, Transport::Direct).unwrap();
-    let (plan, note) = plan_with_proxy(quic, Protocol::Quic, Some(&proxy));
+    let quic = leg_plan(Protocol::Quic, Transport::Direct, &words).unwrap();
+    let (plan, note) = plan_with_proxy(quic, Protocol::Quic, Some(&proxy), &words);
     assert_eq!(plan, vec![LegKind::QuicDirect]);
     assert!(note.unwrap().contains("goes around the proxy"));
-    let quic = leg_plan(Protocol::Quic, Transport::Direct).unwrap();
-    assert_eq!(plan_with_proxy(quic, Protocol::Quic, None).1, None);
+    let quic = leg_plan(Protocol::Quic, Transport::Direct, &words).unwrap();
+    assert_eq!(plan_with_proxy(quic, Protocol::Quic, None, &words).1, None);
 }
 
 #[test]
 fn the_leg_plan_tries_quic_then_http2_then_warp() {
     use LegKind::*;
-    let plan = |p, t| leg_plan(p, t).unwrap();
+    let words = crate::testing::podnet_words();
+    let plan = |p, t| leg_plan(p, t, &words).unwrap();
     assert_eq!(plan(Protocol::Auto, Transport::Auto), vec![QuicDirect, H2Direct, QuicWarp]);
     assert_eq!(plan(Protocol::Quic, Transport::Auto), vec![QuicDirect, QuicWarp]);
     assert_eq!(plan(Protocol::Http2, Transport::Auto), vec![H2Direct]);
     assert_eq!(plan(Protocol::Auto, Transport::Direct), vec![QuicDirect, H2Direct]);
     assert_eq!(plan(Protocol::Quic, Transport::Warp), vec![QuicWarp]);
-    assert!(leg_plan(Protocol::Http2, Transport::Warp).is_err());
+    assert!(leg_plan(Protocol::Http2, Transport::Warp, &words).is_err());
     assert_eq!(plan(Protocol::Auto, Transport::Relay), vec![H2Relay]);
     assert_eq!(plan(Protocol::Http2, Transport::Relay), vec![H2Relay]);
-    assert!(leg_plan(Protocol::Quic, Transport::Relay).is_err());
+    assert!(leg_plan(Protocol::Quic, Transport::Relay, &words).is_err());
 }

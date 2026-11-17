@@ -25,7 +25,7 @@ mod tests;
 
 #[cfg(test)]
 use copy::*;
-pub use forward::{forward_http, forward_tcp};
+pub use forward::{forward_http, forward_tcp, tcp_http_body};
 pub use head::{
     build_request_head, content_length, header_value, is_websocket, write_response_meta, write_simple_response,
     write_simple_response_with,
@@ -55,7 +55,8 @@ impl Runtime {
                 host.services.prepare(index, &rule.service)?;
             }
         }
-        let origins = Origins::new(host.tls.clone()).with_report(host.report.clone());
+        let origins =
+            Origins::new(host.tls.clone()).with_report(host.report.clone()).with_words(host.settings.words.clone());
         Ok(Self { host, origins, metrics })
     }
 
@@ -158,9 +159,10 @@ async fn serve_request_inner(
     reader: EdgeReader,
     writer: EdgeWriter,
 ) -> Result<()> {
-    // Issue 205: the credential in front of the tunnel. A request with no
-    // right Authorization gets 401 and reaches no origin; the origin does
-    // not get the credential of podnet.
+    // The credential in front of the tunnel. A request with no right
+    // Authorization gets 401 and reaches no origin; the origin does not get
+    // the credential of the tunnel.
+    let words = &runtime.host().settings.words;
     if let Some(auth) = &ingress.auth {
         if !auth.check_basic(header_value(&request, "authorization")) {
             let mut writer = writer;
@@ -168,8 +170,8 @@ async fn serve_request_inner(
                 &mut writer,
                 401,
                 "text/plain; charset=utf-8",
-                AUTH_BODY,
-                &[("WWW-Authenticate".to_string(), "Basic realm=\"podnet\", charset=\"UTF-8\"".to_string())],
+                auth_body(words).as_bytes(),
+                &[("WWW-Authenticate".to_string(), format!("Basic realm=\"{}\", charset=\"UTF-8\"", words.name))],
             )
             .await;
         }
@@ -210,7 +212,8 @@ async fn serve_request_inner(
         }
         Service::HelloWorld => {
             let mut writer = writer;
-            write_simple_response(&mut writer, 200, "text/plain; charset=utf-8", b"Hello, world! (podnet)\n").await
+            let text = format!("Hello, world! ({})\n", runtime.host().settings.words.name);
+            write_simple_response(&mut writer, 200, "text/plain; charset=utf-8", text.as_bytes()).await
         }
         Service::Status(code) => {
             let mut writer = writer;
@@ -227,11 +230,11 @@ async fn serve_request_inner(
     }
 }
 
-/// The body of the 401 of `--auth-user` (issue 205).
-pub const AUTH_BODY: &[u8] = b"podnet: this tunnel needs a user and a password (HTTP Basic)\n";
-
-/// The answer of a raw TCP origin to an HTTP request (issue 199).
-pub const TCP_HTTP_BODY: &[u8] = b"podnet: a raw TCP origin carries TCP or WebSocket streams, not HTTP. Use --forward with \"podnet connect\", or --port for an HTTP origin.\n";
+/// The body of the 401 of the credential in front of the tunnel, in the
+/// words of the consumer.
+pub fn auth_body(words: &crate::Words) -> String {
+    format!("{}: this tunnel needs a user and a password (HTTP Basic)\n", words.name)
+}
 
 /// The authority of a URL (`https://host:port/a` gives `host:port`).
 fn authority_of(url: &str) -> Option<String> {

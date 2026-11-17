@@ -4,13 +4,15 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct Metrics {
     inner: Arc<Inner>,
 }
 
 #[derive(Default)]
 struct Inner {
+    /// The start of the name of each metric: the name of the consumer.
+    prefix: String,
     streams_total: AtomicU64,
     bytes_in: AtomicU64,
     bytes_out: AtomicU64,
@@ -32,8 +34,17 @@ pub struct MetricsSnapshot {
 }
 
 impl Metrics {
+    /// Counters whose metrics start with `pod_cloudflare_`.
     pub fn new() -> Self {
-        Self::default()
+        Self::with_prefix("pod-cloudflare")
+    }
+
+    /// Counters whose metrics start with `name` and `_`. A character that a
+    /// Prometheus name does not take (the `-` of `pod-cloudflare`) becomes
+    /// `_`.
+    pub fn with_prefix(name: &str) -> Self {
+        let prefix = name.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect();
+        Self { inner: Arc::new(Inner { prefix, ..Inner::default() }) }
     }
 
     pub fn stream_started(&self) {
@@ -77,33 +88,33 @@ impl Metrics {
         }
     }
 
-    /// Prometheus exposition format.
+    /// The Prometheus text of the counters. Each name starts with the
+    /// prefix of [`Metrics::with_prefix`].
     pub fn prometheus(&self) -> String {
         let m = self.snapshot();
-        format!(
-            "# HELP podnet_streams_total Inbound streams handled.\n\
-             # TYPE podnet_streams_total counter\n\
-             podnet_streams_total {}\n\
-             # HELP podnet_active_streams Streams currently being proxied.\n\
-             # TYPE podnet_active_streams gauge\n\
-             podnet_active_streams {}\n\
-             # HELP podnet_bytes_in_total Bytes received from the edge.\n\
-             # TYPE podnet_bytes_in_total counter\n\
-             podnet_bytes_in_total {}\n\
-             # HELP podnet_bytes_out_total Bytes sent to the edge.\n\
-             # TYPE podnet_bytes_out_total counter\n\
-             podnet_bytes_out_total {}\n\
-             # HELP podnet_reconnects_total Edge reconnections.\n\
-             # TYPE podnet_reconnects_total counter\n\
-             podnet_reconnects_total {}\n\
-             # HELP podnet_connections_total Edge connections registered.\n\
-             # TYPE podnet_connections_total counter\n\
-             podnet_connections_total {}\n\
-             # HELP podnet_errors_total Stream or connection errors.\n\
-             # TYPE podnet_errors_total counter\n\
-             podnet_errors_total {}\n",
-            m.streams_total, m.active_streams, m.bytes_in, m.bytes_out, m.reconnects, m.connections, m.errors
-        )
+        let rows: [(&str, &str, &str, u64); 7] = [
+            ("streams_total", "counter", "Inbound streams handled.", m.streams_total),
+            ("active_streams", "gauge", "Streams currently being proxied.", m.active_streams),
+            ("bytes_in_total", "counter", "Bytes received from the edge.", m.bytes_in),
+            ("bytes_out_total", "counter", "Bytes sent to the edge.", m.bytes_out),
+            ("reconnects_total", "counter", "Edge reconnections.", m.reconnects),
+            ("connections_total", "counter", "Edge connections registered.", m.connections),
+            ("errors_total", "counter", "Stream or connection errors.", m.errors),
+        ];
+        let prefix = &self.inner.prefix;
+        let mut out = String::new();
+        for (name, kind, help, value) in rows {
+            out.push_str(&format!(
+                "# HELP {prefix}_{name} {help}\n# TYPE {prefix}_{name} {kind}\n{prefix}_{name} {value}\n"
+            ));
+        }
+        out
+    }
+}
+
+impl Default for Metrics {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -113,7 +124,7 @@ mod tests {
 
     #[test]
     fn counts_and_renders() {
-        let metrics = Metrics::new();
+        let metrics = Metrics::with_prefix("podnet");
         metrics.stream_started();
         metrics.add_in(10);
         metrics.add_out(20);

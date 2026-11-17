@@ -25,17 +25,23 @@ use crate::metrics::Metrics;
 use crate::origin::Origins;
 use crate::proxy::{EdgeReader, EdgeWriter, header_value, write_response_meta};
 
-/// Default path for a `--forward` WebSocket endpoint. The client of the
-/// consumer dials the same path.
+/// The default of [`crate::Settings::forward_path`]: the path of the
+/// WebSocket of a forward rule with no path. It is podnet's wire, and the
+/// client of the consumer dials the same path.
 pub const DEFAULT_PATH: &str = "/__podnet/ws";
 
-/// The path of the first `--forward` rule of `ingress` (issue 203).
-/// `None` also when the `path:` of the rule is a regular expression with a
-/// special character: it names no one URL (issue 269).
+/// [`forward_path_with`] and [`DEFAULT_PATH`].
 pub fn forward_path(ingress: &crate::ingress::Ingress) -> Option<String> {
+    forward_path_with(ingress, DEFAULT_PATH)
+}
+
+/// The path of the first forward rule of `ingress`; `default` for a rule
+/// with no path. `None` also when the `path:` of the rule is a regular
+/// expression with a special character: it names no one URL.
+pub fn forward_path_with(ingress: &crate::ingress::Ingress, default: &str) -> Option<String> {
     let rule = ingress.rules.iter().find(|rule| matches!(rule.service, Service::Forward(_)))?;
     match &rule.path {
-        None => Some(DEFAULT_PATH.to_string()),
+        None => Some(default.to_string()),
         Some(pattern) => pattern.literal_path(),
     }
 }

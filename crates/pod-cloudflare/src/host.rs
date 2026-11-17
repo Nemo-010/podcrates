@@ -104,11 +104,49 @@ pub struct Settings {
     /// The name and the version of the client that the edge sees
     /// (`podnet/0.4.0`).
     pub client_version: String,
-    /// The user agent of the WebSocket dial of a forward.
-    pub ws_user_agent: String,
     /// A check of the public URL that fails is an error, not a warning
     /// (podnet's `PODNET_VERIFY_STRICT`).
     pub verify_strict: bool,
+    /// The path of the WebSocket of a forward rule that gives no path. The
+    /// client of the consumer dials the same path: the default is podnet's
+    /// wire, `/__podnet/ws` ([`crate::ws::DEFAULT_PATH`]).
+    pub forward_path: String,
+    /// The words of the consumer in the texts for the user.
+    pub words: Words,
+}
+
+/// The words of the consumer in the texts for the user: its name, its flags
+/// and its variables. The default words name no consumer.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Words {
+    /// The name of the client: in "NAME speaks cloudflared ...", in the
+    /// hello page, in the realm of the credential in front of the tunnel and
+    /// in the names of the metrics.
+    pub name: String,
+    /// The setting that chooses the protocol of the edge, before a value:
+    /// `--protocol` gives "use --protocol http2".
+    pub protocol: String,
+    /// The setting that turns QUIC on UDP off: `PODNET_UDP=off`.
+    pub udp_off: String,
+    /// What makes a check of the URL that is not proved an error.
+    pub strict: String,
+    /// What helps when this host cannot resolve the public name.
+    pub resolve: String,
+    /// What helps when an HTTP request comes to a raw TCP origin.
+    pub tcp_origin: String,
+}
+
+impl Default for Words {
+    fn default() -> Self {
+        Self {
+            name: "pod-cloudflare".into(),
+            protocol: "the protocol".into(),
+            udp_off: "the UDP choice off".into(),
+            strict: "the strict check of the URL makes this an error".into(),
+            resolve: "give the address of the name to the resolver, or do not check the URL".into(),
+            tcp_origin: "Use a forward and its client, or an HTTP origin.".into(),
+        }
+    }
 }
 
 impl Default for Settings {
@@ -119,8 +157,9 @@ impl Default for Settings {
             udp: crate::udp::Choice::Probe,
             provision_budget: crate::quicktunnel::PROVISION_BUDGET,
             client_version: version.to_string(),
-            ws_user_agent: version.to_string(),
             verify_strict: false,
+            forward_path: crate::ws::DEFAULT_PATH.to_string(),
+            words: Words::default(),
         }
     }
 }
@@ -208,5 +247,22 @@ impl Host {
         let deadline = tokio::time::Instant::now() + limit;
         let connected = self.dial.dial(target, deadline).await?;
         Ok(connected.io)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The default words name no consumer; the path of a forward keeps
+    /// podnet's wire, which its client dials.
+    #[test]
+    fn the_default_words_name_no_consumer() {
+        let settings = Settings::default();
+        let words = format!("{:?}", settings.words).to_ascii_lowercase();
+        assert!(!words.contains("podnet"), "{words}");
+        assert!(!words.contains("--"), "{words}");
+        assert_eq!(settings.forward_path, "/__podnet/ws");
+        assert!(settings.client_version.starts_with("pod-cloudflare/"));
     }
 }

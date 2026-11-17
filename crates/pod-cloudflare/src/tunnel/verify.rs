@@ -70,7 +70,8 @@ pub(super) async fn verify_fetch(
                 if is_resolution_failure(&err) {
                     last = format!("waiting for DNS: {err:#}");
                     if attempt == 1 && crate::fail::stage_of(&err) == Some(Stage::Dns) {
-                        let text = format!("this host does not resolve the new name yet; {REMEDY}");
+                        let text =
+                            format!("this host does not resolve the new name yet; {}", host.settings.words.resolve);
                         host.event(Event::info("tunnel.verify", text));
                     }
                 } else {
@@ -87,11 +88,11 @@ pub(super) async fn verify_fetch(
         // looked like a hang for up to a minute.
         let left_s = left.as_secs();
         if attempt > 10 && attempt.is_multiple_of(5) {
-            let text = format!("the public URL does not answer yet ({last}); podnet tries again for {left_s} s");
+            let text = format!("the public URL does not answer yet ({last}); the check runs again for {left_s} s");
             host.event(Event::warn("tunnel.verify", text));
         } else if attempt == 1 || attempt.is_multiple_of(5) {
             let text = format!(
-                "the public URL does not answer yet ({last}; a new name takes some seconds); podnet tries again for {left_s} s"
+                "the public URL does not answer yet ({last}; a new name takes some seconds); the check runs again for {left_s} s"
             );
             host.event(Event::info("tunnel.verify", text));
         } else {
@@ -105,13 +106,13 @@ pub(super) async fn verify_fetch(
     }
     if resolution_only && !strict {
         let text = format!(
-            "the tunnel is registered; this host cannot reach {url} yet ({last}); the URL is not proved. \
-             Set PODNET_VERIFY_STRICT=1 to make this an error"
+            "the tunnel is registered; this host cannot reach {url} yet ({last}); the URL is not proved. {}",
+            host.settings.words.strict
         );
         host.event(Event::warn("tunnel.verify", text));
         return Ok(Verified { dns: "none", unverified: Some("resolution") });
     }
-    let hint = if resolution_only { format!("; {REMEDY}") } else { String::new() };
+    let hint = if resolution_only { format!("; {}", host.settings.words.resolve) } else { String::new() };
     let stage = if resolution_only { Stage::Dns } else { Stage::EdgeStream };
     Err(crate::fail::new(
         stage,
@@ -125,9 +126,6 @@ pub(super) async fn verify_fetch(
 pub(super) const VERIFY_BUDGET: Duration = Duration::from_secs(180);
 /// The pause between two verify fetches.
 pub(super) const VERIFY_INTERVAL: Duration = Duration::from_secs(2);
-
-/// What may help when this host cannot resolve the public name.
-const REMEDY: &str = "give the address with --resolve HOST=IP, or use --no-verify";
 
 /// True for a failure before the edge: name resolution, or a refusal of
 /// CONNECT by a proxy (a proxy that is not allowed to reach the name says

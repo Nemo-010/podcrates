@@ -7,6 +7,7 @@ fn the_next_step_follows_the_flags_of_the_edge() {
     let refused = |should_retry, secs| {
         crate::fail::wrap(
             Failure::from(Refused {
+                client: "podnet".into(),
                 cause: "Unauthorized: tunnel not found".into(),
                 should_retry,
                 retry_after: Duration::from_secs(secs),

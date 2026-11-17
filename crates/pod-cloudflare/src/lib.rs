@@ -23,7 +23,7 @@ pub mod udp;
 pub mod ws;
 pub mod yaml;
 
-pub use host::{Host, ServiceDispatch, Settings};
+pub use host::{Host, ServiceDispatch, Settings, Words};
 
 #[cfg(test)]
 mod testing;

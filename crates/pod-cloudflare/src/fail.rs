@@ -117,6 +117,8 @@ pub fn class_of(failure: &Failure) -> Option<Class> {
 /// The refusal of a registration by the edge.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Refused {
+    /// The name of the client in the text: "NAME speaks cloudflared ...".
+    pub client: String,
     pub cause: String,
     pub should_retry: bool,
     pub retry_after: std::time::Duration,
@@ -126,10 +128,11 @@ impl fmt::Display for Refused {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "the edge refused the registration: {} (retry: {}, after {} s; podnet speaks {})",
+            "the edge refused the registration: {} (retry: {}, after {} s; {} speaks {})",
             self.cause,
             if self.should_retry { "yes" } else { "no" },
             self.retry_after.as_secs(),
+            self.client,
             crate::cloudflare::speaks()
         )
     }
@@ -216,7 +219,12 @@ mod tests {
     /// A typed cause is found in the chain.
     #[test]
     fn a_refusal_is_found_through_context() {
-        let refused = Refused { cause: "Unauthorized".into(), should_retry: false, retry_after: Default::default() };
+        let refused = Refused {
+            client: "pod-cloudflare".into(),
+            cause: "Unauthorized".into(),
+            should_retry: false,
+            retry_after: Default::default(),
+        };
         let err = Err::<(), _>(Failure::from(refused.clone())).context("registering").unwrap_err();
         assert_eq!(find::<Refused>(&err), Some(&refused));
         assert_eq!((err.stage, err.class), (Stage::EdgeRegister, Class::Refused));

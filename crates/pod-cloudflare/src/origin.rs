@@ -28,6 +28,9 @@ pub struct Origins {
     unverified: OnceLock<TlsConnector>,
     seen: Mutex<Vec<String>>,
     report: pod_core::Report,
+    words: crate::Words,
+    /// True after the note of the first HTTP request to a raw TCP origin.
+    noted_http_to_tcp: std::sync::atomic::AtomicBool,
 }
 
 impl Origins {
@@ -38,7 +41,35 @@ impl Origins {
             unverified: OnceLock::new(),
             seen: Mutex::new(Vec::new()),
             report: pod_core::Report::default(),
+            words: crate::Words::default(),
+            noted_http_to_tcp: std::sync::atomic::AtomicBool::new(false),
         }
+    }
+
+    /// The words of the consumer in the answers and the notes.
+    pub fn with_words(mut self, words: crate::Words) -> Origins {
+        self.words = words;
+        self
+    }
+
+    pub fn words(&self) -> &crate::Words {
+        &self.words
+    }
+
+    /// One note for the first HTTP request that comes to a raw TCP origin:
+    /// the tunnel answers it with 501.
+    pub(crate) fn note_http_to_tcp(&self, service: &Service) {
+        if self.noted_http_to_tcp.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            return;
+        }
+        let words = &self.words;
+        let text = format!(
+            "an HTTP request came to the raw TCP origin {}; {} answers 501. {}",
+            origin_label(service),
+            words.name,
+            words.tcp_origin
+        );
+        self.report.event(pod_core::Event::warn("origin.http_to_tcp", text));
     }
 
     /// The lines for the user go to `report`.

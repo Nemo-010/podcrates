@@ -2,6 +2,7 @@
 //! limits; the credentials and the edge addresses that each leg needs.
 
 use super::*;
+use crate::Words;
 use crate::fail::{Context, OrFail};
 
 pub(super) async fn resolve_credentials(
@@ -95,22 +96,24 @@ impl std::fmt::Display for LegKind {
     }
 }
 
-/// The edge legs to try, in order, for a protocol and a transport.
-pub fn leg_plan(protocol: Protocol, transport: Transport) -> Result<Vec<LegKind>> {
+/// The edge legs to try, in order, for a protocol and a transport. An
+/// error names the setting of the protocol in the words of the consumer.
+pub fn leg_plan(protocol: Protocol, transport: Transport, words: &Words) -> Result<Vec<LegKind>> {
+    let flag = &words.protocol;
     use LegKind::*;
     Ok(match (transport, protocol) {
         (Transport::Direct, Protocol::Quic) => vec![QuicDirect],
         (Transport::Direct, Protocol::Http2) => vec![H2Direct],
         (Transport::Direct, Protocol::Auto) => vec![QuicDirect, H2Direct],
         (Transport::Warp, Protocol::Http2) => {
-            bail!(Stage::Host, Class::Usage, "the WARP transport carries QUIC only; use --protocol quic or auto")
+            bail!(Stage::Host, Class::Usage, "the WARP transport carries QUIC only; use {flag} quic or auto")
         }
         (Transport::Warp, _) => vec![QuicWarp],
         (Transport::Auto, Protocol::Quic) => vec![QuicDirect, QuicWarp],
         (Transport::Auto, Protocol::Http2) => vec![H2Direct],
         (Transport::Auto, Protocol::Auto) => vec![QuicDirect, H2Direct, QuicWarp],
         (Transport::Relay, Protocol::Quic) => {
-            bail!(Stage::Host, Class::Usage, "the relay carries TCP only; use --protocol http2 or auto")
+            bail!(Stage::Host, Class::Usage, "the relay carries TCP only; use {flag} http2 or auto")
         }
         (Transport::Relay, _) => vec![H2Relay],
     })
@@ -118,46 +121,55 @@ pub fn leg_plan(protocol: Protocol, transport: Transport) -> Result<Vec<LegKind>
 
 pub(crate) use crate::services::edge_region_name;
 
-/// With a proxy, `--protocol auto` does not try QUIC on UDP 7844: no proxy
-/// carries UDP, so the packets go around the proxy or are lost. QUIC inside
-/// WARP stays, because MASQUE runs on TCP 443 through the proxy. Gives the
-/// plan and the line that says why.
-pub fn plan_with_proxy(plan: Vec<LegKind>, protocol: Protocol, proxy: Option<&str>) -> (Vec<LegKind>, Option<String>) {
+/// With a proxy, the protocol `auto` does not try QUIC on UDP 7844: no
+/// proxy carries UDP, so the packets go around the proxy or are lost. QUIC
+/// inside WARP stays, because MASQUE runs on TCP 443 through the proxy.
+/// Gives the plan and the line that says why.
+pub fn plan_with_proxy(
+    plan: Vec<LegKind>,
+    protocol: Protocol,
+    proxy: Option<&str>,
+    words: &Words,
+) -> (Vec<LegKind>, Option<String>) {
     let Some(proxy) = proxy else {
         return (plan, None);
     };
     if !plan.contains(&LegKind::QuicDirect) {
         return (plan, None);
     }
-    // Issue 182: an explicit --protocol quic keeps the leg, with a word
-    // that it does not use the proxy.
+    // An explicit protocol quic keeps the leg, with a note that it does not
+    // use the proxy.
     if !matches!(protocol, Protocol::Auto) {
         return (
             plan,
             Some(format!(
-                "a proxy is set ({proxy}); QUIC uses UDP 7844 and goes around the proxy, so it can fail here (--protocol http2 goes through the proxy)"
+                "a proxy is set ({proxy}); QUIC uses UDP 7844 and goes around the proxy, so it can fail here ({} http2 goes through the proxy)",
+                words.protocol
             )),
         );
     }
     let kept: Vec<LegKind> = plan.into_iter().filter(|k| *k != LegKind::QuicDirect).collect();
-    (kept, Some(format!("a proxy is set ({proxy}); no proxy carries UDP, so podnet does not try QUIC on UDP 7844")))
+    let note =
+        format!("a proxy is set ({proxy}); no proxy carries UDP, so {} does not try QUIC on UDP 7844", words.name);
+    (kept, Some(note))
 }
 
-/// Apply `PODNET_UDP` and the result of the UDP probe to the plan. `off`
+/// Apply the UDP choice and the result of the UDP probe to the plan. `off`
 /// removes QUIC on UDP 7844. With `probe`, a refused probe removes it; an
-/// unknown or answered probe keeps the order. The probe runs only for
-/// `--protocol auto`, so `egress` is `None` for an explicit protocol.
+/// unknown or answered probe keeps the order. The probe runs only for the
+/// protocol `auto`, so `egress` is `None` for an explicit protocol.
 pub fn plan_with_udp(
     plan: Vec<LegKind>,
     udp: crate::udp::Choice,
     egress: Option<&crate::udp::Egress>,
+    words: &Words,
 ) -> Result<(Vec<LegKind>, Option<String>)> {
     use crate::udp::{Choice, Egress};
     if !plan.contains(&LegKind::QuicDirect) {
         return Ok((plan, None));
     }
     let why = match (udp, egress) {
-        (Choice::Off, _) => "PODNET_UDP=off".to_string(),
+        (Choice::Off, _) => words.udp_off.clone(),
         (Choice::Probe, Some(Egress::Refused(detail))) => {
             format!("the UDP probe was refused ({detail})")
         }
@@ -172,10 +184,10 @@ pub fn plan_with_udp(
         return Err(crate::fail::new(
             Stage::Host,
             Class::Config,
-            format!("{why}, and the only leg is QUIC on UDP 7844: use --protocol auto or http2"),
+            format!("{why}, and the only leg is QUIC on UDP 7844: use {} auto or http2", words.protocol),
         ));
     }
-    Ok((kept, Some(format!("{why}: podnet does not try QUIC on UDP 7844"))))
+    Ok((kept, Some(format!("{why}: {} does not try QUIC on UDP 7844", words.name))))
 }
 
 /// The tries of the first registration of a leg.
@@ -233,7 +245,7 @@ where
                     cause = %refused.cause,
                     try_ = tries,
                     wait_s = wait.as_secs(),
-                    "the edge refused the registration and asks for a retry; podnet tries again"
+                    "the edge refused the registration and asks for a retry; the registration runs again"
                 );
                 tokio::time::sleep(wait).await;
                 tries += 1;

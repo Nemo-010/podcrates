@@ -21,7 +21,23 @@ pub fn proxied(url: &str) -> Arc<dyn pod_core::Dial> {
     Arc::new(pod_proxy::Dialer::new(settings, Arc::new(pod_proxy::resolve::System::new())))
 }
 
-/// The host of the tests: [`tls`], [`dial`], no services.
+/// The words of podnet, the first consumer: the tests check that its texts
+/// come through.
+pub fn podnet_words() -> crate::Words {
+    crate::Words {
+        name: "podnet".into(),
+        protocol: "--protocol".into(),
+        udp_off: "PODNET_UDP=off".into(),
+        strict: "Set PODNET_VERIFY_STRICT=1 to make this an error".into(),
+        resolve: "give the address with --resolve HOST=IP, or use --no-verify".into(),
+        tcp_origin: "Use --forward with \"podnet connect\", or --port for an HTTP origin.".into(),
+    }
+}
+
+/// The host of the tests: [`tls`], [`dial`], no services, the words of
+/// podnet.
 pub fn host() -> crate::Host {
-    crate::Host::new(tls(), dial())
+    let mut host = crate::Host::new(tls(), dial());
+    host.settings.words = podnet_words();
+    host
 }

@@ -84,8 +84,10 @@ pub fn client_config(tls: &pod_tls::Context) -> Result<ClientConfig> {
 }
 
 /// Make a client endpoint on an ephemeral UDP port, with the edge client
-/// configuration over the roots and the provider of `tls`.
-pub fn build_endpoint(tls: &pod_tls::Context) -> Result<Endpoint> {
+/// configuration over the roots and the provider of `tls`. When no UDP
+/// socket opens, the error names `protocol`, the setting of the protocol in
+/// the words of the consumer.
+pub fn build_endpoint(tls: &pod_tls::Context, protocol: &str) -> Result<Endpoint> {
     let bind: std::net::SocketAddr = "[::]:0".parse().expect("a valid address");
     let endpoint = match pod_quic::endpoint::bind(bind) {
         Ok(endpoint) => endpoint,
@@ -93,7 +95,7 @@ pub fn build_endpoint(tls: &pod_tls::Context) -> Result<Endpoint> {
         Err(_) => pod_quic::endpoint::bind("0.0.0.0:0".parse().expect("a valid address")).map_err(|e| {
             let text = format!(
                 "could not open a local UDP socket: {}. QUIC needs UDP; \
-                 where it is blocked, use --protocol http2",
+                 where it is blocked, use {protocol} http2",
                 e.text()
             );
             Failure::caused(Stage::Quic, e.class, text, e)

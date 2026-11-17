@@ -7,7 +7,7 @@ use pod_core::Stage;
 
 use super::copy::*;
 use super::head::*;
-use super::{EdgeReader, EdgeWriter, TCP_HTTP_BODY, cqstream};
+use super::{EdgeReader, EdgeWriter, cqstream};
 use crate::ingress::{OriginOptions, Service};
 use crate::metrics::Metrics;
 use crate::origin::Origins;
@@ -119,17 +119,12 @@ pub async fn forward_tcp(
     mut writer: EdgeWriter,
     metrics: &Metrics,
 ) -> Result<()> {
-    // Issue 199: a quick tunnel gets HTTP requests. A raw byte pipe gave
-    // the edge no HTTP status, and the edge answered 502.
+    // A quick tunnel gets HTTP requests. A raw byte pipe gives the edge no
+    // HTTP status, and the edge answers 502: the tunnel answers 501.
     if request.conn_type == cqstream::ConnectionType::Http && !is_websocket(request) {
-        static WARNED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-        if !WARNED.swap(true, std::sync::atomic::Ordering::Relaxed) {
-            tracing::warn!(
-                origin = %crate::origin::origin_label(service),
-                "an HTTP request came to a raw TCP origin; podnet answers 501 (use --forward and podnet connect)"
-            );
-        }
-        return write_simple_response(&mut writer, 501, "text/plain; charset=utf-8", TCP_HTTP_BODY).await;
+        origins.note_http_to_tcp(service);
+        let body = tcp_http_body(origins.words());
+        return write_simple_response(&mut writer, 501, "text/plain; charset=utf-8", body.as_bytes()).await;
     }
     let io = origins.dial(service, options).await?;
     cqstream::write_connect_response(&mut writer, "", &[]).await?;
@@ -146,4 +141,10 @@ pub async fn forward_tcp(
     };
     tokio::join!(to_origin, from_origin);
     Ok(())
+}
+
+/// The answer of a raw TCP origin to an HTTP request, in the words of the
+/// consumer.
+pub fn tcp_http_body(words: &crate::Words) -> String {
+    format!("{}: a raw TCP origin carries TCP or WebSocket streams, not HTTP. {}\n", words.name, words.tcp_origin)
 }

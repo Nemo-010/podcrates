@@ -163,15 +163,15 @@ impl Tunnel {
 
         // Build the services before the quick tunnel is provisioned: a bad
         // --dir, a --spa with no index.html or a missing --file stops here.
-        let metrics = Metrics::new();
+        let metrics = Metrics::with_prefix(&host.settings.words.name);
         let runtime = Arc::new(Runtime::build(host.clone(), &ingress, metrics.clone())?);
-        let forward_path = crate::ws::forward_path(&ingress);
+        let forward_path = crate::ws::forward_path_with(&ingress, &host.settings.forward_path);
 
         // The UDP probe runs while the quick tunnel is provisioned.
         let udp = host.settings.udp;
         let udp_probe = (udp == crate::udp::Choice::Probe
             && protocol == Protocol::Auto
-            && leg_plan(protocol, transport).is_ok_and(|p| p.contains(&LegKind::QuicDirect)))
+            && leg_plan(protocol, transport, &host.settings.words).is_ok_and(|p| p.contains(&LegKind::QuicDirect)))
         .then(|| {
             let target = probe_target(&host.settings);
             tokio::task::spawn_blocking(move || crate::udp::probe(target, crate::udp::START_DEADLINE))
@@ -190,9 +190,9 @@ impl Tunnel {
         // staggered failover (the default), the next leg starts when the one
         // before has not registered in 2 s, or at once when it fails; the
         // first leg that registers stays.
-        let plan = leg_plan(protocol, transport)?;
+        let plan = leg_plan(protocol, transport, &host.settings.words)?;
         let proxy = host.proxy_for(edge_region_name(), crate::services::edge_port());
-        let (plan, note) = plan_with_proxy(plan, protocol, proxy.as_deref());
+        let (plan, note) = plan_with_proxy(plan, protocol, proxy.as_deref(), &host.settings.words);
         if let Some(note) = note {
             if matches!(protocol, Protocol::Auto) {
                 host.event(Event::info("tunnel.plan", note));
@@ -204,7 +204,7 @@ impl Tunnel {
             Some(task) => task.await.ok(),
             None => None,
         };
-        let (plan, note) = plan_with_udp(plan, udp, egress.as_ref())?;
+        let (plan, note) = plan_with_udp(plan, udp, egress.as_ref(), &host.settings.words)?;
         if let Some(note) = note {
             host.event(Event::info("tunnel.plan", note));
         }
@@ -223,7 +223,7 @@ impl Tunnel {
             let attempt: futures::future::BoxFuture<'_, Result<(First, Kept)>> = match kind {
                 LegKind::QuicDirect => Box::pin(bounded(limit(*kind), async move {
                     let edges = direct_targets(&host).await?;
-                    let endpoint = quic_dial::build_endpoint(&host.tls)?;
+                    let endpoint = quic_dial::build_endpoint(&host.tls, &host.settings.words.protocol)?;
                     let version = &host.settings.client_version;
                     let (conn, control, location) =
                         register_retrying(|| connect_once(&endpoint, auth, tunnel_id, 0, false, &edges, version))
