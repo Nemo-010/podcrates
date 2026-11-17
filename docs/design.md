@@ -445,7 +445,10 @@ Each crate is one record entry, or more for a large merge. Its commits:
 1. **Import.** Copy the source files with no change. The message names
    each source: `pod-session: import podssh crates/podssh-relay/src/session at COMMIT`.
    Write `SOURCES` (section 9). The import commit is pushed together
-   with the next ones, so that each push is green.
+   with the next ones, so that each push is green. Run the scans of the
+   workspace (the tests of `pod-tls`, among them `no_permissive_verifier`,
+   and the scripts `check-*.py`) on the crate before it lands: an imported
+   file can break a rule of another crate.
 2. **Edition.** `cargo fix --edition` to 2024, in its own commit, then a
    review of the risky changes: the drop order of tail expressions and
    of `if let` in async code (the order of locks and guards), the

@@ -317,24 +317,38 @@ with its crash input as a test; the comment of PodUtils/podnet#460 is in;
 the header oracle is `tools/header-oracle.txt`. Seven tests stay in podnet
 with their code (the shares, the forms, the local specs).
 
+2026-11-17, step 3 (commits `d3d0f95` to `93efcda` on `main`): each
+public fallible function gives a `pod_core::Failure` (`src/fail.rs`; no
+`anyhow`); a refusal of the edge is a failure at the stage
+`EdgeRegister`; the lines for a user are events of `Host.report`; the words
+of a consumer are `Settings::words` (`Words`: the defaults name no consumer)
+and `Settings::forward_path` (default `/__podnet/ws`, so podnet's wire stays);
+`Metrics::with_prefix`; the verifier that accepted each certificate is
+gone: `noTLSVerify` takes `Host.origin_no_verify`, a configuration of the
+consumer, and with none the dial fails (stage `Tls`, class `Policy`), so
+the scan `no_permissive_verifier` of `pod-tls` passes again; `Host.relay`
+goes to the leg `http2+relay` alone; the comments hold no issue numbers.
+The text of the exception that the client sends the edge for a method that
+it does not serve says "by the client" in place of "by podnet". 190 tests;
+the clippy of the workspace passes.
+
 Open, in order:
 
-- Step 3: `anyhow` to typed `pod_core::Failure`; the lines for a user to
-  `pod_core::Event`; the words of a consumer as settings ("podnet speaks",
-  the hello text, `DEFAULT_PATH` `/__podnet/ws` on the wire, which podnet's
-  `connect` client shares, the advice that names `--resolve` and
-  `--no-verify`); the provider of `NoVerify` from the consumer; the hook of
-  `tunnel --inspect` on `forward_http`; the watch of the pin of cloudflared;
-  the comments in ASD-STE100 with no issue numbers. `Host.relay` now applies
-  to each HTTP/2 leg, where podnet set its relay for `--transport relay`
-  alone: tie it to `LegKind::H2Relay`, or name it in the adoption map.
+- Step 3, the rest: four lines that go to `tracing` with no `Host` (the
+  shape of the SRV answer, the start of a quick tunnel from the file, the
+  replace of the edge connection before a limit of the relay, the retry of
+  a register); the comments in ASD-STE100; the hook of `tunnel --inspect`
+  on `forward_http`; the watch of the pin of cloudflared.
 - Step 4: the fuzz targets (`capnp_message`, `rpc_message`,
   `register_response`, `connect_request`, `h2_header_block`, `srv_record`,
   `request_head`, `ingress_rule`, `config_yaml`), the plants, podnet's tests
   of the tunnel.
 - Step 6: the README, the parity list, the adoption map: podnet reads its
   `PODNET_RESOLVE` pins into the resolver, hides `Config::secrets` itself,
-  adds its counters of decisions to the metrics text, sets `Host.relay`.
+  adds its counters of decisions to the metrics text, sets `Host.relay` for
+  `--transport relay`, gives its words (`Words`) and the prefix `podnet` of
+  its metrics, and passes its own configuration with no check in
+  `Host.origin_no_verify` for `noTLSVerify`.
 - Step 7: a module of the static probe, the patch of the trial of podnet
   and the trial; then T-030 (podssh's quick tunnels).
 - To podnet at the hand-off: its `src/proxy.rs` has a stray doc comment
