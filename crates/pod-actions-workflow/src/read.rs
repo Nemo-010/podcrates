@@ -6,7 +6,7 @@ use pod_actions_expr::{Condition, is_name};
 
 use crate::error::{Error, ErrorKind, Warning};
 use crate::model::{Defaults, Job, Step, Strategy, Workflow};
-use crate::yaml::{Key, Kind, Node};
+use crate::yaml::{Key, Kind, Mark, Node};
 
 pub(crate) struct Reader {
     pub warnings: Vec<Warning>,
@@ -135,6 +135,7 @@ impl Reader {
             name: None,
             runs_on: None,
             needs: Vec::new(),
+            needs_marks: Vec::new(),
             condition: None,
             strategy: None,
             env: None,
@@ -161,7 +162,7 @@ impl Reader {
             match key.name.as_str() {
                 "name" => j.name = text(value, &here)?,
                 "runs-on" => j.runs_on = some(value),
-                "needs" => j.needs = needs(value, &here)?,
+                "needs" => (j.needs, j.needs_marks) = needs(value, &here)?,
                 "if" => j.condition = condition(value, &here)?,
                 "strategy" => j.strategy = self.strategy(value, &here)?,
                 "env" => j.env = some(value),
@@ -278,20 +279,23 @@ impl Reader {
     }
 }
 
-/// `needs`: one id or a sequence of ids.
-fn needs(node: &Node, path: &str) -> Result<Vec<String>, Error> {
+/// `needs`: one id or a sequence of ids, with the place of each.
+fn needs(node: &Node, path: &str) -> Result<(Vec<String>, Vec<Mark>), Error> {
     let items: Vec<&Node> = match &node.kind {
-        Kind::Null => return Ok(Vec::new()),
+        Kind::Null => return Ok((Vec::new(), Vec::new())),
         Kind::Seq(items) => items.iter().collect(),
         _ => vec![node],
     };
-    let mut out: Vec<String> = Vec::new();
+    let (mut out, mut marks): (Vec<String>, Vec<Mark>) = (Vec::new(), Vec::new());
     for item in items {
         match &item.kind {
-            Kind::String(s) if !out.contains(s) => out.push(s.clone()),
+            Kind::String(s) if !out.contains(s) => {
+                out.push(s.clone());
+                marks.push(item.mark);
+            }
             Kind::String(_) => {}
             _ => return Err(kind_error(item, path, "a job id or a sequence of job ids")),
         }
     }
-    Ok(out)
+    Ok((out, marks))
 }

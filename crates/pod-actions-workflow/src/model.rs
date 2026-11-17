@@ -46,6 +46,9 @@ pub struct Job {
     pub runs_on: Option<Node>,
     /// The ids of `needs`, in their order.
     pub needs: Vec<String>,
+    /// The place of each id of `needs` in the file, in the same order: an
+    /// error of a need points at its own line.
+    pub needs_marks: Vec<Mark>,
     /// The `if:` as text: a condition of `pod_actions_expr::Condition`.
     pub condition: Option<String>,
     pub strategy: Option<Strategy>,

@@ -19,10 +19,12 @@ impl Graph {
         let mut needs = Vec::with_capacity(ids.len());
         for job in &workflow.jobs {
             let mut list = Vec::new();
-            for need in &job.needs {
+            for (k, need) in job.needs.iter().enumerate() {
                 let Some(i) = ids.iter().position(|id| id == need) else {
                     let path = format!("jobs.{}.needs", job.id);
-                    return Err(Error::new(path, Some(job.mark), ErrorKind::UnknownNeed(need.clone())));
+                    // The place of the id that names no job, not of the job.
+                    let mark = job.needs_marks.get(k).copied().unwrap_or(job.mark);
+                    return Err(Error::new(path, Some(mark), ErrorKind::UnknownNeed(need.clone())));
                 };
                 list.push(i);
             }

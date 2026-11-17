@@ -50,7 +50,12 @@ fn a_missing_need_and_a_cycle_are_errors_by_name() {
     let w = workflow("on: push\njobs:\n  a:\n    runs-on: x\n    needs: ghost\n");
     let e = Graph::new(&w).unwrap_err();
     assert_eq!(e.kind, ErrorKind::UnknownNeed("ghost".into()));
-    assert_eq!(e.to_string(), "jobs.a.needs (line 3, column 3): the need `ghost` is not a job of the file");
+    assert_eq!(e.to_string(), "jobs.a.needs (line 5, column 12): the need `ghost` is not a job of the file");
+    // In a list, the item that names no job (PodUtils/podrunner#214).
+    let w =
+        workflow("on: push\njobs:\n  b:\n    runs-on: x\n  a:\n    runs-on: x\n    needs:\n      - b\n      - nope\n");
+    let e = Graph::new(&w).unwrap_err();
+    assert_eq!(e.to_string(), "jobs.a.needs (line 9, column 9): the need `nope` is not a job of the file");
     let w = workflow(
         "on: push\njobs:\n  z:\n    runs-on: x\n  a:\n    runs-on: x\n    needs: c\n  b:\n    runs-on: x\n    needs: a\n  c:\n    runs-on: x\n    needs: [z, b]\n",
     );
