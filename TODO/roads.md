@@ -698,7 +698,7 @@ which say that no network is there and pass here; `tor.yml` (new) starts
 chutney's private network on the runner and runs them, and runs the live
 onion service by hand (rows L55, L56 of `docs/live-calls.md`). The
 README has the API, the settings, the parity list and the adoption map.
-The trial `adoption/podssh/pod-tor.patch`: the crate podssh-tor leaves
+The trial adoption/podssh/pod-tor.patch (removed at the take of podssh, PodUtils/podssh#289): the crate podssh-tor leaves
 podssh, podssh-cli takes `pod-tor` with its feature `tor` and gives it
 `podssh_ws::client::way`; its build, clippy, library tests and
 `tor_private` pass here. Release notes: `pod-tor` (new): the road through
@@ -1727,7 +1727,7 @@ the adoption map.
 ## Premise
 
 - Read: the adoption map of `crates/pod-iroh/README.md`;
-  `adoption/podssh/pod-tor.patch` and `.run` (the form of a trial of the
+  adoption/podssh/pod-tor.patch and `.run` (the form of a trial of the
   move).
 - Read: a `[patch.crates-io]` of podcrates does not reach a consumer:
   podssh keeps its own `[patch.crates-io] iroh-relay`, pointed at the
@@ -1751,7 +1751,7 @@ sh scripts/adoption.sh podssh pod-iroh
 
 ## Done
 
-2026-11-16, `2c9cc64`. `adoption/podssh/pod-iroh.patch`
+2026-11-16, `2c9cc64`. adoption/podssh/pod-iroh.patch (removed at the take of podssh)
 (podssh at `0370b0b`, `pod-iroh.commit`): crates/podssh-iroh leaves
 podssh, with its tests, its four plants and podssh's copy of iroh-relay
 (`vendor/iroh-relay`, `vendor/patches/iroh-relay`, its section of

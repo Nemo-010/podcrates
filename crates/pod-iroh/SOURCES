@@ -4,6 +4,8 @@
 # compares each with the default branch of its repository.
 
 repo PodUtils/podssh 0370b0bfdbe0ad7e3c60480d7220bee054568ad7
+# podssh took the crate at 843e3c5 with v0.65.0 (PodUtils/podssh#289).
+taken 843e3c5163dd1b5ec40d65bae6f431b6d830511a
 # The move of podssh (PodUtils/podssh@T-684, PodUtils/podssh#248): the iroh
 # road, crates/podssh-iroh, imported whole (T-037), and podssh's copy of
 # iroh-relay 1.4.1 with its patch (vendor/iroh-relay, vendor/patches/iroh-relay).
