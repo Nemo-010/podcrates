@@ -1,0 +1,11 @@
+--- a/crates/pod-relay/src/reverse/route.rs
++++ b/crates/pod-relay/src/reverse/route.rs
+@@ -85,7 +85,7 @@ pub(super) fn offer(routes: &Routes, id: SessionId, payload: &[u8]) -> bool {
+     let after = route.waiting.load(Ordering::SeqCst) + payload.len();
+     let still = (route.born.elapsed().as_millis() as u64).saturating_sub(route.moved.load(Ordering::SeqCst));
+     let stalled = still >= STALL_GRACE.as_millis() as u64 || after > route.limit.saturating_mul(HARD_LIMIT);
+-    if after > route.limit && stalled {
++    if after > route.limit && (stalled || true) {
+         if let Some(route) = routes.remove(&id) {
+             for copy in route.copies {
+                 copy.abort();

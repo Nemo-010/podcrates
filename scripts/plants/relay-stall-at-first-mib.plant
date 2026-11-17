@@ -1,0 +1,8 @@
+# A local side that reads gets the bursts of the relay: the node ends its
+# session only when the copy did not move for a grace time, or past a hard
+# bound (T-837).
+ENTRY=T-837
+GROUP=relay
+EXPECT='a_local_side_that_reads_slower_than_a_burst_keeps_its_session'
+RUN='cargo test -p pod-relay --all-features --test reverse_node'
+LIMIT=1800
