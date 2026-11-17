@@ -21,7 +21,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use pod_ws::ConnectError;
+use pod_ws::{ConnectError, Extra};
 use tokio::io::{AsyncWriteExt, DuplexStream, ReadHalf, WriteHalf};
 use tokio::sync::oneshot;
 
@@ -114,24 +114,26 @@ pub(super) fn no_mark() -> Failed {
 /// Open the form at `path` on `road` with `token`: the session, once the
 /// mark came within [`MARK_WAIT`]. One stream of HTTP/2 where the road's
 /// dial offers ALPN and the host chooses `h2`; else HTTP/1.1.
-pub(super) async fn open(road: &Road, path: &str, token: &str) -> Result<Opened, Failed> {
+/// The headers of the caller in `extra` go after the token.
+pub(super) async fn open(road: &Road, path: &str, token: &str, extra: &Extra) -> Result<Opened, Failed> {
     if let Some(dial) = &road.dial_alpn {
         let dialed = tokio::time::timeout(LIMIT, dial()).await.map_err(|_| dial_late())?.map_err(Failed::Stop)?;
         if dialed.alpn.as_deref() != Some(H2) {
-            return on_http1(road, path, token, dialed.io).await;
+            return on_http1(road, path, token, extra, dialed.io).await;
         }
         // `None`: the role asks for HTTP/1.1 on this stream.
-        if let Some(opened) = one_h2::open(road, path, token, dialed.io).await {
+        if let Some(opened) = one_h2::open(road, path, token, extra, dialed.io).await {
             return opened;
         }
     }
     let dialed = tokio::time::timeout(LIMIT, (road.dial)()).await;
-    on_http1(road, path, token, dialed.map_err(|_| dial_late())?.map_err(Failed::Stop)?).await
+    on_http1(road, path, token, extra, dialed.map_err(|_| dial_late())?.map_err(Failed::Stop)?).await
 }
 
 /// The form on `io`, a connection of HTTP/1.1.
-async fn on_http1(road: &Road, path: &str, token: &str, mut io: BoxIo) -> Result<Opened, Failed> {
-    let headers = [("X-Relay-Token", token), ("Transfer-Encoding", "chunked")];
+async fn on_http1(road: &Road, path: &str, token: &str, extra: &Extra, mut io: BoxIo) -> Result<Opened, Failed> {
+    let mut headers = extra.after(pod_ws::handshake::TOKEN_HEADER, token);
+    headers.push(("Transfer-Encoding", "chunked"));
     let head = request("POST", &road.user_agent, &road.authority, path, &headers, None);
     let sent = tokio::time::timeout(LIMIT, async {
         io.write_all(&head).await?;

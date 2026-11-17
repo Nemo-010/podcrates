@@ -8,7 +8,9 @@
 //! percent-encoded. A line of the caller shows the URL without its query
 //! ([`WsUrl::shown`]), which may hold the service's own secret. A
 //! credential of the service goes in `Authorization`, when the caller asks
-//! ([`Asking`]).
+//! ([`Asking`]); the headers of the caller for the host go too
+//! ([`crate::Headers`]), on `ws://` only where the caller allows them in
+//! cleartext.
 
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -20,6 +22,7 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::client::{self, ConnectError, RelayStream, WRITE_TIMEOUT};
 use crate::handshake;
+use crate::headers::{Extra, Zeroizing};
 use crate::limits::Limits;
 use crate::session::RelaySession;
 use crate::way::Way;
@@ -157,6 +160,18 @@ pub fn offering(url: &WsUrl, key: &str, user_agent: &str, protocol: Option<&str>
 /// [`request`] with what `asking` asks: a subprotocol, and the value of
 /// `Authorization`. A value with a line break is refused, and not shown.
 pub fn asking(url: &WsUrl, key: &str, user_agent: &str, asking: &Asking<'_>) -> Result<Vec<u8>, ConnectError> {
+    asking_carrying(url, key, user_agent, asking, &Extra::default()).map(|request| request.to_vec())
+}
+
+/// [`asking`] with the headers of the caller in `extra`, in memory that is
+/// wiped.
+pub fn asking_carrying(
+    url: &WsUrl,
+    key: &str,
+    user_agent: &str,
+    asking: &Asking<'_>,
+    extra: &Extra,
+) -> Result<Zeroizing<Vec<u8>>, ConnectError> {
     let target = request_target(&url.target).map_err(ConnectError::Config)?;
     if user_agent.contains(['\r', '\n']) {
         return Err(ConnectError::Config("the user agent contains a line break".into()));
@@ -176,8 +191,10 @@ pub fn asking(url: &WsUrl, key: &str, user_agent: &str, asking: &Asking<'_>) -> 
         }
         request.push_str(&format!("Authorization: {value}\r\n"));
     }
-    request.push_str(&format!("Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n"));
-    Ok(request.into_bytes())
+    let mut request = Zeroizing::new(request.into_bytes());
+    extra.write(&mut request);
+    request.extend_from_slice(format!("Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n").as_bytes());
+    Ok(request)
 }
 
 /// The stream under a session of this road: TLS, or a connection with no
@@ -267,7 +284,9 @@ pub async fn dial_offering(
 
 /// [`dial`], its upgrade asking what `asking` asks ([`asking`]), its TLS
 /// offering the ALPN of `asking`, its session taking in the limits of
-/// `asking`. The time of each step goes to `tracing`.
+/// `asking`. The headers of the caller for the host go too
+/// ([`Way::extra`]); on `ws://` only where the caller allows them in
+/// cleartext. The time of each step goes to `tracing`.
 pub async fn dial_asking(
     url: &WsUrl,
     asking: &Asking<'_>,
@@ -277,7 +296,8 @@ pub async fn dial_asking(
     idle: Option<Duration>,
 ) -> Result<RelaySession<Stream>, ConnectError> {
     let key = handshake::generate_key().map_err(|e| ConnectError::Upgrade(e.to_string()))?;
-    let request = self::asking(url, &key, &way.user_agent, asking)?;
+    let extra = if url.tls { way.extra(&url.host)? } else { way.extra_in_cleartext(&url.host)? };
+    let request = asking_carrying(url, &key, &way.user_agent, asking, &extra)?;
     let started = std::time::Instant::now();
     let (stream, tcp_tls) = if url.tls {
         let (tls, _) = way.open_tls(&url.host, url.port, &url.host, trust, timeout, asking.alpn).await?;
@@ -288,7 +308,7 @@ pub async fn dial_asking(
     };
     let upgraded = tokio::time::timeout(timeout, client::upgrade_answering(stream, &request, &key)).await;
     let late = |_| ConnectError::Timeout { step: "the WebSocket upgrade", after: timeout };
-    let (stream, pending, chosen) = upgraded.map_err(late)??;
+    let (stream, pending, chosen) = upgraded.map_err(late)?.map_err(|e| extra.masked(e))?;
     check_chosen(asking.protocol, chosen.as_deref())?;
     tracing::debug!(
         connect_ms = tcp_tls.as_millis() as u64,

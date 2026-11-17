@@ -12,7 +12,8 @@ use tokio::net::TcpStream;
 use pod_proxy::env::is_loopback;
 use pod_proxy::{Cut, DialError, authority};
 
-use crate::client::{ConnectError, WRITE_TIMEOUT, upgrade};
+use crate::client::{ConnectError, WRITE_TIMEOUT, upgrade_carrying};
+use crate::headers::Extra;
 use crate::session::RelaySession;
 
 /// Connect to `host:port` on the loopback over plain TCP, and upgrade at
@@ -26,6 +27,21 @@ pub async fn connect_loopback(
     timeout: Duration,
     idle: Option<Duration>,
 ) -> Result<RelaySession<TcpStream>, ConnectError> {
+    connect_loopback_carrying(host, port, path, token, &Extra::default(), timeout, idle).await
+}
+
+/// [`connect_loopback`] with the headers of the caller in `extra`, after
+/// the token, as [`crate::connect`] writes them. The loopback is this host,
+/// so they go as on TLS.
+pub async fn connect_loopback_carrying(
+    host: &str,
+    port: u16,
+    path: &str,
+    token: &str,
+    extra: &Extra,
+    timeout: Duration,
+    idle: Option<Duration>,
+) -> Result<RelaySession<TcpStream>, ConnectError> {
     // Another host is refused by `loopback_tcp`, before any connection.
     if is_loopback(host) {
         // The rules of a path and a token are those of `connect`.
@@ -36,7 +52,7 @@ pub async fn connect_loopback(
     }
     let tcp = loopback_tcp(host, port, timeout).await?;
     let host_header = authority(host.trim_start_matches('[').trim_end_matches(']'), port);
-    let (tcp, pending) = tokio::time::timeout(timeout, upgrade(tcp, &host_header, path, token))
+    let (tcp, pending) = tokio::time::timeout(timeout, upgrade_carrying(tcp, &host_header, path, token, extra))
         .await
         .map_err(|_| ConnectError::Timeout { step: "the WebSocket upgrade", after: timeout })??;
     Ok(RelaySession::new(tcp, pending, idle, WRITE_TIMEOUT))

@@ -48,6 +48,9 @@ http = { workspace = true }
 bytes = { workspace = true }
 # The diagnostics: the time of each step, a Close of the far end.
 tracing = { workspace = true }
+# The values of the caller's headers (headers.rs), a credential of a gate
+# in front of the relay, in memory that is wiped.
+zeroize = { workspace = true }
 
 # The clocks of a host that slept (wake.rs): CLOCK_BOOTTIME beside
 # CLOCK_MONOTONIC, which Linux alone has. libc compiles no C.

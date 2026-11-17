@@ -89,7 +89,9 @@ pub(crate) async fn open(wire: Wire, config: &WsClientConfig, token: &str) -> Re
         #[cfg(feature = "plain-ws")]
         Wire::PlainLoopback => {
             let at = &config.endpoint;
-            pod_ws::plain::connect_loopback(&at.host, at.port, &at.path, token, config.timeout, config.idle_timeout)
+            let extra = config.way.extra(&at.host)?;
+            let (path, idle) = (&at.path, config.idle_timeout);
+            pod_ws::plain::connect_loopback_carrying(&at.host, at.port, path, token, &extra, config.timeout, idle)
                 .await
                 .map(Socket::Plain)
         }
@@ -135,5 +137,72 @@ impl Socket {
             Socket::Plain(s) => s.close_sent(),
             Socket::Carrier(s) => s.close_sent(),
         }
+    }
+}
+
+#[cfg(all(test, feature = "plain-ws"))]
+mod tests {
+    use super::*;
+    use pod_ws::headers::{MASK, Zeroizing};
+    use pod_ws::{Endpoint, Headers};
+    use tokio::io::AsyncWriteExt;
+
+    const SECRET: &str = "made-up-secret-of-the-test-0123";
+
+    /// A stand-in that keeps each request's header names, and answers a
+    /// path that ends in `/403` with the secret that came, quoted back.
+    async fn stand_in(names: tokio::sync::mpsc::UnboundedSender<Vec<String>>) -> u16 {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move {
+            while let Ok((mut tcp, _)) = listener.accept().await {
+                let Ok((head, _)) = pod_proxy::http::request::read_request(&mut tcp, Vec::new()).await else {
+                    continue;
+                };
+                let _ = names.send(head.headers.iter().map(|(n, _)| n.clone()).collect());
+                let answer = match pod_ws::server::check_upgrade(&head) {
+                    Ok(_) if head.target.ends_with("/403") => {
+                        let body = format!("denied {}", head.header("cf-access-client-secret").unwrap_or_default());
+                        format!("HTTP/1.1 403 No\r\nContent-Length: {}\r\n\r\n{body}", body.len()).into_bytes()
+                    }
+                    Ok(key) => pod_ws::server::switching(&key),
+                    Err(refused) => refused.answer(),
+                };
+                let _ = tcp.write_all(&answer).await;
+                tokio::spawn(async move {
+                    let mut rest = [0u8; 64];
+                    while matches!(tokio::io::AsyncReadExt::read(&mut tcp, &mut rest).await, Ok(n) if n > 0) {}
+                });
+            }
+        });
+        port
+    }
+
+    /// A node's and an operator's socket carry the caller's headers after
+    /// the token, before the dialect; a 403 keeps its status and shows no
+    /// value.
+    #[tokio::test]
+    async fn a_reverse_socket_carries_the_caller_s_headers() {
+        pod_testkit::need_loopback!();
+        let (tell, mut told) = tokio::sync::mpsc::unbounded_channel();
+        let port = stand_in(tell).await;
+        let headers = Headers::new(|_| vec![("CF-Access-Client-Secret", Zeroizing::new(SECRET.into()))]);
+        let config = |path: &str| WsClientConfig {
+            endpoint: Endpoint { host: "127.0.0.1".into(), port, path: path.into() },
+            trust: pod_ws::Trust::Default,
+            server_name: "127.0.0.1".into(),
+            timeout: Duration::from_secs(20),
+            idle_timeout: None,
+            way: crate::testing::way().with_headers(headers.clone()),
+            limits: pod_ws::Limits::RELAY,
+        };
+        for path in ["/v1/node/podssh-p-0123", "/v1/connect/podssh-p-0123"] {
+            assert!(open(Wire::PlainLoopback, &config(path), "tok").await.is_ok(), "{path}");
+            let names = told.recv().await.unwrap();
+            let at = names.iter().position(|n| n == "x-relay-token").expect("the token");
+            assert_eq!(names[at..], ["x-relay-token", "cf-access-client-secret", "x-podssh-proto"], "{path}");
+        }
+        let Err(e) = open(Wire::PlainLoopback, &config("/v1/node/403"), "tok").await else { panic!("a refusal") };
+        assert_eq!(e, ConnectError::Refused { status: 403, body: format!("denied {MASK}") });
     }
 }

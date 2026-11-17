@@ -178,8 +178,11 @@ async fn post(
     body: &[u8],
     step: Duration,
 ) -> Result<Response, String> {
+    // The caller's headers go in cleartext only where it allows them.
+    let extra = ctx.way.extra_in_cleartext(host).map_err(|e| e.to_string())?;
     let mut tcp = ctx.way.tcp(host, port, step).await.map_err(|e| e.to_string())?.io;
-    let headers = [("Content-Type", "application/json"), ("Accept", "application/json")];
+    let mut headers = vec![("Content-Type", "application/json"), ("Accept", "application/json")];
+    headers.extend(extra.iter());
     let target = format!("{MINT}{ONCE}");
     let user_agent = &ctx.way.user_agent;
     let asked = pod_proxy::http::exchange(&mut tcp, user_agent, "POST", named, &target, &headers, body, MINT_BODY);
@@ -188,6 +191,11 @@ async fn post(
         Ok(Err(e)) => {
             let cut = pod_proxy::Cut::of(e.kind()).words();
             Err(format!("the mint gave no answer ({cut}: {e}): a hop may cut cleartext"))
+        }
+        // A refusal may quote a value back.
+        Ok(Ok(mut response)) if !(200..300).contains(&response.status) && !extra.is_empty() => {
+            response.body = extra.mask(&String::from_utf8_lossy(&response.body)).into_bytes();
+            Ok(response)
         }
         Ok(Ok(response)) => Ok(response),
     }

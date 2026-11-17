@@ -89,6 +89,9 @@ impl std::fmt::Display for HealthError {
 pub async fn fetch(ctx: &Context, relay: &Relay, trust: &Trust, timeout: Duration) -> Result<Health, HealthError> {
     let host = &relay.host;
     let started = Instant::now();
+    // The headers of the caller for the host: a gate in front of the relay
+    // refuses `/health` too without them.
+    let extra = ctx.way.extra(host).map_err(HealthError::Connect)?;
     let (mut tls, peer_addr) =
         ctx.way.open_tls(host, relay.port, host, trust, timeout, &[]).await.map_err(HealthError::Connect)?;
     let peer = peer_addr.map(|a| a.to_string()).unwrap_or_else(|| "an address it cannot name".into());
@@ -114,7 +117,8 @@ pub async fn fetch(ctx: &Context, relay: &Relay, trust: &Trust, timeout: Duratio
     };
     let answer = |why: String| HealthError::Answer { opened: opened.clone(), why };
     let host_header = crate::pool::host_header(relay);
-    let accept = [("Accept", "application/json")];
+    let mut accept = vec![("Accept", "application/json")];
+    accept.extend(extra.iter());
     let user_agent = &ctx.way.user_agent;
     let exchange = http::exchange(&mut tls, user_agent, "GET", &host_header, "/health", &accept, b"", MAX_BODY);
     let response = tokio::time::timeout(timeout, exchange)
@@ -122,7 +126,8 @@ pub async fn fetch(ctx: &Context, relay: &Relay, trust: &Trust, timeout: Duratio
         .map_err(|_| answer(format!("/health did not answer within {} s", timeout.as_secs())))?
         .map_err(|e| answer(format!("/health: {e}")))?;
     if response.status != 200 {
-        return Err(answer(format!("/health answered HTTP {} {}", response.status, response.body_text(120))));
+        let words = extra.mask(&response.body_text(120));
+        return Err(answer(format!("/health answered HTTP {} {words}", response.status)));
     }
     let doc: serde_json::Value =
         serde_json::from_slice(&response.body).map_err(|_| answer("/health did not answer with JSON".into()))?;

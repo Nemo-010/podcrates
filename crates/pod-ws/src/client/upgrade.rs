@@ -8,6 +8,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use super::{ConnectError, UPGRADE_HEAD};
 use crate::handshake;
+use crate::headers::Extra;
 
 /// Send the upgrade request and read the answer. On `101`, returns the stream
 /// and any bytes that arrived after the response head (the relay dials the
@@ -17,8 +18,24 @@ pub async fn upgrade<S>(tls: S, host_header: &str, path: &str, token: &str) -> R
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
 {
+    upgrade_carrying(tls, host_header, path, token, &Extra::default()).await
+}
+
+/// [`upgrade`] with the headers of the caller in `extra`, after the token.
+/// A refusal keeps its status, and its words show no value of `extra`.
+pub async fn upgrade_carrying<S>(
+    tls: S,
+    host_header: &str,
+    path: &str,
+    token: &str,
+    extra: &Extra,
+) -> Result<(S, Vec<u8>), ConnectError>
+where
+    S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+{
     let key = handshake::generate_key().map_err(|e| ConnectError::Upgrade(e.to_string()))?;
-    upgrade_with(tls, &handshake::build_request(host_header, path, token, &key), &key).await
+    let request = handshake::build_request_with(host_header, path, token, &key, extra);
+    upgrade_with(tls, &request, &key).await.map_err(|e| extra.masked(e))
 }
 
 /// [`upgrade`] with a request that the caller built with `key`, as another

@@ -137,6 +137,8 @@ pub async fn session(
         return Err(ConnectError::Config("the relay token contains a line break".into()));
     }
     let host = config.endpoint.host.as_str();
+    // Checked before anything goes out.
+    let extra = config.way.extra(host)?;
     let failed = |detail: String| {
         let target = format!("UDP {}", pod_proxy::host::authority(host, port));
         ConnectError::Dial(DialError::Connect { target, detail, cut: None, kind: None })
@@ -170,11 +172,25 @@ pub async fn session(
     learn(ctx, host, port, Learned::Answered(addr));
     let (send, recv) = connection.open_bi().await.map_err(|e| failed(format!("no stream: {e}")))?;
     let stream = QuicStream::client(send, recv, connection, endpoint);
-    let host_header = pod_proxy::host::authority(host, config.endpoint.port);
+    upgrade_on(stream, config, token, &extra).await
+}
+
+/// The contract's upgrade on `stream`, a stream of QUIC, with `token` and
+/// the headers of the caller in `extra` after it, as on TCP.
+async fn upgrade_on<S>(
+    stream: S,
+    config: &WsClientConfig,
+    token: &str,
+    extra: &pod_ws::Extra,
+) -> Result<RelaySession, ConnectError>
+where
+    S: pod_ws::url::Carried + 'static,
+{
+    let host_header = pod_proxy::host::authority(&config.endpoint.host, config.endpoint.port);
     let path = &config.endpoint.path;
-    let upgraded = tokio::time::timeout(config.timeout, pod_ws::client::upgrade(stream, &host_header, path, token));
+    let upgrading = pod_ws::client::upgrade_carrying(stream, &host_header, path, token, extra);
     let late = |_| ConnectError::Timeout { step: "the WebSocket upgrade over QUIC", after: config.timeout };
-    let (stream, pending) = upgraded.await.map_err(late)??;
+    let (stream, pending) = tokio::time::timeout(config.timeout, upgrading).await.map_err(late)??;
     let carried = Stream::Carried(Box::new(stream));
     let session = RelaySession::new(carried, pending, config.idle_timeout, pod_ws::client::WRITE_TIMEOUT);
     Ok(session.with_road(WORDS.to_string()))
@@ -211,6 +227,47 @@ mod tests {
         assert_eq!(learned(&ctx, "udp-kept.example", 8443), None, "another port is another host");
         learn(&ctx, "udp-kept.example", 443, Learned::Answered(at));
         assert_eq!(learned(&ctx, "udp-kept.example", 443), Some(Learned::Answered(at)));
+    }
+
+    /// The upgrade on a stream of QUIC carries the caller's headers after
+    /// the token; a 403 keeps its status and shows no value.
+    #[tokio::test]
+    async fn the_upgrade_over_quic_carries_the_caller_s_headers() {
+        use pod_ws::headers::{MASK, Zeroizing};
+        use tokio::io::AsyncWriteExt;
+        let secret = "made-up-secret-of-the-test-0123";
+        let headers = pod_ws::Headers::new(move |_| vec![("CF-Access-Client-Secret", Zeroizing::new(secret.into()))]);
+        let extra = headers.for_host("relay.example").unwrap();
+        let config = WsClientConfig {
+            endpoint: pod_ws::Endpoint { host: "relay.example".into(), port: 443, path: "/v1/node/p".into() },
+            trust: Trust::Default,
+            server_name: "relay.example".into(),
+            timeout: Duration::from_secs(20),
+            idle_timeout: None,
+            way: crate::testing::way(),
+            limits: pod_ws::Limits::RELAY,
+        };
+        for refuse in [false, true] {
+            let (ours, mut theirs) = tokio::io::duplex(64 * 1024);
+            let relay = tokio::spawn(async move {
+                let (head, _) = pod_proxy::http::request::read_request(&mut theirs, Vec::new()).await.unwrap();
+                let key = pod_ws::server::check_upgrade(&head).unwrap();
+                let answer = match refuse {
+                    true => format!("HTTP/1.1 403 No\r\nContent-Length: {}\r\n\r\ndenied {secret}", 7 + secret.len()),
+                    false => String::from_utf8(pod_ws::server::switching(&key)).unwrap(),
+                };
+                theirs.write_all(answer.as_bytes()).await.unwrap();
+                (head.headers.into_iter().map(|(n, _)| n).collect::<Vec<_>>(), theirs)
+            });
+            let upgraded = upgrade_on(ours, &config, "tok", &extra).await;
+            let (names, _theirs) = relay.await.unwrap();
+            let at = names.iter().position(|n| n == "x-relay-token").expect("the token");
+            assert_eq!(names[at..], ["x-relay-token", "cf-access-client-secret", "x-podssh-proto"]);
+            match upgraded {
+                Ok(_) => assert!(!refuse),
+                Err(e) => assert_eq!(e, ConnectError::Refused { status: 403, body: format!("denied {MASK}") }),
+            }
+        }
     }
 
     /// QUIC's TLS offers the role's ALPN alone, over TLS 1.3, which QUIC's

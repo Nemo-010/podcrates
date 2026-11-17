@@ -3,7 +3,8 @@
 //! the kept configurations, the state of ECH), the dialer of each TCP
 //! connection (`pod_core::Dial`: direct, a proxy, a relay), the reader of a
 //! name's HTTPS record for Encrypted Client Hello (feature `ech`), and the
-//! user agent of the binary. The crate reads no variable of the
+//! user agent of the binary, and the headers of the caller for a host (a
+//! credential of a gate in front of the relay). The crate reads no variable of the
 //! environment and keeps no process state: the binary makes one `Way` and
 //! shares it.
 
@@ -17,6 +18,7 @@ use pod_tls::{Context, Trust};
 use tokio::time::Instant;
 
 use crate::client::ConnectError;
+use crate::headers::{Extra, Headers};
 use crate::session::RelayStream;
 
 /// The way out of each connection, and the TLS of each.
@@ -33,11 +35,18 @@ pub struct Way {
     /// The `User-Agent` of each request of the crate: `podssh/VERSION`,
     /// `podnet/VERSION`.
     pub user_agent: String,
+    /// The headers of the caller for each host, which each road writes
+    /// after the relay's token: none by default.
+    pub headers: Headers,
 }
 
 impl std::fmt::Debug for Way {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Way").field("dial", &self.dial.label()).field("user_agent", &self.user_agent).finish()
+        f.debug_struct("Way")
+            .field("dial", &self.dial.label())
+            .field("user_agent", &self.user_agent)
+            .field("headers", &self.headers)
+            .finish()
     }
 }
 
@@ -52,7 +61,26 @@ impl Way {
             #[cfg(feature = "ech")]
             records: Arc::new(pod_tls::ech::NoRecords),
             user_agent: user_agent.into(),
+            headers: Headers::default(),
         }
+    }
+
+    /// The same way with the headers of the caller for each host.
+    pub fn with_headers(mut self, headers: Headers) -> Way {
+        self.headers = headers;
+        self
+    }
+
+    /// The headers of the caller for `host`, checked; with no brackets
+    /// around an IPv6 address.
+    pub fn extra(&self, host: &str) -> Result<Extra, ConnectError> {
+        self.headers.for_host(host.trim_start_matches('[').trim_end_matches(']'))
+    }
+
+    /// [`Way::extra`] for a road in cleartext: none unless the caller
+    /// allows it ([`Headers::in_cleartext`]).
+    pub fn extra_in_cleartext(&self, host: &str) -> Result<Extra, ConnectError> {
+        self.headers.for_cleartext(host.trim_start_matches('[').trim_end_matches(']'))
     }
 
     /// The reader of a name's HTTPS record, for ECH.

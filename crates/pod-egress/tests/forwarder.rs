@@ -380,3 +380,30 @@ async fn a_forwarder_is_a_dialer_and_its_close_is_a_typed_failure() {
     let words = format!("the forwarder ws://127.0.0.1:{port}/ closed the WebSocket before the target's bytes: 1011");
     assert!(failure.text().starts_with(&words), "{failure}");
 }
+
+/// The caller's headers for the forwarder's host go on its upgrade, after
+/// the request's own, where the caller allows them in cleartext (`ws://`);
+/// none go where it does not, or to another host.
+#[tokio::test]
+async fn the_caller_s_headers_go_to_the_forwarder_where_allowed() {
+    use pod_ws::Headers;
+    use pod_ws::headers::Zeroizing;
+    let (port, seen) = stand_in(Form::Query, Act::Carry(vec![])).await;
+    let target = echo().await;
+    let template = Template::parse(&format!("ws://127.0.0.1:{port}/?host={{host}}&port={{port}}")).unwrap();
+    let notes = Arc::default();
+    let secret = "made-up-secret-of-the-test-0123";
+    for (allowed, host, sent) in [(false, "127.0.0.1", None), (true, "127.0.0.1", Some(secret)), (true, "x.test", None)]
+    {
+        let given = move |asked: &str| match asked == host {
+            true => vec![("CF-Access-Client-Secret", Zeroizing::new(secret.to_string()))],
+            false => Vec::new(),
+        };
+        let dial = Dial { way: way::direct().with_headers(Headers::new(given).in_cleartext(allowed)), ..dial(&notes) };
+        let carried = forwarder::open(&template, "127.0.0.1", target, &dial).await.expect("a session");
+        carried.abort();
+        let (_, headers) = seen.lock().unwrap().requests.last().cloned().expect("a request");
+        let got = headers.iter().find(|(name, _)| name == "cf-access-client-secret").map(|(_, v)| v.as_str());
+        assert_eq!(got, sent, "allowed: {allowed}, for {host}");
+    }
+}

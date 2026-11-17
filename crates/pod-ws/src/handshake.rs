@@ -18,6 +18,7 @@ use pod_core::entropy::{Entropy, OsEntropy};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::error::WsError;
+use crate::headers::{Extra, Zeroizing};
 
 /// The header that carries the relay's token, and nothing else does.
 pub const TOKEN_HEADER: &str = "X-Relay-Token";
@@ -53,23 +54,31 @@ pub fn reverse_socket(path: &str) -> bool {
 /// There is no query string to escape, and building the request directly means
 /// there is no code path in which a token could be appended to one.
 pub fn build_request(host_header: &str, path: &str, token: &str, key: &str) -> Vec<u8> {
-    let mut req = String::with_capacity(512);
-    req.push_str(&format!("GET {path} HTTP/1.1\r\n"));
-    req.push_str(&format!("Host: {host_header}\r\n"));
-    req.push_str("Upgrade: websocket\r\n");
-    req.push_str("Connection: Upgrade\r\n");
-    req.push_str(&format!("Sec-WebSocket-Key: {key}\r\n"));
-    req.push_str("Sec-WebSocket-Version: 13\r\n");
+    build_request_with(host_header, path, token, key, &Extra::default()).to_vec()
+}
+
+/// [`build_request`] with the headers of the caller in `extra`, after the
+/// token; in memory that is wiped, as it holds the token and the values.
+pub fn build_request_with(host_header: &str, path: &str, token: &str, key: &str, extra: &Extra) -> Zeroizing<Vec<u8>> {
+    let mut req =
+        Zeroizing::new(Vec::with_capacity(512 + extra.iter().map(|(n, v)| n.len() + v.len() + 4).sum::<usize>()));
+    req.extend_from_slice(format!("GET {path} HTTP/1.1\r\n").as_bytes());
+    req.extend_from_slice(format!("Host: {host_header}\r\n").as_bytes());
+    req.extend_from_slice(b"Upgrade: websocket\r\nConnection: Upgrade\r\n");
+    req.extend_from_slice(format!("Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n").as_bytes());
     // The token, in a header. See the module comment.
-    req.push_str(&format!("{TOKEN_HEADER}: {token}\r\n"));
+    for part in [TOKEN_HEADER, ": ", token, "\r\n"] {
+        req.extend_from_slice(part.as_bytes());
+    }
+    extra.write(&mut req);
     // A reverse socket's dialect, so that a relay role that reads another
     // can say so in a sentence, not in a frame that one side drops.
     if reverse_socket(path) {
-        req.push_str(&format!("{PROTO_HEADER}: {REVERSE_PROTO}\r\n"));
+        req.extend_from_slice(format!("{PROTO_HEADER}: {REVERSE_PROTO}\r\n").as_bytes());
     }
     // **No `Sec-WebSocket-Protocol` line.** See the module comment.
-    req.push_str("\r\n");
-    req.into_bytes()
+    req.extend_from_slice(b"\r\n");
+    req
 }
 
 /// **`Sec-WebSocket-Accept` is `base64(SHA1(key + GUID))`.** RFC 6455 §4.2.2
@@ -328,6 +337,23 @@ mod tests {
         for path in ["/connect/example.org/22", "/v1/status/podssh-p-0123", "/v1/nodes/x", "/x"] {
             assert!(!request(path).to_ascii_lowercase().contains("x-podssh-proto"), "{path}");
         }
+    }
+
+    /// The caller's headers go after the token, once each, in its order;
+    /// with none, the request is the one of [`build_request`].
+    #[test]
+    fn the_caller_s_headers_follow_the_token() {
+        let made_up = |v: &str| Zeroizing::new(v.to_string());
+        let extra =
+            Extra::checked(vec![("CF-Access-Client-Id", made_up("id")), ("CF-Access-Client-Secret", made_up("s"))])
+                .unwrap();
+        let asked = build_request_with("r:443", "/v1/node/podssh-p-0123", "tok", "k", &extra);
+        let asked = String::from_utf8(asked.to_vec()).unwrap();
+        let tail =
+            "X-Relay-Token: tok\r\nCF-Access-Client-Id: id\r\nCF-Access-Client-Secret: s\r\nX-Podssh-Proto: 1\r\n\r\n";
+        assert!(asked.ends_with(tail), "{asked}");
+        let plain = build_request_with("r:443", "/x", "tok", "k", &Extra::default());
+        assert_eq!(plain.to_vec(), build_request("r:443", "/x", "tok", "k"));
     }
 
     /// A 101 names the subprotocol that its request offered, or none when

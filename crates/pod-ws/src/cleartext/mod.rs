@@ -12,7 +12,7 @@ mod probe;
 
 pub use probe::{Heard, PLAIN_TO_TLS, PROBE_PATH, probe};
 
-use crate::client::{ConnectError, WRITE_TIMEOUT, WsClientConfig, upgrade};
+use crate::client::{ConnectError, WRITE_TIMEOUT, WsClientConfig, upgrade_carrying};
 use crate::session::RelaySession;
 
 /// The step of the upgrade in a bound's words.
@@ -30,7 +30,9 @@ pub fn tls_failed(e: &ConnectError) -> bool {
 /// Dial `config`'s endpoint through its way out, and upgrade at its path with
 /// `token` in the `X-Relay-Token` header, as [`crate::connect`] does, with
 /// no TLS; its trust and its server name are not used. Each hop reads the
-/// token, so the caller gives a token of one session alone.
+/// token, so the caller gives a token of one session alone. The headers of
+/// the caller go only where it allows them in cleartext
+/// ([`crate::Headers::in_cleartext`]).
 pub async fn connect(config: &WsClientConfig, token: &str) -> Result<RelaySession, ConnectError> {
     // The rules of a path and a token are those of `connect`.
     config.validate().map_err(ConnectError::Config)?;
@@ -38,9 +40,11 @@ pub async fn connect(config: &WsClientConfig, token: &str) -> Result<RelaySessio
         return Err(ConnectError::Config("the relay token contains a line break".into()));
     }
     let at = &config.endpoint;
+    let extra = config.way.extra_in_cleartext(&at.host)?;
     let mut tcp = config.way.tcp(&at.host, at.port, config.timeout).await.map_err(ConnectError::Dial)?;
     let host_header = pod_proxy::authority(&at.host, at.port);
-    let (io, pending) = tokio::time::timeout(config.timeout, upgrade(tcp.io, &host_header, &at.path, token))
+    let upgraded = upgrade_carrying(tcp.io, &host_header, &at.path, token, &extra);
+    let (io, pending) = tokio::time::timeout(config.timeout, upgraded)
         .await
         .map_err(|_| ConnectError::Timeout { step: UPGRADE_STEP, after: config.timeout })??;
     tcp.io = io;

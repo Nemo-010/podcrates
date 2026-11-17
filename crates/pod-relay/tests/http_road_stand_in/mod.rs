@@ -155,6 +155,7 @@ impl StandIn {
             user_agent: "pod-relay/test".into(),
             forms: None,
             learned: Arc::default(),
+            extra: Ok(pod_ws::Extra::default()),
         }
     }
 

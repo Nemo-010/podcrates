@@ -33,6 +33,9 @@
 //!
 //! **No token in a log.** The relay's token goes in its header
 //! ([`handshake::TOKEN_HEADER`]) and nowhere else; no error formats it.
+//! The headers of the caller for a host, such as the credential of a gate
+//! in front of the relay, go after it ([`headers`]); a refusal masks
+//! each of their values.
 
 pub mod bridge;
 pub mod cleartext;
@@ -42,6 +45,7 @@ pub mod error;
 pub mod frame;
 pub mod h2_road;
 pub mod handshake;
+pub mod headers;
 pub mod limits;
 #[cfg(feature = "plain-ws")]
 pub mod plain;
@@ -65,6 +69,7 @@ pub use client::{
 pub use close::close_hint;
 pub use error::{SessionError, Verdict, WsError};
 pub use frame::Frame;
+pub use headers::{Extra, Headers};
 pub use limits::Limits;
 pub use pod_proxy::{Cut, DialError, Missed, TlsFailure};
 pub use pod_tls::Trust;

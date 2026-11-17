@@ -3,7 +3,7 @@
 //! `pod_ws::plain::connect_loopback`, as a session of the relay's own stream
 //! type, so that the opener gives it as it gives a session of TLS.
 
-use pod_ws::client::{ConnectError, WRITE_TIMEOUT, WsClientConfig, upgrade};
+use pod_ws::client::{ConnectError, WRITE_TIMEOUT, WsClientConfig, upgrade_carrying};
 use pod_ws::session::RelaySession;
 
 use crate::token::{self, MintContext, Token, TokenError};
@@ -31,12 +31,15 @@ pub(super) async fn connect(config: &WsClientConfig, token: &str) -> Result<Rela
             return Err(ConnectError::Config("the relay token contains a line break".into()));
         }
     }
+    // The loopback is this host: the caller's headers go as on TLS.
+    let extra = config.way.extra(&at.host)?;
     let tcp = pod_ws::plain::loopback_tcp(&at.host, at.port, config.timeout).await?;
     let (peer, local) = (tcp.peer_addr().ok(), tcp.local_addr().ok());
     let host_header = pod_proxy::host::authority(&at.host, at.port);
-    let (tcp, pending) = tokio::time::timeout(config.timeout, upgrade(tcp, &host_header, &at.path, token))
-        .await
-        .map_err(|_| ConnectError::Timeout { step: "the WebSocket upgrade", after: config.timeout })??;
+    let (tcp, pending) =
+        tokio::time::timeout(config.timeout, upgrade_carrying(tcp, &host_header, &at.path, token, &extra))
+            .await
+            .map_err(|_| ConnectError::Timeout { step: "the WebSocket upgrade", after: config.timeout })??;
     let connected = pod_core::Connected { io: Box::new(tcp), peer, local };
     Ok(RelaySession::over_cleartext(connected, pending, config.idle_timeout, WRITE_TIMEOUT).with_limits(config.limits))
 }

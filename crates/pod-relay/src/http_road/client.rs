@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use pod_ws::{ConnectError, Trust, Way};
+use pod_ws::{ConnectError, Extra, Trust, Way};
 use tokio::io::{AsyncRead, AsyncReadExt, DuplexStream};
 use tokio::time::Instant;
 use zeroize::Zeroizing;
@@ -21,8 +21,8 @@ use super::conn::{ALPN_OFFER, BoxIo, Conn, Dial, DialAlpn, Dialed, Dialing, Dial
 use super::one::{self, Learned};
 use super::window::Refusal;
 use super::{
-    DOWN_MAX, Form, Forms, KEY, ONE, ONE_LAYER, OPEN, OPEN_LAYER, REFUSE, SESSION, TOTAL, Tuning, WAIT_MAX, is_id,
-    is_key,
+    ACK, CLOSE, DOWN_MAX, Form, Forms, KEY, OFFSET, ONE, ONE_LAYER, OPEN, OPEN_LAYER, REFUSE, SEQ, SESSION, TOTAL,
+    Tuning, WAIT_MAX, is_id, is_key,
 };
 use crate::context::Context;
 use crate::relay::Relay;
@@ -60,12 +60,17 @@ pub struct Road {
     /// The hosts whose way held the one-POST form: the run's, where the
     /// road takes them from its context.
     pub learned: Arc<Learned>,
+    /// The headers of the caller for the host, which each request writes
+    /// after the token or the key of the session, or why they cannot go: an
+    /// open with them refused is refused before any byte.
+    pub extra: Result<Extra, ConnectError>,
 }
 
 impl Road {
     /// TLS to `relay` through `way`, checked with `trust`, as the WebSocket
     /// road reaches it.
     pub fn tls(way: &Way, relay: &Relay, trust: &Trust, limit: Duration) -> Road {
+        let extra = way.extra(&relay.host);
         let (host, port, trust, way) = (relay.host.clone(), relay.port, trust.clone(), way.clone());
         let user_agent = way.user_agent.clone();
         let (dial_host, dial_trust, dial_way) = (host.clone(), trust.clone(), way.clone());
@@ -85,7 +90,7 @@ impl Road {
             })
         });
         let (authority, forms, learned) = (relay.name(), None, Arc::default());
-        Road { dial, dial_alpn: Some(dial_alpn), authority, user_agent, forms, learned }
+        Road { dial, dial_alpn: Some(dial_alpn), authority, user_agent, forms, learned, extra }
     }
 
     /// The same road with the forms that the host's `limits.http.forms`
@@ -167,6 +172,8 @@ pub(super) struct Shared {
     pub key: Zeroizing<String>,
     pub authority: String,
     pub user_agent: String,
+    /// The headers of the caller, after the key.
+    pub extra: Extra,
     pub batch: usize,
     pub wait: Duration,
     pub down_max: usize,
@@ -191,7 +198,7 @@ impl Shared {
 
     /// A request of this session, with its key.
     pub fn request(&self, method: &str, path: &str, length: Option<usize>) -> Vec<u8> {
-        request(method, &self.user_agent, &self.authority, path, &[(KEY, self.key.as_str())], length)
+        request(method, &self.user_agent, &self.authority, path, &self.extra.after(KEY, &self.key), length)
     }
 
     /// What an answer says of the batches that the target took.
@@ -363,6 +370,8 @@ pub async fn open_layer(
     open_at(road, target, token, form, tuning, true).await
 }
 
+/// [`open_at_with`] with the headers of the caller for the road's host,
+/// checked before any byte; a refusal shows none of their values.
 async fn open_at(
     road: &Road,
     target: &Target<'_>,
@@ -374,6 +383,21 @@ async fn open_at(
     if token.contains(['\r', '\n']) {
         return Err(ConnectError::Config("the relay token contains a line break".into()));
     }
+    let extra = road.extra.clone()?;
+    extra.refuse_names(&[KEY, ACK, OFFSET, CLOSE, SEQ, REFUSE, TOTAL])?;
+    open_at_with(road, target, token, form, tuning, layer, &extra).await.map_err(|e| extra.masked(e))
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn open_at_with(
+    road: &Road,
+    target: &Target<'_>,
+    token: &str,
+    form: Option<Form>,
+    tuning: Tuning,
+    layer: bool,
+    extra: &Extra,
+) -> Result<Opened, ConnectError> {
     let path = open_path(target, layer)?;
     let (open, one_path) = if layer { (OPEN_LAYER, ONE_LAYER) } else { (OPEN, ONE) };
     let one_first = match form {
@@ -381,7 +405,7 @@ async fn open_at(
         None => road.forms.is_none_or(|forms| forms.has(Form::One)) && road.learned.held(&road.authority).is_none(),
     };
     if one_first {
-        match one::open(road, &path.replacen(open, one_path, 1), token).await {
+        match one::open(road, &path.replacen(open, one_path, 1), token, extra).await {
             Ok(opened) => return Ok(opened),
             Err(one::Failed::Stop(e)) => return Err(e),
             Err(one::Failed::NotCarried(why)) if form == Some(Form::One) => {
@@ -391,7 +415,14 @@ async fn open_at(
         }
     }
     let mut first = Conn::new(road.dial.clone());
-    let head = request("POST", &road.user_agent, &road.authority, &path, &[("X-Relay-Token", token)], Some(0));
+    let head = request(
+        "POST",
+        &road.user_agent,
+        &road.authority,
+        &path,
+        &extra.after(pod_ws::handshake::TOKEN_HEADER, token),
+        Some(0),
+    );
     let answer = first.ask(&head, &[], LIMIT).await?;
     let body = first.whole(&answer, OPEN_ANSWER_MAX, LIMIT).await?;
     if answer.status != 200 {
@@ -413,6 +444,7 @@ async fn open_at(
         key: Zeroizing::new(key.to_string()),
         authority: road.authority.clone(),
         user_agent: road.user_agent.clone(),
+        extra: extra.clone(),
         batch: tuning.batch.min(bound("batch_max", super::BATCH_MAX as u64) as usize).max(1),
         wait: tuning.wait.min(Duration::from_millis(bound("wait_max_ms", WAIT_MAX.as_millis() as u64))),
         down_max: bound("down_max", DOWN_MAX as u64) as usize,
@@ -454,46 +486,5 @@ async fn second(road: &Road, shared: &Shared) -> Option<Conn> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_open_s_path_is_the_forward_road_s_under_the_road_s_prefix() {
-        let to = |host, port, family| open_path(&Target { host, port, family }, false).unwrap();
-        assert_eq!(to("github.com", 22, None), "/v1/http/open/github.com/22");
-        assert_eq!(to("2001:db8::1", 22, Some(6)), "/v1/http/open/2001:db8::1/22?family=6");
-        assert!(open_path(&Target { host: "a/b", port: 22, family: None }, false).is_err());
-        assert!(open_path(&Target { host: "h", port: 0, family: None }, false).is_err());
-        let layer = Target { host: "github.com", port: 22, family: Some(4) };
-        assert_eq!(open_path(&layer, true).unwrap(), "/v1/http/open-layer/github.com/22?family=4");
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn the_tries_pause_longer_each_time_and_end_at_their_bound() {
-        let mut tries = Retry::start();
-        let started = Instant::now();
-        tries.again("x", None).await.unwrap();
-        tries.again("x", Some(Duration::from_secs(1))).await.unwrap();
-        assert_eq!(started.elapsed(), Duration::from_millis(1100));
-        tokio::time::sleep(RETRY_FOR).await;
-        let failed = tries.again("the last error", None).await.unwrap_err();
-        assert!(matches!(&failed, End::Failed(why) if why.contains("the last error")), "{failed:?}");
-        tries.reset();
-        assert!(tries.again("x", None).await.is_ok());
-    }
-
-    #[tokio::test]
-    async fn a_batch_takes_what_comes_at_once_and_says_the_end() {
-        use tokio::io::AsyncWriteExt;
-        let (mut near, mut far) = tokio::io::duplex(1024);
-        near.write_all(b"abc").await.unwrap();
-        near.write_all(b"def").await.unwrap();
-        let mut buf = [0u8; 4];
-        assert_eq!(gather(&mut far, &mut buf).await, (4, false));
-        drop(near);
-        let mut rest = [0u8; 8];
-        assert_eq!(gather(&mut far, &mut rest).await, (2, true));
-        assert_eq!(&rest[..2], b"ef");
-        assert_eq!(gather(&mut far, &mut rest).await, (0, true));
-    }
-}
+#[path = "client_tests.rs"]
+mod tests;

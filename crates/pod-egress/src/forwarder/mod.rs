@@ -7,7 +7,9 @@
 //! before the target's bytes. The dial is that of a WebSocket by its URL
 //! (`pod_ws::url::dial`): TLS checked for the forwarder's name, through the
 //! caller's way out, and no token: a relay token goes only to the
-//! deployment that minted it, and a forwarder is another product's. A
+//! deployment that minted it, and a forwarder is another product's. The
+//! headers of the caller for the forwarder's host go on the upgrade, as
+//! `pod_ws::url::dial` writes them (`pod_ws::Headers`). A
 //! template `wisp+wss://HOST/PATH/` names a server of the Wisp protocol,
 //! which takes the target in a packet of its own ([`crate::wisp`]).
 //!

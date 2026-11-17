@@ -45,6 +45,7 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use pod_tls::Trust;
 
 use crate::client::{ConnectError, RelayStream, WRITE_TIMEOUT, WsClientConfig};
+use crate::headers::Extra;
 use crate::session::RelaySession;
 
 pub use dial::{Offered, probe};
@@ -241,6 +242,8 @@ pub async fn connect_link(
     if token.contains(['\r', '\n']) {
         return Err(ConnectError::Config("the relay token contains a line break".into()));
     }
+    // Checked before anything connects.
+    let extra = config.way.extra(&config.endpoint.host)?;
     if matches!(config.trust, Trust::Caller(_)) {
         return Ok((crate::connect(config, token).await?, Road::Http1(Fallback::Caller)));
     }
@@ -252,11 +255,11 @@ pub async fn connect_link(
         let (conn, place, shared) = match pool.place(config, after).await? {
             pool::Got::Place { conn, place, shared } => (conn, place, shared),
             pool::Got::Http1(tls, peer) => {
-                return Ok((upgrade_on(*tls, peer, config, token).await?, Road::Http1(Fallback::NotChosen)));
+                return Ok((upgrade_on(*tls, peer, config, token, &extra).await?, Road::Http1(Fallback::NotChosen)));
             }
             pool::Got::Fallback(why) => return Ok((crate::connect(config, token).await?, Road::Http1(why))),
         };
-        match open_on(&conn, place, config, token).await {
+        match open_on(&conn, place, config, token, &extra).await {
             Ok(session) => {
                 links.newest.fetch_max(conn.serial(), Ordering::SeqCst);
                 return Ok((session, Road::Stream { shared }));
@@ -284,8 +287,9 @@ pub async fn connect_link(
     Ok((crate::connect(config, token).await?, Road::Http1(why)))
 }
 
-/// The CONNECT of RFC 8441 for `config`'s path, with `token`.
-fn request(config: &WsClientConfig, token: &str) -> Result<http::Request<()>, ConnectError> {
+/// The CONNECT of RFC 8441 for `config`'s path, with `token`, and the
+/// headers of the caller in `extra` after it.
+fn request(config: &WsClientConfig, token: &str, extra: &Extra) -> Result<http::Request<()>, ConnectError> {
     let authority = pod_proxy::authority(&config.endpoint.host, config.endpoint.port);
     let uri = http::Uri::builder()
         .scheme("https")
@@ -302,9 +306,18 @@ fn request(config: &WsClientConfig, token: &str) -> Result<http::Request<()>, Co
         .uri(uri)
         .header("sec-websocket-version", "13")
         .header(http::header::USER_AGENT, config.way.user_agent.as_str())
-        .header("x-relay-token", value)
-        .body(())
-        .map_err(|e| ConnectError::Config(format!("the CONNECT: {e}")))?;
+        .header("x-relay-token", value);
+    for (name, value) in extra.iter() {
+        // Checked already (`Extra::checked`); never indexed, as the token.
+        let name = http::HeaderName::from_bytes(name.as_bytes())
+            .map_err(|_| ConnectError::Config(format!("the caller's header {name} is no name of HTTP/2")))?;
+        let mut value = http::HeaderValue::from_bytes(value.as_bytes()).map_err(|_| {
+            ConnectError::Config(format!("the value of the caller's header {name} is no value of HTTP/2"))
+        })?;
+        value.set_sensitive(true);
+        request = request.header(name, value);
+    }
+    let mut request = request.body(()).map_err(|e| ConnectError::Config(format!("the CONNECT: {e}")))?;
     request.extensions_mut().insert(h2::ext::Protocol::from_static("websocket"));
     Ok(request)
 }
@@ -315,8 +328,9 @@ async fn open_on(
     place: pool::Place,
     config: &WsClientConfig,
     token: &str,
+    extra: &Extra,
 ) -> Result<RelaySession, Carry> {
-    let request = request(config, token).map_err(Carry::Answer)?;
+    let request = request(config, token, extra).map_err(Carry::Answer)?;
     let limit = config.timeout;
     let asked = async {
         let mut sender = conn.sender().ready().await.map_err(Carry::of)?;
@@ -349,7 +363,7 @@ async fn open_on(
         let reason = status.canonical_reason().unwrap_or_default().to_string();
         let body = refusal_text(response.into_body()).await;
         let body = if body.is_empty() { reason } else { body };
-        return Err(Carry::Answer(ConnectError::Refused { status: status.as_u16(), body }));
+        return Err(Carry::Answer(extra.masked(ConnectError::Refused { status: status.as_u16(), body })));
     }
     let stream = Stream { inner: duplex::Stream::from_parts(send, response.into_body()), _place: Some(place) };
     let session = RelaySession::over_h2(stream, conn.peer(), config.idle_timeout, WRITE_TIMEOUT);
@@ -382,9 +396,10 @@ async fn upgrade_on(
     peer: Option<std::net::SocketAddr>,
     config: &WsClientConfig,
     token: &str,
+    extra: &Extra,
 ) -> Result<RelaySession, ConnectError> {
     let host_header = pod_proxy::authority(&config.endpoint.host, config.endpoint.port);
-    let upgraded = crate::client::upgrade(tls, &host_header, &config.endpoint.path, token);
+    let upgraded = crate::client::upgrade_carrying(tls, &host_header, &config.endpoint.path, token, extra);
     let (tls, pending) = tokio::time::timeout(config.timeout, upgraded)
         .await
         .map_err(|_| ConnectError::Timeout { step: "the WebSocket upgrade", after: config.timeout })??;
@@ -414,7 +429,7 @@ mod tests {
     /// HPACK never indexes, and no key of RFC 6455.
     #[test]
     fn the_connect_names_websocket_the_path_and_hides_the_token_from_hpack() {
-        let request = request(&config("/connect/github.com/22?family=6"), "tok.en").unwrap();
+        let request = request(&config("/connect/github.com/22?family=6"), "tok.en", &Extra::default()).unwrap();
         assert_eq!(request.method(), http::Method::CONNECT);
         let protocol = request.extensions().get::<h2::ext::Protocol>().map(|p| p.as_str().to_string());
         assert_eq!(protocol.as_deref(), Some("websocket"));
@@ -429,7 +444,7 @@ mod tests {
     }
 
     fn request_err(token: &str) -> String {
-        request(&config("/connect/h/22"), token).err().map(|e| e.to_string()).unwrap_or_default()
+        request(&config("/connect/h/22"), token, &Extra::default()).err().map(|e| e.to_string()).unwrap_or_default()
     }
 
     /// Each road is said for `-v`, a fallback with its reason; the upgrade

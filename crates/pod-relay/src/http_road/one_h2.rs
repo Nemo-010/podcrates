@@ -16,6 +16,8 @@ use h2::client::{ResponseFuture, SendRequest};
 use h2::{Reason, RecvStream, SendStream};
 use tokio::io::{AsyncWriteExt, DuplexStream, ReadHalf, WriteHalf};
 
+use pod_ws::Extra;
+
 use super::client::{End, Ended, LIMIT, Opened, Road, gather};
 use super::conn::BoxIo;
 use super::one::{CHUNK, Failed, MARK_WAIT, PIPE, REFUSAL_MAX, no_mark, refused, words};
@@ -44,7 +46,13 @@ enum Heard {
 /// Open the form at `path` on `io`, whose TLS chose `h2`: the session, once
 /// the mark came within [`MARK_WAIT`]; `None` when the role asks for
 /// HTTP/1.1.
-pub(super) async fn open(road: &Road, path: &str, token: &str, io: BoxIo) -> Option<Result<Opened, Failed>> {
+pub(super) async fn open(
+    road: &Road,
+    path: &str,
+    token: &str,
+    extra: &Extra,
+    io: BoxIo,
+) -> Option<Result<Opened, Failed>> {
     let not_carried = |why: String| Some(Err(Failed::NotCarried(why)));
     let (client, connection) = match tokio::time::timeout(LIMIT, h2::client::handshake(io)).await {
         Ok(Ok(shaken)) => shaken,
@@ -54,15 +62,7 @@ pub(super) async fn open(road: &Road, path: &str, token: &str, io: BoxIo) -> Opt
     let driver = Driver(tokio::spawn(async move {
         let _ = connection.await;
     }));
-    let request = http::Request::builder()
-        .method("POST")
-        .uri(format!("https://{}{path}", road.authority))
-        .header("x-relay-token", token)
-        .header("user-agent", road.user_agent.as_str())
-        .header("accept-encoding", "identity")
-        .header("cache-control", "no-store")
-        .body(());
-    let request = match request {
+    let request = match request(road, path, token, extra) {
         Ok(request) => request,
         Err(e) => return not_carried(format!("the request of HTTP/2: {e}")),
     };
@@ -88,6 +88,30 @@ pub(super) async fn open(road: &Road, path: &str, token: &str, io: BoxIo) -> Opt
     tokio::spawn(down(recv, to_app, first, ended.clone(), (client, driver)));
     tokio::spawn(up(send, from_app, ended.clone()));
     Some(Ok(Opened { stream: app, ended, form: Form::One }))
+}
+
+/// The POST of the form at `path`, with `token` and the headers of the
+/// caller in `extra` after it; each never indexed by HPACK.
+fn request(road: &Road, path: &str, token: &str, extra: &Extra) -> Result<http::Request<()>, String> {
+    let sensitive = |value: &str| {
+        let mut value = http::HeaderValue::from_bytes(value.as_bytes()).map_err(|e| e.to_string())?;
+        value.set_sensitive(true);
+        Ok::<_, String>(value)
+    };
+    let mut request = http::Request::builder()
+        .method("POST")
+        .uri(format!("https://{}{path}", road.authority))
+        .header("x-relay-token", sensitive(token)?);
+    for (name, value) in extra.iter() {
+        let name = http::HeaderName::from_bytes(name.as_bytes()).map_err(|e| e.to_string())?;
+        request = request.header(name, sensitive(value)?);
+    }
+    request
+        .header("user-agent", road.user_agent.as_str())
+        .header("accept-encoding", "identity")
+        .header("cache-control", "no-store")
+        .body(())
+        .map_err(|e| e.to_string())
 }
 
 /// The answer's head and its first bytes, up to the mark.
@@ -201,4 +225,37 @@ async fn give(send: &mut SendStream<Bytes>, mut data: Bytes, fin: bool) -> Resul
         send.send_data(Bytes::new(), true)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pod_ws::headers::Zeroizing;
+
+    /// The POST carries the token, then the caller's headers, each never
+    /// indexed by HPACK.
+    #[test]
+    fn the_post_carries_the_caller_s_headers_unindexed() {
+        let dial: super::super::conn::Dial =
+            Arc::new(|| Box::pin(async { Err(pod_ws::ConnectError::Config("no dial".into())) }));
+        let road = Road {
+            dial,
+            dial_alpn: None,
+            authority: "relay.test".into(),
+            user_agent: "pod-relay/test".into(),
+            forms: None,
+            learned: Arc::default(),
+            extra: Ok(Extra::default()),
+        };
+        let made_up = |v: &str| Zeroizing::new(v.to_string());
+        let extra =
+            Extra::checked(vec![("CF-Access-Client-Id", made_up("id")), ("CF-Access-Client-Secret", made_up("s"))]);
+        let request = request(&road, "/v1/http/one/t/22", "tok", &extra.unwrap()).unwrap();
+        let headers = request.headers();
+        for (name, value) in [("x-relay-token", "tok"), ("cf-access-client-id", "id"), ("cf-access-client-secret", "s")]
+        {
+            assert_eq!(headers[name], value);
+            assert!(headers[name].is_sensitive(), "{name}");
+        }
+    }
 }

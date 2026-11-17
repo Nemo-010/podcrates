@@ -25,7 +25,7 @@ mod get;
 pub use get::request_error;
 // The WebSocket upgrade over a stream of the caller.
 mod upgrade;
-pub use upgrade::{upgrade, upgrade_answering, upgrade_with};
+pub use upgrade::{upgrade, upgrade_answering, upgrade_carrying, upgrade_with};
 
 #[cfg(test)]
 mod cut_tests;
@@ -219,7 +219,8 @@ pub fn is_policy_refusal(body: &str) -> bool {
 /// Connect, verify the relay's certificate and hostname, and upgrade.
 ///
 /// The token goes into the `X-Relay-Token` header and nowhere else; it is not
-/// stored, formatted or logged.
+/// stored, formatted or logged. The headers of the caller for the host
+/// ([`Way::extra`]) go after it.
 pub async fn connect(config: &WsClientConfig, token: &str) -> Result<RelaySession, ConnectError> {
     config.validate().map_err(ConnectError::Config)?;
     if token.contains(['\r', '\n']) {
@@ -227,9 +228,12 @@ pub async fn connect(config: &WsClientConfig, token: &str) -> Result<RelaySessio
     }
     let at = &config.endpoint;
     let way = &config.way;
+    // Checked before anything connects.
+    let extra = way.extra(&at.host)?;
     let (tls, peer) = way.open_tls(&at.host, at.port, &config.server_name, &config.trust, config.timeout, &[]).await?;
     let host_header = authority(&at.host, at.port);
-    let (tls, pending) = tokio::time::timeout(config.timeout, upgrade(tls, &host_header, &at.path, token))
+    let upgraded = upgrade_carrying(tls, &host_header, &at.path, token, &extra);
+    let (tls, pending) = tokio::time::timeout(config.timeout, upgraded)
         .await
         .map_err(|_| ConnectError::Timeout { step: "the WebSocket upgrade", after: config.timeout })??;
     Ok(RelaySession::over_tls(tls, peer, pending, config.idle_timeout, WRITE_TIMEOUT).with_limits(config.limits))
@@ -248,8 +252,8 @@ pub async fn open_tls(
 }
 
 /// POST a JSON body over HTTPS and return the response, through the same
-/// way out and the same verified path as [`connect`]. Used to mint relay
-/// tokens.
+/// way out and the same verified path as [`connect`], with the headers of
+/// the caller for the host. Used to mint relay tokens.
 pub async fn https_post_json(
     way: &Way,
     host: &str,
@@ -306,13 +310,25 @@ async fn https_request(
     trust: &Trust,
     timeout: Duration,
 ) -> Result<http::Response, ConnectError> {
+    let extra = way.extra(host)?;
     let mut tls = open_tls(way, host, port, host, trust, timeout).await?;
     let host_header = https_host(host, port);
     let ua = &way.user_agent;
-    tokio::time::timeout(timeout, http::exchange(&mut tls, ua, method, &host_header, path, headers, body, max_body))
+    let mut all: Vec<(&str, &str)> = headers.to_vec();
+    for (name, value) in extra.iter() {
+        all.push((name, value));
+    }
+    let headers = all;
+    let asked = http::exchange(&mut tls, ua, method, &host_header, path, &headers, body, max_body);
+    let mut response = tokio::time::timeout(timeout, asked)
         .await
         .map_err(|_| ConnectError::Timeout { step: "the HTTPS request", after: timeout })?
-        .map_err(|e| ConnectError::Http(e.to_string()))
+        .map_err(|e| extra.masked(ConnectError::Http(e.to_string())))?;
+    // A refusal may quote a value back, and its caller may show the body.
+    if !(200..300).contains(&response.status) && !extra.is_empty() {
+        response.body = extra.mask(&String::from_utf8_lossy(&response.body)).into_bytes();
+    }
+    Ok(response)
 }
 
 /// Read one frame from a stream that is both the read and the write side,
