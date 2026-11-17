@@ -19,7 +19,7 @@ pub const ONCE: &str = "once.v1";
 /// The names of a client's `OPEN`: its features, and the ask when its user
 /// turned the resumes off.
 pub fn asked(settings: &Settings) -> Vec<String> {
-    let mut names: Vec<String> = settings.features.iter().map(|name| name.to_string()).collect();
+    let mut names: Vec<String> = settings.names().into_iter().map(String::from).collect();
     if !settings.resumes && !names.iter().any(|name| name == ONCE) {
         names.push(ONCE.to_string());
     }

@@ -221,9 +221,11 @@ where
                     limits.apply(&hello);
                     // A relay that sleeps between frames names a slower Ping
                     // (podssh T-712): the watch starts again at that pace.
-                    if let Some(every) = super::liveness::pace(hello.extra.get(super::liveness::MEMBER)) {
+                    let pace = super::liveness::pace(hello.extra.get(super::liveness::MEMBER));
+                    if let Some(every) = pace {
                         liveness.set(session.watch_liveness(every, settings.pings_allowed));
                     }
+                    handler.liveness(pace);
                     // A role that registers tokens of one leg (podssh T-615): the
                     // handler registers them on this socket from now on.
                     super::legs::heard(&settings.node, &hello);

@@ -77,4 +77,8 @@ impl<H: Handler> Handler for E2e<H> {
     fn spent(&self, digest: &str) {
         self.node.leases.spent(digest);
     }
+
+    fn liveness(&self, pace: Option<std::time::Duration>) {
+        self.inner.liveness(pace);
+    }
 }

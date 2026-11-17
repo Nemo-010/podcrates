@@ -66,6 +66,11 @@ pub trait Handler: Send + Sync + 'static {
     /// The role took the token of one leg of `digest` (hex) for an
     /// operator's upgrade: the handler that registered it registers the next.
     fn spent(&self, _digest: &str) {}
+
+    /// The pace of the relay's liveness offer at each `hello` of the node's
+    /// socket, or `None` for no offer. Only the resumable layer reads it: it
+    /// sends no `PING` of its own while an offer holds.
+    fn liveness(&self, _pace: Option<std::time::Duration>) {}
 }
 
 /// The bytes that may wait for a local side with no flow control of its own:

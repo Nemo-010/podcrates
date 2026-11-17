@@ -49,7 +49,7 @@ pub fn of(features: &[String]) -> Option<Duration> {
 /// The names that a far end gives in its `GREETING`: its features, then its
 /// deadline.
 pub fn offered(settings: &Settings) -> Vec<String> {
-    let mut names: Vec<String> = settings.features.iter().map(|name| name.to_string()).collect();
+    let mut names: Vec<String> = settings.names().into_iter().map(String::from).collect();
     names.push(name(settings.resume_deadline));
     names
 }

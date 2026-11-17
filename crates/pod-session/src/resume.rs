@@ -458,7 +458,7 @@ where
     let Greeted { mut link, first } = greeted;
     let received = lock(state).received();
     let ask = Ask::Resume { id: established.id, secret: Secret::from_bytes(*established.secret.bytes()), received };
-    let (handshake, open) = ClientHandshake::start(ask, settings.features, entropy)
+    let (handshake, open) = ClientHandshake::start(ask, &settings.names(), entropy)
         .map_err(|e| Failed::Final(format!("the resume could not start: {e}")))?;
     let mut decoder = Decoder::new();
     decoder.push(&first);

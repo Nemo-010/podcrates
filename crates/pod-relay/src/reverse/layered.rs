@@ -35,6 +35,8 @@ pub struct Layered<H: Handler> {
     settings: Settings,
     budget: usize,
     sweeping: AtomicBool,
+    /// A relay's liveness offer holds: each new session names no heartbeat.
+    quiet: AtomicBool,
 }
 
 impl<H: Handler> Layered<H> {
@@ -52,7 +54,14 @@ impl<H: Handler> Layered<H> {
     /// With `keeper`, which another road's far end may share: a session
     /// then resumes on either road (podssh T-164).
     pub fn with_keeper(inner: H, settings: Settings, budget: usize, keeper: Arc<Keeper<H::Stream>>) -> Layered<H> {
-        Layered { inner: Arc::new(inner), keeper, settings, budget, sweeping: AtomicBool::new(false) }
+        Layered {
+            inner: Arc::new(inner),
+            keeper,
+            settings,
+            budget,
+            sweeping: AtomicBool::new(false),
+            quiet: AtomicBool::new(false),
+        }
     }
 
     /// The sessions kept, with a link or waiting for one.
@@ -89,7 +98,8 @@ impl<H: Handler> Handler for Layered<H> {
     fn open(&self, id: RelayId) -> Opening<DuplexStream> {
         self.sweep();
         let (ours, theirs) = tokio::io::duplex(PIPE);
-        let (inner, keeper, settings, budget) = (self.inner.clone(), self.keeper.clone(), self.settings, self.budget);
+        let settings = if self.quiet.load(Ordering::Relaxed) { self.settings.quiet() } else { self.settings };
+        let (inner, keeper, budget) = (self.inner.clone(), self.keeper.clone(), self.budget);
         tokio::spawn(async move {
             // The handler lets the client in: the channel, once its key is,
             // and the keeper counts it against the budget from then (podssh T-300).
@@ -122,5 +132,13 @@ impl<H: Handler> Handler for Layered<H> {
 
     fn spent(&self, digest: &str) {
         self.inner.spent(digest);
+    }
+
+    /// While the relay's pings find a dead link, a `PING` of the layer on
+    /// an idle link only keeps a relay that sleeps between frames awake
+    /// (podssh T-712). A session that is open keeps what it agreed.
+    fn liveness(&self, pace: Option<Duration>) {
+        self.quiet.store(pace.is_some(), Ordering::Relaxed);
+        self.inner.liveness(pace);
     }
 }

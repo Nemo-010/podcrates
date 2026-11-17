@@ -162,3 +162,37 @@ async fn a_peer_that_did_not_name_the_heartbeat_gets_no_ping() {
     let pings = up_log.lock().unwrap().iter().filter(|(_, r)| matches!(r, Record::Ping { .. })).count();
     assert_eq!(pings, 0);
 }
+
+/// A far end under a relay's liveness offer names no heartbeat
+/// ([`Settings::quiet`]): a client that names it sends no `PING`, and gets
+/// none, over 200 s of idle time, so a relay that sleeps between frames can
+/// sleep.
+#[tokio::test(start_paused = true)]
+async fn a_quiet_far_end_ends_the_heartbeat_of_both_sides() {
+    assert!(!Settings::default().quiet().names().contains(&pod_session::HEARTBEAT));
+    let (client_link, relay_client) = tokio::io::duplex(PIPE);
+    let (relay_far, far_link) = tokio::io::duplex(PIPE);
+    let (up_log, down_log): (Log, Log) = (Arc::default(), Arc::default());
+    let (cr, cw) = tokio::io::split(relay_client);
+    let (fr, fw) = tokio::io::split(relay_far);
+    tokio::spawn(tap(cr, fw, up_log.clone()));
+    tokio::spawn(tap(fr, cw, down_log.clone()));
+    let sessions = Arc::new(Mutex::new(Sessions::new()));
+    let (target, _idle_target) = tokio::io::duplex(PIPE);
+    let quiet = Settings::default().quiet();
+    tokio::spawn(async move {
+        let accepted = far::accept(far_link, Role::NODE, quiet, &sessions, &mut OsEntropy).await.unwrap();
+        accepted.run(target, &sessions).await
+    });
+    let client = client::start(client_link, Ask::New, Settings::default(), &mut OsEntropy).await.unwrap();
+    let (_idle_app, app_end) = tokio::io::duplex(PIPE);
+    let session = tokio::spawn(client.run(app_end));
+    let begun = Instant::now();
+    tokio::time::sleep(Duration::from_secs(200)).await;
+    assert!(!session.is_finished(), "with no heartbeat, silence is no loss");
+    let end = Instant::now();
+    for (way, log) in [("up", &up_log), ("down", &down_log)] {
+        let (_, pings) = gaps(log, begun, end);
+        assert_eq!(pings, 0, "{way}");
+    }
+}

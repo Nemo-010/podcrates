@@ -86,7 +86,11 @@ pub use sessions::Sessions;
 
 /// The features that this build offers: a side ignores a name that it does
 /// not know, and uses a feature only when both sides named it.
-pub const FEATURES: &[&str] = &["replay.v1", "heartbeat.v1", "move.v1"];
+pub const FEATURES: &[&str] = &["replay.v1", HEARTBEAT, "move.v1"];
+
+/// Each end pings an idle link, and takes a link with nothing heard for
+/// three intervals as dead.
+pub const HEARTBEAT: &str = "heartbeat.v1";
 
 /// The far end keeps a shell after its client leaves, for a later client
 /// to join. Only a far end that keeps shells names it, never a
@@ -95,7 +99,7 @@ pub const KEEP: &str = "keep.v1";
 
 /// The features of `podssh ssh`, which can ask a far end to keep a shell,
 /// and of a far end that keeps shells: those of [`FEATURES`], and [`KEEP`].
-pub const SHELL_FEATURES: &[&str] = &["replay.v1", "heartbeat.v1", "move.v1", KEEP];
+pub const SHELL_FEATURES: &[&str] = &["replay.v1", HEARTBEAT, "move.v1", KEEP];
 
 /// What one end of the layer offers and keeps.
 #[derive(Debug, Clone, Copy)]
@@ -146,6 +150,11 @@ pub struct Settings {
     /// reads on, as a pipe's input ends before its reply. A far end names it
     /// in each `GREETING`, and reads its client's ask, never this.
     pub half_close: bool,
+    /// Whether this end names `heartbeat.v1`. `false` while a relay's
+    /// liveness offer holds: the relay's own pings find a dead link, and a
+    /// `PING` of the layer on an idle link keeps a relay that sleeps between
+    /// frames awake. One side that leaves it out ends the heartbeat of both.
+    pub heartbeat: bool,
 }
 
 impl Default for Settings {
@@ -163,6 +172,7 @@ impl Default for Settings {
             spare_links: false,
             resumes: true,
             half_close: false,
+            heartbeat: true,
         }
     }
 }
@@ -182,6 +192,18 @@ impl Settings {
         Settings { window: None, ..self }
     }
 
+    /// The feature names that this end gives: [`Settings::features`], with
+    /// no `heartbeat.v1` when [`Settings::heartbeat`] is off.
+    pub fn names(&self) -> Vec<&'static str> {
+        self.features.iter().copied().filter(|name| self.heartbeat || *name != HEARTBEAT).collect()
+    }
+
+    /// These settings with no heartbeat: for a link of a relay whose
+    /// liveness offer holds.
+    pub fn quiet(self) -> Settings {
+        Settings { heartbeat: false, ..self }
+    }
+
     /// The state of a new session: a replay buffer and acknowledgements when
     /// both sides named `replay.v1`, else neither, since a peer that does not
     /// acknowledge would fill the buffer and stop the session; a heartbeat
@@ -193,7 +215,7 @@ impl Settings {
         if named("replay.v1") {
             link = link.with_replay(self.replay_capacity);
         }
-        if named("heartbeat.v1") {
+        if named(HEARTBEAT) {
             link = link.with_heartbeat();
         }
         // A move resends from the far end's offset: it needs the buffer.
