@@ -40,6 +40,12 @@ pub async fn upgrade(relay: &Relay, name: &str, way: &Way, trust: &Trust, limit:
     if pod_core::names::check_node_name(name).is_err() {
         return Probe::Unknown("the pair's name is not one that the relay takes".into());
     }
+    // The headers of the caller (a gate such as Cloudflare Access): without
+    // them, the gate's refusal reads as a refusal on the way.
+    let extra = match way.extra(&relay.host) {
+        Ok(extra) => extra,
+        Err(e) => return Probe::Unknown(e.to_string()),
+    };
     let tls = match way.open_tls(&relay.host, relay.port, &relay.host, trust, limit, &[]).await {
         Ok((tls, _)) => tls,
         Err(e) => return Probe::Unknown(e.to_string()),
@@ -52,8 +58,9 @@ pub async fn upgrade(relay: &Relay, name: &str, way: &Way, trust: &Trust, limit:
         443 => relay.host.clone(),
         port => pod_proxy::host::authority(&relay.host, port),
     };
-    let request = request(&host, name, &key, &way.user_agent);
-    match tokio::time::timeout(limit, pod_ws::client::upgrade_with(tls, &request, &key)).await {
+    let request = request(&host, name, &key, &way.user_agent, &extra);
+    let answer = tokio::time::timeout(limit, pod_ws::client::upgrade_with(tls, &request, &key)).await;
+    match answer.map(|a| a.map_err(|e| extra.masked(e))) {
         Err(_) => Probe::Unknown(format!("no answer to the upgrade within {} s", limit.as_secs())),
         Ok(Ok(_)) => Probe::Passes,
         Ok(Err(e)) if upgrade_refused(&e) => Probe::Refused(e.to_string()),
@@ -64,13 +71,15 @@ pub async fn upgrade(relay: &Relay, name: &str, way: &Way, trust: &Trust, limit:
 }
 
 /// The upgrade of a node's socket with no `X-Relay-Token`, with the user
-/// agent `agent`, made one line.
-fn request(host: &str, name: &str, key: &str, agent: &str) -> Vec<u8> {
+/// agent `agent`, made one line, and the headers of the caller `extra`
+/// after it.
+fn request(host: &str, name: &str, key: &str, agent: &str, extra: &pod_ws::Extra) -> Vec<u8> {
     let agent = pod_core::text::one_line(agent);
-    let mut out = format!("GET /v1/node/{name} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: {agent}\r\n");
-    out.push_str("Upgrade: websocket\r\nConnection: Upgrade\r\n");
-    out.push_str(&format!("Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n"));
-    out.into_bytes()
+    let mut out = format!("GET /v1/node/{name} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: {agent}\r\n").into_bytes();
+    extra.write(&mut out);
+    out.extend_from_slice(b"Upgrade: websocket\r\nConnection: Upgrade\r\n");
+    out.extend_from_slice(format!("Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n").as_bytes());
+    out
 }
 
 #[cfg(test)]
@@ -113,10 +122,34 @@ mod tests {
 
     #[test]
     fn the_probe_names_no_token() {
-        let text = String::from_utf8(request("tcp.ssh.relay.ajam.dev", "abc", "dGhlIHNhbXBsZSBub25jZQ==", "podssh/1"))
-            .unwrap();
+        let none = pod_ws::Extra::default();
+        let text =
+            String::from_utf8(request("tcp.ssh.relay.ajam.dev", "abc", "dGhlIHNhbXBsZSBub25jZQ==", "podssh/1", &none))
+                .unwrap();
         assert!(text.starts_with("GET /v1/node/abc HTTP/1.1\r\nHost: tcp.ssh.relay.ajam.dev\r\n"), "{text}");
         assert!(text.contains("\r\nUpgrade: websocket\r\n") && text.ends_with("\r\n\r\n"), "{text}");
         assert!(!text.to_ascii_lowercase().contains("token"), "a probe sends no credential");
+    }
+
+    /// The headers of the caller go after `User-Agent`, as on each other road
+    /// (PodUtils/podssh#306): a gate such as Cloudflare Access lets the probe
+    /// in, so its refusal does not read as the way's.
+    #[test]
+    fn the_probe_carries_the_headers_of_the_caller() {
+        use pod_ws::headers::Zeroizing;
+        let headers = pod_ws::Headers::new(|_| {
+            vec![
+                ("CF-Access-Client-Id", Zeroizing::new("made-up-id.access".into())),
+                ("CF-Access-Client-Secret", Zeroizing::new("made-up-secret-0123".into())),
+            ]
+        });
+        let extra = headers.for_host("relay.test").unwrap();
+        let text =
+            String::from_utf8(request("relay.test", "abc", "dGhlIHNhbXBsZSBub25jZQ==", "podssh/1", &extra)).unwrap();
+        let after = "User-Agent: podssh/1\r\nCF-Access-Client-Id: made-up-id.access\r\n\
+                     CF-Access-Client-Secret: made-up-secret-0123\r\nUpgrade: websocket\r\n";
+        assert!(text.contains(after), "{text}");
+        let masked = extra.masked(refused(403, "denied for made-up-secret-0123"));
+        assert!(!masked.to_string().contains("made-up-secret-0123"), "{masked}");
     }
 }
