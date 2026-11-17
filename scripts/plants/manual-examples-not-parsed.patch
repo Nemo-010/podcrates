@@ -1,0 +1,12 @@
+diff --git a/crates/pod-manual/src/check/examples.rs b/crates/pod-manual/src/check/examples.rs
+--- a/crates/pod-manual/src/check/examples.rs
++++ b/crates/pod-manual/src/check/examples.rs
+@@ -21,7 +21,7 @@ pub fn examples(manual: &Manual, parse: impl Fn(&[String]) -> Result<(), String>
+             continue;
+         }
+         let args: Vec<String> = words.collect();
+-        if let Err(why) = parse(&args) {
++        if let Err(why) = parse(&args[..0]) {
+             out.push(finding(&e.command, format!("the parser refuses the example: {why}")));
+         }
+     }

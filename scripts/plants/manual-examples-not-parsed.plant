@@ -1,0 +1,6 @@
+# Each example of the program goes to its parser (T-867).
+ENTRY=T-867
+GROUP=manual
+EXPECT='an_example_that_the_parser_refuses_is_a_finding'
+RUN='cargo test -p pod-manual --all-features --lib examples'
+LIMIT=1800

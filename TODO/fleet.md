@@ -5228,7 +5228,7 @@ sh scripts/ci/userns-tests.sh
 **Milestone:** M0
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -5247,3 +5247,8 @@ podnet's testers found flags that the help names and the command refuses (PodUti
 ```sh
 cargo test -p pod-manual --all-features
 ```
+
+## Done
+
+2026-11-17, f9ddb6e37: `pod_manual::check::examples(manual, parse)`: each example whose program is the manual's (after the variables that the shell sets) goes to the consumer's `parse` as the words after the program, as a POSIX shell splits them (quotes and a backslash hold; `|`, `;`, `&`, `<` and `>` end the command); a refusal is a finding with the example and the parser's words, and a quote that does not end is a finding too; an example of another program is not read. With `check::flags` (each command and flag of the model against the parser), a consumer tests each promise of its help. Tests: `a_line_splits_as_a_shell_splits_it`, `an_example_that_the_parser_refuses_is_a_finding`. The tests of `pod-manual` pass. Plant `manual-examples-not-parsed`, caught.
+
