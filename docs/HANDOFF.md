@@ -25,9 +25,10 @@ is done. Git and the record keep finished work.
    by the trial's patch. The next tag holds T-857 (PodUtils/podvm#467),
    T-858 (PodUtils/podnet#608) and T-120 (PodUtils/podssh#304): answer
    each on its hand-off.
-4. T-029 (`pod-cloudflare`, P1, partial): the crate waits for podnet's
-   take (#220); then remove `adoption/podnet/pod-cloudflare.*` and close
-   the entry. T-851 (the pin of cloudflared) and T-853 stay.
+4. T-029 is done: podnet took `pod-cloudflare` at `00b54ff`. T-851 (the
+   pin of cloudflared), T-853 and T-030 (podssh's quick tunnels) stay.
+   The job `sources` of `upstream.yml` is red on `pod-manual` until
+   the port review of podssh's changes before its take (T-863).
 5. Read the scheduled nightly: T-789 (armv7) and T-766 (riscv64) are the
    jobs that stayed red; a new red job needs an entry.
 6. T-767 (PodUtils/podssh#283, P1, partial): the seventh failure shows

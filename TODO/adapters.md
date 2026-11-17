@@ -222,7 +222,7 @@ crates" of 2026-11-05.
 **Milestone:** M3
 **Priority:** P1
 **Effort:** L
-**Status:** partial
+**Status:** done
 
 ## Problem
 
@@ -391,6 +391,11 @@ for its aborted connection at a shutdown (a test failed one run in two).
   over `a_built_in_body_of_no_known_size_is_streamed` and a dangling comment
   at its end; and its `http2::connect` and `TlsH2Stream` dialled the edge
   over plain TCP, past the proxy, with no caller (not imported).
+
+## Done
+
+2026-11-17: podnet took `pod-cloudflare` with `v0.69.0` at `00b54ff` (its T-423): the crate holds the edge client, the named tunnel and the quick tunnel, and podnet keeps its glue (`crates/pod-cloudflare/README.md`). The trial `adoption/podnet/pod-cloudflare.*` is removed. `crates/pod-cloudflare/SOURCES` takes the block at `00b54ff`; the one change before it (`7eca389`, `dial` and `dial_again` of podnet's `src/ws.rs`, its client side) needs no port, and `check-sources.py` gives 39 files, 0 changes. What stays has its own entry: the pin of cloudflared (T-851), the two `Protocol` types (T-853), podssh's quick tunnels (T-030).
+
 
 # T-030: `pod-cloudflare`: podssh's quick tunnels onto the edge client
 
@@ -2136,7 +2141,7 @@ Item 2, d34ef23: the input of podnet's step "A planted pointer loop ends" (one s
 
 ## Premise
 
-- Read: `crates/pod-core/src/text.rs`; `crates/pod-cloudflare/src/text.rs` (or its `clean`); `crates/pod-cloudflare/src/fail.rs` (`tls_text`); the adoption patch `adoption/podnet/pod-cloudflare.patch`.
+- Read: `crates/pod-core/src/text.rs`; `crates/pod-cloudflare/src/text.rs` (or its `clean`); `crates/pod-cloudflare/src/fail.rs` (`tls_text`); the adoption patch adoption/podnet/pod-cloudflare.patch (removed at podnet's take).
 
 ## Approach
 

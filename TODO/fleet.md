@@ -5164,3 +5164,32 @@ cargo test -p pod-actions-workflow --all-features --test expand
 ## Done
 
 2026-11-17, 2059803e2: `Job::needs_marks` holds the place of each id of `needs`, in its order; `Graph::new` gives the place of the id that names no job. `a_missing_need_and_a_cycle_are_errors_by_name` holds `jobs.a.needs (line 5, column 12)` for `needs: ghost` and `(line 9, column 9)` for the item `nope` of a list. The tests of `pod-actions-workflow` pass. Plant `actions-unknown-need-marks-the-job`, caught.
+
+# T-863: `pod-manual`: the changes of podssh to the imported files before its take (port review)
+
+**Source:** the run 44096639741 of `upstream.yml` (the job `sources`, 2026-11-17).
+**Category:** chore
+**Milestone:** M0
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`crates/pod-manual/SOURCES` has the podssh block at `5340fbb` with no `taken` line. podssh moved its manual onto `pod-manual` (PodUtils/podssh@T-790: `4d8c551`, `ee6b6bd`, `c4a2a64`, which removed its `man/text.rs` and `man/json.rs`). The check now reports each later change of its `man/` files and `flags.rs` (`5ad75b7`, `843e3c5`, `f1c50b0`, `4bf19f9`, `dc0df9f`, `e99ada7`, `0b12368`, `944be00`, `a808c26`, `1f2d8d3`), and `PodUtils/podssh:scripts/interop-man.sh`, so the job is red each day.
+
+## Premise
+
+- Read: the output of the run; `crates/pod-manual/SOURCES`; the diff of each commit before the take on the files of the block (`git log 5340fbb..c4a2a64 -- crates/podssh-cli/src/man crates/podssh-cli/src/flags.rs scripts/interop-man.sh` in a clone of podssh).
+
+## Approach
+
+1. Read each change before the take; a fix of the engine (the writers, the checks, the selection) is ported, a change of podssh's own content (its commands and flags) is not.
+2. Add `taken` lines: the commit of the take for the block, and a path line for each file whose change before the take needs no port.
+3. `scripts/check-sources.py pod-manual` gives 0 changes.
+
+## Prove
+
+```sh
+python3 -I scripts/check-sources.py pod-manual
+```

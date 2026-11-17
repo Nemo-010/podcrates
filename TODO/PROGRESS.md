@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 695 entries: 127 open, 22 partial, 7 blocked, 539 done.
+`TODO/INDEX.md` holds 696 entries: 128 open, 21 partial, 7 blocked, 540 done.
 
 ## State
 
@@ -89,7 +89,7 @@ PodUtils/podssh#262, on `main`). Then the ruling "Discipline": T-692
 done, then the take of each consumer; its findings T-704 and T-705),
 T-767 (a stalled resume of `pod-session`, PodUtils/podssh#283; partial: the far end's lines of each resume and of each wait that holds are in, the cause is open) with its finding T-768 (a late spare), T-703 (the issues against
 the record) and T-702 (the installer). Then the move of podssh's waves 3 and 4 (the
-ruling "The move of podssh", PodUtils/podssh#248): T-029, T-030, T-039; T-036. Then the link carriers of M2
+ruling "The move of podssh", PodUtils/podssh#248): T-030, T-039; T-036. Then the link carriers of M2
 for podnet (item 3c): T-526. Then the items below, in order.
 
 1. **The two studies of 2026-11-16** (an archive of the owner each:
@@ -127,7 +127,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
       with the first carrier over a shared path), T-803 (a parity datagram of the ARQ, #213, after T-515), T-514 (a stream-aware
       ARQ, when podnet asks), T-501 (`pod-turn` with RFC 6062),
       T-214 and T-215 (`pod-transit`, `pod-wormhole`).
-   e. Then: T-029 and T-030 (`pod-cloudflare`), T-302
+   e. Then: T-030 (`pod-cloudflare`), T-302
       (`pod-egress`), T-039 (`pod-ts`), T-502 (a headscale harness).
    The rest of `pod-warp`: T-339 (partial: the trial patches and the
    live run), T-482, T-481, T-470, T-410, T-409; T-407 (the fuzz targets
@@ -157,7 +157,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
    operators, the owner's ruling "Open questions"), T-121 (the asks of
    podnet); then T-197
    (`pod-netstack`).
-7. **M3, the adapters:** T-028, T-029, T-030.
+7. **M3, the adapters:** T-028, T-030.
 8. **M4, the roads:** T-131 (a defect of `pod-gsr` on Windows ARM64)
    first; then T-036 (with T-856, the vectors of `tokens.json`),
    T-039.
@@ -173,7 +173,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
    DNS watches, `stun-binding` and the HTTP client), T-356 (sish and
    sandhole), T-357 (gs-netcat); coturn on the loopback (`scripts/ci/turn-tests.sh`)
    proves the STUN codec of `pod-proxy` and `pod-turn`. T-359 and T-360 go with
-   T-028 and T-029 (item 3); T-361 goes with T-036 (item 8).
+   T-028 (item 3); T-361 goes with T-036 (item 8).
 10. **M7, the widened scope of podvm:** T-062 after M6, with T-447 (the
    direct boot of a Linux guest for `pod-microvm`); T-241 (the
    permissions of Landlock ABI 12); T-349 (a lab of `pod-netlab` on a

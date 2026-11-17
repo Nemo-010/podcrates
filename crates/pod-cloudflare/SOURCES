@@ -4,6 +4,11 @@
 # compares each with the default branch of its repository.
 
 repo PodUtils/podnet 600509df67db5e53be91bc66e42f7c29d65b7a7b
+# podnet took the crate at 00b54ff (v0.69.0). The one change before it,
+# 7eca389 in src/ws.rs, is in dial and dial_again of podnet's client side,
+# which the crate does not hold: no port.
+taken 7eca389aa39f3897a3cb94811a4d94c3997c259b src/ws.rs
+taken 00b54ffbd25d20d060a5347717078ae5b9ac6bd5
 # T-029: the Cloudflare tunnel of podnet. The commit holds the bound check
 # of capnp.rs (podnet 54637d9, PodUtils/podnet#555) and the reconnect of the
 # leg quic+warp (podnet eb23c379, PodUtils/podnet#603).

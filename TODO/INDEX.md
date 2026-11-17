@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**695 entries: 127 open, 22 partial, 7 blocked, 539 done.**
+**696 entries: 128 open, 21 partial, 7 blocked, 540 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 10 | 9 | 0 | 151 | 170 |
-| P2 | 54 | 3 | 4 | 277 | 338 |
+| P1 | 10 | 8 | 0 | 152 | 170 |
+| P2 | 55 | 3 | 4 | 277 | 339 |
 | P3 | 63 | 10 | 3 | 109 | 185 |
-| **All** | 127 | 22 | 7 | 539 | 695 |
+| **All** | 128 | 21 | 7 | 540 | 696 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -75,7 +75,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-026](relay.md) | P1 | M | M2 | feature | done | `pod-relay`: podnet's relay client and its plain reverse mode |
 | [T-027](adapters.md) | P2 | S | M3 | feature | done | `pod-transit`: the transit relay carrier |
 | [T-028](adapters.md) | P1 | L | M3 | feature | partial | `pod-warp`: the WARP adapter |
-| [T-029](adapters.md) | P1 | L | M3 | feature | partial | `pod-cloudflare`: the edge client, the tunnel and the quick tunnels (the base of podnet) |
+| [T-029](adapters.md) | P1 | L | M3 | feature | done | `pod-cloudflare`: the edge client, the tunnel and the quick tunnels (the base of podnet) |
 | [T-030](adapters.md) | P1 | M | M3 | feature | open | `pod-cloudflare`: podssh's quick tunnels onto the edge client |
 | [T-031](roads.md) | P2 | M | M4 | feature | done | `pod-derp`: the DERP client and the DERP carrier of a node |
 | [T-032](roads.md) | P3 | S | M4 | feature | done | `pod-piping`: the Piping Server carrier |
@@ -742,3 +742,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-860](relay.md) | P2 | S | M2 | defect | done | `pod-piping`: the probe of a node's upgrade sends no header of the caller (PodUtils/podssh#306) |
 | [T-861](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: a mailbox run that times out before `WQREADY` tells nothing of the agent (PodUtils/podvm#468) |
 | [T-862](upkeep.md) | P1 | S | M5 | defect | done | `pod-broker`: names mode still resolves each name on the host, so a host whose names resolve only through its proxy refuses each CONNECT (PodUtils/podrunner#215) |
+| [T-863](fleet.md) | P2 | S | M0 | chore | open | `pod-manual`: the changes of podssh to the imported files before its take (port review) |
