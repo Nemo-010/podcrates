@@ -10,6 +10,9 @@
   `f2a73ff`, the release dry run 43983471493, the release 43984191834):
   T-806, T-805, T-801, T-797, T-807, T-808, T-810. The hand-off is
   COORD-125 (#215). `v0.64.0` (`6a965ef`) has the hand-off COORD-124 (#214).
+- In release: `v0.66.0` (`docs/releases/v0.66.0.md`): T-811 (the init of a
+  PID namespace keeps no descriptor of the caller, PodUtils/podvm#460),
+  T-378 (partial: the writes of the management API of `pod-devtunnel`).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.63.0` (`5340fbb`, PodUtils/podssh#286, with the installer
@@ -27,10 +30,9 @@
     come from `pod-manual` with no workaround of T-725; it runs the one
     watcher and the sync of the issues; its installer on
     `scripts/install/core.sh` is PodUtils/podnet@T-360.
-  - podvm: `v0.64.0` (`ceac501`, PodUtils/podvm#459: the way out with no
-    `SSL_CERT_FILE` of its own, no SIGPIPE handler, the overlay root with
-    `userxattr`; its installer core is still of `v0.58.0`,
-    PodUtils/podvm@T-1925).
+  - podvm: `v0.65.0` (`87026a4`, PodUtils/podvm#460: `pid_namespace:
+    false` until a tag carries T-811; its installer core is still of
+    `v0.58.0`, PodUtils/podvm@T-1925).
   - podrunner: `v0.52.0` (`45bd964`, PodUtils/podrunner#169).
 - Takes that wait: podvm's check of T-208 against `lambda-al2023`, and
   its module set of T-206 with PodUtils/podvm@T-1662 (after `pod-netlab`,
