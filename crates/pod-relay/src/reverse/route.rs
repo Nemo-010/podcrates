@@ -8,9 +8,9 @@
 //! operator's last bytes ([`to_local`]).
 
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use tokio::io::{AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::sync::{Notify, mpsc, oneshot};
@@ -27,8 +27,20 @@ pub(super) struct Route {
     data: mpsc::UnboundedSender<Vec<u8>>,
     waiting: Arc<AtomicUsize>,
     limit: usize,
+    /// When the copy to the local side last moved: a write ended, or it
+    /// waited for bytes. The milliseconds since `born`.
+    moved: Arc<AtomicU64>,
+    born: Instant,
     copies: [tokio::task::AbortHandle; 2],
 }
+
+/// Over its limit, a local side whose copy has not moved for this long reads
+/// no more (T-837); one that moved within it gets its bursts.
+pub const STALL_GRACE: Duration = Duration::from_secs(2);
+
+/// The bytes that may wait for a local side that still moves, as a multiple
+/// of its `queue_bytes`: the memory of a session stays bounded.
+pub const HARD_LIMIT: usize = 4;
 
 /// The local side of each session that has one, by id.
 pub(super) type Routes = Arc<Mutex<HashMap<SessionId, Route>>>;
@@ -61,15 +73,19 @@ pub(super) fn known(routes: &Routes, pending: &Pending, id: &SessionId) -> bool 
     lock(routes).contains_key(id) || lock(pending).contains(id)
 }
 
-/// Give a frame's payload to its session without waiting. A queue that holds
-/// its handler's bytes already means that the local side reads no more;
-/// waiting for it would stop every session of the socket, as the relay has
-/// no flow control for one session. So that session ends here: true when it
-/// did.
+/// Give a frame's payload to its session without waiting. Waiting for a
+/// local side would stop every session of the socket, as the relay has no
+/// flow control for one session. A queue past its handler's bytes whose copy
+/// did not move for [`STALL_GRACE`], or past [`HARD_LIMIT`] times them, means
+/// that the local side reads no more, and that session ends here: true when
+/// it did. The relay sends in bursts: a local side that reads gets them.
 pub(super) fn offer(routes: &Routes, id: SessionId, payload: &[u8]) -> bool {
     let mut routes = lock(routes);
     let Some(route) = routes.get(&id) else { return false };
-    if route.waiting.load(Ordering::SeqCst) + payload.len() > route.limit {
+    let after = route.waiting.load(Ordering::SeqCst) + payload.len();
+    let still = (route.born.elapsed().as_millis() as u64).saturating_sub(route.moved.load(Ordering::SeqCst));
+    let stalled = still >= STALL_GRACE.as_millis() as u64 || after > route.limit.saturating_mul(HARD_LIMIT);
+    if after > route.limit && stalled {
         if let Some(route) = routes.remove(&id) {
             for copy in route.copies {
                 copy.abort();
@@ -169,9 +185,19 @@ pub(super) async fn open<H: Handler>(
     let (mut local_read, local_write) = tokio::io::split(stream);
     let (in_tx, in_rx) = mpsc::unbounded_channel::<Vec<u8>>();
     let (waiting, limit) = (Arc::new(AtomicUsize::new(0)), handler.queue_bytes());
+    let (moved, born) = (Arc::new(AtomicU64::new(0)), Instant::now());
     let ends = copies.half_close.map(|idle| (idle, Arc::new(Ends::default())));
-    let to_local =
-        tokio::spawn(to_local(id, local_write, in_rx, waiting.clone(), ends.clone(), tx.clone(), routes.clone()));
+    let clock = Moved { at: moved.clone(), born };
+    let to_local = tokio::spawn(to_local(
+        id,
+        local_write,
+        in_rx,
+        waiting.clone(),
+        clock,
+        ends.clone(),
+        tx.clone(),
+        routes.clone(),
+    ));
     // The local reader starts once `ready` is queued: the writer drops data
     // of a session that is not readied.
     let (go, readied) = oneshot::channel::<()>();
@@ -205,7 +231,14 @@ pub(super) async fn open<H: Handler>(
         }
     });
     // The route exists before `ready`, so the first bytes after it find it.
-    let route = Route { data: in_tx, waiting, limit, copies: [to_local.abort_handle(), from_local.abort_handle()] };
+    let route = Route {
+        data: in_tx,
+        waiting,
+        limit,
+        moved,
+        born,
+        copies: [to_local.abort_handle(), from_local.abort_handle()],
+    };
     lock(&routes).insert(id, route);
     lock(&pending).remove(&id);
     let _ = tx.send(Out::Ready(id)).await;
@@ -216,16 +249,22 @@ pub(super) async fn open<H: Handler>(
 /// With a half close, the end of the local side's writes does not end the
 /// session: the relay has no half close, so the operator's last bytes may
 /// still come. The session ends when none came for `idle` (podnet T-196).
+#[allow(clippy::too_many_arguments)]
 async fn to_local<W: AsyncWrite + Unpin>(
     id: SessionId,
     mut write: W,
     mut data: mpsc::UnboundedReceiver<Vec<u8>>,
     waiting: Arc<AtomicUsize>,
+    clock: Moved,
     half: Option<(Duration, Arc<Ends>)>,
     tx: Outbox,
     routes: Routes,
 ) {
     loop {
+        // Waiting for bytes is no stall of the local side.
+        if data.is_empty() {
+            clock.now();
+        }
         let bytes = match &half {
             None => data.recv().await,
             Some((idle, ends)) => tokio::select! {
@@ -241,11 +280,24 @@ async fn to_local<W: AsyncWrite + Unpin>(
         }
         // Written: the bytes wait no more.
         waiting.fetch_sub(bytes.len(), Ordering::SeqCst);
+        clock.now();
     }
     let _ = write.shutdown().await;
     if let Some((_, ends)) = half
         && ends.set(WRITE_END)
     {
         end(&routes, &tx, id).await;
+    }
+}
+
+/// The clock of the moves of a copy to the local side.
+struct Moved {
+    at: Arc<AtomicU64>,
+    born: Instant,
+}
+
+impl Moved {
+    fn now(&self) {
+        self.at.store(self.born.elapsed().as_millis() as u64, Ordering::SeqCst);
     }
 }

@@ -207,11 +207,12 @@ async fn a_local_side_that_does_not_read_ends_its_session_and_not_the_others() {
     // A's local side is held, and never read.
     let (_a, mut b) = (local(&ends, A).await, local(&ends, B).await);
 
-    // More than A's pipe and queue hold. A reader that waited on A would take
-    // no more frames, and these writes would never end.
+    // More than A's pipe and the hard bound of its queue hold (T-837). A
+    // reader that waited on A would take no more frames, and these writes
+    // would never end.
     let chunk = vec![b'a'; 65536];
     let flood = async {
-        for _ in 0..40 {
+        for _ in 0..80 {
             relay.data(A, &chunk).await;
         }
         relay.data(B, b"to b").await;
@@ -343,6 +344,46 @@ async fn a_close_of_the_relay_ends_the_socket_with_its_code_and_reason() {
         End::Closed(close) => assert_eq!((close.code, close.reason.as_str()), (1001, "pair expired")),
         other => panic!("{other:?}"),
     }
+}
+
+/// A local side that reads, slower than a burst of the relay, keeps its
+/// session (T-837): the burst is past `queue_bytes`, under the hard bound,
+/// and the copy to the local side moves.
+#[tokio::test]
+async fn a_local_side_that_reads_slower_than_a_burst_keeps_its_session() {
+    let queue = 256 * 1024;
+    let (mut relay, stop, task, ends) = start(Local { queue: Some(queue), ..Local::default() });
+    relay.text(HELLO).await;
+    relay.text(&open(A)).await;
+    relay.expect().await;
+    let mut a = local(&ends, A).await;
+    let total = 3 * queue;
+    let reader = tokio::spawn(async move {
+        let mut got = 0;
+        let mut buf = vec![0u8; 16 * 1024];
+        while got < total {
+            let n = a.read(&mut buf).await.unwrap();
+            assert!(n > 0, "the session ended");
+            got += n;
+            // A slow reader: each read waits a little.
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+        got
+    });
+    let chunk = vec![b'a'; 32 * 1024];
+    for _ in 0..total / chunk.len() {
+        relay.data(A, &chunk).await;
+    }
+    let got = tokio::time::timeout(Duration::from_secs(20), reader).await.expect("each byte in time").unwrap();
+    assert_eq!(got, total);
+    // The reader dropped its end: a close with no reason may come, never
+    // the close of a stall.
+    if let Some(f) = relay.next(Duration::from_millis(200)).await {
+        let text = String::from_utf8_lossy(&f.payload).into_owned();
+        assert!(!text.contains("does not read"), "a stall: {text}");
+    }
+    stop.notify_one();
+    let _ = tokio::time::timeout(LIMIT, task).await;
 }
 
 /// podssh T-643: a `hello` whose `version` this node does not read ends the socket

@@ -9584,7 +9584,7 @@ cargo test -p pod-relay --all-features --test routes_unix
 **Milestone:** M2
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -9605,3 +9605,8 @@ A local side "does not read" when a write to it has waited for a grace time (`ST
 ```sh
 cargo test -p pod-relay --all-features --test reverse_node
 ```
+
+## Done
+
+2026-11-17. `crates/pod-relay/src/reverse/route.rs`: each route keeps when its copy to the local side last moved (a write ended, or it waited for bytes: `Moved`, milliseconds since the route was made). `offer` ends a session past `queue_bytes` only when the copy did not move for `STALL_GRACE` (2 s), or when the bytes that wait pass `HARD_LIMIT` (4) times `queue_bytes`; a local side that reads gets the bursts of the relay. The memory of a stuck session stays at most 4 MiB for a handler with no layer. Tests: `a_local_side_that_reads_slower_than_a_burst_keeps_its_session` (a queue of 256 KiB, a burst of 768 KiB, a reader of 16 KiB each 5 ms: each byte comes, no close of a stall), and the flood of `a_local_side_that_does_not_read_ends_its_session_and_not_the_others` now passes the hard bound (5 MiB). `cargo test --all-features` of `pod-relay` passed. The plant `relay-stall-at-first-mib` (the old rule) is caught by the new test. The live copy gives its echo a queue of 64 MiB still, so that it measures the relay alone.
+
