@@ -1,0 +1,6 @@
+# The gate of no blocking call counts the voluntary switches of the thread (T-838).
+ENTRY=T-838
+GROUP=lint
+EXPECT='a_sleep_counts_and_a_computation_does_not'
+RUN='cargo test -p pod-testkit --all-features --lib switches'
+LIMIT=1800

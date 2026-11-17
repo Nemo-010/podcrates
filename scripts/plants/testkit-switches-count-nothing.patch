@@ -1,0 +1,13 @@
+diff --git a/crates/pod-testkit/src/switches.rs b/crates/pod-testkit/src/switches.rs
+--- a/crates/pod-testkit/src/switches.rs
++++ b/crates/pod-testkit/src/switches.rs
+@@ -29,7 +29,8 @@ fn voluntary() -> Option<u64> {
+     }
+     // SAFETY: the call returned 0, so it filled `usage`.
+     let usage = unsafe { usage.assume_init() };
+-    u64::try_from(usage.ru_nvcsw).ok()
++    let _ = usage;
++    Some(0)
+ }
+ 
+ #[cfg(not(target_os = "linux"))]

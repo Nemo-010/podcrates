@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**681 entries: 126 open, 20 partial, 7 blocked, 528 done.**
+**681 entries: 125 open, 21 partial, 7 blocked, 528 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 10 | 9 | 0 | 147 | 166 |
 | P2 | 55 | 3 | 4 | 272 | 334 |
-| P3 | 61 | 8 | 3 | 107 | 179 |
-| **All** | 126 | 20 | 7 | 528 | 681 |
+| P3 | 60 | 9 | 3 | 107 | 179 |
+| **All** | 125 | 21 | 7 | 528 | 681 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -717,7 +717,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-835](relay.md) | P3 | S | M2 | measurement | done | `pod-relay`: the cost of a move of a session for a copy on the default relay |
 | [T-836](relay.md) | P2 | S | M2 | feature | done | `pod-relay`: a route of a node to a Unix socket (PodUtils/podssh#295) |
 | [T-837](relay.md) | P2 | S | M2 | defect | done | `pod-relay`: a node ends a session whose local side still reads, at the first MiB that waits for it |
-| [T-838](foundation.md) | P3 | M | M0 | chore | open | Gates of a bounded step and of no blocking call in a hot path (VF-2, VF-3 of the ingest study) |
+| [T-838](foundation.md) | P3 | M | M0 | chore | partial | Gates of a bounded step and of no blocking call in a hot path (VF-2, VF-3 of the ingest study) |
 | [T-839](transport.md) | P2 | S | M1 | defect | done | `pod-services`: localhost.run's remote forward takes port 80, not 0 (PodUtils/podnet#607) |
 | [T-840](transport.md) | P2 | S | M1 | chore | done | `pod-tls`: webpki-roots 1.0.12 and its date (PodUtils/podssh#297) |
 | [T-841](transport.md) | P3 | S | M1 | chore | done | `pod-tls`: rsa 0.10, so that a consumer has one version of rsa (PodUtils/podssh#297) |
