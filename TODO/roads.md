@@ -509,6 +509,13 @@ server.
   second run of podnet failed at the relay with 1013, a node open timeout,
   at 18:15 UTC). The import takes the fix, or makes it (T-805 is the node's
   side).
+- A fix of the relay role to take at the import (PodUtils/podssh#296,
+  podssh T-801, podssh `d8e54f0`): a failed write to a node lets its name
+  go at once, and a node socket silent for three pings of 10 s is let go
+  in 30 to 40 s, under `pod-relay`'s `lost_hold` of 60 s; the line
+  `reverse node lost: WHY`; the test
+  `PodUtils/podssh:crates/podssh-relay/tests/relay_serve_lost.rs` (a real RST on the
+  loopback). The import reads podssh at `d8e54f0` or later.
 
 ## Approach
 
