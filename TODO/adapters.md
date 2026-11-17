@@ -222,7 +222,7 @@ crates" of 2026-11-05.
 **Milestone:** M3
 **Priority:** P1
 **Effort:** L
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -297,6 +297,50 @@ sh scripts/agent/check.sh
 ## Start condition
 
 T-019, T-026 and T-028 are done.
+
+## Correction
+
+2026-11-17, steps 1 and 2 and the start of step 3 (commits `8ce8965`
+to `c8b50fd`): `crates/pod-cloudflare` builds in the workspace, from podnet
+at `600509d` (it holds `eb23c379` and `54637d9`); `SOURCES` names 31 files
+(`check-sources.py`: 0 changes). Its 184 unit tests pass, each with its
+name; clippy of the workspace and `cargo deny` pass (new: `anyhow`,
+`uuid`). The seams of `src/host.rs`: `Host` (the TLS context, the dial, the
+resolver, the observer, in place of podnet's globals), `ServiceDispatch`
+(podnet's own services stay in podnet), `SystemSrv` (the SRV lookup of the
+system), `WarpSessions` (the leg `quic+warp`, with its reconnect of
+PodUtils/podnet#603), `EdgeRelay` (the leg `http2+relay`, with the budget of
+`pod-relay`, PodUtils/podnet#482), `Settings` (in place of `PODNET_EDGE`,
+`PODNET_UDP`, `PODNET_VERIFY_STRICT`, `PODNET_READY_TIMEOUT`), and
+`proxy::Runtime`. The bound check of `capnp.rs` (PodUtils/podnet#555) is in
+with its crash input as a test; the comment of PodUtils/podnet#460 is in;
+the header oracle is `tools/header-oracle.txt`. Seven tests stay in podnet
+with their code (the shares, the forms, the local specs).
+
+Open, in order:
+
+- Step 3: `anyhow` to typed `pod_core::Failure`; the lines for a user to
+  `pod_core::Event`; the words of a consumer as settings ("podnet speaks",
+  the hello text, `DEFAULT_PATH` `/__podnet/ws` on the wire, which podnet's
+  `connect` client shares, the advice that names `--resolve` and
+  `--no-verify`); the provider of `NoVerify` from the consumer; the hook of
+  `tunnel --inspect` on `forward_http`; the watch of the pin of cloudflared;
+  the comments in ASD-STE100 with no issue numbers. `Host.relay` now applies
+  to each HTTP/2 leg, where podnet set its relay for `--transport relay`
+  alone: tie it to `LegKind::H2Relay`, or name it in the adoption map.
+- Step 4: the fuzz targets (`capnp_message`, `rpc_message`,
+  `register_response`, `connect_request`, `h2_header_block`, `srv_record`,
+  `request_head`, `ingress_rule`, `config_yaml`), the plants, podnet's tests
+  of the tunnel.
+- Step 6: the README, the parity list, the adoption map: podnet reads its
+  `PODNET_RESOLVE` pins into the resolver, hides `Config::secrets` itself,
+  adds its counters of decisions to the metrics text, sets `Host.relay`.
+- Step 7: a module of the static probe, the patch of the trial of podnet
+  and the trial; then T-030 (podssh's quick tunnels).
+- To podnet at the hand-off: its `src/proxy.rs` has a stray doc comment
+  over `a_built_in_body_of_no_known_size_is_streamed` and a dangling comment
+  at its end; and its `http2::connect` and `TlsH2Stream` dialled the edge
+  over plain TCP, past the proxy, with no caller (not imported).
 
 # T-030: `pod-cloudflare`: podssh's quick tunnels onto the edge client
 
