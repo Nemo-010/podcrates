@@ -39,9 +39,9 @@ is done. Git and the record keep finished work.
    no byte in flight. Wait for podssh's next stall with the lines
    `session.resume` and `session.stall` (from `v0.64.0`), then find the
    cause; T-768 beside it.
-7. Then the work order of `TODO/PROGRESS.md`: T-378 (`pod-devtunnel`,
-   part 2), then the move of podssh (T-029, T-030, T-039, T-036), then
-   T-526.
+7. Then the work order of `TODO/PROGRESS.md`: the move of podssh (T-029,
+   T-030, T-039, T-036), then T-526. T-386 (the live run of
+   `pod-devtunnel`) waits for the owner's token and tunnel.
 
 ## The rules that cost the most time
 
