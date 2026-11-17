@@ -1446,7 +1446,7 @@ T-025 is done.
 **Milestone:** M2
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1469,11 +1469,55 @@ the import takes them.
 ```sh
 cargo test -p pod-session --all-features
 cargo test -p pod-relay --all-features
+cargo test -p pod-relay --all-features --test wire_vectors -- --nocapture
+python3 -I scripts/check-wire-vectors.py
+python3 -I scripts/check-wire-vectors.py --plant
+sh scripts/plant-each.sh wire-pong-fields-swapped
 ```
 
 ## Start condition
 
 T-020 and T-025 are done.
+
+## Done
+
+2026-11-17, commits 777162bfd (the import) and 455968aa4 (the adaptation),
+and the commit of this section. podssh wrote the page first
+(PodUtils/podssh#304, podssh T-723): one page, `docs/wire.md` (wire version
+1), holds the layer, the forward road, `/v1/mint`, the reverse dialect, the
+close codes and the grants, in place of one document for each crate. The
+import takes it with its 117 vectors at podssh `04f141b`.
+
+- `docs/wire.md`: the page; only the paths change (podcrates' paths, and
+  `PodUtils/podssh:PATH` for podssh's documents). The digest of version 1
+  holds.
+- `crates/pod-relay/tests/vectors/` (6 files, 117 vectors), beside the
+  test that reads them. `crates/pod-relay/SOURCES` records each imported
+  file with its blob at `04f141b`: the vectors, the test, the page and the
+  three scripts.
+- `crates/pod-relay/tests/wire_vectors.rs`, `crates/pod-relay/tests/wire/`:
+  the vectors through `pod-session`, `pod-relay` and `pod-ws`. 109 vectors
+  run; 8 are skipped by kind with the reason, and the test prints the count
+  (`117 in all, 109 run, 8 skipped`): the `mint` (3) and `check` (5)
+  vectors of `tokens.json` need the relay role's tokens, which podcrates
+  does not hold (T-036). T-856 runs them at that import. A kind that
+  `wire/kinds.rs` does not know fails the test.
+- `scripts/check-wire-vectors.py` (with `scripts/wire_check_parts.py` and
+  `scripts/wire_ed25519.py`): the second reader, from the page alone; it
+  reads all 117 vectors and the digest. `ci.yml` (the lint job) and
+  `scripts/agent/check.sh` run it and its `--plant`.
+- The plant `scripts/plants/wire-pong-fields-swapped.plant`: the PONG record of
+  `pod-session` writes its offset before its value; the test of the records
+  fails on the vector `pong`.
+
+Results: `cargo test -p pod-relay --all-features --test wire_vectors`: 14
+passed. `cargo test -p pod-session --all-features`: 161 passed.
+`check-wire-vectors.py`: 117 vectors of 6 files, ok; `--plant`: a change
+found in each of the 6 files. `sh scripts/plant-each.sh
+wire-pong-fields-swapped`: caught; `--apply`: 0 stale. clippy of
+`pod-relay`, `pod-session` and `pod-ws` (all targets, all features): no
+warning. No source file of `pod-relay` changed, so its other test targets
+did not run here; the workspace run before the push runs them.
 
 # T-121: `pod-relay`: renew a pair (PodUtils/podnet#413)
 

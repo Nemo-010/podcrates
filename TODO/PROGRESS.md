@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 689 entries: 128 open, 22 partial, 7 blocked, 532 done.
+`TODO/INDEX.md` holds 689 entries: 127 open, 22 partial, 7 blocked, 533 done.
 
 ## State
 
@@ -161,7 +161,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
    (`pod-netstack`).
 7. **M3, the adapters:** T-028, T-029, T-030.
 8. **M4, the roads:** T-131 (a defect of `pod-gsr` on Windows ARM64)
-   first; then T-036,
+   first; then T-036 (with T-856, the vectors of `tokens.json`),
    T-039.
 9. **M5, the upkeep:** T-789 (the nightly at `f309b07`), T-766, T-780 (a test that reads the pipes of its child
    after the child ends), T-781 (the findings of the study of zmux for the
@@ -184,7 +184,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
    owner, 2026-11-09; again 2026-11-13). T-490 (the server half of ECH,
    #130) waits too. The asks of podswarm that help podswarm alone
    (T-430 to T-437, T-440 to T-443, T-445, T-446, T-449, T-450) wait
-   until the podswarm session starts (the ruling "podswarm"). T-100, T-102 to T-120 wait, unless a
+   until the podswarm session starts (the ruling "podswarm"). T-100, T-102 to T-119 wait, unless a
    consumer needs one first. T-113 to T-116 wait for the first release on crates.io.
    The asks of PodUtils/podvm#227 for podrunner are in item 2. T-191 and
    T-194 (the proposals of PodUtils/podnet#437 for `pod-broker`, for the

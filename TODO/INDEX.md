@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**689 entries: 128 open, 22 partial, 7 blocked, 532 done.**
+**689 entries: 127 open, 22 partial, 7 blocked, 533 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 10 | 9 | 0 | 147 | 166 |
-| P2 | 55 | 3 | 4 | 274 | 336 |
+| P2 | 54 | 3 | 4 | 275 | 336 |
 | P3 | 63 | 10 | 3 | 109 | 185 |
-| **All** | 128 | 22 | 7 | 532 | 689 |
+| **All** | 127 | 22 | 7 | 533 | 689 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -166,7 +166,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-117](roads.md) | P2 | M | M4 | feature | open | `pod-egress`: the Access TCP client as a local listener (GitHub #35) |
 | [T-118](foundation.md) | P2 | M | M5 | chore | open | Supply chain: an SBOM for each release and a planted advisory that fails `deny.yml` (GitHub #35) |
 | [T-119](podvm.md) | P3 | L | M7 | feature | open | `pod-netlab`: the CI matrix of restricted hosts (GitHub #35) |
-| [T-120](relay.md) | P2 | M | M2 | docs | open | The wire documents of the layer, the reverse dialect and the role's extensions, with test vectors (GitHub #35) |
+| [T-120](relay.md) | P2 | M | M2 | docs | done | The wire documents of the layer, the reverse dialect and the role's extensions, with test vectors (GitHub #35) |
 | [T-121](relay.md) | P2 | M | M2 | feature | open | `pod-relay`: renew a pair (PodUtils/podnet#413) |
 | [T-122](relay.md) | P2 | S | M2 | feature | done | `pod-relay`: a health memory of the relay hosts (PodUtils/podnet#413) |
 | [T-123](relay.md) | P2 | S | M2 | feature | done | `pod-relay`: the session budget from the pool document (PodUtils/podnet#413) |
