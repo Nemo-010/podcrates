@@ -18,7 +18,7 @@ fn a_tree_replicates_whole() {
     std::os::unix::fs::symlink("/abs/target", d.join("src/abs")).unwrap();
     let dst = d.join("dst");
     let n = copy_tree(&d.join("src"), &dst).unwrap();
-    assert_eq!(n, 5, "bin, prog, note.txt, sh, abs");
+    assert_eq!(n, Staged { entries: 5, nodes_skipped: 0 }, "bin, prog, note.txt, sh, abs");
     assert_eq!(std::fs::read(dst.join("bin/prog")).unwrap(), b"\x7fELF-tool");
     assert_eq!(std::fs::read_link(dst.join("bin/sh")).unwrap(), std::path::Path::new("prog"));
     assert_eq!(std::fs::read_link(dst.join("abs")).unwrap(), std::path::Path::new("/abs/target"));
@@ -37,7 +37,7 @@ fn a_special_file_is_a_sentence() {
     assert!(st.success(), "the fixture fifo could not be made");
     let e = copy_tree(&d.join("src"), &d.join("dst")).unwrap_err();
     assert_eq!(e.path, fifo, "{e}");
-    assert!(e.why.contains("not a file, directory or symlink"), "{e}");
+    assert!(e.why.contains("not a file, directory, symlink or device node"), "{e}");
     let _ = std::fs::remove_dir_all(&d);
 }
 
@@ -169,5 +169,50 @@ fn releasing_an_unmounted_directory_removes_it() {
     std::fs::create_dir_all(&dir).unwrap();
     release_tmpfs(&dir);
     assert!(!dir.exists());
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// A source tree with `dev/null` as a real node (1:3), as the fixups make
+/// it where `mknod(2)` passes; `None` on a host where it does not (no
+/// root), and the test says so.
+fn tree_with_null(tag: &str) -> Option<PathBuf> {
+    let d = tree(tag);
+    std::fs::create_dir_all(d.join("src/dev")).unwrap();
+    let mode = 0o020_666; // S_IFCHR | 0666
+    if !mknod(&d.join("src/dev/null"), mode, pod_hostprobe::sys::makedev(1, 3)) {
+        eprintln!("skipped: this host refuses mknod(2), so the fixture has no device node");
+        let _ = std::fs::remove_dir_all(&d);
+        return None;
+    }
+    Some(d)
+}
+
+/// A device node of the fixups is made again with its mode and number
+/// where `mknod(2)` passes (PodUtils/podvm#467): the run of a root does
+/// not stop on its own `dev/null`.
+#[test]
+fn a_device_node_is_made_again_where_mknod_passes() {
+    use std::os::unix::fs::{FileTypeExt, MetadataExt};
+    let Some(d) = tree_with_null("node") else { return };
+    let staged = copy_tree(&d.join("src"), &d.join("dst")).unwrap();
+    assert_eq!(staged, Staged { entries: 3, nodes_skipped: 0 }, "bin, dev, dev/null");
+    let (src, dst) = (
+        std::fs::symlink_metadata(d.join("src/dev/null")).unwrap(),
+        std::fs::symlink_metadata(d.join("dst/dev/null")).unwrap(),
+    );
+    assert!(dst.file_type().is_char_device());
+    assert_eq!((dst.rdev(), dst.mode() & 0o7777), (src.rdev(), src.mode() & 0o7777));
+    let _ = std::fs::remove_dir_all(&d);
+}
+
+/// Where `mknod(2)` fails, the node is skipped and counted, and the copy
+/// goes on: the rung binds or makes `/dev` itself.
+#[test]
+fn a_device_node_is_skipped_and_counted_where_mknod_fails() {
+    let Some(d) = tree_with_null("skip") else { return };
+    std::fs::create_dir_all(d.join("dst")).unwrap();
+    let staged = copy_with(&d.join("src"), &d.join("dst"), &|_, _, _| false).unwrap();
+    assert_eq!(staged, Staged { entries: 2, nodes_skipped: 1 }, "bin, dev; dev/null skipped");
+    assert!(!d.join("dst/dev/null").exists());
     let _ = std::fs::remove_dir_all(&d);
 }

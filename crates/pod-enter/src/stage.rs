@@ -9,9 +9,13 @@
 //!
 //! A copy, not an extraction. The extracted tree has no whiteouts left,
 //! and its ownership is in a sidecar, so this copies what is there:
-//! directories, regular files and symbolic links. Each other kind (a fifo,
-//! a socket, a device node) is refused with its path: a silent skip would
-//! run a payload from a tree that is not the tree of the image.
+//! directories, regular files and symbolic links. A character or block
+//! device is a node of the fixups of the tree (`dev/null` and the like,
+//! made where `mknod(2)` passes), not of the image: it is made again with
+//! the same mode and number where `mknod(2)` passes, and else skipped and
+//! counted ([`Staged::nodes_skipped`]); the rung binds or makes `/dev` as
+//! before. A fifo or a socket is refused with its path: a silent skip
+//! would run a payload from a tree that is not the tree of the image.
 
 use std::path::{Path, PathBuf};
 
@@ -32,7 +36,16 @@ impl std::fmt::Display for Refusal {
     }
 }
 
-/// Replicate the tree at `src` under `dst`, returning the entries copied.
+/// What a copy staged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Staged {
+    /// The entries made in the staged tree.
+    pub entries: usize,
+    /// The device nodes that `mknod(2)` refused, so the staged tree lacks.
+    pub nodes_skipped: usize,
+}
+
+/// Replicate the tree at `src` under `dst`, returning what it staged.
 ///
 /// `dst` is created with its parents; a `dst` that already exists is
 /// refused rather than merged into, so a stale staging directory can
@@ -40,7 +53,7 @@ impl std::fmt::Display for Refusal {
 /// their targets unrewritten: the tree means the same under the new
 /// root. Ownership is not applied: the caller runs without the ids the
 /// image intended, like every other reader of the extracted tree.
-pub fn copy_tree(src: &Path, dst: &Path) -> Result<usize, Refusal> {
+pub fn copy_tree(src: &Path, dst: &Path) -> Result<Staged, Refusal> {
     if !src.is_dir() {
         return Err(Refusal { path: src.to_path_buf(), why: "not a directory to stage from".to_string() });
     }
@@ -58,10 +71,24 @@ pub fn copy_tree(src: &Path, dst: &Path) -> Result<usize, Refusal> {
 }
 
 /// Replicate the entries of `src` into the existing directory `dst`,
-/// returning the entries copied. The caller owns `dst`'s provenance: a
+/// returning what it staged. The caller owns `dst`'s provenance: a
 /// just-created directory, or a just-mounted tmpfs verified empty.
-fn copy_contents(src: &Path, dst: &Path) -> Result<usize, Refusal> {
-    let mut copied = 0usize;
+fn copy_contents(src: &Path, dst: &Path) -> Result<Staged, Refusal> {
+    copy_with(src, dst, &mknod)
+}
+
+/// `mknodat(2)` of `path` with `mode` and the device number `dev`.
+fn mknod(path: &Path, mode: u32, dev: u64) -> bool {
+    use pod_hostprobe::sys::{AT_FDCWD, CBuf, mknodat};
+    let Some(c) = CBuf::from_bytes(std::os::unix::ffi::OsStrExt::as_bytes(path.as_os_str())) else { return false };
+    mknodat(AT_FDCWD as i64, &c, u64::from(mode), dev).is_ok()
+}
+
+/// [`copy_contents`] with `make`, the maker of a device node, which a test
+/// can make fail as a host with no `mknod(2)` does.
+fn copy_with(src: &Path, dst: &Path, make: &dyn Fn(&Path, u32, u64) -> bool) -> Result<Staged, Refusal> {
+    use std::os::unix::fs::{FileTypeExt, MetadataExt};
+    let mut staged = Staged::default();
     let mut dirs = vec![(src.to_path_buf(), dst.to_path_buf())];
     while let Some((sdir, ddir)) = dirs.pop() {
         let entries = std::fs::read_dir(&sdir)
@@ -81,12 +108,12 @@ fn copy_contents(src: &Path, dst: &Path) -> Result<usize, Refusal> {
                     path: dpath.clone(),
                     why: format!("the directory could not be created: {e}"),
                 })?;
-                copied += 1;
+                staged.entries += 1;
                 dirs.push((spath, dpath));
             } else if kind.is_file() {
                 std::fs::copy(&spath, &dpath)
                     .map_err(|e| Refusal { path: dpath.clone(), why: format!("the file could not be copied: {e}") })?;
-                copied += 1;
+                staged.entries += 1;
             } else if kind.is_symlink() {
                 let target = std::fs::read_link(&spath).map_err(|e| Refusal {
                     path: spath.clone(),
@@ -96,18 +123,28 @@ fn copy_contents(src: &Path, dst: &Path) -> Result<usize, Refusal> {
                     path: dpath.clone(),
                     why: format!("the link could not be recreated: {e}"),
                 })?;
-                copied += 1;
+                staged.entries += 1;
+            } else if kind.is_char_device() || kind.is_block_device() {
+                let meta = std::fs::symlink_metadata(&spath).map_err(|e| Refusal {
+                    path: spath.clone(),
+                    why: format!("the device node could not be read: {e}"),
+                })?;
+                if make(&dpath, meta.mode(), meta.rdev()) {
+                    staged.entries += 1;
+                } else {
+                    staged.nodes_skipped += 1;
+                }
             } else {
                 return Err(Refusal {
                     path: spath,
-                    why:
-                        "not a file, directory or symlink: refusing rather than staging a tree that is not the image's"
-                            .to_string(),
+                    why: "not a file, directory, symlink or device node: refusing rather than staging a tree that \
+                          is not the image's"
+                        .to_string(),
                 });
             }
         }
     }
-    Ok(copied)
+    Ok(staged)
 }
 
 /// Stage an ephemeral per-run root on a tmpfs mount under the store.
