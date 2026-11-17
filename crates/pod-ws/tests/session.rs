@@ -194,7 +194,7 @@ async fn a_write_to_a_peer_that_never_reads_stalls_and_ends() {
 fn a_close_reason_cannot_carry_terminal_controls() {
     let mut payload = 1000u16.to_be_bytes().to_vec();
     payload.extend_from_slice(b"bye\x1b]0;owned\x07\rnow");
-    assert_eq!(close_code_and_reason(&payload), (Some(1000), "bye]0;owned now".to_string()));
+    assert_eq!(close_code_and_reason(&payload), (Some(1000), "bye now".to_string()));
 }
 
 /// A scripted relay for the liveness tests: answers the first `pongs` Pings,

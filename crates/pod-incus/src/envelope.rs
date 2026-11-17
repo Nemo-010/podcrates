@@ -131,7 +131,7 @@ mod tests {
     #[test]
     fn a_body_that_is_not_an_envelope_is_named() {
         let e = read("GET /1.0", 500, b"panic: \x1b[31mboom").unwrap_err();
-        assert_eq!(e.incus_error(), Some("panic: [31mboom"));
+        assert_eq!(e.incus_error(), Some("panic: boom"));
         let e = read("GET /1.0", 200, b"<html>").unwrap_err();
         assert!(matches!(e.kind(), ErrorKind::Protocol(_)), "{e}");
         let e = read("GET /1.0", 200, br#"{"type":"other"}"#).unwrap_err();

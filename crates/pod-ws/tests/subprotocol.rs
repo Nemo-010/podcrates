@@ -74,5 +74,6 @@ async fn an_answer_with_the_one_offered_or_with_none_goes_on() {
 fn the_rule_of_the_choice() {
     assert!(check_chosen(Some("a, b"), Some("B")).is_ok(), "one of a list, in any case");
     assert!(check_chosen(Some("a"), Some("")).is_ok(), "an empty name is none");
-    assert!(check_chosen(Some("a"), Some("\x1b[2Jc")).unwrap_err().to_string().contains("[2Jc"));
+    let named = check_chosen(Some("a"), Some("\x1b[2Jc")).unwrap_err().to_string();
+    assert!(named.contains('c') && !named.contains('\x1b') && !named.contains("[2J"), "{named}");
 }

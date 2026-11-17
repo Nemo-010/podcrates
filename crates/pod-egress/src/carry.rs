@@ -352,7 +352,7 @@ mod tests {
     #[test]
     fn a_note_is_one_safe_short_line() {
         assert_eq!(note_text(b"{\"type\":\"game.connected\"}"), "{\"type\":\"game.connected\"}");
-        assert_eq!(note_text(b"a\x1b[2J\r\nb"), "a[2J b");
+        assert_eq!(note_text(b"a\x1b[2J\r\nb"), "a b");
         let long = note_text("x".repeat(500).as_bytes());
         assert_eq!(long.len(), NOTE_CHARS + 3, "{long}");
     }

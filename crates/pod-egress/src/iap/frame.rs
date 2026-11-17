@@ -208,7 +208,11 @@ mod tests {
         assert_eq!(sid, Message::ConnectSuccessSid(b"sid-of-the-capture".to_vec()));
         assert_eq!(decode(&hex("0002000000000000000a")).unwrap(), Message::ReconnectSuccessAck(10));
         let close = decode(&hex("000a00000fbd0000000868656c6c6f1b5b41")).unwrap();
-        assert_eq!(close, Message::LongClose { code: 4029, reason: "hello[A".into() }, "ESC is taken out");
+        assert_eq!(
+            close,
+            Message::LongClose { code: 4029, reason: "hello".into() },
+            "the escape sequence is taken out"
+        );
         assert_eq!(decode(&hex("0003")).unwrap(), Message::Unknown(3));
         // Bytes after the fields are skipped, as gcloud skips them.
         assert_eq!(decode(&hex("0007000000000000000501")).unwrap(), Message::Ack(5));

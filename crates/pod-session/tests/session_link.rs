@@ -224,7 +224,7 @@ async fn a_refusal_reaches_the_client_with_its_reason() {
     };
     assert_eq!(error, HandshakeError::Refused { code: RefuseCode::BUSY, reason: "64 sessions\x1b[2J".into() });
     // The message is safe to print: no escape reaches the terminal.
-    assert_eq!(error.to_string(), "refused (busy): 64 sessions[2J");
+    assert_eq!(error.to_string(), "refused (busy): 64 sessions");
 }
 
 /// A relay that drops a frame makes a gap: the client delivers each byte

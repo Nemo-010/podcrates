@@ -119,7 +119,7 @@ pub const PEER_TEXT_MOST: usize = 512;
 ///
 /// ```
 /// let text: String = pod_core::text::PeerText::one_line("bad\x1b[2J token").into();
-/// assert_eq!(text, "bad[2J token");
+/// assert_eq!(text, "bad token");
 /// ```
 ///
 /// ```compile_fail

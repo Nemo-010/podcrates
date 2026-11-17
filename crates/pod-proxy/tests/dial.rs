@@ -295,7 +295,7 @@ async fn names_that_would_break_a_request_are_refused() {
 fn a_proxy_reason_phrase_cannot_carry_terminal_controls() {
     let (status, reason) = pod_proxy::http::parse_status_line("HTTP/1.1 403 not\x1b[31m allowed\x07\r\n\r\n").unwrap();
     assert_eq!(status, 403);
-    assert_eq!(reason, "not[31m allowed");
+    assert_eq!(reason, "not allowed");
 }
 
 /// A loopback target never goes through the proxy: the proxy's loopback is

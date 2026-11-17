@@ -112,7 +112,7 @@ mod tests {
     #[test]
     fn an_event_is_one_safe_line() {
         let e = Event::warn("relay.failover", "host\u{1b}[2J one\nis down");
-        assert_eq!(e.text, "host[2J one is down");
+        assert_eq!(e.text, "host one is down");
         assert_eq!(e.level, Level::Warn);
     }
 

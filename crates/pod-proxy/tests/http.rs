@@ -137,7 +137,7 @@ fn an_error_body_cannot_carry_terminal_controls() {
         body: b"denied\x1b[2J\x07\r\nFAKE PROMPT$ ".to_vec(),
         url: String::new(),
     };
-    assert_eq!(r.body_text(200), "denied[2J FAKE PROMPT$");
+    assert_eq!(r.body_text(200), "denied FAKE PROMPT$");
 }
 
 /// A header shown in a line (a relay's Retry-After of 429) is made
@@ -151,8 +151,8 @@ fn a_header_shown_in_a_line_cannot_carry_terminal_controls() {
         body: Vec::new(),
         url: String::new(),
     };
-    assert_eq!(r.header_text("Retry-After", 200).as_deref(), Some("30]0;owned then[2J more"));
-    assert_eq!(r.header_text("retry-after", 4).as_deref(), Some("30]0…"));
+    assert_eq!(r.header_text("Retry-After", 200).as_deref(), Some("30 then more"));
+    assert_eq!(r.header_text("retry-after", 4).as_deref(), Some("30 t…"));
     assert_eq!(r.header_text("date", 10), None);
 }
 

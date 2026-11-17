@@ -1,8 +1,13 @@
 diff --git a/crates/pod-core/src/text.rs b/crates/pod-core/src/text.rs
-index edbbef0..469bc1b 100644
 --- a/crates/pod-core/src/text.rs
 +++ b/crates/pod-core/src/text.rs
-@@ -15,7 +15,7 @@ pub fn one_line(text: &str) -> String {
+@@ -11,13 +11,12 @@
+ /// formatting characters are dropped, and every run of whitespace, line breaks
+ /// included, becomes one space. Leading and trailing whitespace is removed.
+ pub fn one_line(text: &str) -> String {
+-    let text = &without_escapes(text);
+     let mut out = String::with_capacity(text.len());
+     let mut space = false;
      for c in text.chars() {
          if c.is_whitespace() {
              space = true;

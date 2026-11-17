@@ -189,7 +189,7 @@ async fn a_refusal_keeps_the_first_line_of_its_body() {
     let err = through(&Proxy::parse(&format!("http://{addr}")).unwrap(), "api.example", 443).await.unwrap_err();
     match &err {
         DialError::ProxyRefused { status: 403, reason, .. } => {
-            assert_eq!(reason, "Forbidden: not on the egress[2J allowlist")
+            assert_eq!(reason, "Forbidden: not on the egress allowlist")
         }
         other => panic!("{other:?}"),
     }

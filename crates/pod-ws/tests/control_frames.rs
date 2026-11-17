@@ -167,5 +167,5 @@ fn a_close_with_no_code_has_none_and_a_reason_loses_its_control_characters() {
     assert_eq!(close_code_and_reason(b""), (None, String::new()));
     let mut payload = 4000u16.to_be_bytes().to_vec();
     payload.extend_from_slice("bad\u{1b}[2J\u{7}news".as_bytes());
-    assert_eq!(close_code_and_reason(&payload), (Some(4000), "bad[2Jnews".to_string()));
+    assert_eq!(close_code_and_reason(&payload), (Some(4000), "badnews".to_string()));
 }

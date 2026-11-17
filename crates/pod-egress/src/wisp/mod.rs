@@ -320,7 +320,7 @@ mod tests {
 
     #[test]
     fn a_note_is_one_safe_short_line() {
-        assert_eq!(note_text(b"Welcome\r\n\x1b[2Jto Wisp"), "Welcome [2Jto Wisp");
+        assert_eq!(note_text(b"Welcome\r\n\x1b[2Jto Wisp"), "Welcome to Wisp");
         assert_eq!(note_text("y".repeat(300).as_bytes()).len(), NOTE_CHARS + 3);
     }
 }
