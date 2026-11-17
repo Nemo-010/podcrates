@@ -3102,3 +3102,63 @@ cargo todo check
 ## Done
 
 2026-11-17. Call C772 of `docs/decisions.md`: from a reference under GPL or AGPL, an entry takes the design, the wire facts and the constants that a document of the reference states, never its code; the entry names the reference and says so.
+
+# T-854: `pod-services`: GitHub Actions has two more hosts (the watch of 2026-11-17)
+
+**Source:** the scheduled run 44067490108 of `services.yml` (2026-11-17): `MOVED github-actions http-json "full-domains"`.
+**Category:** chore
+**Milestone:** M1
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+`domains.actions_inbound.full_domains` of GitHub's meta API has two more hosts: `hosted-compute-request-orchestrator-gccus02-01.githubapp.com` and `-02`, after `hosted-compute-request-orchestrator-prod-eus-02.githubapp.com`. The fact `full-domains` of `services/github-actions.toml` lacks them, so a runner behind a list of allowed hosts cannot reach them.
+
+## Premise
+
+- Read: `https://api.github.com/meta` through the mirror (220 full domains; the wildcards hold); `crates/pod-services/services/github-actions.toml`; `crates/pod-services/tests/actions.rs`.
+
+## Approach
+
+Add the two hosts in GitHub's order, with the date read; the test holds a date of a reading on or after the first one.
+
+## Prove
+
+```sh
+cargo test -p pod-services --all-features
+```
+
+## Done
+
+2026-11-17, 3aee6da: the two hosts in GitHub's order (the list equals `actions_inbound.full_domains` of the meta API, 220 hosts), `read = 2026-11-17`. `tests/actions.rs` held each date at 2026-11-11; it now holds a date on or after it. `cargo test -p pod-services --all-features` passes. The consumers that read the list (podrunner) get the hosts with the next tag.
+
+# T-855: `pod-services`: the node `node-trojan-167-88-61-175` fails the TLS handshake
+
+**Source:** the scheduled run 44067490108 of `services.yml` (2026-11-17): `FAILED node-trojan-167-88-61-175 proxy-banner: TLS ... at 167.88.61.175:443: tls handshake eof`.
+**Category:** chore
+**Milestone:** M1
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The public Trojan node `node-trojan-167-88-61-175` ends the TLS handshake with no answer. A node that is gone stays in the list of podssh (PodUtils/podssh@T-574).
+
+## Premise
+
+- Read: the log of the job; `crates/pod-services/services/node-trojan-167-88-61-175.toml`; the removal of `node-trojan-149-28-130-108` (the same failure, removed after a second run); `docs/maintenance.md`, "A red run of `services.yml`".
+- The dispatch of `services.yml` with `service = node-trojan-167-88-61-175` (2026-11-17).
+
+## Approach
+
+Read the run of the dispatch. When the failure stays, remove the node as `node-trojan-149-28-130-108` left: its file, the count of the rows `node-*` in `crates/pod-services/README.md`, and the id in the next hand-off for podssh.
+
+## Prove
+
+```sh
+cargo test -p pod-services --all-features
+cargo test -p pod-services-watch --all-features
+```
