@@ -360,7 +360,9 @@ for its aborted connection at a shutdown (a test failed one run in two).
 204 tests. Findings: T-842 (the QUIC leg at a shutdown), T-843 (the probe's
 `main.rs` at the limit).
 
-- Step 3, the rest: the comments in ASD-STE100. podnet has no
+- Step 3, the rest, is done: the comments in ASD-STE100 (three commits;
+  comments only, a script compared the code with the comments taken out;
+  six comments that were wrong are right now; finding T-853). podnet has no
   `tunnel --inspect`, so no hook is needed. The watches that podnet ran are
   T-849.
 - Step 6 is done (the README); the adoption map in it: podnet reads its
@@ -2185,3 +2187,34 @@ cargo test -p pod-cloudflare -p pod-services --all-features
 
 2026-11-17: each cloudflared file that the facts cite (`connection/protocol.go`, `cmd/cloudflared/tunnel/cmd.go`, `cmd/cloudflared/tunnel/quick_tunnel.go`, `edgediscovery/allregions/discovery.go`, `tlsconfig/cloudflare_ca.go`, `features/features.go`) has the same blob at 2026.10.7 and at 2026.11.0. The fact `cloudflared-tag` is a ruling over the pins of the consumers (podnet's, now the crate's, and podssh's at 2026.10.6), and podssh's words come from it: the move goes with the README table of the two pins and with podssh, by its hand-off.
 
+# T-853: `pod-cloudflare`: two `Protocol` types, one of them with no user in the crate
+
+**Source:** T-029 (found in the edit of the comments of `pod-cloudflare` to ASD-STE100).
+**Category:** chore
+**Milestone:** M3
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The crate has two public types for the edge protocol. `config::Protocol` (`auto`, `quic`, `http2`) is the type of `Config::protocol`, and `tunnel::plan::leg_plan` reads it. `cloudflare::Protocol` has the same three values, with `parse`, `as_str` and `candidates`; only its own tests use it. `config::Protocol::resolved` has no caller in the crate. Its comment said that HTTP/2 gives an error at start, which is false: the leg plan has the HTTP/2 legs (the comment is corrected).
+
+## Premise
+
+- Read: `crates/pod-cloudflare/src/config.rs`, `src/cloudflare/mod.rs`, `src/tunnel/plan.rs`, and a search of the crate for `cloudflare::Protocol`, `candidates()` and `.resolved()`.
+- Not read: the code of podnet and podssh. A consumer can use one of the two types.
+
+## Approach
+
+1. Search podnet and podssh for `pod_cloudflare::cloudflare::Protocol`, `candidates` and `resolved`.
+2. Keep one type, `config::Protocol`, with the `as_str` of the other. Remove `cloudflare::Protocol` and `resolved`, or move their users to the kept type.
+3. Name the change in the notes of the release, for the consumers.
+
+## Prove
+
+```sh
+grep -rn 'cloudflare::Protocol\|fn resolved\|fn candidates' crates/pod-cloudflare/src
+cargo clippy -p pod-cloudflare --all-targets --all-features -- -D warnings
+cargo test -p pod-cloudflare --all-features
+```
