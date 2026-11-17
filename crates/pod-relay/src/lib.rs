@@ -86,6 +86,7 @@ pub mod quic_road;
 pub mod rank;
 pub mod rank_auto;
 pub mod rank_list;
+pub mod rates;
 pub mod relay;
 #[cfg(feature = "pair")]
 pub mod reverse;

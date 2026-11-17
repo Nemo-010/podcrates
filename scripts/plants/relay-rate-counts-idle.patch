@@ -1,0 +1,12 @@
+diff --git a/crates/pod-relay/src/rates.rs b/crates/pod-relay/src/rates.rs
+--- a/crates/pod-relay/src/rates.rs
++++ b/crates/pod-relay/src/rates.rs
+@@ -151,7 +151,7 @@ impl Counted {
+         self.bytes.fetch_add(bytes, Ordering::Relaxed);
+         let before = self.last_ns.swap(now_ns, Ordering::Relaxed);
+         let gap = now_ns.saturating_sub(before);
+-        if gap < IDLE_GAP_NS {
++        if gap < u64::MAX {
+             self.busy_ns.fetch_add(gap, Ordering::Relaxed);
+         }
+     }

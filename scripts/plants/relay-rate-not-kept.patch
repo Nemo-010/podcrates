@@ -1,0 +1,12 @@
+diff --git a/crates/pod-relay/src/stream.rs b/crates/pod-relay/src/stream.rs
+--- a/crates/pod-relay/src/stream.rs
++++ b/crates/pod-relay/src/stream.rs
+@@ -46,7 +46,7 @@ where
+         if bytes >= crate::rates::MIN_BYTES {
+             let mut kept = crate::rates::load(&ctx.cache);
+             kept.add(&name, &egress, bytes, secs, crate::pool::now_ms());
+-            let _ = crate::rates::save(&ctx.cache, &kept);
++            let _ = &kept;
+         }
+     });
+     Box::new(ours)

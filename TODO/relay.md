@@ -9252,7 +9252,7 @@ matrix on its relay role again.
 **Milestone:** M2
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -9271,6 +9271,22 @@ Tally the bytes and the time of each finished session for each host and egress (
 ```sh
 cargo test -p pod-relay --all-features rank
 ```
+
+## Correction
+
+2026-11-17: the tally and the shadow order are in. `rates` (a file
+`relay-rates.json` of the cache beside the rank): the bytes and the busy
+time of each finished session (the gaps under 1 s between transfers, so an
+SSH session that waits then copies keeps its rate), the last 16 of each
+host, by egress; a session of less than 1 MiB keeps none; `Rates::mib_s` is
+the median of the day; `rates::order` orders names by it. `stream::of_measured`
+counts a session (`stream::of` stays as it was); `rank_list::placed_now`
+writes a debug line where the order by rate differs from the order it gives.
+Tests: five unit tests and `a_measured_session_leaves_its_rate`; plants
+`relay-rate-counts-idle`, `relay-rate-not-kept`. Open: the consumers take
+`of_measured` in place of `of` (a hand-off); the tier of a failed check of
+identity, which does not decay; the change of the order after a release in
+shadow.
 
 # T-815: `pod-relay`: the budget of a session under a relay whose caps are larger than the default relay's
 

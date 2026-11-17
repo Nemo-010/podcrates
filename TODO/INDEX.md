@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**667 entries: 138 open, 15 partial, 7 blocked, 507 done.**
+**667 entries: 137 open, 16 partial, 7 blocked, 507 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
 | P2 | 55 | 4 | 4 | 263 | 326 |
-| P3 | 72 | 3 | 3 | 95 | 173 |
-| **All** | 138 | 15 | 7 | 507 | 667 |
+| P3 | 71 | 4 | 3 | 95 | 173 |
+| **All** | 137 | 16 | 7 | 507 | 667 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -693,7 +693,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-811](podvm.md) | P1 | S | M6 | defect | done | `pod-enter`: the init of a PID namespace keeps the descriptors of the caller, so `run -d` never returns (PodUtils/podvm#460) |
 | [T-812](relay.md) | P2 | M | M2 | measurement | partial | `pod-relay`: a measurement by hand of the throughput of the hosted relays (the default host and its seeds) |
 | [T-813](relay.md) | P3 | S | M2 | research | done | `pod-ws`: the speed of a relay path in two modes (75 and 330 MiB/s) that the dig study saw |
-| [T-814](relay.md) | P3 | M | M2 | feature | open | `pod-relay`: the bytes and the time of each session for each host, and an order by measured rate in shadow |
+| [T-814](relay.md) | P3 | M | M2 | feature | partial | `pod-relay`: the bytes and the time of each session for each host, and an order by measured rate in shadow |
 | [T-815](relay.md) | P3 | S | M2 | research | open | `pod-relay`: the budget of a session under a relay whose caps are larger than the default relay's |
 | [T-816](upkeep.md) | P2 | S | M5 | docs | done | The dig study and the ingest study of 2026-11-16 as research documents, with their corrections |
 | [T-817](upkeep.md) | P2 | S | M5 | chore | done | A call on references under GPL or AGPL: their designs, never their code |

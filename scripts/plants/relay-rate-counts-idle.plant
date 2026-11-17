@@ -1,0 +1,6 @@
+# pod-relay: the counter of a session counts its idle time as busy, so a session that waits then copies gives a rate near zero; the unit test of the counter must fail (T-814).
+ENTRY=T-814
+GROUP=relay
+EXPECT='a_counter_leaves_idle_time_out'
+RUN='cargo test -p pod-relay --all-features --lib a_counter_leaves_idle_time_out'
+LIMIT=1800

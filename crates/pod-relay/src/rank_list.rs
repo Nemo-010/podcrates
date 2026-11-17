@@ -143,7 +143,18 @@ pub fn placed_now(ctx: &Context, list: &RelayList) -> Vec<Relay> {
         return list.hosts.clone();
     }
     let egress = egress_for(ctx, &list.primary().host);
-    placed(list, rank::load(&ctx.cache).as_ref(), &egress, crate::pool::now_ms())
+    let now = crate::pool::now_ms();
+    let order = placed(list, rank::load(&ctx.cache).as_ref(), &egress, now);
+    // The order by measured rate, in shadow (T-814): a line where it
+    // differs, and no change of the order.
+    let names: Vec<String> = order.iter().map(crate::token::relay_name).collect();
+    let by_rate = crate::rates::order(&names, &crate::rates::load(&ctx.cache), &egress, now);
+    if by_rate.iter().map(|(n, _)| n).ne(names.iter()) {
+        let shown: Vec<String> =
+            by_rate.iter().map(|(n, r)| r.map_or_else(|| n.clone(), |r| format!("{n} {r:.1} MiB/s"))).collect();
+        tracing::debug!(order = %names.join(", "), by_rate = %shown.join(", "), "the order by measured rate differs");
+    }
+    order
 }
 
 /// A session of the race that opened, timed; by the host's name, with its

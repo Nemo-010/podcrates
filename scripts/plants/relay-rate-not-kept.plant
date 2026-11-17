@@ -1,0 +1,6 @@
+# pod-relay: a measured session keeps no rate in the cache; the test of the measured stream must fail (T-814).
+ENTRY=T-814
+GROUP=relay
+EXPECT='a rate for the host'
+RUN='cargo test -p pod-relay --all-features --lib a_measured_session_leaves_its_rate'
+LIMIT=1800
