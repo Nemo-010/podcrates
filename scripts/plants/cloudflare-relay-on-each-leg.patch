@@ -1,0 +1,13 @@
+diff --git a/crates/pod-cloudflare/src/tunnel/plan.rs b/crates/pod-cloudflare/src/tunnel/plan.rs
+index bd87a7588..5bb45417c 100644
+--- a/crates/pod-cloudflare/src/tunnel/plan.rs
++++ b/crates/pod-cloudflare/src/tunnel/plan.rs
+@@ -305,7 +305,7 @@ pub(super) fn relay_for(kind: LegKind, host: &Host) -> Result<Option<crate::host
+             Class::Config,
+             "the leg http2+relay needs a relay, and the consumer gives none",
+         ),
+-        LegKind::QuicDirect | LegKind::H2Direct | LegKind::QuicWarp => Ok(None),
++        LegKind::QuicDirect | LegKind::H2Direct | LegKind::QuicWarp => Ok(host.relay.clone()),
+     }
+ }
+ 

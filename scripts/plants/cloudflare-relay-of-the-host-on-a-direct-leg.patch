@@ -1,0 +1,13 @@
+diff --git a/crates/pod-cloudflare/src/edge_h2/leg.rs b/crates/pod-cloudflare/src/edge_h2/leg.rs
+index 04fe99b73..81f4faccc 100644
+--- a/crates/pod-cloudflare/src/edge_h2/leg.rs
++++ b/crates/pod-cloudflare/src/edge_h2/leg.rs
+@@ -156,7 +156,7 @@ where
+ /// leg `http2+relay` gives a `relay`.
+ pub(super) async fn dial(host: &Host, addrs: &[SocketAddr], relay: Option<&EdgeRelay>) -> Result<(usize, BoxedIo)> {
+     let deadline = || tokio::time::Instant::now() + DIAL_TIMEOUT;
+-    if let Some(relay) = relay {
++    if let Some(relay) = relay.or(host.relay.as_ref()) {
+         // The relay has no IPv6 egress: IPv4 addresses only.
+         let mut last = None;
+         for (i, addr) in addrs.iter().enumerate().filter(|(_, a)| a.is_ipv4()) {

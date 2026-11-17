@@ -1,0 +1,8 @@
+# A list in a segment that does not exist passes the bound check, and a
+# byte list of a Cap'n Proto message of the edge is read with no check of
+# its segment and of its end (podnet's fuzz crash, PodUtils/podnet#555): the
+# crash input must give an error, not a panic.
+ENTRY=T-029
+GROUP=cloudflare
+EXPECT='test fuzzing::tests::fuzz_a_list_in_a_missing_segment_is_an_error \.\.\. FAILED'
+RUN='cargo test -p pod-cloudflare --lib -- fuzzing::tests::fuzz_a_list_in_a_missing_segment_is_an_error --exact'

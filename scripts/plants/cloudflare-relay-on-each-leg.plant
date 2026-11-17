@@ -1,0 +1,7 @@
+# The plan gives the relay of the host to each leg, not to the leg
+# http2+relay alone (podnet's --transport relay): the test of the plan of
+# the relay must fail.
+ENTRY=T-029
+GROUP=cloudflare
+EXPECT='test tunnel::tests::only_the_relay_leg_takes_the_relay \.\.\. FAILED'
+RUN='cargo test -p pod-cloudflare --lib -- tunnel::tests::only_the_relay_leg_takes_the_relay --exact'

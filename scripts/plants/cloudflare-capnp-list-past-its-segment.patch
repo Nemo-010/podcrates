@@ -1,0 +1,31 @@
+diff --git a/crates/pod-cloudflare/src/cloudflare/capnp.rs b/crates/pod-cloudflare/src/cloudflare/capnp.rs
+index 45ed9ea83..e88095d39 100644
+--- a/crates/pod-cloudflare/src/cloudflare/capnp.rs
++++ b/crates/pod-cloudflare/src/cloudflare/capnp.rs
+@@ -390,8 +390,7 @@ impl Message {
+     }
+ 
+     fn check_range(&self, segment: usize, start: usize, words: u64) -> Result<()> {
+-        let len =
+-            self.segments.get(segment).or_fail(Stage::EdgeStream, Class::Protocol, "no such segment")?.len() as u64;
++        let len = self.segments.get(segment).map_or(0, Vec::len) as u64;
+         if start as u64 + words > len {
+             bail!(Stage::EdgeStream, Class::Protocol, "an object is outside its segment");
+         }
+diff --git a/crates/pod-cloudflare/src/cloudflare/capnp/reader.rs b/crates/pod-cloudflare/src/cloudflare/capnp/reader.rs
+index 54342457d..61cf04407 100644
+--- a/crates/pod-cloudflare/src/cloudflare/capnp/reader.rs
++++ b/crates/pod-cloudflare/src/cloudflare/capnp/reader.rs
+@@ -92,10 +92,8 @@ impl<'a> StructReader<'a> {
+             Target::Null => Ok(None),
+             Target::List { segment, start, elem: ELEM_BYTE, count, .. } => {
+                 let end = start.saturating_add(count.div_ceil(8) as usize);
+-                let segment =
+-                    self.msg.segments.get(segment).or_fail(Stage::EdgeStream, Class::Protocol, "no such segment")?;
+-                let words =
+-                    segment.get(start..end).or_fail(Stage::EdgeStream, Class::Protocol, "a list past its segment")?;
++                let segment = &self.msg.segments[segment];
++                let words = &segment[start..end];
+                 let bytes = words.iter().flat_map(|w| w.to_le_bytes());
+                 Ok(Some(bytes.take(count as usize).collect()))
+             }

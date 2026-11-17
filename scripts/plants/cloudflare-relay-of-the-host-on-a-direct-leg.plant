@@ -1,0 +1,6 @@
+# The dial of an HTTP/2 leg with no relay takes the relay of the host: a
+# direct leg goes through the relay. The test of the direct dial must fail.
+ENTRY=T-029
+GROUP=cloudflare
+EXPECT='test edge_h2::tests::a_leg_with_no_relay_dials_the_edge_directly \.\.\. FAILED'
+RUN='cargo test -p pod-cloudflare --lib -- edge_h2::tests::a_leg_with_no_relay_dials_the_edge_directly --exact'

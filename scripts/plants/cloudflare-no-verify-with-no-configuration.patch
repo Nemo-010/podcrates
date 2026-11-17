@@ -1,0 +1,13 @@
+diff --git a/crates/pod-cloudflare/src/origin.rs b/crates/pod-cloudflare/src/origin.rs
+index 86b55cc30..0239834ca 100644
+--- a/crates/pod-cloudflare/src/origin.rs
++++ b/crates/pod-cloudflare/src/origin.rs
+@@ -61,6 +61,8 @@ impl Origins {
+     /// The connector of an origin with `noTLSVerify`, or why there is none.
+     fn no_verify_connector(&self, origin: &str) -> Result<TlsConnector> {
+         let Some(connector) = &self.unverified else {
++            return Ok(self.verified_connector());
++            #[allow(unreachable_code)]
+             bail!(
+                 Stage::Tls,
+                 Class::Policy,

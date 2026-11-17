@@ -1,0 +1,7 @@
+# An origin with noTLSVerify and no TLS configuration of the consumer takes
+# the checked configuration with no word, in place of a refused dial: the
+# dial must fail with the class Policy before it connects.
+ENTRY=T-029
+GROUP=cloudflare
+EXPECT='test origin::tests::no_tls_verify_needs_the_configuration_of_the_consumer \.\.\. FAILED'
+RUN='cargo test -p pod-cloudflare --lib -- origin::tests::no_tls_verify_needs_the_configuration_of_the_consumer --exact'
