@@ -39,6 +39,7 @@ pub mod hooks;
 #[cfg(test)]
 mod link_rate;
 pub mod mss;
+pub mod pmtu;
 pub mod stack;
 mod subnet;
 
