@@ -12,7 +12,6 @@ use pod_devtunnel::{Credential, Locator, Management, Step, new_id, step_of};
 
 use common::{access, plan, settings, user, way};
 
-
 fn management(base: &str) -> Management {
     Management::new(way().http, &settings(base))
 }
