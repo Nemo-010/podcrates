@@ -1,0 +1,6 @@
+# An end under a relay's liveness offer names no heartbeat (T-845).
+ENTRY=T-845
+GROUP=session
+EXPECT='a_quiet_far_end_ends_the_heartbeat_of_both_sides'
+RUN='cargo test -p pod-session --test session_heartbeat'
+LIMIT=1800

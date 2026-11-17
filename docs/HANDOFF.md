@@ -22,9 +22,9 @@ is done. Git and the record keep finished work.
 3. `v0.67.0` is out at `1d7e983`; its hand-off is COORD-128 (#218).
    Record each take on it. The next tag holds T-840 and T-841
    (PodUtils/podssh#297: answer it on that hand-off), T-378, T-385, T-844
-   (PodUtils/podssh#298: a Unix route on Windows), T-845 (items 1 and 2 of
-   PodUtils/podssh#300; items 3 and 4 wait for podssh's `liveness.rs` and
-   its document: say so), T-819 (part 1), T-843. Its
+   (PodUtils/podssh#298: a Unix route on Windows), T-845 (PodUtils/podssh#300, all four items:
+   the wire is `pingMs`, not the issue's `every_s`; on the forward road
+   podssh sets `Settings::quiet()` when `Offer.liveness` holds), T-819 (part 1), T-843. Its
    hand-off says: take it with `cargo update -p webpki-roots` (podnet's
    and podssh's tests hold their lock to `ROOTS_VERSION`), and with a russh
    that takes rsa 0.10.0, not a release candidate (podssh: 0.65.2). The

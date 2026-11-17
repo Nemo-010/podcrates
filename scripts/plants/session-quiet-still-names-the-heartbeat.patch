@@ -1,0 +1,13 @@
+diff --git a/crates/pod-session/src/lib.rs b/crates/pod-session/src/lib.rs
+index 46bd42f..97a90be 100644
+--- a/crates/pod-session/src/lib.rs
++++ b/crates/pod-session/src/lib.rs
+@@ -195,7 +195,7 @@ impl Settings {
+     /// The feature names that this end gives: [`Settings::features`], with
+     /// no `heartbeat.v1` when [`Settings::heartbeat`] is off.
+     pub fn names(&self) -> Vec<&'static str> {
+-        self.features.iter().copied().filter(|name| self.heartbeat || *name != HEARTBEAT).collect()
++        self.features.to_vec()
+     }
+ 
+     /// These settings with no heartbeat: for a link of a relay whose

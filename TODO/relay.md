@@ -9679,7 +9679,7 @@ cargo test -p pod-relay --all-features --test routes_unix
 **Milestone:** M2
 **Priority:** P2
 **Effort:** M
-**Status:** partial
+**Status:** done
 
 ## Problem
 
@@ -9710,4 +9710,8 @@ cargo test -p pod-session --all-features
 
 2026-11-17, item 4: the reader takes podssh's wire, `pingMs` in milliseconds (it first read `every_s` of the issue's text), and `pod_relay::liveness::VECTORS` holds the 12 vectors of podssh's document; `each_vector_of_the_document_gives_its_pace` checks each one. The tests of the node and of the offer moved to `pingMs`.
 
-Open: item 3 (the layer of `pod-session` sends no frame of its own on an idle link while the offer holds; podssh's document: "no text or data frame of its own while its socket is idle". Its rule of a dead link, `DEAD_AFTER` of silence, must change with it, as the Pongs of the WebSocket are then the only sign of a live link). No test of the operator's side runs a whole session.
+Item 3: the far end decides, as one side that leaves `heartbeat.v1` out ends the heartbeat of both. A node's handler hears the pace of each `hello` (`Handler::liveness`), and `Layered` opens each new session with `Settings::quiet()` while an offer holds; a session that is open keeps what it agreed. With no heartbeat, the layer has no `DEAD_AFTER`, and the node's watch of the WebSocket's Pongs at the offered pace finds a dead link. The operator needs no change: its node names no heartbeat. On the forward road, the consumer sets `Settings::quiet()` when `Offer.liveness` holds.
+
+## Done
+
+2026-11-17, b06f11d: `pod_session::Settings.heartbeat` (default `true`), `Settings::quiet()`, `Settings::names()` and `pod_session::HEARTBEAT`; `once::asked`, `deadline::offered` and the resume's `OPEN` take `names()`. `pod_relay::reverse::Handler::liveness` (default: nothing), forwarded by `E2e`; `serve` calls it at each `hello`. Tests: `a_quiet_far_end_ends_the_heartbeat_of_both_sides` (200 s idle, no `PING` either way, the session goes on) and `the_handler_hears_the_pace_taken_at_each_hello`. Plants: `session-quiet-still-names-the-heartbeat` and `relay-node-keeps-the-heartbeat-under-an-offer`, each caught. The tests of `pod-session` and `pod-relay` pass. No test of the operator's side runs a whole session.

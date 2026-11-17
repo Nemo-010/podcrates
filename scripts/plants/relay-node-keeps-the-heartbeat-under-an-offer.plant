@@ -1,0 +1,6 @@
+# A node tells its handler the pace of each hello, so the layer drops its heartbeat (T-845).
+ENTRY=T-845
+GROUP=relay
+EXPECT='the_handler_hears_the_pace_taken_at_each_hello'
+RUN='cargo test -p pod-relay --all-features --test liveness_offer'
+LIMIT=1800
