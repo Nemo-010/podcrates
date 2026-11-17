@@ -1,0 +1,6 @@
+# The probe of a node's upgrade carries the headers of the caller (T-860).
+ENTRY=T-860
+GROUP=piping
+EXPECT='the_probe_carries_the_headers_of_the_caller'
+RUN='cargo test -p pod-piping --all-features --lib probe'
+LIMIT=1800

@@ -1,0 +1,12 @@
+diff --git a/crates/pod-piping/src/probe.rs b/crates/pod-piping/src/probe.rs
+--- a/crates/pod-piping/src/probe.rs
++++ b/crates/pod-piping/src/probe.rs
+@@ -76,7 +76,7 @@ pub async fn upgrade(relay: &Relay, name: &str, way: &Way, trust: &Trust, limit:
+ fn request(host: &str, name: &str, key: &str, agent: &str, extra: &pod_ws::Extra) -> Vec<u8> {
+     let agent = pod_core::text::one_line(agent);
+     let mut out = format!("GET /v1/node/{name} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: {agent}\r\n").into_bytes();
+-    extra.write(&mut out);
++    let _ = extra;
+     out.extend_from_slice(b"Upgrade: websocket\r\nConnection: Upgrade\r\n");
+     out.extend_from_slice(format!("Sec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n").as_bytes());
+     out

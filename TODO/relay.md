@@ -9876,3 +9876,34 @@ cargo test -p pod-relay --all-features --test wire_vectors -- --nocapture
 ## Start condition
 
 T-036 is done.
+
+# T-860: `pod-piping`: the probe of a node's upgrade sends no header of the caller (PodUtils/podssh#306)
+
+**Source:** PodUtils/podssh#306 (COORD-109 of podssh, PodUtils/podssh@T-718); a road that T-847 left out.
+**Category:** defect
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+`pod_piping::probe::upgrade` writes its own request with no header of `Way::extra`. A relay behind a gate such as Cloudflare Access answers it 403, `upgrade_refused` reads that as a refusal on the way, and a node of podssh leaves the pair's road, which carries the headers and would pass.
+
+## Premise
+
+- Read: PodUtils/podssh#306; `crates/pod-piping/src/probe.rs`; `pod_ws::headers` (`Extra::write`, `Extra::masked`).
+
+## Approach
+
+The probe takes `way.extra(&relay.host)` (a bad value is refused by name), writes it after `User-Agent`, and masks the values in the words of a refusal. A test of the request and of the mask; a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-piping --all-features --lib probe
+```
+
+## Done
+
+2026-11-17, fdfcba699: `probe::upgrade` takes `Way::extra` of the relay's host (an error of the headers is `Probe::Unknown` with its words), `request` writes it after `User-Agent`, and the answer's error goes through `Extra::masked`. Test: `the_probe_carries_the_headers_of_the_caller` (the order after `User-Agent`; a refusal that quotes the secret shows none of it). The tests of the library of `pod-piping` pass. Plant `piping-probe-without-headers`, caught. podssh drops its skip of the probe (`process_names`) with the take.

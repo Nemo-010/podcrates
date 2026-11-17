@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**692 entries: 127 open, 22 partial, 7 blocked, 536 done.**
+**693 entries: 127 open, 22 partial, 7 blocked, 537 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 10 | 9 | 0 | 149 | 168 |
-| P2 | 54 | 3 | 4 | 276 | 337 |
+| P2 | 54 | 3 | 4 | 277 | 338 |
 | P3 | 63 | 10 | 3 | 109 | 185 |
-| **All** | 127 | 22 | 7 | 536 | 692 |
+| **All** | 127 | 22 | 7 | 537 | 693 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -739,3 +739,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-857](podvm.md) | P1 | S | M6 | defect | done | `pod-enter`: a copy of a tree refuses the device nodes of the fixups, so a run of root on `rundir` or `tmpfs` never stages (PodUtils/podvm#467) |
 | [T-858](transport.md) | P1 | S | M1 | defect | done | `pod-tls`: `Trust::Default` does not read the CA file of the settings (PodUtils/podnet#608) |
 | [T-859](fleet.md) | P2 | S | M5 | defect | done | `pod-actions-workflow`: the error of an unknown need gives the place of the job, not of the need (PodUtils/podrunner#214) |
+| [T-860](relay.md) | P2 | S | M2 | defect | done | `pod-piping`: the probe of a node's upgrade sends no header of the caller (PodUtils/podssh#306) |
