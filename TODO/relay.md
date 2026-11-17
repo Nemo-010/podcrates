@@ -1481,7 +1481,7 @@ T-020 and T-025 are done.
 
 ## Done
 
-2026-11-17, commits 777162bfd (the import) and 455968aa4 (the adaptation),
+2026-11-17, commits 6f0b31f89 (the import) and c121a2c8e (the adaptation),
 and the commit of this section. podssh wrote the page first
 (PodUtils/podssh#304, podssh T-723): one page, `docs/wire.md` (wire version
 1), holds the layer, the forward road, `/v1/mint`, the reverse dialect, the
