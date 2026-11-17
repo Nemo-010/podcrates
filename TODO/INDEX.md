@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**676 entries: 129 open, 18 partial, 7 blocked, 522 done.**
+**676 entries: 128 open, 18 partial, 7 blocked, 523 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 10 | 9 | 0 | 147 | 166 |
 | P2 | 55 | 3 | 4 | 268 | 330 |
-| P3 | 64 | 6 | 3 | 105 | 178 |
-| **All** | 129 | 18 | 7 | 522 | 676 |
+| P3 | 63 | 6 | 3 | 106 | 178 |
+| **All** | 128 | 18 | 7 | 523 | 676 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -722,4 +722,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-840](transport.md) | P2 | S | M1 | chore | done | `pod-tls`: webpki-roots 1.0.12 and its date (PodUtils/podssh#297) |
 | [T-841](transport.md) | P3 | S | M1 | chore | done | `pod-tls`: rsa 0.10, so that a consumer has one version of rsa (PodUtils/podssh#297) |
 | [T-842](adapters.md) | P3 | S | M3 | defect | open | `pod-cloudflare`: a shutdown of a tunnel on the QUIC leg closes its connection before `shutdown` returns |
-| [T-843](adapters.md) | P3 | S | M0 | chore | open | `static-probe`: its `main.rs` is at the limit of 500 lines |
+| [T-843](adapters.md) | P3 | S | M0 | chore | done | `static-probe`: its `main.rs` is at the limit of 500 lines |

@@ -2039,7 +2039,7 @@ cargo test -p pod-cloudflare --all-features
 **Milestone:** M0
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2059,3 +2059,7 @@ The calls of the probe go to a list in a module of their own, so that `main.rs` 
 cargo build -p static-probe
 python3 -I scripts/check-size.py
 ```
+
+## Done
+
+2026-11-17. The helpers of the crates that are Linux only (`hostprobe`, `supervise`, `guest`, `enter`, `confine`, each with its form for another target) moved to `examples/static-probe/src/host.rs`; `main.rs` keeps the run and the report, 371 lines. `cargo build -p static-probe`, its clippy, `check-probe.py` and `check-size.py` pass; the probe runs and writes 49 lines of crates.
