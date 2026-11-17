@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**681 entries: 125 open, 21 partial, 7 blocked, 528 done.**
+**683 entries: 127 open, 21 partial, 7 blocked, 528 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 10 | 9 | 0 | 147 | 166 |
-| P2 | 55 | 3 | 4 | 272 | 334 |
-| P3 | 60 | 9 | 3 | 107 | 179 |
-| **All** | 125 | 21 | 7 | 528 | 681 |
+| P2 | 56 | 3 | 4 | 272 | 335 |
+| P3 | 61 | 9 | 3 | 107 | 180 |
+| **All** | 127 | 21 | 7 | 528 | 683 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -728,3 +728,5 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-846](podvm.md) | P2 | S | M6 | defect | done | `pod-rootfs`: the source fixup reads the URLs of comment lines, so it probes `help.ubuntu.com` (PodUtils/podvm#463) |
 | [T-847](relay.md) | P2 | M | M2 | feature | done | `pod-ws`, `pod-relay` and `pod-egress`: headers of the caller for a host on each WebSocket road, for Cloudflare Access (PodUtils/podssh#302) |
 | [T-848](relay.md) | P3 | S | M2 | feature | done | `pod-relay`: the headers of the caller on the fetches of `/relays.json` |
+| [T-849](adapters.md) | P2 | S | M3 | chore | open | `pod-cloudflare`: the watches that podnet ran: the pin of cloudflared, the header oracle, the planted loop of Cap'n Proto |
+| [T-850](adapters.md) | P3 | S | M0 | chore | open | `pod-core`: one clean text of a peer: the strip of escape sequences and the words of a TLS failure |

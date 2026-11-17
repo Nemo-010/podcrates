@@ -360,8 +360,9 @@ for its aborted connection at a shutdown (a test failed one run in two).
 204 tests. Findings: T-842 (the QUIC leg at a shutdown), T-843 (the probe's
 `main.rs` at the limit).
 
-- Step 3, the rest: the comments in ASD-STE100; the hook of
-  `tunnel --inspect` on `forward_http`; the watch of the pin of cloudflared.
+- Step 3, the rest: the comments in ASD-STE100. podnet has no
+  `tunnel --inspect`, so no hook is needed. The watches that podnet ran are
+  T-849.
 - Step 6 is done (the README); the adoption map in it: podnet reads its
   `PODNET_RESOLVE` pins into the resolver, hides `Config::secrets` itself,
   adds its counters of decisions to the metrics text, calls the `_with`
@@ -369,8 +370,21 @@ for its aborted connection at a shutdown (a test failed one run in two).
   `--transport relay`, gives its words (`Words`) and the prefix `podnet` of
   its metrics, and passes its own configuration with no check in
   `Host.origin_no_verify` for `noTLSVerify`.
-- Step 7: the patch of the trial of podnet
-  and the trial; then T-030 (podssh's quick tunnels).
+- Step 7 is done locally (10a97fbb8 to 41095d601): five changes of the API for
+  podnet's glue (`Metrics::with_extra` and `TunnelBuilder::metrics`; the
+  stand-in as the feature `standin`; `Metrics` is a `pod_ws::Tally`;
+  `standin::quic::local_pair`; a reset in the TLS handshake in the words of
+  `fail::tls_text`), `scripts/adoption.sh` points each manifest of the
+  consumer to the tree, and the trial `adoption/podnet/pod-cloudflare.*`
+  (podnet `7fe60e0`, 24 steps) passes: 967 tests, 1 ignored. Its run moves
+  podnet's lock to webpki-roots 1.0.12 first. The `adoption` workflow of
+  `main` must pass it; then the hand-off of the first tag with the crate
+  (podnet moves each podcrates tag to it). Findings: T-849, T-850; to
+  podnet at that hand-off: each error line uses `chain_text` (a failure of
+  the crate holds the words of its causes); the classes Protocol, Policy
+  and Unsupported (76, 79, 80) are not in its manual of exit codes; two
+  comments of its `live.yml` name tests that moved. Then T-030 (podssh's
+  quick tunnels).
 - To podnet at the hand-off: its `src/proxy.rs` has a stray doc comment
   over `a_built_in_body_of_no_known_size_is_streamed` and a dangling comment
   at its end; and its `http2::connect` and `TlsH2Stream` dialled the edge
@@ -2063,3 +2077,60 @@ python3 -I scripts/check-size.py
 ## Done
 
 2026-11-17. The helpers of the crates that are Linux only (`hostprobe`, `supervise`, `guest`, `enter`, `confine`, each with its form for another target) moved to `examples/static-probe/src/host.rs`; `main.rs` keeps the run and the report, 371 lines. `cargo build -p static-probe`, its clippy, `check-probe.py` and `check-size.py` pass; the probe runs and writes 49 lines of crates.
+
+# T-849: `pod-cloudflare`: the watches that podnet ran: the pin of cloudflared, the header oracle, the planted loop of Cap'n Proto
+
+**Source:** T-029, the adoption trial of podnet (finding 1 and 2).
+**Category:** chore
+**Milestone:** M3
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The trial patch removes podnet's `upstream.yml` and `tools/check-upstream.py`, whose inputs moved to the crate, and podnet's fuzz step that plants a loop of Cap'n Proto pointers. podcrates has no workflow that checks the pin of cloudflared against its releases, none that runs `crates/pod-cloudflare/tools/check-header-oracle.sh`, and its fuzz run has no planted loop of Cap'n Proto.
+
+## Premise
+
+- Read: `PodUtils/podnet:tools/check-upstream.py`, `PodUtils/podnet:.github/workflows/upstream.yml`; `crates/pod-cloudflare/tools/`; `.github/workflows/fuzz.yml` and `scripts/fuzz.sh`; `fuzz/fuzz_targets/capnp_message.rs`.
+
+## Approach
+
+1. Move `check-upstream.py` into `crates/pod-cloudflare/tools` with the paths of the crate; a weekly workflow runs it with a planted sum, and runs the header oracle.
+2. The fuzz run of podcrates takes the planted loop of Cap'n Proto pointers, as podnet's did, and must fail with it.
+3. Each check is listed in the scripts row of `docs/design.md`.
+
+## Prove
+
+```sh
+python3 -I crates/pod-cloudflare/tools/check-upstream.py --self-test
+sh crates/pod-cloudflare/tools/check-header-oracle.sh
+```
+
+# T-850: `pod-core`: one clean text of a peer: the strip of escape sequences and the words of a TLS failure
+
+**Source:** T-029, the adoption trial of podnet (finding 5).
+**Category:** chore
+**Milestone:** M0
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`pod_cloudflare::text::clean`, podnet's `report::clean` and `pod_core::text::multi_line` are three rules of a clean text of a peer, where `pod-core` says that there is one. Copies of `path_and_query` and `tls_text` stay in `podnet-core`, as podnet uses them out of the tunnel.
+
+## Premise
+
+- Read: `crates/pod-core/src/text.rs`; `crates/pod-cloudflare/src/text.rs` (or its `clean`); `crates/pod-cloudflare/src/fail.rs` (`tls_text`); the adoption patch `adoption/podnet/pod-cloudflare.patch`.
+
+## Approach
+
+The strip of escape sequences and `tls_text` go into `pod_core::text`; `pod-cloudflare` calls them, and makes `path_and_query` public, so that podnet removes its copies. A test of each rule against the cases of the three copies.
+
+## Prove
+
+```sh
+cargo test -p pod-core -p pod-cloudflare --all-features
+```
