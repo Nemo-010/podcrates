@@ -9370,7 +9370,7 @@ cargo test -p pod-link --all-features fec
 **Milestone:** M2
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -9389,6 +9389,13 @@ The ladder with sealed probes, the clamp of the MSS of a SYN, then the class of 
 ```sh
 cargo test -p pod-netstack --all-features
 ```
+
+## Correction
+
+2026-11-17, part 1 (the clamp of the MSS, TR-3): `crates/pod-netstack/src/mss.rs`, `mss::clamp_mss(packet, mtu)`. A SYN or a SYN-ACK of IPv4 or IPv6 (no fragment; no extension header of IPv6) whose MSS option is over `mtu - 40` (IPv4) or `mtu - 60` (IPv6) gets that value in place, and its TCP checksum is updated by the incremental form of RFC 1624 over each 16-bit word that the value touches: the value can start at an odd offset after other options, and an update of one aligned word gave a wrong checksum there (the first test run found it). Each other packet stays as it is. Tests: 5 in `src/mss_tests.rs`, each against a checksum computed in full over the pseudo-header (IPv4 SYN, IPv6 SYN-ACK, the option after a timestamp and a window scale at an odd offset, nine packets that stay, the incremental form against a full sum). The plant `netstack-mss-checksum-word-aligned` is caught.
+
+Open: the call of the clamp on the path of the stack and of a TUN (where a SYN goes out); the ladder of the path MTU with sealed probes in `pod-link` (TR-3); the class of a flow (TR-4).
+
 
 # T-820: The datapath: GSO with a fate rule, rings for each worker, a pool of source ports, the offload of TUN, a table of MAC addresses in O(1) (DP-1 to DP-5 of the ingest study)
 
