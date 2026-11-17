@@ -5,23 +5,11 @@
 ## State
 
 - `docs/HANDOFF.md` has what is in flight and what waits.
-- Last release: `v0.64.0` at `6a965ef` (`docs/releases/v0.64.0.md`; ci
-  43947532211 (its third attempt: GitHub had no macOS arm64 runner for the
-  first two), plants 43947532424, adoption 43925110051 and tor 43925110011
-  at `c5fa726`, the release dry run 43957002027, the release 43957490821,
-  the run on the tag 43957966587): T-767 (partial), T-792, T-747, T-755,
-  T-793 to T-796, T-774 to T-778, T-800, T-804, T-038 (`pod-tor`), T-037
-  (`pod-iroh`). The hand-off is COORD-124 (#214).
-- In release: `v0.65.0` (`docs/releases/v0.65.0.md`): T-808 (a `socks5://` proxy of `pod-iroh`),
-  T-806 (the PID namespace of the namespace rung, `Plan::pid_namespace`,
-  PodUtils/podvm#457; the banner of podvm names it), T-805
-  (`Settings::lost_hold` of a node of `pod-relay`, PodUtils/podnet#604;
-  podssh keeps its wait with `lost_hold: rejoin`), T-801 (a link of the
-  layer on the HTTP road, PodUtils/podssh#287; podssh's role serves
-  `OPEN_LAYER` and `ONE_LAYER`), T-797 (the built-in roots in the
-  certificate file of a way out, and the refusal of an `SSL_CERT_FILE`
-  that does not read, PodUtils/podvm#455), T-807 (the four forms of
-  `pod-manual` for podssh's manual, PodUtils/podssh#288).
+- Last release: `v0.65.0` at `4122f39` (`docs/releases/v0.65.0.md`; ci
+  43977037117 at `4122f39`, adoption 43976753148 and plants 43976753201 at
+  `f2a73ff`, the release dry run 43983471493, the release 43984191834):
+  T-806, T-805, T-801, T-797, T-807, T-808, T-810. The hand-off is
+  COORD-125 (#215). `v0.64.0` (`6a965ef`) has the hand-off COORD-124 (#214).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.63.0` (`5340fbb`, PodUtils/podssh#286, with the installer
@@ -39,9 +27,10 @@
     come from `pod-manual` with no workaround of T-725; it runs the one
     watcher and the sync of the issues; its installer on
     `scripts/install/core.sh` is PodUtils/podnet@T-360.
-  - podvm: `v0.63.0` (PodUtils/podvm#453; a foreground `run` and `run -d`
-    fill `Plan::userns_ids`: `USER runner` gives `1001 0 1` in the
-    foreground; its installer core is still of `v0.58.0`, PodUtils/podvm@T-1925).
+  - podvm: `v0.64.0` (`ceac501`, PodUtils/podvm#459: the way out with no
+    `SSL_CERT_FILE` of its own, no SIGPIPE handler, the overlay root with
+    `userxattr`; its installer core is still of `v0.58.0`,
+    PodUtils/podvm@T-1925).
   - podrunner: `v0.52.0` (`45bd964`, PodUtils/podrunner#169).
 - Takes that wait: podvm's check of T-208 against `lambda-al2023`, and
   its module set of T-206 with PodUtils/podvm@T-1662 (after `pod-netlab`,

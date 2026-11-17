@@ -16,7 +16,7 @@ is done. Git and the record keep finished work.
    A macOS arm64 job of `ci.yml` can wait with no runner and be cancelled
    ("not acquired by Runner"): run the failed jobs again; it is no defect.
 2. Record each take of `v0.64.0` on COORD-124 (#214) and of `v0.65.0`
-   on COORD-125: amend the body, and close it when each consumer took its
+   on COORD-125 (#215): amend the body, and close it when each consumer took its
    part. `v0.65.0` holds T-806, T-805, T-801, T-797, T-807, T-808 and the
    trial of `pod-iroh` (T-810).
 3. Read the scheduled nightly: T-789 (armv7) and T-766 (riscv64) are the
