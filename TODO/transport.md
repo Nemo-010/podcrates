@@ -7543,3 +7543,62 @@ cargo test -p pod-services --all-features --test forward
 ## Done
 
 2026-11-17. The fact `remote-port` = 80 in `crates/pod-services/services/localhost-run.toml`, with its source (the CLI document, read again today: `ssh -R 80:localhost:8080 localhost.run`). `the_remote_port_is_the_relay_s_fact` of `tests/forward.rs` holds it. The plant `services-localhost-run-port-zero` (the fact renamed) is caught. podnet takes it with `v0.67.0`; no code change in podnet.
+
+# T-840: `pod-tls`: webpki-roots 1.0.12 and its date (PodUtils/podssh#297)
+
+**Source:** PodUtils/podssh#297 (COORD-101 of podssh, PodUtils/podssh@T-802; Dependabot's PodUtils/podssh#292).
+**Category:** chore
+**Milestone:** M1
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+`pod_tls::trust::ROOTS_VERSION` is `1.0.11` and `ROOTS_PUBLISHED` `2026-10-23`. podssh's test holds its lock to that constant, so podssh cannot take webpki-roots 1.0.12 until a tag of `pod-tls` names it.
+
+## Premise
+
+- Read: PodUtils/podssh#297; `crates/pod-tls/src/trust.rs`; `crates/pod-tls/tests/roots_version.rs` (the lock and the constant agree); crates.io: webpki-roots 1.0.12 published 2026-11-10.
+
+## Approach
+
+The lock of the workspace and of `fuzz/` on 1.0.12, and the two constants.
+
+## Prove
+
+```sh
+cargo test -p pod-tls --all-features --test roots_version
+```
+
+## Done
+
+2026-11-17. `Cargo.lock` and `fuzz/Cargo.lock` take webpki-roots 1.0.12; `ROOTS_VERSION` is `1.0.12` and `ROOTS_PUBLISHED` `2026-11-10` (the date of crates.io). The tests `roots` and `roots_version` of `pod-tls` pass. The next tag carries it; podssh then takes 1.0.12 with no hold.
+
+# T-841: `pod-tls`: rsa 0.10, so that a consumer has one version of rsa (PodUtils/podssh#297)
+
+**Source:** PodUtils/podssh#297 (COORD-101 of podssh, item 2).
+**Category:** chore
+**Milestone:** M1
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`pod-tls` (feature `rsa`) takes `rsa` 0.9.10. russh 0.65.2 and ssh-key take rsa 0.10, so podssh's tree holds two versions of rsa.
+
+## Premise
+
+- Read: PodUtils/podssh#297; `Cargo.toml` (`rsa` 0.9 and `sha2-rsa`, sha2 0.10, of the workspace); the users of `rsa` in `crates/pod-tls/src`.
+- Not read: the changes of rsa 0.10 (its new `signature` and `digest` versions, so sha2 0.11 with it).
+
+## Approach
+
+Move the workspace to rsa 0.10 with the sha2 that it takes; adapt the signing and the verification of the feature `rsa` of `pod-tls`; the tests of the feature and `cargo deny` pass; podssh's tree has one rsa (the adoption trial of podssh).
+
+## Prove
+
+```sh
+cargo test -p pod-tls --all-features
+```
