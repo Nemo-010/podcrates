@@ -71,13 +71,15 @@ if [ -f "$dir/$crate.needs" ]; then
 fi
 git apply "$dir/$crate.patch"
 # Each `pod-X = { git = "https://github.com/PodUtils/podcrates", ... }` of
-# the patch becomes a path into this tree, and a `version` beside it the
-# version of this tree: the patch names the version of its tag, which the
-# tree has only from the commit of the release on. Each other `NAME = { git
-# = ... }` of podcrates is a `[patch]` of a fork of this tree's vendor/
-# (iroh-relay), which becomes the path of vendor/NAME.
+# each manifest of the checkout becomes a path into this tree, and a
+# `version` beside it the version of this tree: the patch names the version
+# of its tag, which the tree has only from the commit of the release on. A
+# manifest that the patch does not change is rewritten too: a crate of the
+# tag beside the same crate of the tree is a second copy of its types. Each
+# other `NAME = { git = ... }` of podcrates is a `[patch]` of a fork of this
+# tree's vendor/ (iroh-relay), which becomes the path of vendor/NAME.
 version=$(sed -n 's/^version = "\(.*\)"/\1/p' "$src/Cargo.toml" | head -n 1)
-for manifest in $(git ls-files -m -o --exclude-standard | grep 'Cargo.toml$' || true) $(git diff --name-only | grep 'Cargo.toml$' || true); do
+for manifest in $(git ls-files -c -o --exclude-standard | grep 'Cargo.toml$' | sort -u || true); do
     [ -f "$manifest" ] || continue
     sed -i -E "s|^(pod-[a-z0-9-]+) = \\{ git = \"https://github.com/PodUtils/podcrates\", tag = \"v[0-9.]+\"|\\1 = { path = \"$src/crates/\\1\"|" "$manifest"
     sed -i -E "s|^([a-z0-9-]+) = \\{ git = \"https://github.com/PodUtils/podcrates\", tag = \"v[0-9.]+\"|\\1 = { path = \"$src/vendor/\\1\"|" "$manifest"
