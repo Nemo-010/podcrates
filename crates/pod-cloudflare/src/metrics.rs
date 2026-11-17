@@ -20,7 +20,12 @@ struct Inner {
     reconnects: AtomicU64,
     connections: AtomicU64,
     errors: AtomicU64,
+    /// More Prometheus text of the consumer, after the counters.
+    extra: std::sync::OnceLock<Extra>,
 }
+
+/// A source of more Prometheus text (the counters of the consumer).
+pub type Extra = Arc<dyn Fn() -> String + Send + Sync>;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MetricsSnapshot {
@@ -45,6 +50,14 @@ impl Metrics {
     pub fn with_prefix(name: &str) -> Self {
         let prefix = name.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect();
         Self { inner: Arc::new(Inner { prefix, ..Inner::default() }) }
+    }
+
+    /// Add the text of `extra` after the counters in [`Metrics::prometheus`].
+    /// The consumer adds its own counters so. The first source stays: a
+    /// second call does not replace it.
+    pub fn with_extra(self, extra: Extra) -> Self {
+        let _ = self.inner.extra.set(extra);
+        self
     }
 
     pub fn stream_started(&self) {
@@ -108,6 +121,9 @@ impl Metrics {
                 "# HELP {prefix}_{name} {help}\n# TYPE {prefix}_{name} {kind}\n{prefix}_{name} {value}\n"
             ));
         }
+        if let Some(extra) = self.inner.extra.get() {
+            out.push_str(&extra());
+        }
         out
     }
 }
@@ -137,5 +153,16 @@ mod tests {
         let text = metrics.prometheus();
         assert!(text.contains("podnet_streams_total 1"));
         assert!(text.contains("podnet_bytes_out_total 20"));
+    }
+
+    #[test]
+    fn adds_the_text_of_the_consumer() {
+        let metrics = Metrics::with_prefix("podnet").with_extra(Arc::new(|| "podnet_decisions_total 3\n".to_string()));
+        let shared = metrics.clone().with_extra(Arc::new(|| "second\n".to_string()));
+        shared.stream_started();
+        let text = metrics.prometheus();
+        assert!(text.contains("podnet_streams_total 1"));
+        assert!(text.ends_with("podnet_decisions_total 3\n"), "{text}");
+        assert!(!text.contains("second"));
     }
 }

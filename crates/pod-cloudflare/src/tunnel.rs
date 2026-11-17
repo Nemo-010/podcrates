@@ -42,19 +42,28 @@ use warp_targets::{EndpointSource, WarpLink, warp_targets};
 pub struct TunnelBuilder {
     config: Config,
     host: Arc<Host>,
+    metrics: Option<Metrics>,
 }
 
 impl TunnelBuilder {
     pub fn quick(host: Arc<Host>) -> Self {
-        Self { config: Config::default(), host }
+        Self { config: Config::default(), host, metrics: None }
     }
 
     pub fn token(host: Arc<Host>, token: impl Into<String>) -> Result<Self> {
-        Ok(Self { config: Config { credentials: parse_token(&token.into())?, ..Config::default() }, host })
+        Ok(Self {
+            config: Config { credentials: parse_token(&token.into())?, ..Config::default() },
+            host,
+            metrics: None,
+        })
     }
 
     pub fn credentials_file(host: Arc<Host>, path: impl Into<std::path::PathBuf>) -> Result<Self> {
-        Ok(Self { config: Config { credentials: parse_credentials_file(&path.into())?, ..Config::default() }, host })
+        Ok(Self {
+            config: Config { credentials: parse_credentials_file(&path.into())?, ..Config::default() },
+            host,
+            metrics: None,
+        })
     }
 
     pub fn credentials(mut self, credentials: Credentials) -> Self {
@@ -114,11 +123,20 @@ impl TunnelBuilder {
         self
     }
 
+    /// The counters of the tunnel. The consumer gives them when its own
+    /// services count into the same counters, or when it adds its own text
+    /// ([`Metrics::with_extra`]). With none, the tunnel makes counters with
+    /// the name of the consumer.
+    pub fn metrics(mut self, metrics: Metrics) -> Self {
+        self.metrics = Some(metrics);
+        self
+    }
+
     pub fn build(self) -> Result<Tunnel> {
         if self.config.ingress.is_empty() {
             return Err(crate::fail::new(Stage::Host, Class::Config, NO_INGRESS));
         }
-        Ok(Tunnel { config: self.config, host: self.host })
+        Ok(Tunnel { config: self.config, host: self.host, metrics: self.metrics })
     }
 }
 
@@ -129,6 +147,7 @@ pub const NO_INGRESS: &str =
 pub struct Tunnel {
     config: Config,
     host: Arc<Host>,
+    metrics: Option<Metrics>,
 }
 
 impl Tunnel {
@@ -163,7 +182,7 @@ impl Tunnel {
 
         // Build the services before the quick tunnel is provisioned: a bad
         // --dir, a --spa with no index.html or a missing --file stops here.
-        let metrics = Metrics::with_prefix(&host.settings.words.name);
+        let metrics = self.metrics.unwrap_or_else(|| Metrics::with_prefix(&host.settings.words.name));
         let runtime = Arc::new(Runtime::build(host.clone(), &ingress, metrics.clone())?);
         let forward_path = crate::ws::forward_path_with(&ingress, &host.settings.forward_path);
 

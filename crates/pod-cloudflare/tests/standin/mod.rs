@@ -134,7 +134,18 @@ impl Standin {
     /// Start a tunnel of `host` with `config`, on the runtime of the
     /// stand-in.
     pub fn run(&self, host: Host, config: Config) -> Result<TunnelHandle, pod_core::Failure> {
-        let builder = TunnelBuilder::quick(Arc::new(host)).config(config);
+        self.run_with(host, config, |builder| builder)
+    }
+
+    /// Start a tunnel as [`Standin::run`] does, with more settings of the
+    /// builder from `more`.
+    pub fn run_with(
+        &self,
+        host: Host,
+        config: Config,
+        more: impl FnOnce(TunnelBuilder) -> TunnelBuilder,
+    ) -> Result<TunnelHandle, pod_core::Failure> {
+        let builder = more(TunnelBuilder::quick(Arc::new(host)).config(config));
         self.block_on(async move { builder.build()?.start().await })
     }
 

@@ -270,3 +270,27 @@ fn quick_tunnel_standin_goes_through_an_exec_proxy() {
     assert!(seen.contains(&standin.edge_addr.to_string()), "{seen:?}");
     standin.block_on(handle.shutdown());
 }
+
+/// The consumer gives its own counters with its own text. The metrics
+/// service and the handle use them.
+#[test]
+fn quick_tunnel_standin_serves_the_metrics_of_the_consumer() {
+    pod_testkit::need_loopback!();
+    let standin = Standin::start();
+    let (host, _) = standin.host(true, None);
+    let extra: pod_cloudflare::metrics::Extra = std::sync::Arc::new(|| "consumer_decisions_total 7\n".to_string());
+    let metrics = pod_cloudflare::metrics::Metrics::with_prefix("consumer").with_extra(extra);
+    let given = metrics.clone();
+    let handle = standin
+        .run_with(host, standin.config(Service::Metrics), move |builder| builder.metrics(given))
+        .expect("the tunnel starts");
+    let name = hostname_of(handle.url());
+    assert!(standin.block_on(standin.edge.wait_registered(&name, Duration::from_secs(20))));
+    let (status, _, body) = standin.visit(&name, "/metrics", &[]);
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains("consumer_streams_total 1"), "{body}");
+    assert!(body.contains("consumer_decisions_total 7"), "{body}");
+    assert!(metrics.snapshot().connections >= 1);
+    assert_eq!(handle.metrics().snapshot().streams_total, metrics.snapshot().streams_total);
+    standin.block_on(handle.shutdown());
+}
