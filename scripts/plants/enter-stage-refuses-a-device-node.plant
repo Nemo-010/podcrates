@@ -1,6 +1,6 @@
 # A copy of a tree takes each device node of the fixups, not a refusal (T-857).
 ENTRY=T-857
 GROUP=enter
-EXPECT='a_device_node_is_made_again_where_mknod_passes'
+EXPECT='a_device_entry_goes_to_the_maker_with_its_mode_and_number'
 RUN='cargo test -p pod-enter --all-features --lib stage'
 LIMIT=1800

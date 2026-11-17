@@ -9645,6 +9645,10 @@ A character or block device of the source is made again with `mknod(2)`, with th
 cargo test -p pod-enter --all-features --lib stage
 ```
 
+## Correction
+
+2026-11-17, c324e5309: the plant run 44080440312 missed the plant: CI runs as a user with no root, so both tests of the copy skip at the fixture's `mknod(2)`. The step of one entry is `copy_entry` now, and `a_device_entry_goes_to_the_maker_with_its_mode_and_number` runs it on `/dev/null` (each user can read it) with a maker that records its call, and with one that fails: no root is needed. The plant expects that test; it is caught as root and as uid 65534.
+
 ## Done
 
 2026-11-17, 6e2d50166: `copy_tree` returns `Staged { entries, nodes_skipped }` (was the count alone). A character or block device is made again by `mknodat(2)` with its mode and `rdev`; where that fails it is skipped and counted, and the copy goes on. A fifo or a socket is refused, with the words "not a file, directory, symlink or device node". Tests: `a_device_node_is_made_again_where_mknod_passes` (a real `dev/null` 1:3; its mode and number in the staged tree) and `a_device_node_is_skipped_and_counted_where_mknod_fails` (a maker that fails); each skips with a line on a host where the fixture `mknod(2)` fails; both ran here as root. 237 tests of the library of `pod-enter` pass. Plant `enter-stage-refuses-a-device-node`, caught.

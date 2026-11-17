@@ -1,12 +1,12 @@
 diff --git a/crates/pod-enter/src/stage.rs b/crates/pod-enter/src/stage.rs
 --- a/crates/pod-enter/src/stage.rs
 +++ b/crates/pod-enter/src/stage.rs
-@@ -124,7 +124,7 @@ fn copy_with(src: &Path, dst: &Path, make: &dyn Fn(&Path, u32, u64) -> bool) ->
-                     why: format!("the link could not be recreated: {e}"),
-                 })?;
-                 staged.entries += 1;
--            } else if kind.is_char_device() || kind.is_block_device() {
-+            } else if false && (kind.is_char_device() || kind.is_block_device()) {
-                 let meta = std::fs::symlink_metadata(&spath).map_err(|e| Refusal {
-                     path: spath.clone(),
-                     why: format!("the device node could not be read: {e}"),
+@@ -134,7 +134,7 @@ fn copy_entry(
+             why: format!("the link target could not be read: {e}"),
+         })?;
+         std::os::unix::fs::symlink(&target, dpath).map_err(|e| refused("the link could not be recreated", e))?;
+-    } else if kind.is_char_device() || kind.is_block_device() {
++    } else if false && (kind.is_char_device() || kind.is_block_device()) {
+         let meta = std::fs::symlink_metadata(spath).map_err(|e| Refusal {
+             path: spath.to_path_buf(),
+             why: format!("the device node could not be read: {e}"),
