@@ -5,12 +5,14 @@ fn the_next_step_follows_the_flags_of_the_edge() {
     use crate::cloudflare::rpc::Refused;
     let policy = ReconnectPolicy::default();
     let refused = |should_retry, secs| {
-        anyhow::Error::new(Refused {
-            cause: "Unauthorized: tunnel not found".into(),
-            should_retry,
-            retry_after: Duration::from_secs(secs),
-        })
-        .context("registering")
+        crate::fail::wrap(
+            Failure::from(Refused {
+                cause: "Unauthorized: tunnel not found".into(),
+                should_retry,
+                retry_after: Duration::from_secs(secs),
+            }),
+            "registering",
+        )
     };
     let text = format!("{:#}", refused(false, 0));
     assert!(text.contains("podnet speaks cloudflared 2026.10.7"), "{text}");
@@ -21,7 +23,7 @@ fn the_next_step_follows_the_flags_of_the_edge() {
     assert_eq!(policy.next(1, &refused(true, 5)), Next::Retry(Duration::from_secs(5)));
     assert_eq!(policy.next(1, &refused(true, 9999)), Next::Retry(MAX_RETRY_AFTER));
     // A network error is retried with no limit, with 0-25 % jitter.
-    let net = anyhow::anyhow!("connection refused");
+    let net = crate::fail::new(pod_core::Stage::Connect, pod_core::Class::Unavailable, "connection refused");
     for attempt in [1, 5, 1000, u32::MAX - 1] {
         let Next::Retry(d) = policy.next(attempt, &net) else {
             panic!("attempt {attempt} stopped");

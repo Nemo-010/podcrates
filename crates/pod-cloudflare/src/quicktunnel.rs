@@ -21,9 +21,12 @@
 //!
 //! It does not open the tunnel edge connection. See [`crate::tunnel`].
 
+mod error;
+pub use error::*;
+
 use std::sync::Arc;
 
-use pod_core::{Dial, Stage};
+use pod_core::{Class, Dial, Failure, Stage};
 use serde::{Deserialize, Serialize};
 
 use crate::Host;
@@ -58,9 +61,11 @@ impl QuickTunnel {
     ///
     /// This is the value cloudflared puts on the wire as `TunnelAuth.tunnelSecret`
     /// without any hashing step, so a reimplementation must not transform it.
-    pub fn secret_bytes(&self) -> Result<Vec<u8>, String> {
-        decode_base64(&self.secret)
-            .ok_or_else(|| format!("tunnel secret is not valid base64 ({} bytes of text)", self.secret.len()))
+    pub fn secret_bytes(&self) -> Result<Vec<u8>, Failure> {
+        decode_base64(&self.secret).ok_or_else(|| {
+            let text = format!("tunnel secret is not valid base64 ({} bytes of text)", self.secret.len());
+            Failure::new(Stage::EdgeRegister, Class::Protocol, text)
+        })
     }
 }
 
@@ -106,107 +111,24 @@ impl AuthMode {
     }
 }
 
-/// A validation failure detected before any network call is made.
-#[derive(Debug)]
-pub enum ProvisionError {
-    /// The provisioning endpoint was not a valid absolute URL.
-    BadEndpoint(String),
-    /// The HTTP request itself failed.
-    Http(anyhow::Error),
-    /// A non-2xx HTTP status.
-    Status {
-        code: u16,
-        body: String,
-        /// The `Retry-After` of the answer.
-        retry_after: Option<std::time::Duration>,
-    },
-    /// A 2xx response that is not valid JSON, or not a `QuickTunnelResponse`.
-    Decode(String),
-    /// The service returned `"success": false`.
-    Service(Vec<QuickTunnelError>),
-    /// `success: true` but no `result` object.
-    MissingResult,
-}
-
-impl std::fmt::Display for ProvisionError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ProvisionError::BadEndpoint(e) => write!(f, "invalid quick-service endpoint: {e}"),
-            ProvisionError::Http(_) => write!(f, "request to the quick-tunnel service failed"),
-            ProvisionError::Status { code, body, retry_after } => {
-                write!(f, "quick-tunnel service returned HTTP {code}")?;
-                if let Some(wait) = retry_after {
-                    write!(f, " (Retry-After: {} s)", wait.as_secs())?;
-                }
-                if !body.is_empty() {
-                    write!(f, ": {body}")?;
-                }
-                if *code == 405 {
-                    write!(f, "; a proxy that answers 405 refuses the request form: use a CONNECT proxy")?;
-                }
-                Ok(())
-            }
-            ProvisionError::Decode(e) => {
-                write!(f, "could not decode the quick-tunnel response: {e}")
-            }
-            ProvisionError::Service(errs) => {
-                let joined: Vec<String> = errs.iter().map(|e| format!("{}: {}", e.code, e.message)).collect();
-                write!(f, "quick-tunnel service reported failure: {}", joined.join("; "))
-            }
-            ProvisionError::MissingResult => {
-                write!(f, "quick-tunnel service returned success with no result object")
-            }
-        }
-    }
-}
-
-/// The refusal of a provision, as the fields that a supervisor needs, not
-/// as text.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Refusal {
-    /// The HTTP status.
-    pub status: u16,
-    /// The Cloudflare error code of the body (`error code: 1015`).
-    pub code: Option<u32>,
-    /// The `Retry-After` of the answer, in seconds.
-    pub retry_after_s: Option<u64>,
-    /// True for 429 and 5xx: a later try can work.
-    pub retryable: bool,
-}
-
-/// The [`Refusal`] in the chain of `err`, when there is one.
-pub fn retry_of(err: &anyhow::Error) -> Option<Refusal> {
-    err.chain().find_map(|e| match e.downcast_ref::<ProvisionError>()? {
-        ProvisionError::Status { code, body, retry_after } => Some(Refusal {
-            status: *code,
-            code: body
-                .to_ascii_lowercase()
-                .split("error code:")
-                .nth(1)
-                .and_then(|r| r.trim().split(|c: char| !c.is_ascii_digit()).next())
-                .and_then(|n| n.parse().ok()),
-            retry_after_s: retry_after.map(|d| d.as_secs()),
-            retryable: *code == 429 || (500..600).contains(code),
-        }),
-        _ => None,
-    })
-}
-
-impl std::error::Error for ProvisionError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            ProvisionError::Http(e) => Some(e.as_ref()),
-            _ => None,
-        }
-    }
-}
-
 /// Provision a quick tunnel: `POST <endpoint>/tunnel`, with the client of
 /// `host`.
 ///
 /// `via` is a way out for this request only. With `None`, the request
 /// takes the way out of `host`.
 pub async fn request_quick_tunnel(
+    host: &Host,
+    endpoint: &str,
+    auth_mode: AuthMode,
+    user_agent: &str,
+    timeout: std::time::Duration,
+    via: Option<Arc<dyn Dial>>,
+) -> Result<QuickTunnel, Failure> {
+    request_once(host, endpoint, auth_mode, user_agent, timeout, via).await.map_err(Failure::from)
+}
+
+/// One provision request; [`ProvisionError`] says what a retry can do.
+async fn request_once(
     host: &Host,
     endpoint: &str,
     auth_mode: AuthMode,
@@ -252,7 +174,7 @@ pub async fn provision(
     user_agent: &str,
     timeout: std::time::Duration,
     budget: std::time::Duration,
-) -> Result<QuickTunnel, ProvisionError> {
+) -> Result<QuickTunnel, Failure> {
     let start = std::time::Instant::now();
     let policy = crate::config::ReconnectPolicy {
         initial: std::time::Duration::from_secs(2),
@@ -263,7 +185,7 @@ pub async fn provision(
     let mut dns = retry::Dns::default();
     loop {
         attempt += 1;
-        let err = match request_quick_tunnel(host, endpoint, auth_mode, user_agent, timeout, None).await {
+        let err = match request_once(host, endpoint, auth_mode, user_agent, timeout, None).await {
             Ok(tunnel) => return Ok(tunnel),
             Err(err) => err,
         };
@@ -276,18 +198,18 @@ pub async fn provision(
             ProvisionError::Http(inner)
                 if matches!(crate::fail::stage_of(inner), Some(Stage::Proxy | Stage::Tls | Stage::Network)) =>
             {
-                return Err(err);
+                return Err(err.into());
             }
             // A name that does not resolve: one retry, then only when the
             // answering step changed (T-170).
             ProvisionError::Http(inner) if retry::is_dns(inner) => {
                 if !dns.again(host, endpoint).await {
-                    return Err(err);
+                    return Err(err.into());
                 }
                 policy.backoff_with_jitter(attempt)
             }
             ProvisionError::Http(_) => policy.backoff_with_jitter(attempt),
-            _ => return Err(err),
+            _ => return Err(err.into()),
         };
         let left = budget.saturating_sub(start.elapsed());
         if attempt >= PROVISION_ATTEMPTS || wait > left {
@@ -298,7 +220,7 @@ pub async fn provision(
                     left.as_secs()
                 );
             }
-            return Err(err);
+            return Err(err.into());
         }
         tracing::warn!(attempt, retry_in = ?wait, "provisioning failed: {err}; trying again");
         tokio::time::sleep(wait).await;
@@ -308,7 +230,8 @@ pub async fn provision(
 /// The public host of a quick-tunnel URL, validated against the
 /// `*.trycloudflare.com` allowlist so a hostile API response cannot point the
 /// tool at another host.
-pub fn validate_quick_hostname(raw: &str) -> anyhow::Result<String> {
+pub fn validate_quick_hostname(raw: &str) -> Result<String, Failure> {
+    let refuse = |text: String| Failure::new(Stage::EdgeRegister, Class::Protocol, text);
     let host = raw
         .trim()
         .trim_end_matches('/')
@@ -317,11 +240,11 @@ pub fn validate_quick_hostname(raw: &str) -> anyhow::Result<String> {
         .to_ascii_lowercase();
     let bad = host.is_empty() || host.contains(['/', '\\', '@', '?', '#', ':', '[', ']', ' ']);
     if bad {
-        anyhow::bail!("quick tunnel returned a malformed hostname: {raw:?}");
+        return Err(refuse(format!("quick tunnel returned a malformed hostname: {raw:?}")));
     }
     let zone = crate::services::text(crate::services::QUICK, "tunnel-zone");
     let Some(sub) = host.strip_suffix(&format!(".{zone}")) else {
-        anyhow::bail!("quick tunnel hostname is not under {zone}: {host}");
+        return Err(refuse(format!("quick tunnel hostname is not under {zone}: {host}")));
     };
     if sub.is_empty()
         || sub.contains('.')
@@ -330,7 +253,7 @@ pub fn validate_quick_hostname(raw: &str) -> anyhow::Result<String> {
         || sub.len() > 63
         || !sub.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
     {
-        anyhow::bail!("quick tunnel hostname label is invalid: {host}");
+        return Err(refuse(format!("quick tunnel hostname label is invalid: {host}")));
     }
     Ok(format!("https://{host}"))
 }
@@ -339,7 +262,7 @@ pub fn validate_quick_hostname(raw: &str) -> anyhow::Result<String> {
 ///
 /// Split out from [`request_quick_tunnel`] so it can be tested against captured
 /// real responses without a live service.
-pub fn parse_quick_tunnel_response(status: u16, body: &str) -> Result<QuickTunnel, ProvisionError> {
+pub(crate) fn parse_quick_tunnel_response(status: u16, body: &str) -> Result<QuickTunnel, ProvisionError> {
     if !(200..300).contains(&status) {
         // The body of an error, for a terminal: 1 KiB at most, with no
         // control characters.

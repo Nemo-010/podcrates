@@ -14,7 +14,8 @@
 
 mod reader;
 
-use anyhow::{Context, Result, bail};
+use crate::fail::{IoFail, OrFail, Result, bail};
+use pod_core::{Class, Stage};
 
 /// The largest message that is read, in bytes.
 pub const MAX_MESSAGE_BYTES: usize = 64 << 20;
@@ -250,7 +251,7 @@ fn split_segments(bytes: &[u8]) -> Result<Option<(Vec<Vec<u64>>, usize)>> {
     }
     let count = u32::from_le_bytes(bytes[0..4].try_into().unwrap()) as usize + 1;
     if count > MAX_SEGMENTS {
-        bail!("the message has {count} segments");
+        bail!(Stage::EdgeStream, Class::Protocol, "the message has {count} segments");
     }
     let table = 4 + count * 4;
     let header = table + (table % 8);
@@ -266,7 +267,7 @@ fn split_segments(bytes: &[u8]) -> Result<Option<(Vec<Vec<u64>>, usize)>> {
         sizes.push(size);
     }
     if total > MAX_MESSAGE_BYTES {
-        bail!("the message is {total} bytes");
+        bail!(Stage::EdgeStream, Class::Protocol, "the message is {total} bytes");
     }
     if bytes.len() < header + total {
         return Ok(None);
@@ -308,7 +309,9 @@ impl Message {
         match reader.read_exact(&mut first).await {
             Ok(_) => {}
             Err(err) if err.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(None),
-            Err(err) => return Err(err.into()),
+            Err(err) => {
+                return Err(crate::fail::caused(Stage::EdgeStream, Class::of_io(err.kind()), "reading a message", err));
+            }
         }
         Self::read_after(first, reader).await.map(Some)
     }
@@ -320,11 +323,11 @@ impl Message {
         use tokio::io::AsyncReadExt;
         let count = u32::from_le_bytes(first) as usize + 1;
         if count > MAX_SEGMENTS {
-            bail!("the message has {count} segments");
+            bail!(Stage::EdgeStream, Class::Protocol, "the message has {count} segments");
         }
         let table = 4 + count * 4;
         let mut header = vec![0u8; table + (table % 8) - 4];
-        reader.read_exact(&mut header).await.context("segment table")?;
+        reader.read_exact(&mut header).await.io_fail(Stage::EdgeStream, "segment table")?;
         let mut bytes = first.to_vec();
         bytes.extend_from_slice(&header);
         let mut total = 0usize;
@@ -334,12 +337,12 @@ impl Message {
             total = total.saturating_add(size.saturating_mul(8));
         }
         if total > MAX_MESSAGE_BYTES {
-            bail!("the message is {total} bytes");
+            bail!(Stage::EdgeStream, Class::Protocol, "the message is {total} bytes");
         }
         let start = bytes.len();
         bytes.resize(start + total, 0);
-        reader.read_exact(&mut bytes[start..]).await.context("segments")?;
-        let (segments, _) = split_segments(&bytes)?.context("short message")?;
+        reader.read_exact(&mut bytes[start..]).await.io_fail(Stage::EdgeStream, "segments")?;
+        let (segments, _) = split_segments(&bytes)?.or_fail(Stage::EdgeStream, Class::Protocol, "short message")?;
         Ok(Self::new(segments))
     }
 
@@ -350,14 +353,16 @@ impl Message {
     {
         let mut compat = tokio_util::compat::FuturesAsyncReadCompatExt::compat(reader);
         let mut first = [0u8; 4];
-        tokio::io::AsyncReadExt::read_exact(&mut compat, &mut first).await.context("segment count")?;
+        tokio::io::AsyncReadExt::read_exact(&mut compat, &mut first)
+            .await
+            .io_fail(Stage::EdgeStream, "segment count")?;
         Self::read_after(first, &mut compat).await
     }
 
     /// The root struct.
     pub fn root(&self) -> Result<StructReader<'_>> {
         let root = StructReader { msg: self, segment: 0, data: 0, data_words: 0, ptrs: 0, ptr_count: 1, depth: 0 };
-        root.get_struct(0)?.context("the message has no root")
+        root.get_struct(0)?.or_fail(Stage::EdgeStream, Class::Protocol, "the message has no root")
     }
 
     /// Take `words` from the read budget.
@@ -366,7 +371,7 @@ impl Message {
         let mut left = self.budget.load(Ordering::Relaxed);
         loop {
             let Some(next) = left.checked_sub(words) else {
-                bail!("the message exceeds the read limit");
+                bail!(Stage::EdgeStream, Class::Protocol, "the message exceeds the read limit");
             };
             match self.budget.compare_exchange_weak(left, next, Ordering::Relaxed, Ordering::Relaxed) {
                 Ok(_) => return Ok(()),
@@ -377,17 +382,18 @@ impl Message {
 
     fn word(&self, segment: usize, index: usize) -> Result<u64> {
         self.spend(1)?;
-        self.segments
-            .get(segment)
-            .and_then(|s| s.get(index))
-            .copied()
-            .with_context(|| format!("word {index} of segment {segment} is out of range"))
+        self.segments.get(segment).and_then(|s| s.get(index)).copied().or_fail(
+            Stage::EdgeStream,
+            Class::Protocol,
+            format!("word {index} of segment {segment} is out of range"),
+        )
     }
 
     fn check_range(&self, segment: usize, start: usize, words: u64) -> Result<()> {
-        let len = self.segments.get(segment).context("no such segment")?.len() as u64;
+        let len =
+            self.segments.get(segment).or_fail(Stage::EdgeStream, Class::Protocol, "no such segment")?.len() as u64;
         if start as u64 + words > len {
-            bail!("an object is outside its segment");
+            bail!(Stage::EdgeStream, Class::Protocol, "an object is outside its segment");
         }
         self.spend(words)
     }
@@ -414,7 +420,7 @@ impl Message {
                 let far = self.word(pad_segment, pad)?;
                 let tag = self.word(pad_segment, pad + 1)?;
                 if far & 3 != 2 {
-                    bail!("a double-far landing pad is not a far pointer");
+                    bail!(Stage::EdgeStream, Class::Protocol, "a double-far landing pad is not a far pointer");
                 }
                 let content_segment = (far >> 32) as usize;
                 let content = ((far >> 3) & 0x1fff_ffff) as usize;
@@ -424,7 +430,7 @@ impl Message {
         let offset = (((pointer as u32) as i32) >> 2) as i64;
         let start = at as i64 + 1 + offset;
         if start < 0 {
-            bail!("a pointer points before its segment");
+            bail!(Stage::EdgeStream, Class::Protocol, "a pointer points before its segment");
         }
         self.decode(segment, start as usize, pointer)
     }
@@ -455,11 +461,11 @@ impl Message {
             }
             3 => {
                 if pointer & 0xffff_fffc != 0 {
-                    bail!("an unknown kind of other pointer");
+                    bail!(Stage::EdgeStream, Class::Protocol, "an unknown kind of other pointer");
                 }
                 Ok(Target::Capability((pointer >> 32) as u32))
             }
-            _ => bail!("a far pointer points to a far pointer"),
+            _ => bail!(Stage::EdgeStream, Class::Protocol, "a far pointer points to a far pointer"),
         }
     }
 }

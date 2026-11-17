@@ -220,7 +220,7 @@ pub fn classify_stream(headers: &[(String, String)]) -> StreamKind {
 ///
 /// `alpn` must be empty. cloudflared does not offer ALPN on this path, and
 /// offering `h2` changes the handshake.
-pub fn edge_tls(tls: &pod_tls::Context) -> Result<Arc<rustls::ClientConfig>, String> {
+pub fn edge_tls(tls: &pod_tls::Context) -> Result<Arc<rustls::ClientConfig>, pod_core::Failure> {
     super::edge_tls_config(tls, &[])
 }
 

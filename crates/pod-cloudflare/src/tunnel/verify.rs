@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use anyhow::Result;
+use crate::fail::{Failure, Result};
 use pod_core::{Class, Stage};
 use tracing::info;
 
@@ -101,9 +101,11 @@ pub(super) async fn verify_fetch(
         return Ok(Verified { dns: "none", unverified: Some("resolution") });
     }
     let hint = if resolution_only { format!("; {REMEDY}") } else { String::new() };
-    Err(crate::fail::fault(
+    let stage = if resolution_only { Stage::Dns } else { Stage::EdgeStream };
+    Err(crate::fail::new(
+        stage,
         Class::Unavailable,
-        anyhow::anyhow!("could not verify {url} in {} s: {last}{hint}", budget.as_secs()),
+        format!("could not verify {url} in {} s: {last}{hint}", budget.as_secs()),
     ))
 }
 
@@ -119,11 +121,9 @@ const REMEDY: &str = "give the address with --resolve HOST=IP, or use --no-verif
 /// True for a failure before the edge: name resolution, or a refusal of
 /// CONNECT by a proxy (a proxy that is not allowed to reach the name says
 /// the same). The tunnel can be up in both cases.
-fn is_resolution_failure(err: &anyhow::Error) -> bool {
+fn is_resolution_failure(err: &Failure) -> bool {
     crate::fail::stage_of(err) == Some(Stage::Dns)
-        || err.chain().any(|e| {
-            matches!(e.downcast_ref::<pod_proxy::DialError>(), Some(pod_proxy::DialError::ProxyRefused { .. }))
-        })
+        || matches!(crate::fail::find::<pod_proxy::DialError>(err), Some(pod_proxy::DialError::ProxyRefused { .. }))
 }
 
 /// The result of a verify of the public URL.
@@ -306,13 +306,13 @@ mod tests {
     // T-160: a refusal of CONNECT by a proxy is a failure before the edge.
     #[test]
     fn a_proxy_refusal_is_a_resolution_failure() {
-        let refusal = anyhow::Error::new(pod_proxy::DialError::ProxyRefused {
+        let refusal = Failure::from(pod_proxy::DialError::ProxyRefused {
             proxy: "http://127.0.0.1:3128".into(),
             target: "x.example:443".into(),
             status: 502,
             reason: "refused".into(),
         });
         assert!(is_resolution_failure(&refusal));
-        assert!(!is_resolution_failure(&anyhow::anyhow!("reset")));
+        assert!(!is_resolution_failure(&crate::fail::new(Stage::Network, Class::Unavailable, "reset")));
     }
 }

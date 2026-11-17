@@ -33,7 +33,7 @@ pub fn parse_retry_after(value: &str) -> Option<std::time::Duration> {
 }
 
 /// True for a transport error at the hop `dns`.
-pub(super) fn is_dns(err: &anyhow::Error) -> bool {
+pub(super) fn is_dns(err: &pod_core::Failure) -> bool {
     crate::fail::stage_of(err) == Some(pod_core::Stage::Dns)
 }
 

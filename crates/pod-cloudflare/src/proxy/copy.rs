@@ -1,7 +1,8 @@
 //! The copy of a body between the edge (futures I/O) and the origin (tokio
 //! I/O), with the counters of the tunnel.
 
-use anyhow::{Context, Result, bail};
+use crate::fail::{IoFail, OrFail, Result, bail};
+use pod_core::{Class, Stage};
 
 use crate::metrics::Metrics;
 
@@ -26,11 +27,13 @@ where
     let mut buf = [0u8; 16 * 1024];
     while remaining > 0 {
         let want = buf.len().min(remaining as usize);
-        let n = futures::io::AsyncReadExt::read(src, &mut buf[..want]).await?;
+        let n = futures::io::AsyncReadExt::read(src, &mut buf[..want])
+            .await
+            .io_fail(Stage::EdgeStream, "reading from the edge")?;
         if n == 0 {
-            bail!("edge EOF with {remaining} request bytes still expected");
+            bail!(Stage::Origin, Class::Protocol, "edge EOF with {remaining} request bytes still expected");
         }
-        tokio::io::AsyncWriteExt::write_all(dst, &buf[..n]).await?;
+        tokio::io::AsyncWriteExt::write_all(dst, &buf[..n]).await.io_fail(Stage::Origin, "writing to the origin")?;
         metrics.add_in(n as u64);
         remaining -= n as u64;
     }
@@ -45,11 +48,12 @@ where
     let mut buf = [0u8; 16 * 1024];
     let mut total = 0u64;
     loop {
-        let n = futures::io::AsyncReadExt::read(src, &mut buf).await?;
+        let n =
+            futures::io::AsyncReadExt::read(src, &mut buf).await.io_fail(Stage::EdgeStream, "reading from the edge")?;
         if n == 0 {
             break;
         }
-        tokio::io::AsyncWriteExt::write_all(dst, &buf[..n]).await?;
+        tokio::io::AsyncWriteExt::write_all(dst, &buf[..n]).await.io_fail(Stage::Origin, "writing to the origin")?;
         metrics.add_in(n as u64);
         total += n as u64;
     }
@@ -69,14 +73,18 @@ where
     let mut buf = [0u8; 16 * 1024];
     while remaining > 0 {
         let want = buf.len().min(remaining as usize);
-        let n = tokio::io::AsyncReadExt::read(src, &mut buf[..want]).await?;
+        let n = tokio::io::AsyncReadExt::read(src, &mut buf[..want])
+            .await
+            .io_fail(Stage::Origin, "reading from the origin")?;
         if n == 0 {
-            bail!("origin EOF with {remaining} response bytes still expected");
+            bail!(Stage::Origin, Class::Protocol, "origin EOF with {remaining} response bytes still expected");
         }
-        futures::io::AsyncWriteExt::write_all(dst, &buf[..n]).await?;
+        futures::io::AsyncWriteExt::write_all(dst, &buf[..n])
+            .await
+            .io_fail(Stage::EdgeStream, "writing to the edge")?;
         // Flush each read: a small write of the origin (an SSE event, the
         // start of a page) goes to the visitor at once.
-        futures::io::AsyncWriteExt::flush(dst).await?;
+        futures::io::AsyncWriteExt::flush(dst).await.io_fail(Stage::EdgeStream, "writing to the edge")?;
         metrics.add_out(n as u64);
         remaining -= n as u64;
     }
@@ -91,14 +99,16 @@ where
     let mut buf = [0u8; 16 * 1024];
     let mut total = 0u64;
     loop {
-        let n = tokio::io::AsyncReadExt::read(src, &mut buf).await?;
+        let n = tokio::io::AsyncReadExt::read(src, &mut buf).await.io_fail(Stage::Origin, "reading from the origin")?;
         if n == 0 {
             break;
         }
-        futures::io::AsyncWriteExt::write_all(dst, &buf[..n]).await?;
+        futures::io::AsyncWriteExt::write_all(dst, &buf[..n])
+            .await
+            .io_fail(Stage::EdgeStream, "writing to the edge")?;
         // Flush each read: a small write of the origin (an SSE event, the
         // start of a page) goes to the visitor at once.
-        futures::io::AsyncWriteExt::flush(dst).await?;
+        futures::io::AsyncWriteExt::flush(dst).await.io_fail(Stage::EdgeStream, "writing to the edge")?;
         metrics.add_out(n as u64);
         total += n as u64;
     }
@@ -117,13 +127,20 @@ where
     let mut line = Vec::new();
     loop {
         line.clear();
-        let n = tokio::io::AsyncReadExt::take(&mut *src, 4096).read_until(b'\n', &mut line).await?;
+        let n = tokio::io::AsyncReadExt::take(&mut *src, 4096)
+            .read_until(b'\n', &mut line)
+            .await
+            .io_fail(Stage::Origin, "reading from the origin")?;
         if n == 0 || !line.ends_with(b"\n") {
-            anyhow::bail!("the chunked body of the origin ends early");
+            bail!(Stage::Origin, Class::Protocol, "the chunked body of the origin ends early");
         }
-        let text = std::str::from_utf8(&line).context("a chunk size is not text")?;
+        let text = std::str::from_utf8(&line).or_fail(Stage::Origin, Class::Protocol, "a chunk size is not text")?;
         let hex = text.split(';').next().unwrap_or("").trim();
-        let size = u64::from_str_radix(hex, 16).with_context(|| format!("a bad chunk size {hex:?} from the origin"))?;
+        let size = u64::from_str_radix(hex, 16).or_fail(
+            Stage::Origin,
+            Class::Protocol,
+            format!("a bad chunk size {hex:?} from the origin"),
+        )?;
         if size == 0 {
             // The trailer: header lines up to an empty line, at most
             // MAX_TRAILER_LINE bytes each and MAX_TRAILER_BYTES in all
@@ -133,24 +150,38 @@ where
                 line.clear();
                 let n = tokio::io::AsyncReadExt::take(&mut *src, MAX_TRAILER_LINE as u64)
                     .read_until(b'\n', &mut line)
-                    .await?;
+                    .await
+                    .io_fail(Stage::Origin, "reading the trailer of the origin")?;
                 if n == 0 || line == b"\r\n" || line == b"\n" {
                     return Ok(());
                 }
                 if !line.ends_with(b"\n") {
-                    bail!("a trailer line of the origin is longer than {} KiB", MAX_TRAILER_LINE / 1024);
+                    bail!(
+                        Stage::Origin,
+                        Class::Protocol,
+                        "a trailer line of the origin is longer than {} KiB",
+                        MAX_TRAILER_LINE / 1024
+                    );
                 }
                 total += n;
                 if total > MAX_TRAILER_BYTES {
-                    bail!("the trailer of the origin is larger than {} KiB", MAX_TRAILER_BYTES / 1024);
+                    bail!(
+                        Stage::Origin,
+                        Class::Protocol,
+                        "the trailer of the origin is larger than {} KiB",
+                        MAX_TRAILER_BYTES / 1024
+                    );
                 }
             }
         }
         copy_tokio_to_futures_n(src, dst, size, metrics).await?;
         line.clear();
-        tokio::io::AsyncReadExt::take(&mut *src, 2).read_until(b'\n', &mut line).await?;
+        tokio::io::AsyncReadExt::take(&mut *src, 2)
+            .read_until(b'\n', &mut line)
+            .await
+            .io_fail(Stage::Origin, "reading from the origin")?;
         if line != b"\r\n" && line != b"\n" {
-            anyhow::bail!("a chunk of the origin has no line end after its data");
+            bail!(Stage::Origin, Class::Protocol, "a chunk of the origin has no line end after its data");
         }
     }
 }
@@ -159,7 +190,7 @@ pub(crate) async fn futures_write_all<W>(dst: &mut W, bytes: &[u8]) -> Result<()
 where
     W: futures::io::AsyncWrite + Unpin,
 {
-    futures::io::AsyncWriteExt::write_all(dst, bytes).await?;
+    futures::io::AsyncWriteExt::write_all(dst, bytes).await.io_fail(Stage::EdgeStream, "writing to the edge")?;
     Ok(())
 }
 
@@ -167,6 +198,6 @@ pub(crate) async fn futures_close<W>(dst: &mut W) -> Result<()>
 where
     W: futures::io::AsyncWrite + Unpin,
 {
-    futures::io::AsyncWriteExt::close(dst).await?;
+    futures::io::AsyncWriteExt::close(dst).await.io_fail(Stage::EdgeStream, "writing to the edge")?;
     Ok(())
 }

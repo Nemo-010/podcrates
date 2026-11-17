@@ -98,7 +98,7 @@ pub(super) fn check_keys(
     for key in map.keys() {
         if !known.contains(&key.as_str()) {
             let hint = nearest_key(key, known).map(|k| format!("; did you mean {k}?")).unwrap_or_default();
-            bail!("{}: the key {key:?} is not a key of {place}{hint}", file.display());
+            bail!(Stage::Host, Class::Config, "{}: the key {key:?} is not a key of {place}{hint}", file.display());
         }
     }
     Ok(())
@@ -118,7 +118,7 @@ pub(super) fn check_and_merge_rules(file: &Path, value: &mut serde_json::Value, 
             check_origin_values(file, o, "originRequest")?;
             o.clone()
         }
-        Some(_) => bail!("{}: originRequest: give a map of keys", file.display()),
+        Some(_) => bail!(Stage::Host, Class::Config, "{}: originRequest: give a map of keys", file.display()),
     };
     let Some(ingress) = map.get_mut("ingress") else {
         return Ok(());
@@ -127,34 +127,43 @@ pub(super) fn check_and_merge_rules(file: &Path, value: &mut serde_json::Value, 
         if ingress.is_null() {
             return Ok(());
         }
-        bail!("{}: ingress: give a list of rules, for example `- service: http://127.0.0.1:8080`", file.display());
+        bail!(
+            Stage::Host,
+            Class::Config,
+            "{}: ingress: give a list of rules, for example `- service: http://127.0.0.1:8080`",
+            file.display()
+        );
     };
     for (i, rule) in rules.iter_mut().enumerate() {
         let place = crate::yaml::numbered("ingress rule", i, at);
         let Some(rule) = rule.as_object_mut() else {
-            bail!("{}: {place}: give a map of keys", file.display());
+            bail!(Stage::Host, Class::Config, "{}: {place}: give a map of keys", file.display());
         };
         check_keys(file, rule, RULE_KEYS, &place)?;
         match rule.get("service") {
             None | Some(serde_json::Value::Null) => {
-                bail!("{}: {place}: service: is missing, for example `service: http://127.0.0.1:8080`", file.display())
+                bail!(
+                    Stage::Host,
+                    Class::Config,
+                    "{}: {place}: service: is missing, for example `service: http://127.0.0.1:8080`",
+                    file.display()
+                )
             }
             Some(serde_json::Value::String(_)) => {}
-            Some(_) => bail!("{}: {place}: service: give a string", file.display()),
+            Some(_) => bail!(Stage::Host, Class::Config, "{}: {place}: service: give a string", file.display()),
         }
         for key in ["hostname", "path"] {
             if let Some(value) = rule.get(key)
                 && !value.is_string()
                 && !value.is_null()
             {
-                bail!("{}: {place}: {key}: give a string", file.display());
+                bail!(Stage::Host, Class::Config, "{}: {place}: {key}: give a string", file.display());
             }
         }
         // Issue 269: path: is a regular expression, as in cloudflared. A
         // path that does not compile is an error at load.
         if let Some(path) = rule.get("path").and_then(|v| v.as_str()) {
-            crate::ingress::PathPattern::regex(path)
-                .map_err(|e| anyhow::anyhow!("{}: {place}: {e}", file.display()))?;
+            crate::ingress::PathPattern::regex(path).with_context(|| format!("{}: {place}", file.display()))?;
         }
         let mut origin = match rule.remove("originRequest") {
             None | Some(serde_json::Value::Null) => serde_json::Map::new(),
@@ -163,7 +172,9 @@ pub(super) fn check_and_merge_rules(file: &Path, value: &mut serde_json::Value, 
                 check_origin_values(file, &o, &format!("{place}, originRequest"))?;
                 o
             }
-            Some(_) => bail!("{}: {place}: originRequest: give a map of keys", file.display()),
+            Some(_) => {
+                bail!(Stage::Host, Class::Config, "{}: {place}: originRequest: give a map of keys", file.display())
+            }
         };
         for (key, default) in &defaults {
             origin.entry(key.clone()).or_insert_with(|| default.clone());
@@ -186,19 +197,29 @@ pub(super) fn check_origin_values(
         match key.as_str() {
             "connectTimeout" | "tlsTimeout" | "keepAliveTimeout" | "tcpKeepAlive" => {
                 if value.is_number() {
-                    bail!("{}: {place}: {key}: {value} needs a unit, for example {value}s", file.display());
+                    bail!(
+                        Stage::Host,
+                        Class::Config,
+                        "{}: {place}: {key}: {value} needs a unit, for example {value}s",
+                        file.display()
+                    );
                 }
                 if !value.is_string() {
-                    bail!("{}: {place}: {key}: give a time, for example 30s", file.display());
+                    bail!(
+                        Stage::Host,
+                        Class::Config,
+                        "{}: {place}: {key}: give a time, for example 30s",
+                        file.display()
+                    );
                 }
             }
             "noTLSVerify" | "disableChunkedEncoding" | "stripAcceptEncoding" => {
                 if !value.is_boolean() {
-                    bail!("{}: {place}: {key}: give true or false", file.display());
+                    bail!(Stage::Host, Class::Config, "{}: {place}: {key}: give true or false", file.display());
                 }
             }
             "httpHostHeader" if !value.is_string() => {
-                bail!("{}: {place}: {key}: give a string", file.display());
+                bail!(Stage::Host, Class::Config, "{}: {place}: {key}: give a string", file.display());
             }
             _ => {}
         }
@@ -210,11 +231,15 @@ pub(super) fn check_origin_values(
 pub(super) fn check_top_values(file: &std::path::Path, value: &serde_json::Value) -> Result<()> {
     let map = match value {
         serde_json::Value::Null => bail!(
+            Stage::Host,
+            Class::Config,
             "{}: the file has no keys (it needs ingress:, for example `ingress:` and `  - service: http://127.0.0.1:8080`)",
             file.display()
         ),
         serde_json::Value::Object(map) => map,
         _ => bail!(
+            Stage::Host,
+            Class::Config,
             "{}: the config must be a mapping of keys (for example ingress:), not a list or a value",
             file.display()
         ),
@@ -224,19 +249,19 @@ pub(super) fn check_top_values(file: &std::path::Path, value: &serde_json::Value
             && !v.is_string()
             && !v.is_null()
         {
-            bail!("{}: {key}: give a string", file.display());
+            bail!(Stage::Host, Class::Config, "{}: {key}: give a string", file.display());
         }
     }
     if let Some(v) = map.get("hello-world")
         && !v.is_boolean()
         && !v.is_null()
     {
-        bail!("{}: hello-world: give true or false", file.display());
+        bail!(Stage::Host, Class::Config, "{}: hello-world: give true or false", file.display());
     }
     if let Some(v) = map.get("ha-connections")
         && !v.is_u64()
     {
-        bail!("{}: ha-connections: give a number from 1 to 8", file.display());
+        bail!(Stage::Host, Class::Config, "{}: ha-connections: give a number from 1 to 8", file.display());
     }
     Ok(())
 }
@@ -255,14 +280,15 @@ pub(super) fn check_top_values(file: &std::path::Path, value: &serde_json::Value
 /// * The top-level `originRequest` is the default of each rule.
 /// * The last ingress rule must match each request (no hostname, no path).
 pub fn load_file(path: &std::path::Path) -> Result<Config> {
-    let text = std::fs::read_to_string(path).with_context(|| format!("reading config {}", path.display()))?;
+    let text = std::fs::read_to_string(path).io_fail(Stage::Host, format!("reading config {}", path.display()))?;
     let mut value = crate::yaml::parse(&text).with_context(|| format!("parsing {}", path.display()))?;
     check_top_values(path, &value)?;
     if let Some(map) = value.as_object() {
         check_keys(path, map, CLOUDFLARED_KEYS, "a cloudflared config")?;
     }
     check_and_merge_rules(path, &mut value, &crate::yaml::item_lines(&text, "ingress"))?;
-    let raw: RawConfig = serde_json::from_value(value).with_context(|| format!("parsing {}", path.display()))?;
+    let raw: RawConfig =
+        serde_json::from_value(value).or_fail(Stage::Host, Class::Config, format!("parsing {}", path.display()))?;
 
     let mut config = Config::default();
     if !raw.ingress.is_empty() {
@@ -270,6 +296,8 @@ pub fn load_file(path: &std::path::Path) -> Result<Config> {
             && (last.hostname.is_some() || last.path.is_some())
         {
             bail!(
+                Stage::Host,
+                Class::Config,
                 "{}: the last ingress rule must match each request (no hostname and no path), for example `- service: http_status:404`",
                 path.display()
             );
@@ -280,8 +308,15 @@ pub fn load_file(path: &std::path::Path) -> Result<Config> {
     // rule when the file has no ingress rules.
     let hello = raw.hello_world == Some(true);
     match (&raw.url, hello) {
-        (Some(_), true) => bail!("{}: url: and hello-world: both give the origin; give one", path.display()),
+        (Some(_), true) => bail!(
+            Stage::Host,
+            Class::Config,
+            "{}: url: and hello-world: both give the origin; give one",
+            path.display()
+        ),
         (Some(_), false) | (None, true) if !config.ingress.is_empty() => bail!(
+            Stage::Host,
+            Class::Config,
             "{}: {} and ingress: both give the origin; give one",
             path.display(),
             if hello { "hello-world:" } else { "url:" }
@@ -301,7 +336,12 @@ pub fn load_file(path: &std::path::Path) -> Result<Config> {
         // tunnel.
         config.secrets.push(token.clone());
         if raw.credentials_file.is_some() {
-            bail!("{}: token: and credentials-file: both give the credentials; give one", path.display());
+            bail!(
+                Stage::Host,
+                Class::Config,
+                "{}: token: and credentials-file: both give the credentials; give one",
+                path.display()
+            );
         }
         let credentials =
             parse_token(token).with_context(|| format!("{}: token: is not a tunnel token", path.display()))?;
@@ -309,6 +349,8 @@ pub fn load_file(path: &std::path::Path) -> Result<Config> {
             && Uuid::parse_str(tunnel.trim()).ok() != Some(*tunnel_id)
         {
             bail!(
+                Stage::Host,
+                Class::Config,
                 "{}: tunnel: {tunnel} is not the tunnel id of token: ({tunnel_id}); remove tunnel: or correct it",
                 path.display()
             );
@@ -322,7 +364,7 @@ pub fn load_file(path: &std::path::Path) -> Result<Config> {
     }
     if let Some(ha) = raw.ha_connections {
         if !(1..=8).contains(&ha) {
-            bail!("{}: ha-connections: {ha} is not from 1 to 8", path.display());
+            bail!(Stage::Host, Class::Config, "{}: ha-connections: {ha} is not from 1 to 8", path.display());
         }
         config.ha_connections = ha;
     }
@@ -343,13 +385,21 @@ pub(super) fn credentials_of_file(
                 && let Ok(uuid) = Uuid::parse_str(tunnel.trim())
                 && uuid != *tunnel_id
             {
-                bail!("{}: tunnel: {uuid} is not the TunnelID of {} ({tunnel_id})", path.display(), file.display());
+                bail!(
+                    Stage::Host,
+                    Class::Config,
+                    "{}: tunnel: {uuid} is not the TunnelID of {} ({tunnel_id})",
+                    path.display(),
+                    file.display()
+                );
             }
             config.credentials = credentials;
         }
         (Some(tunnel), None) => {
             if Uuid::parse_str(tunnel.trim()).is_ok() || !tunnel.trim().starts_with("ey") {
                 bail!(
+                    Stage::Host,
+                    Class::Config,
                     "{}: tunnel: names a tunnel ({tunnel}); give its credentials-file:, or a tunnel token",
                     path.display()
                 );

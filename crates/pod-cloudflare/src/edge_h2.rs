@@ -34,8 +34,9 @@ use crate::cloudflare::rpc;
 use crate::cloudflare::stream::{
     ConnectRequest, ConnectionType, HTTP_HEADER_KEY, HTTP_HOST_KEY, HTTP_METHOD_KEY, HTTP_STATUS_KEY,
 };
-use anyhow::{Context, Result, bail};
+use crate::fail::{Context, IoFail, OrFail, Result, bail};
 use bytes::Bytes;
+use pod_core::{Class, Stage};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWriteExt};
 use tokio::task::JoinHandle;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};

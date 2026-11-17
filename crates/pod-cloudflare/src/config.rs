@@ -8,8 +8,9 @@ use keys::nearest_key;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use anyhow::{Context, Result, bail};
+use crate::fail::{Context, Failure, IoFail, OrFail, Result, bail};
 use base64::Engine;
+use pod_core::{Class, Stage};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -67,32 +68,39 @@ struct CredentialsJson {
 pub fn parse_token(token: &str) -> Result<Credentials> {
     let token = token.trim();
     let raw = decode_b64(token).context("token is not valid base64")?;
-    let parsed: TokenJson = serde_json::from_slice(&raw).context("the token payload")?;
+    let parsed: TokenJson = serde_json::from_slice(&raw).or_fail(Stage::Host, Class::Config, "the token payload")?;
     let secret = decode_b64(&parsed.s)?;
-    let tunnel_id = Uuid::parse_str(&parsed.t).context("token tunnel id is not a UUID")?;
+    let tunnel_id = Uuid::parse_str(&parsed.t).or_fail(Stage::Host, Class::Config, "token tunnel id is not a UUID")?;
     Ok(Credentials::Explicit { account_tag: parsed.a, tunnel_id, secret })
 }
 
 /// Load a cloudflared credentials file.
 pub fn parse_credentials_file(path: &std::path::Path) -> Result<Credentials> {
-    let text = std::fs::read_to_string(path).with_context(|| format!("reading credentials file {}", path.display()))?;
+    let text =
+        std::fs::read_to_string(path).io_fail(Stage::Host, format!("reading credentials file {}", path.display()))?;
     // The error of serde names a missing field, or the place of bad JSON.
-    let parsed: CredentialsJson =
-        serde_json::from_str(&text).with_context(|| format!("credentials file {}", path.display()))?;
+    let parsed: CredentialsJson = serde_json::from_str(&text).or_fail(
+        Stage::Host,
+        Class::Config,
+        format!("credentials file {}", path.display()),
+    )?;
     let secret = decode_b64(&parsed.tunnel_secret)
         .with_context(|| format!("credentials file {}: TunnelSecret is not base64", path.display()))?;
-    let tunnel_id = Uuid::parse_str(&parsed.tunnel_id)
-        .with_context(|| format!("credentials file {}: TunnelID is not a UUID", path.display()))?;
+    let tunnel_id = Uuid::parse_str(&parsed.tunnel_id).or_fail(
+        Stage::Host,
+        Class::Config,
+        format!("credentials file {}: TunnelID is not a UUID", path.display()),
+    )?;
     Ok(Credentials::Explicit { account_tag: parsed.account_tag, tunnel_id, secret })
 }
 
 fn decode_b64(value: &str) -> Result<Vec<u8>> {
     use base64::engine::general_purpose::{STANDARD, URL_SAFE, URL_SAFE_NO_PAD};
-    STANDARD
-        .decode(value)
-        .or_else(|_| URL_SAFE.decode(value))
-        .or_else(|_| URL_SAFE_NO_PAD.decode(value))
-        .map_err(|e| anyhow::anyhow!("base64: {e}"))
+    STANDARD.decode(value).or_else(|_| URL_SAFE.decode(value)).or_else(|_| URL_SAFE_NO_PAD.decode(value)).or_fail(
+        Stage::Host,
+        Class::Config,
+        "base64",
+    )
 }
 
 /// Edge transport. QUIC is implemented; HTTP/2 is accepted for compatibility
@@ -111,7 +119,7 @@ impl Protocol {
             "auto" => Ok(Protocol::Auto),
             "quic" => Ok(Protocol::Quic),
             "http2" | "h2" => Ok(Protocol::Http2),
-            other => bail!("unknown protocol {other:?}; expected auto, quic or http2"),
+            other => bail!(Stage::Host, Class::Config, "unknown protocol {other:?}; expected auto, quic or http2"),
         }
     }
 
@@ -150,7 +158,9 @@ impl Transport {
             "direct" => Ok(Transport::Direct),
             "warp" | "masque" | "warp+masque" => Ok(Transport::Warp),
             "relay" => Ok(Transport::Relay),
-            other => bail!("unknown transport {other:?}; expected auto, direct, warp or relay"),
+            other => {
+                bail!(Stage::Host, Class::Config, "unknown transport {other:?}; expected auto, direct, warp or relay")
+            }
         }
     }
 }
@@ -225,8 +235,8 @@ impl ReconnectPolicy {
     }
 
     /// What to do after attempt `attempt` failed with `err`.
-    pub fn next(&self, attempt: u32, err: &anyhow::Error) -> Next {
-        if let Some(refused) = err.chain().find_map(|e| e.downcast_ref::<crate::cloudflare::rpc::Refused>()) {
+    pub fn next(&self, attempt: u32, err: &Failure) -> Next {
+        if let Some(refused) = crate::fail::find::<crate::cloudflare::rpc::Refused>(err) {
             if !refused.should_retry {
                 return Next::Stop(format!(
                     "the edge refused the registration and asks for no retry: {}",

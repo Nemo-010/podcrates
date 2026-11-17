@@ -19,7 +19,8 @@
 //! A document that nests deeper than [`MAX_DEPTH`] levels is an error: the
 //! reader is recursive, and a deep file must not overflow the stack.
 
-use anyhow::{Result, bail};
+use crate::fail::{Result, bail};
+use pod_core::{Class, Stage};
 use serde_json::{Map, Number, Value};
 
 /// The most levels of nested mappings and sequences (issue 231). A
@@ -50,7 +51,7 @@ pub fn parse(text: &str) -> Result<Value> {
         }
         let lead = &content[..content.len() - trimmed.len()];
         if lead.contains('\t') {
-            bail!("line {number}: a tab in the indentation (use spaces)");
+            bail!(Stage::Host, Class::Config, "line {number}: a tab in the indentation (use spaces)");
         }
         if lead.is_empty() && (trimmed == "---" || trimmed == "...") {
             continue;
@@ -64,7 +65,7 @@ pub fn parse(text: &str) -> Result<Value> {
     let indent = lines[0].indent;
     let value = node(&lines, &mut pos, indent, 0)?;
     if let Some(line) = lines.get(pos) {
-        bail!("line {}: unexpected indentation", line.number);
+        bail!(Stage::Host, Class::Config, "line {}: unexpected indentation", line.number);
     }
     Ok(value)
 }
@@ -132,7 +133,7 @@ fn strip_comment(line: &str, number: usize) -> Result<&str> {
         prev = c;
     }
     if quote.is_some() {
-        bail!("line {number}: a quoted scalar has no end on its line");
+        bail!(Stage::Host, Class::Config, "line {number}: a quoted scalar has no end on its line");
     }
     Ok(line)
 }
@@ -146,7 +147,7 @@ fn starts_scalar(before: &str) -> bool {
 /// An error when a collection at `depth` is deeper than [`MAX_DEPTH`].
 fn check_depth(depth: usize, number: usize) -> Result<()> {
     if depth > MAX_DEPTH {
-        bail!("line {number}: the document nests deeper than {MAX_DEPTH} levels");
+        bail!(Stage::Host, Class::Config, "line {number}: the document nests deeper than {MAX_DEPTH} levels");
     }
     Ok(())
 }
@@ -165,7 +166,7 @@ fn node(lines: &[Line], pos: &mut usize, indent: usize, depth: usize) -> Result<
         if let Some(next) = lines.get(*pos)
             && next.indent > indent
         {
-            bail!("line {}: a scalar has no children", next.number);
+            bail!(Stage::Host, Class::Config, "line {}: a scalar has no children", next.number);
         }
         Ok(value)
     }
@@ -183,7 +184,7 @@ fn sequence(lines: &[Line], pos: &mut usize, indent: usize, depth: usize) -> Res
             break;
         }
         if line.indent > indent {
-            bail!("line {}: unexpected indentation", line.number);
+            bail!(Stage::Host, Class::Config, "line {}: unexpected indentation", line.number);
         }
         if !is_item(line.text) {
             break;
@@ -197,7 +198,7 @@ fn sequence(lines: &[Line], pos: &mut usize, indent: usize, depth: usize) -> Res
         // The column of `rest`: a mapping in the item continues there.
         let column = line.indent + (line.text.len() - rest.len());
         if is_item(rest) {
-            bail!("line {}: a nested sequence on one line", line.number);
+            bail!(Stage::Host, Class::Config, "line {}: a nested sequence on one line", line.number);
         }
         if let Some((key, value)) = split_key(rest, line.number)? {
             items.push(mapping(lines, pos, column, Some((key, value, line.number)), depth + 1)?);
@@ -239,12 +240,12 @@ fn mapping(
                     break;
                 }
                 if line.indent > indent {
-                    bail!("line {}: unexpected indentation", line.number);
+                    bail!(Stage::Host, Class::Config, "line {}: unexpected indentation", line.number);
                 }
                 match split_key(line.text, line.number)? {
                     Some((key, value)) => (key, value, line.number),
                     None if is_item(line.text) => break,
-                    None => bail!("line {}: expected `key: value`", line.number),
+                    None => bail!(Stage::Host, Class::Config, "line {}: expected `key: value`", line.number),
                 }
             }
         };
@@ -261,12 +262,12 @@ fn mapping(
             if let Some(next) = lines.get(*pos)
                 && next.indent > indent
             {
-                bail!("line {}: a scalar has no children", next.number);
+                bail!(Stage::Host, Class::Config, "line {}: a scalar has no children", next.number);
             }
             v
         };
         if map.insert(key.clone(), value).is_some() {
-            bail!("line {number}: the key {key:?} is given two times");
+            bail!(Stage::Host, Class::Config, "line {number}: the key {key:?} is given two times");
         }
     }
     Ok(Value::Object(map))
@@ -291,7 +292,7 @@ fn split_key(text: &str, number: usize) -> Result<Option<(String, &str)>> {
         if *b == b':' && (i + 1 == bytes.len() || bytes[i + 1] == b' ') {
             let key = text[..i].trim_end();
             if key.is_empty() {
-                bail!("line {number}: an empty key");
+                bail!(Stage::Host, Class::Config, "line {number}: an empty key");
             }
             check_plain(key, number)?;
             return Ok(Some((key.to_string(), text[i + 1..].trim_start())));
@@ -313,19 +314,21 @@ fn quoted_end(text: &str, number: usize) -> Result<usize> {
             _ => i += 1,
         }
     }
-    bail!("line {number}: a quoted scalar has no end on its line")
+    bail!(Stage::Host, Class::Config, "line {number}: a quoted scalar has no end on its line")
 }
 
 fn check_plain(text: &str, number: usize) -> Result<()> {
     match text.chars().next() {
-        Some('&') | Some('*') => bail!("line {number}: anchors and aliases are not supported"),
-        Some('!') => bail!("line {number}: tags are not supported"),
-        Some('|') | Some('>') => bail!("line {number}: block scalars are not supported"),
+        Some('&') | Some('*') => {
+            bail!(Stage::Host, Class::Config, "line {number}: anchors and aliases are not supported")
+        }
+        Some('!') => bail!(Stage::Host, Class::Config, "line {number}: tags are not supported"),
+        Some('|') | Some('>') => bail!(Stage::Host, Class::Config, "line {number}: block scalars are not supported"),
         Some('{') | Some('[') if text != "{}" && text != "[]" => {
-            bail!("line {number}: flow collections are not supported (only [] and {{}})")
+            bail!(Stage::Host, Class::Config, "line {number}: flow collections are not supported (only [] and {{}})")
         }
         Some('@') | Some('`') | Some('%') => {
-            bail!("line {number}: a plain scalar cannot start with {:?}", &text[..1])
+            bail!(Stage::Host, Class::Config, "line {number}: a plain scalar cannot start with {:?}", &text[..1])
         }
         _ => Ok(()),
     }
@@ -337,7 +340,7 @@ fn scalar(text: &str, number: usize) -> Result<Value> {
     if text.starts_with('"') || text.starts_with('\'') {
         let end = quoted_end(text, number)?;
         if end != text.len() {
-            bail!("line {number}: text after a quoted scalar");
+            bail!(Stage::Host, Class::Config, "line {number}: text after a quoted scalar");
         }
         let inner = &text[1..end - 1];
         return Ok(Value::String(if text.starts_with('\'') {
@@ -397,10 +400,15 @@ fn unescape(inner: &str, number: usize) -> Result<String> {
                 let code = u32::from_str_radix(&hex, 16).ok().filter(|_| hex.len() == 4).and_then(char::from_u32);
                 match code {
                     Some(c) => out.push(c),
-                    None => bail!("line {number}: a bad \\u escape"),
+                    None => bail!(Stage::Host, Class::Config, "line {number}: a bad \\u escape"),
                 }
             }
-            other => bail!("line {number}: the escape \\{} is not supported", other.unwrap_or(' ')),
+            other => bail!(
+                Stage::Host,
+                Class::Config,
+                "line {number}: the escape \\{} is not supported",
+                other.unwrap_or(' ')
+            ),
         }
     }
     Ok(out)

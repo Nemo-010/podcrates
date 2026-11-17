@@ -13,8 +13,9 @@ use std::time::Duration;
 
 use crate::cloudflare as edge;
 use crate::cloudflare::{IpVersionFilter, quic as quic_dial, rpc};
-use anyhow::{Context, Result, bail};
+use crate::fail::{Result, bail};
 use pod_core::Class;
+use pod_core::Stage;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
@@ -115,7 +116,7 @@ impl TunnelBuilder {
 
     pub fn build(self) -> Result<Tunnel> {
         if self.config.ingress.is_empty() {
-            bail!(NO_INGRESS);
+            return Err(crate::fail::new(Stage::Host, Class::Config, NO_INGRESS));
         }
         Ok(Tunnel { config: self.config, host: self.host })
     }
@@ -270,9 +271,11 @@ impl Tunnel {
             Ok(won) => won,
             Err(failed) => {
                 let text: Vec<String> = failed.iter().map(|(i, err)| format!("{}: {err:#}", plan[*i])).collect();
-                return Err(crate::fail::fault(
+                let stage = failed.last().map_or(Stage::Connect, |(_, err)| err.stage);
+                return Err(crate::fail::new(
+                    stage,
                     Class::Unavailable,
-                    anyhow::anyhow!("no edge leg worked: {}", text.join("; ")),
+                    format!("no edge leg worked: {}", text.join("; ")),
                 ));
             }
         };

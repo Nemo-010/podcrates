@@ -14,7 +14,7 @@ pub async fn connect(
     ingress: Arc<Ingress>,
 ) -> Result<H2Leg> {
     if edges.is_empty() {
-        bail!("no edge addresses to dial");
+        bail!(Stage::Connect, Class::Config, "no edge addresses to dial");
     }
     let mut remaining: Vec<SocketAddr> = crate::cloudflare::for_connection(edges, conn_index)
         .iter()
@@ -38,7 +38,7 @@ pub async fn connect(
             }
         }
     }
-    Err(last.unwrap_or_else(|| anyhow::anyhow!("no edge answered")))
+    Err(last.unwrap_or_else(|| crate::fail::new(Stage::Connect, Class::Unavailable, "no edge answered")))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -63,17 +63,18 @@ pub(super) async fn connect_one(
         }
         None => (io, None),
     };
-    let config = edge_tls(&host.tls).map_err(|e| anyhow::anyhow!(e))?;
-    let name =
-        rustls_pki_types::ServerName::try_from(h2_sni().to_string()).context("the HTTP/2 SNI is not a valid name")?;
+    let config = edge_tls(&host.tls)?;
+    let name = rustls_pki_types::ServerName::try_from(h2_sni().to_string()).or_fail(
+        Stage::Tls,
+        Class::Config,
+        "the HTTP/2 SNI is not a valid name",
+    )?;
     let tls = tokio::time::timeout(DIAL_TIMEOUT, tokio_rustls::TlsConnector::from(config).connect(name, io))
         .await
-        .map_err(|_| anyhow::anyhow!("TLS with the edge at {addr} timed out"))?
+        .map_err(|_| crate::fail::new(Stage::Tls, Class::Timeout, format!("TLS with the edge at {addr} timed out")))?
         .map_err(|e| {
-            crate::fail::at(
-                crate::fail::tls_stage(&e),
-                anyhow::anyhow!("TLS with the edge at {addr}: {}", crate::fail::tls_text(&e)),
-            )
+            let text = format!("TLS with the edge at {addr}: {}", crate::fail::tls_text(&e));
+            pod_core::Failure::caused(crate::fail::tls_stage(&e), Class::of_io(e.kind()), text, e)
         })?;
 
     register_served(addr, tls, auth, tunnel_id, conn_index, options, runtime, ingress, budget).await
@@ -104,9 +105,25 @@ where
 
     let (request, mut respond) = tokio::time::timeout(REGISTER_TIMEOUT, control_rx)
         .await
-        .map_err(|_| anyhow::anyhow!("the edge at {addr} did not open the control stream"))?
-        .map_err(|_| anyhow::anyhow!("the edge at {addr} closed before the control stream"))?;
-    let send = respond.send_response(http::Response::new(()), false).context("answering the control stream")?;
+        .map_err(|_| {
+            crate::fail::new(
+                Stage::EdgeRegister,
+                Class::Timeout,
+                format!("the edge at {addr} did not open the control stream"),
+            )
+        })?
+        .map_err(|_| {
+            crate::fail::new(
+                Stage::EdgeRegister,
+                Class::Unavailable,
+                format!("the edge at {addr} closed before the control stream"),
+            )
+        })?;
+    let send = respond.send_response(http::Response::new(()), false).or_fail(
+        Stage::EdgeRegister,
+        Class::Unavailable,
+        "answering the control stream",
+    )?;
     let reader = body_reader(request.into_body());
     let writer = body_writer(send);
     let (details, control) = tokio::time::timeout(
@@ -114,7 +131,9 @@ where
         rpc::register_connection_on(reader, writer, auth, tunnel_id, conn_index, options),
     )
     .await
-    .map_err(|_| anyhow::anyhow!("register_connection over HTTP/2 timed out"))??;
+    .map_err(|_| {
+        crate::fail::new(Stage::EdgeRegister, Class::Timeout, "register_connection over HTTP/2 timed out")
+    })??;
     info!(conn_index, location = %details.location, "registered over HTTP/2");
     Ok(H2Leg {
         location: details.location,
@@ -136,12 +155,12 @@ pub(super) async fn dial(host: &Host, addrs: &[SocketAddr]) -> Result<(usize, Bo
         for (i, addr) in addrs.iter().enumerate().filter(|(_, a)| a.is_ipv4()) {
             match relay.dial.dial(&Target::Addr(*addr), deadline()).await {
                 Ok(connected) => return Ok((i, connected.io)),
-                Err(err) => {
-                    last = Some(anyhow::Error::new(err).context(format!("the edge at {addr} through the relay")))
-                }
+                Err(err) => last = Some(crate::fail::wrap(err, format!("the edge at {addr} through the relay"))),
             }
         }
-        return Err(last.unwrap_or_else(|| anyhow::anyhow!("no IPv4 edge address for the relay")));
+        return Err(last.unwrap_or_else(|| {
+            crate::fail::new(Stage::Relay, Class::Unsupported, "no IPv4 edge address for the relay")
+        }));
     }
     let first = addrs[0];
     if host.proxy_for(&first.ip().to_string(), first.port()).is_some() {
@@ -149,17 +168,13 @@ pub(super) async fn dial(host: &Host, addrs: &[SocketAddr]) -> Result<(usize, Bo
         for (i, addr) in addrs.iter().enumerate() {
             match host.dial.dial(&Target::Addr(*addr), deadline()).await {
                 Ok(connected) => return Ok((i, connected.io)),
-                Err(err) => last = Some(anyhow::Error::new(err).context(format!("TCP to the edge at {addr}"))),
+                Err(err) => last = Some(crate::fail::wrap(err, format!("TCP to the edge at {addr}"))),
             }
         }
         return Err(last.expect("addrs is not empty"));
     }
-    let connected = host
-        .dial
-        .dial_addrs(&first.ip().to_string(), addrs, deadline())
-        .await
-        .map_err(anyhow::Error::new)
-        .context("TCP to the edge")?;
+    let connected =
+        host.dial.dial_addrs(&first.ip().to_string(), addrs, deadline()).await.context("TCP to the edge")?;
     let index = addrs.iter().position(|a| Some(*a) == connected.peer).unwrap_or(0);
     Ok((index, connected.io))
 }

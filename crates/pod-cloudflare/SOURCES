@@ -24,7 +24,7 @@ repo PodUtils/podnet 600509df67db5e53be91bc66e42f7c29d65b7a7b
 # crates/podnet-core/src/util/mod.rs (validate_quick_hostname and its test
 # quick_hosts) in quicktunnel.rs, (authority_of, path_and_query) in
 # proxy.rs; crates/podnet-core/src/hop.rs and exit.rs (the stage and the
-# class of a failure, Refused) in fail.rs; crates/podnet-core/src/services.rs
+# class of a failure, Refused; now on pod_core::Failure) in fail.rs; crates/podnet-core/src/services.rs
 # (the facts of the edge) in services.rs.
 dir src/cloudflare
 dir src/tunnel
@@ -42,7 +42,7 @@ file 0adf018ec9a2630f8fdee9b7b4c416d1ac15c7e4 src/cloudflare/cloudflared-pin.txt
 file a4e2502e30ac19262e38881797780d3d0ccc7131 src/cloudflare/http2.rs -> crates/pod-cloudflare/src/cloudflare/http2.rs crates/pod-cloudflare/src/cloudflare/http2/tests.rs crates/pod-cloudflare/src/cloudflare/http2/protocol_tests.rs
 file d51dd5c99ff941f7fe5d5ff0e5703c68fbb3b4cc src/cloudflare/mod.rs -> crates/pod-cloudflare/src/cloudflare/mod.rs
 file 243fd8f17d7d09142cc95647025920a54c3530b9 src/cloudflare/quic.rs -> crates/pod-cloudflare/src/cloudflare/quic.rs
-file 21dce910a0792a15de2df01716f1fd9c2ebf416c src/cloudflare/rpc.rs -> crates/pod-cloudflare/src/cloudflare/rpc.rs crates/pod-cloudflare/src/cloudflare/rpc/tests.rs
+file 21dce910a0792a15de2df01716f1fd9c2ebf416c src/cloudflare/rpc.rs -> crates/pod-cloudflare/src/cloudflare/rpc.rs crates/pod-cloudflare/src/cloudflare/rpc/message.rs crates/pod-cloudflare/src/cloudflare/rpc/tests.rs
 file 8175da5f311eef96e27ad5eceed92bcd18aecc59 src/cloudflare/schema.rs -> crates/pod-cloudflare/src/cloudflare/schema.rs
 file 290a034a9e08513050eb382bfa309cd13619868c src/cloudflare/schemas/quic_metadata_protocol.capnp -> crates/pod-cloudflare/src/cloudflare/schemas/quic_metadata_protocol.capnp
 file 08c3b9e0575f8da258388c062546f1997ccf025e src/cloudflare/schemas/tunnelrpc.capnp -> crates/pod-cloudflare/src/cloudflare/schemas/tunnelrpc.capnp
@@ -53,7 +53,7 @@ file f21d8df4172647b99596e3670a9670f3f5b4fa0d src/edge_discovery.rs -> crates/po
 file 51865108807b397335520c8d527a7f3acca8e248 src/edge_h2.rs -> crates/pod-cloudflare/src/edge_h2.rs crates/pod-cloudflare/src/edge_h2/scan.rs crates/pod-cloudflare/src/edge_h2/serve.rs crates/pod-cloudflare/src/edge_h2/leg.rs crates/pod-cloudflare/src/edge_h2/tests.rs
 file ff758f8dca5b94651927659bc24fbb30d12081fc src/fuzzing.rs -> crates/pod-cloudflare/src/fuzzing.rs
 file 8a73cc0a5061c363fc081cfffa0f4394067ee7d9 src/proxy.rs -> crates/pod-cloudflare/src/proxy.rs crates/pod-cloudflare/src/proxy/forward.rs crates/pod-cloudflare/src/proxy/head.rs crates/pod-cloudflare/src/proxy/copy.rs crates/pod-cloudflare/src/proxy/tests.rs
-file 24602e3c0c29b6c67128cb9a73e4d077b0cea557 src/quicktunnel.rs -> crates/pod-cloudflare/src/quicktunnel.rs crates/pod-cloudflare/src/quicktunnel/tests.rs
+file 24602e3c0c29b6c67128cb9a73e4d077b0cea557 src/quicktunnel.rs -> crates/pod-cloudflare/src/quicktunnel.rs crates/pod-cloudflare/src/quicktunnel/error.rs crates/pod-cloudflare/src/quicktunnel/tests.rs
 file bcf43741feb7b3f0a101bfa7b9072c2730ac21dd src/quicktunnel/retry.rs -> crates/pod-cloudflare/src/quicktunnel/retry.rs
 file 6d77c7de62550d0825476d2ba64d053cfeed02cf src/tunnel.rs -> crates/pod-cloudflare/src/tunnel.rs crates/pod-cloudflare/src/tunnel/plan.rs crates/pod-cloudflare/src/tunnel/reactor.rs crates/pod-cloudflare/src/tunnel/handle.rs crates/pod-cloudflare/src/tunnel/tests.rs
 file ea4897288dafa4bffe5b385f87440fd8beb86211 src/tunnel/verify.rs -> crates/pod-cloudflare/src/tunnel/verify.rs

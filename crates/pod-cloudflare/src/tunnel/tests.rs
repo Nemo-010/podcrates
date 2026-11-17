@@ -6,7 +6,7 @@ use super::*;
 #[tokio::test(start_paused = true)]
 async fn a_retryable_refusal_of_the_first_registration_is_tried_again() {
     let refused = |retry: bool| {
-        anyhow::Error::new(rpc::Refused {
+        pod_core::Failure::from(rpc::Refused {
             cause: "Unauthorized: Tunnel not found".into(),
             should_retry: retry,
             retry_after: Duration::from_secs(1),
@@ -71,7 +71,7 @@ async fn a_slow_registration_completes_in_the_serial_limit() {
             async move {
                 tokio::time::sleep(quic_dial::HANDSHAKE_TIMEOUT / 2).await;
                 if n < REGISTER_TRIES {
-                    Err(anyhow::Error::new(rpc::Refused {
+                    Err(pod_core::Failure::from(rpc::Refused {
                         cause: "Unauthorized: Tunnel not found".into(),
                         should_retry: true,
                         retry_after: REGISTER_WAIT_MAX,

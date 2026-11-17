@@ -10,10 +10,10 @@
 use std::time::Duration;
 use tokio::time::Instant;
 
-use anyhow::Error;
 use futures::FutureExt;
 use futures::future::BoxFuture;
 use futures::stream::{FuturesUnordered, StreamExt};
+use pod_core::{Class, Failure as Error, Stage};
 
 /// The way to start the next attempt.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -29,11 +29,15 @@ pub const LEG_STAGGER: Duration = Duration::from_secs(2);
 
 impl Failover {
     /// Parse `staggered` or `serial`.
-    pub fn parse(value: &str) -> anyhow::Result<Self> {
+    pub fn parse(value: &str) -> Result<Self, Error> {
         match value.trim().to_ascii_lowercase().as_str() {
             "staggered" | "" => Ok(Self::Staggered(LEG_STAGGER)),
             "serial" => Ok(Self::Serial),
-            other => anyhow::bail!("the failover mode {other:?} is not staggered or serial"),
+            other => Err(Error::new(
+                Stage::Host,
+                Class::Usage,
+                format!("the failover mode {other:?} is not staggered or serial"),
+            )),
         }
     }
 }
@@ -52,7 +56,7 @@ pub struct Won<T> {
 /// Run `attempts` as [`Failover`] says. On success, the other successes go
 /// to `close`. On failure, each failure is given, by index.
 pub async fn race<'a, 'c, T: Send + 'a>(
-    attempts: Vec<BoxFuture<'a, anyhow::Result<T>>>,
+    attempts: Vec<BoxFuture<'a, Result<T, Error>>>,
     failover: Failover,
     close: impl Fn(usize, T) -> BoxFuture<'c, ()>,
 ) -> Result<Won<T>, Vec<(usize, Error)>> {
@@ -64,7 +68,7 @@ pub async fn race<'a, 'c, T: Send + 'a>(
     let launch = |running: &mut FuturesUnordered<_>, queue: &mut std::iter::Enumerate<_>| {
         if let Some((i, attempt)) = Iterator::next(queue) {
             tracing::debug!(attempt = i, after = ?start.elapsed(), "starting an attempt");
-            let attempt: BoxFuture<'a, anyhow::Result<T>> = attempt;
+            let attempt: BoxFuture<'a, Result<T, Error>> = attempt;
             running.push(attempt.map(move |r| (i, r)));
             true
         } else {
@@ -142,11 +146,11 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    fn never() -> BoxFuture<'static, anyhow::Result<u32>> {
+    fn never() -> BoxFuture<'static, Result<u32, Error>> {
         futures::future::pending().boxed()
     }
 
-    fn after(ms: u64, v: u32) -> BoxFuture<'static, anyhow::Result<u32>> {
+    fn after(ms: u64, v: u32) -> BoxFuture<'static, Result<u32, Error>> {
         async move {
             tokio::time::sleep(Duration::from_millis(ms)).await;
             Ok(v)
@@ -154,10 +158,10 @@ mod tests {
         .boxed()
     }
 
-    fn fail(ms: u64) -> BoxFuture<'static, anyhow::Result<u32>> {
+    fn fail(ms: u64) -> BoxFuture<'static, Result<u32, Error>> {
         async move {
             tokio::time::sleep(Duration::from_millis(ms)).await;
-            anyhow::bail!("refused")
+            Err(Error::new(Stage::Connect, Class::Refused, "refused"))
         }
         .boxed()
     }

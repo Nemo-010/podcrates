@@ -44,7 +44,6 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
 futures = { version = "0.3", default-features = false, features = ["std", "async-await", "executor"] }
-anyhow = "1"
 uuid = { version = "1", default-features = false, features = ["std"] }
 # The path of a rule of the ingress: a regular expression, as in cloudflared.
 regex = { version = "1", default-features = false, features = ["std", "unicode-perl"] }

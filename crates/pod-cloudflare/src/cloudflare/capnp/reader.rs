@@ -56,7 +56,7 @@ impl<'a> StructReader<'a> {
 
     pub(super) fn child(&self, segment: usize, start: usize, data: u16, ptrs: u16) -> Result<Self> {
         if self.depth >= MAX_DEPTH {
-            bail!("the message nests too deeply");
+            bail!(Stage::EdgeStream, Class::Protocol, "the message nests too deeply");
         }
         Ok(StructReader {
             msg: self.msg,
@@ -74,7 +74,7 @@ impl<'a> StructReader<'a> {
         match self.pointer(index)? {
             Target::Null => Ok(None),
             Target::Struct { segment, start, data, ptrs } => self.child(segment, start, data, ptrs).map(Some),
-            _ => bail!("pointer {index} is not a struct"),
+            _ => bail!(Stage::EdgeStream, Class::Protocol, "pointer {index} is not a struct"),
         }
     }
 
@@ -83,7 +83,7 @@ impl<'a> StructReader<'a> {
         match self.pointer(index)? {
             Target::Null => Ok(None),
             Target::Capability(cap) => Ok(Some(cap)),
-            _ => bail!("pointer {index} is not a capability"),
+            _ => bail!(Stage::EdgeStream, Class::Protocol, "pointer {index} is not a capability"),
         }
     }
 
@@ -92,12 +92,14 @@ impl<'a> StructReader<'a> {
             Target::Null => Ok(None),
             Target::List { segment, start, elem: ELEM_BYTE, count, .. } => {
                 let end = start.saturating_add(count.div_ceil(8) as usize);
-                let segment = self.msg.segments.get(segment).context("no such segment")?;
-                let words = segment.get(start..end).context("a list past its segment")?;
+                let segment =
+                    self.msg.segments.get(segment).or_fail(Stage::EdgeStream, Class::Protocol, "no such segment")?;
+                let words =
+                    segment.get(start..end).or_fail(Stage::EdgeStream, Class::Protocol, "a list past its segment")?;
                 let bytes = words.iter().flat_map(|w| w.to_le_bytes());
                 Ok(Some(bytes.take(count as usize).collect()))
             }
-            _ => bail!("pointer {index} is not a byte list"),
+            _ => bail!(Stage::EdgeStream, Class::Protocol, "pointer {index} is not a byte list"),
         }
     }
 
@@ -112,7 +114,7 @@ impl<'a> StructReader<'a> {
         if bytes.last() == Some(&0) {
             bytes.pop();
         }
-        String::from_utf8(bytes).context("Text is not UTF-8")
+        String::from_utf8(bytes).or_fail(Stage::EdgeStream, Class::Protocol, "Text is not UTF-8")
     }
 
     /// The `List(Struct)` in pointer `index` (empty for a null pointer).
@@ -121,7 +123,7 @@ impl<'a> StructReader<'a> {
             Target::Null => Ok(Vec::new()),
             Target::List { segment, start, elem: ELEM_COMPOSITE, tag, .. } => {
                 if tag & 3 != 0 {
-                    bail!("the tag of a struct list is not a struct pointer");
+                    bail!(Stage::EdgeStream, Class::Protocol, "the tag of a struct list is not a struct pointer");
                 }
                 let count = ((tag as u32) >> 2) as usize;
                 let data = ((tag >> 32) & 0xffff) as u16;
@@ -136,7 +138,7 @@ impl<'a> StructReader<'a> {
                 }
                 (0..count).map(|i| self.child(segment, start + 1 + i * size, data, ptrs)).collect()
             }
-            _ => bail!("pointer {index} is not a struct list"),
+            _ => bail!(Stage::EdgeStream, Class::Protocol, "pointer {index} is not a struct list"),
         }
     }
 
@@ -146,7 +148,7 @@ impl<'a> StructReader<'a> {
             Target::Null => Ok(Vec::new()),
             Target::List { segment, start, elem: ELEM_POINTER, count, .. } => {
                 if count > u64::from(u16::MAX) {
-                    bail!("a text list of {count} elements");
+                    bail!(Stage::EdgeStream, Class::Protocol, "a text list of {count} elements");
                 }
                 self.msg.check_range(segment, start, count)?;
                 let list = StructReader {
@@ -160,7 +162,7 @@ impl<'a> StructReader<'a> {
                 };
                 (0..list.ptr_count).map(|i| list.get_text(i)).collect()
             }
-            _ => bail!("pointer {index} is not a pointer list"),
+            _ => bail!(Stage::EdgeStream, Class::Protocol, "pointer {index} is not a pointer list"),
         }
     }
 }

@@ -20,7 +20,8 @@
 use std::net::{SocketAddr, UdpSocket};
 use std::time::{Duration, Instant};
 
-use anyhow::{Result, bail};
+use crate::fail::{Result, bail};
+use pod_core::{Class, Stage};
 
 /// The deadline of the probe of `podnet net doctor`.
 pub const DOCTOR_DEADLINE: Duration = Duration::from_secs(3);
@@ -79,7 +80,7 @@ impl Choice {
             "off" | "0" | "no" => Ok(Choice::Off),
             "on" | "1" | "yes" => Ok(Choice::On),
             "probe" | "" => Ok(Choice::Probe),
-            other => bail!("the UDP choice {other:?} is not off, on or probe"),
+            other => bail!(Stage::Host, Class::Usage, "the UDP choice {other:?} is not off, on or probe"),
         }
     }
 }

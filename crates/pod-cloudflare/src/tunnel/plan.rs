@@ -2,6 +2,7 @@
 //! limits; the credentials and the edge addresses that each leg needs.
 
 use super::*;
+use crate::fail::{Context, OrFail};
 
 pub(super) async fn resolve_credentials(
     host: &Host,
@@ -20,19 +21,24 @@ pub(super) async fn resolve_credentials(
                 host.settings.provision_budget,
             )
             .await
-            .context("provisioning quick tunnel")
             .map_err(|e| {
-                // Issue 210: a 429 is a refusal for now (75), with the wait
-                // in the error report.
+                // A 429 is a refusal for now (exit 75), with the wait in the
+                // refusal; each other failure leaves the service unavailable.
                 let class = match crate::quicktunnel::retry_of(&e) {
                     Some(r) if r.status == 429 => Class::TempFail,
                     _ => Class::Unavailable,
                 };
-                crate::fail::fault(class, e)
+                let mut failure = crate::fail::wrap(e, "provisioning quick tunnel");
+                failure.class = class;
+                failure
             })?;
-            let secret = tunnel.secret_bytes().map_err(|e| anyhow::anyhow!(e)).context("the quick tunnel secret")?;
+            let secret = tunnel.secret_bytes().context("the quick tunnel secret")?;
             let url = validate_quick_hostname(&tunnel.hostname)?;
-            let tunnel_id = Uuid::parse_str(&tunnel.id).context("quick tunnel id is not a UUID")?;
+            let tunnel_id = Uuid::parse_str(&tunnel.id).or_fail(
+                Stage::EdgeRegister,
+                Class::Protocol,
+                "quick tunnel id is not a UUID",
+            )?;
             Ok((rpc::TunnelAuth { account_tag: tunnel.account_tag, tunnel_secret: secret }, tunnel_id, Some(url)))
         }
         Credentials::Token(token) => {
@@ -54,7 +60,7 @@ pub(super) fn split_explicit(credentials: Credentials) -> Result<(rpc::TunnelAut
         Credentials::Explicit { account_tag, tunnel_id, secret } => {
             Ok((rpc::TunnelAuth { account_tag, tunnel_secret: secret }, tunnel_id))
         }
-        _ => bail!("expected explicit credentials"),
+        _ => bail!(Stage::Host, Class::Config, "expected explicit credentials"),
     }
 }
 
@@ -97,14 +103,14 @@ pub fn leg_plan(protocol: Protocol, transport: Transport) -> Result<Vec<LegKind>
         (Transport::Direct, Protocol::Http2) => vec![H2Direct],
         (Transport::Direct, Protocol::Auto) => vec![QuicDirect, H2Direct],
         (Transport::Warp, Protocol::Http2) => {
-            bail!("the WARP transport carries QUIC only; use --protocol quic or auto")
+            bail!(Stage::Host, Class::Usage, "the WARP transport carries QUIC only; use --protocol quic or auto")
         }
         (Transport::Warp, _) => vec![QuicWarp],
         (Transport::Auto, Protocol::Quic) => vec![QuicDirect, QuicWarp],
         (Transport::Auto, Protocol::Http2) => vec![H2Direct],
         (Transport::Auto, Protocol::Auto) => vec![QuicDirect, H2Direct, QuicWarp],
         (Transport::Relay, Protocol::Quic) => {
-            bail!("the relay carries TCP only; use --protocol http2 or auto")
+            bail!(Stage::Host, Class::Usage, "the relay carries TCP only; use --protocol http2 or auto")
         }
         (Transport::Relay, _) => vec![H2Relay],
     })
@@ -163,9 +169,10 @@ pub fn plan_with_udp(
     };
     let kept: Vec<LegKind> = plan.into_iter().filter(|k| *k != LegKind::QuicDirect).collect();
     if kept.is_empty() {
-        return Err(crate::fail::fault(
+        return Err(crate::fail::new(
+            Stage::Host,
             Class::Config,
-            anyhow::anyhow!("{why}, and the only leg is QUIC on UDP 7844: use --protocol auto or http2"),
+            format!("{why}, and the only leg is QUIC on UDP 7844: use --protocol auto or http2"),
         ));
     }
     Ok((kept, Some(format!("{why}: podnet does not try QUIC on UDP 7844"))))
@@ -218,7 +225,7 @@ where
             Ok(value) => return Ok(value),
             Err(err) => err,
         };
-        let refused = err.chain().find_map(|e| e.downcast_ref::<rpc::Refused>()).filter(|r| r.should_retry).cloned();
+        let refused = crate::fail::find::<rpc::Refused>(&err).filter(|r| r.should_retry).cloned();
         match refused {
             Some(refused) if tries < REGISTER_TRIES => {
                 let wait = refused.retry_after.clamp(REGISTER_WAIT_MIN, REGISTER_WAIT_MAX);
@@ -248,7 +255,7 @@ pub(super) async fn bounded<T>(
     };
     match tokio::time::timeout(limit, attempt).await {
         Ok(result) => result,
-        Err(_) => bail!("the attempt did not complete in {}s", limit.as_secs()),
+        Err(_) => bail!(Stage::Connect, Class::Timeout, "the attempt did not complete in {}s", limit.as_secs()),
     }
 }
 
@@ -271,7 +278,7 @@ pub(super) async fn direct_targets(host: &Host) -> Result<Vec<edge::EdgeAddr>> {
     }
     let discovered = crate::edge_discovery::discover(host, IpVersionFilter::Auto).await.context("edge discovery")?;
     if discovered.is_empty() {
-        bail!("edge discovery returned no addresses");
+        bail!(Stage::Dns, Class::Unavailable, "edge discovery returned no addresses");
     }
     Ok(discovered)
 }

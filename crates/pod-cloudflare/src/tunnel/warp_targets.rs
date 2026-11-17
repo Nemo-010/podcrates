@@ -3,7 +3,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{Context, Result, bail};
+use crate::fail::{Context, Result, bail};
+use pod_core::{Class, Stage};
 use tracing::{info, warn};
 
 use super::{IpVersionFilter, edge, edge_override};
@@ -12,14 +13,14 @@ use crate::host::{WarpSession, WarpSessions};
 
 pub(super) async fn warp_targets(host: &Host) -> Result<(Vec<edge::EdgeAddr>, Arc<WarpLink>, noq::Endpoint)> {
     let Some(sessions) = host.warp.clone() else {
-        bail!("the consumer gives no WARP sessions");
+        bail!(Stage::Warp, Class::Unsupported, "the consumer gives no WARP sessions");
     };
     let discovered = match edge_override(&host.settings) {
         Some(list) => list,
         None => crate::edge_discovery::discover(host, IpVersionFilter::V4Only).await.context("edge discovery")?,
     };
     let Some(first) = discovered.first() else {
-        bail!("edge discovery returned no addresses");
+        bail!(Stage::Dns, Class::Unavailable, "edge discovery returned no addresses");
     };
     let session = sessions.open().await.context("opening the WARP MASQUE tunnel on TCP 443")?;
     let endpoint = session.endpoint.clone();

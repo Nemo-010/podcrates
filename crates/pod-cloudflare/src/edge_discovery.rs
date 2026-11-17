@@ -30,8 +30,9 @@ use std::time::Duration;
 
 use crate::Host;
 use crate::cloudflare::{EdgeAddr, EdgeIpVersion, IpVersionFilter};
+use crate::fail::{Context, OrFail, Result, bail};
 use crate::services::{self, EDGE};
-use anyhow::{Context, Result, bail};
+use pod_core::{Class, Stage};
 
 /// The time of one step of the chain of resolvers.
 const STEP_TIMEOUT: Duration = Duration::from_secs(5);
@@ -129,14 +130,14 @@ pub async fn discover(host: &Host, filter: IpVersionFilter) -> Result<Vec<EdgeAd
         return Ok(edges);
     }
 
-    bail!("edge discovery failed: {}", failures.join("; "))
+    bail!(Stage::Dns, Class::Unavailable, "edge discovery failed: {}", failures.join("; "))
 }
 
 /// Resolve the SRV record with the system resolver of the consumer, and its
 /// targets with the system's lookup of addresses.
 pub async fn discover_system(host: &Host, filter: IpVersionFilter) -> Result<Vec<EdgeAddr>> {
     let Some(system) = &host.system_srv else {
-        bail!("the consumer gives no system resolver of SRV records");
+        bail!(Stage::Dns, Class::Unsupported, "the consumer gives no system resolver of SRV records");
     };
     let targets = system.srv(edge_srv()).await.with_context(|| format!("SRV lookup of {}", edge_srv()))?;
     let targets: Vec<(String, u16)> =
@@ -211,11 +212,12 @@ async fn query(host: &Host, name: &str, rtype: &str) -> Result<pod_dns::json::An
     let resolver = &host.resolver;
     let limit = STEP_TIMEOUT * (1 + 2 * resolver.settings().resolvers.len() as u32);
     let deadline = tokio::time::Instant::now() + limit;
-    let way = resolver.way().context("the resolver asks no DNS over HTTPS")?;
-    let answer = way.query(name, rtype, deadline).await.map_err(anyhow::Error::msg)?;
+    let way = resolver.way().or_fail(Stage::Dns, Class::Unsupported, "the resolver asks no DNS over HTTPS")?;
+    let answer =
+        way.query(name, rtype, deadline).await.map_err(|e| crate::fail::new(Stage::Dns, Class::Unavailable, e))?;
     if answer.status != Some(0) {
         let status = answer.status.map_or("missing".into(), |s| s.to_string());
-        bail!("DoH status {status} for {name} {rtype}");
+        bail!(Stage::Dns, Class::Unavailable, "DoH status {status} for {name} {rtype}");
     }
     Ok(answer)
 }

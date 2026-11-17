@@ -4,7 +4,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{Result, bail};
+use crate::fail::{Context, OrFail, Result, bail};
+use pod_core::{Class, Stage};
 use serde::Deserialize;
 
 /// A raw stream target for [`Service::Forward`].
@@ -23,7 +24,7 @@ impl ForwardTarget {
         for prefix in ["tcp://", "tcp:"] {
             if let Some(rest) = value.strip_prefix(prefix) {
                 if rest.is_empty() {
-                    bail!("forward target has no address: {value:?}");
+                    bail!(Stage::Host, Class::Config, "forward target has no address: {value:?}");
                 }
                 return Ok(Self::Tcp(rest.to_string()));
             }
@@ -31,7 +32,7 @@ impl ForwardTarget {
         for prefix in ["unix://", "unix:"] {
             if let Some(rest) = value.strip_prefix(prefix) {
                 if rest.is_empty() {
-                    bail!("forward target has no path: {value:?}");
+                    bail!(Stage::Host, Class::Config, "forward target has no path: {value:?}");
                 }
                 return Ok(Self::Unix(PathBuf::from(rest)));
             }
@@ -39,7 +40,7 @@ impl ForwardTarget {
         if value.contains(':') {
             return Ok(Self::Tcp(value.to_string()));
         }
-        bail!("forward target must be tcp://host:port or unix:/path, got {value:?}")
+        bail!(Stage::Host, Class::Config, "forward target must be tcp://host:port or unix:/path, got {value:?}")
     }
 
     pub fn describe(&self) -> String {
@@ -102,7 +103,7 @@ impl Service {
         if value.starts_with("http://") || value.starts_with("https://") {
             // A URL with no host (http://) is refused here, before any
             // network work (issue 57), not at the first dial.
-            crate::origin::parse_http_url(value).map_err(|e| anyhow::anyhow!("the origin {value}: {e}"))?;
+            crate::origin::parse_http_url(value).with_context(|| format!("the origin {value}"))?;
             return Ok(Service::Http(value.to_string()));
         }
         if let Some(rest) = value.strip_prefix("unix+tls:") {
@@ -124,9 +125,9 @@ impl Service {
             return Ok(Service::Static { root: PathBuf::from(rest), spa: true, tar: false });
         }
         if let Some(rest) = value.strip_prefix("http_status:") {
-            let code: u16 = rest.parse().map_err(|_| anyhow::anyhow!("bad status {rest}"))?;
+            let code: u16 = rest.parse().or_fail(Stage::Host, Class::Config, format!("bad status {rest}"))?;
             if !(100..=999).contains(&code) {
-                bail!("status out of range: {code}");
+                bail!(Stage::Host, Class::Config, "status out of range: {code}");
             }
             return Ok(Service::Status(code));
         }
@@ -134,6 +135,8 @@ impl Service {
             "hello_world" => Ok(Service::HelloWorld),
             "metrics" => Ok(Service::Metrics),
             other => bail!(
+                Stage::Host,
+                Class::Config,
                 "unsupported service {other:?}: give http://, https://, unix:, unix+tls:, tcp://, forward:, static:, spa:, http_status:CODE, hello_world or metrics"
             ),
         }
@@ -226,7 +229,11 @@ impl PathPattern {
             // last line names the error.
             let text_of_error = e.to_string();
             let reason = text_of_error.lines().last().unwrap_or_default().trim_start_matches("error: ").to_string();
-            anyhow::anyhow!("path: {text:?} is not a valid regular expression: {reason}")
+            crate::fail::new(
+                Stage::Host,
+                Class::Config,
+                format!("path: {text:?} is not a valid regular expression: {reason}"),
+            )
         })?;
         Ok(Self { text: text.to_string(), regex, prefix: false })
     }
@@ -333,8 +340,8 @@ fn hostname_matches(pattern: &str, hostname: &str) -> bool {
 /// The user and the password that a client gives (`--auth-user`,
 /// `--proxy-user`): the password from `file`, a file of this user that
 /// others cannot read.
-pub fn credentials(user: &str, file: &std::path::Path) -> anyhow::Result<pod_proxy::Credentials> {
-    pod_proxy::Credentials::load(user, file).map_err(anyhow::Error::msg)
+pub fn credentials(user: &str, file: &std::path::Path) -> Result<pod_proxy::Credentials> {
+    pod_proxy::Credentials::load(user, file).map_err(|e| crate::fail::new(Stage::Host, Class::Config, e))
 }
 
 /// An ordered rule set. The last rule is normally a catch-all.
@@ -439,13 +446,13 @@ fn humantime(value: &str) -> Result<Duration> {
     let value = value.trim();
     let (number, unit) =
         value.char_indices().find(|(_, c)| !c.is_ascii_digit()).map(|(i, _)| value.split_at(i)).unwrap_or((value, "s"));
-    let number: f64 = number.parse().map_err(|_| anyhow::anyhow!("bad duration {value}"))?;
+    let number: f64 = number.parse().or_fail(Stage::Host, Class::Config, format!("bad duration {value}"))?;
     let multiplier = match unit.trim() {
         "" | "s" => 1.0,
         "ms" => 0.001,
         "m" => 60.0,
         "h" => 3600.0,
-        other => bail!("unknown duration unit {other:?}"),
+        other => bail!(Stage::Host, Class::Config, "unknown duration unit {other:?}"),
     };
     Ok(Duration::from_secs_f64(number * multiplier))
 }
@@ -467,12 +474,11 @@ impl RawOriginOptions {
 #[doc(hidden)]
 pub fn ingress_from_raw(rules: Vec<RawIngress>) -> Result<Ingress> {
     let mut ingress = Ingress::new();
-    use anyhow::Context as _;
     for (i, raw) in rules.into_iter().enumerate() {
         let service = raw
             .service
             .as_deref()
-            .with_context(|| format!("ingress rule {}: service: is missing", i + 1))
+            .or_fail(Stage::Host, Class::Config, format!("ingress rule {}: service: is missing", i + 1))
             .and_then(|s| Service::parse(s).with_context(|| format!("ingress rule {}", i + 1)))?;
         let path = raw
             .path

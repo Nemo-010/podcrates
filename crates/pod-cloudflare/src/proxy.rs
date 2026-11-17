@@ -7,7 +7,8 @@
 
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
+use crate::fail::{Context, OrFail, Result};
+use pod_core::{Class, Stage};
 
 use crate::Host;
 use crate::cloudflare::stream as cqstream;
@@ -185,7 +186,7 @@ async fn serve_request_inner(
         return write_simple_response(&mut writer, 503, "text/plain; charset=utf-8", b"no ingress rule matched\n")
             .await;
     };
-    let rule = ingress.rules.get(index).context("runtime rule missing")?;
+    let rule = ingress.rules.get(index).or_fail(Stage::Host, Class::Config, "runtime rule missing")?;
     let metrics = runtime.metrics();
     match &rule.service {
         service @ (Service::Http(_) | Service::Unix(_) | Service::UnixTls(_)) => {

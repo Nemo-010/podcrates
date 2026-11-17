@@ -2,6 +2,7 @@
 //! keeps a leg registered, and the set of the legs that run.
 
 use super::*;
+use crate::fail::Context;
 
 /// The first registered leg.
 pub(super) enum First {
@@ -19,7 +20,7 @@ pub(super) async fn connect_once(
     client_version: &str,
 ) -> Result<(noq::Connection, rpc::ControlSession, String)> {
     if edges.is_empty() {
-        bail!("no edge addresses to dial");
+        bail!(Stage::Connect, Class::Config, "no edge addresses to dial");
     }
     let edges = edge::for_connection(edges, conn_index);
     let candidates = edges.len().min(5);
@@ -32,7 +33,7 @@ pub(super) async fn connect_once(
     let (details, control) =
         tokio::time::timeout(REGISTER_TIMEOUT, rpc::register_connection(&conn, auth, tunnel_id, conn_index, &options))
             .await
-            .map_err(|_| anyhow::anyhow!("register_connection timed out"))??;
+            .map_err(|_| crate::fail::new(Stage::EdgeRegister, Class::Timeout, "register_connection timed out"))??;
     Ok((conn, control, details.location))
 }
 

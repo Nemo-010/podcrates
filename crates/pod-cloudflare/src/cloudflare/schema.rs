@@ -3,7 +3,8 @@
 //! Proto layout rules. Offsets are in elements of the field type: a `u8` at
 //! index 1 is byte 1, a `u16` at index 1 is bytes 2 and 3.
 
-use anyhow::{Context, Result, bail};
+use crate::fail::{OrFail, Result, bail};
+use pod_core::{Class, Stage};
 use uuid::Uuid;
 
 use super::capnp::{Builder, StructReader};
@@ -137,9 +138,14 @@ pub fn write_register_params(
 pub fn read_register_results(
     results: &StructReader<'_>,
 ) -> Result<std::result::Result<RegistrationDetails, ConnectionError>> {
-    let response = results.get_struct(0)?.context("registerConnection returned no result")?;
+    let response = results.get_struct(0)?.or_fail(
+        Stage::EdgeRegister,
+        Class::Protocol,
+        "registerConnection returned no result",
+    )?;
     // ConnectionResponse: 1 data word, 1 pointer; union tag u16 at index 0.
-    let body = response.get_struct(0)?.context("the ConnectionResponse is empty")?;
+    let body =
+        response.get_struct(0)?.or_fail(Stage::EdgeRegister, Class::Protocol, "the ConnectionResponse is empty")?;
     match response.get_u16(0) {
         0 => Ok(Err(ConnectionError {
             cause: body.get_text(0)?,
@@ -155,7 +161,7 @@ pub fn read_register_results(
                 tunnel_is_remotely_managed: body.get_bool(0),
             }))
         }
-        other => bail!("unknown ConnectionResponse variant {other}"),
+        other => bail!(Stage::EdgeRegister, Class::Protocol, "unknown ConnectionResponse variant {other}"),
     }
 }
 
@@ -175,7 +181,7 @@ impl ConnectionType {
             0 => Self::Http,
             1 => Self::Websocket,
             2 => Self::Tcp,
-            other => bail!("unknown ConnectionType {other}"),
+            other => bail!(Stage::EdgeStream, Class::Protocol, "unknown ConnectionType {other}"),
         })
     }
 

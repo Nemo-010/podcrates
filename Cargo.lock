@@ -208,12 +208,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "anyhow"
-version = "1.0.104"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
-
-[[package]]
 name = "appendlist"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4751,7 +4745,6 @@ dependencies = [
 name = "pod-cloudflare"
 version = "0.67.0"
 dependencies = [
- "anyhow",
  "base64 0.23.1",
  "bytes",
  "futures",

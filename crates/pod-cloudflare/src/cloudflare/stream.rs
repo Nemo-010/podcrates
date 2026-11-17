@@ -4,8 +4,9 @@
 //! capnp `ConnectRequest`. The answer has the same preamble and a capnp
 //! `ConnectResponse`. After that, the stream is a byte pipe.
 
-use anyhow::{Context, Result, bail};
+use crate::fail::{IoFail, Result, bail};
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+use pod_core::{Class, Stage};
 
 use super::capnp::Message;
 pub use super::schema::{ConnectRequest, ConnectionType};
@@ -22,12 +23,12 @@ where
     R: AsyncRead + Unpin,
 {
     let mut signature = [0u8; 6];
-    reader.read_exact(&mut signature).await.context("reading the stream signature")?;
+    reader.read_exact(&mut signature).await.io_fail(Stage::EdgeStream, "reading the stream signature")?;
     if signature != DATA_STREAM_SIGNATURE {
-        bail!("unexpected stream signature {signature:02x?}");
+        bail!(Stage::EdgeStream, Class::Protocol, "unexpected stream signature {signature:02x?}");
     }
     let mut version = [0u8; 2];
-    reader.read_exact(&mut version).await.context("reading the stream version")?;
+    reader.read_exact(&mut version).await.io_fail(Stage::EdgeStream, "reading the stream version")?;
     if version != DATA_STREAM_VERSION {
         tracing::debug!(version = ?version, "unknown stream version");
     }
@@ -57,8 +58,8 @@ where
 {
     let mut out = preamble();
     out.extend_from_slice(&super::schema::encode_connect_request(request));
-    writer.write_all(&out).await?;
-    writer.flush().await?;
+    writer.write_all(&out).await.io_fail(Stage::EdgeStream, "writing the ConnectRequest")?;
+    writer.flush().await.io_fail(Stage::EdgeStream, "writing the ConnectRequest")?;
     Ok(())
 }
 
@@ -70,8 +71,8 @@ where
     let owned: Vec<(String, String)> = metadata.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
     let mut out = preamble();
     out.extend_from_slice(&super::schema::encode_connect_response(error, &owned));
-    writer.write_all(&out).await?;
-    writer.flush().await?;
+    writer.write_all(&out).await.io_fail(Stage::EdgeStream, "writing the ConnectRequest")?;
+    writer.flush().await.io_fail(Stage::EdgeStream, "writing the ConnectRequest")?;
     Ok(())
 }
 

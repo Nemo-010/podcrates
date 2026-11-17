@@ -12,10 +12,14 @@
 //! The edge uses the bootstrap of podnet as a liveness check. Without an answer,
 //! the edge marks the tunnel as down.
 
+mod message;
+pub(crate) use message::*;
+
 use std::collections::HashMap;
 use std::time::Duration;
 
-use anyhow::{Context, Result, bail};
+use crate::fail::{Failure, IoFail, OrFail, Result, bail};
+use pod_core::{Class, Stage};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
@@ -98,7 +102,8 @@ pub async fn register_connection(
     conn_index: u8,
     options: &ConnectionOptions,
 ) -> Result<(RegistrationDetails, ControlSession)> {
-    let (send, recv) = conn.open_bi().await.context("opening the control stream")?;
+    let (send, recv) =
+        conn.open_bi().await.or_fail(Stage::EdgeRegister, Class::Unavailable, "opening the control stream")?;
     register_connection_on(recv, send, auth, tunnel_id, conn_index, options).await
 }
 
@@ -128,8 +133,14 @@ where
     });
     let details = tokio::time::timeout(DEFAULT_RPC_TIMEOUT, result_rx)
         .await
-        .map_err(|_| anyhow::anyhow!("registerConnection timed out"))?
-        .map_err(|_| anyhow::anyhow!("the control stream closed before the registration"))??;
+        .map_err(|_| crate::fail::new(Stage::EdgeRegister, Class::Timeout, "registerConnection timed out"))?
+        .map_err(|_| {
+            crate::fail::new(
+                Stage::EdgeRegister,
+                Class::Unavailable,
+                "the control stream closed before the registration",
+            )
+        })??;
     info!(uuid = %details.uuid, location = %details.location, conn_index, "registered with the edge");
     Ok((details, ControlSession { shutdown: Some(shutdown_tx), task }))
 }
@@ -175,8 +186,8 @@ struct Session<W> {
 
 impl<W: AsyncWrite + Unpin> Session<W> {
     async fn send(&mut self, b: Builder) -> Result<()> {
-        self.writer.write_all(&b.to_bytes()).await?;
-        self.writer.flush().await?;
+        self.writer.write_all(&b.to_bytes()).await.io_fail(Stage::EdgeRegister, "writing to the control stream")?;
+        self.writer.flush().await.io_fail(Stage::EdgeRegister, "writing to the control stream")?;
         Ok(())
     }
 
@@ -193,9 +204,13 @@ impl<W: AsyncWrite + Unpin> Session<W> {
             if let Some(answer) = self.answers.remove(&question) {
                 return Ok(answer);
             }
-            let message = self.incoming.recv().await.context("the control stream closed")?;
+            let message = self.incoming.recv().await.or_fail(
+                Stage::EdgeRegister,
+                Class::Unavailable,
+                "the control stream closed",
+            )?;
             if !self.handle(message).await? {
-                bail!("the edge aborted the control stream");
+                bail!(Stage::EdgeRegister, Class::Protocol, "the edge aborted the control stream");
             }
         }
     }
@@ -205,7 +220,8 @@ impl<W: AsyncWrite + Unpin> Session<W> {
         let kind = message.root()?.get_u16(0);
         if kind == MSG_RETURN {
             let (answer_id, answer) = {
-                let ret = message.root()?.get_struct(0)?.context("an empty Return")?;
+                let ret =
+                    message.root()?.get_struct(0)?.or_fail(Stage::EdgeRegister, Class::Protocol, "an empty Return")?;
                 let answer = match ret.get_u16(3) {
                     RETURN_RESULTS => None,
                     RETURN_EXCEPTION => Some(Answer::Exception(exception_reason(&ret)?)),
@@ -220,11 +236,12 @@ impl<W: AsyncWrite + Unpin> Session<W> {
         let root = message.root()?;
         match kind {
             MSG_BOOTSTRAP => {
-                let question = root.get_struct(0)?.context("an empty Bootstrap")?.get_u32(0);
+                let question =
+                    root.get_struct(0)?.or_fail(Stage::EdgeRegister, Class::Protocol, "an empty Bootstrap")?.get_u32(0);
                 self.send(our_bootstrap_return(question)).await?;
             }
             MSG_CALL => {
-                let call = root.get_struct(0)?.context("an empty Call")?;
+                let call = root.get_struct(0)?.or_fail(Stage::EdgeRegister, Class::Protocol, "an empty Call")?;
                 let question = call.get_u32(0);
                 let interface = call.get_u64(1);
                 let method = call.get_u16(2);
@@ -302,8 +319,12 @@ impl<W: AsyncWrite + Unpin> Session<W> {
         self.send(b).await?;
         let import = match self.wait(question).await? {
             Answer::Results(message) => imported_capability(&message)?,
-            Answer::Exception(reason) => bail!("the edge refused the bootstrap: {reason}"),
-            Answer::Other(kind) => bail!("the edge answered the bootstrap with kind {kind}"),
+            Answer::Exception(reason) => {
+                bail!(Stage::EdgeRegister, Class::Protocol, "the edge refused the bootstrap: {reason}")
+            }
+            Answer::Other(kind) => {
+                bail!(Stage::EdgeRegister, Class::Protocol, "the edge answered the bootstrap with kind {kind}")
+            }
         };
         // Keep the capability: releaseResultCaps = false.
         self.send(finish(question, false)).await?;
@@ -349,7 +370,7 @@ impl<W: AsyncWrite + Unpin> Session<W> {
                 let results = results_struct(&message)?;
                 match read_register_results(&results)? {
                     Ok(details) => Ok(details),
-                    Err(err) => Err(anyhow::Error::new(Refused {
+                    Err(err) => Err(Failure::from(Refused {
                         cause: err.cause.clone(),
                         should_retry: err.should_retry,
                         retry_after: Duration::from_nanos(err.retry_after.max(0) as u64),
@@ -357,10 +378,20 @@ impl<W: AsyncWrite + Unpin> Session<W> {
                 }
             }
             Answer::Exception(reason) => {
-                bail!("registerConnection failed: {reason} (podnet speaks {})", crate::cloudflare::speaks())
+                bail!(
+                    Stage::EdgeRegister,
+                    Class::Protocol,
+                    "registerConnection failed: {reason} (podnet speaks {})",
+                    crate::cloudflare::speaks()
+                )
             }
             Answer::Other(kind) => {
-                bail!("registerConnection answered with kind {kind} (podnet speaks {})", crate::cloudflare::speaks())
+                bail!(
+                    Stage::EdgeRegister,
+                    Class::Protocol,
+                    "registerConnection answered with kind {kind} (podnet speaks {})",
+                    crate::cloudflare::speaks()
+                )
             }
         }
     }
@@ -383,77 +414,6 @@ impl<W: AsyncWrite + Unpin> Session<W> {
             Err(_) => debug!("unregisterConnection timed out"),
         }
     }
-}
-
-pub(crate) fn exception_reason(ret: &StructReader<'_>) -> Result<String> {
-    Ok(ret.get_struct(0)?.map(|e| e.get_text(0).unwrap_or_default()).unwrap_or_default())
-}
-
-/// The `Payload` of a `Return` with results.
-pub(crate) fn payload<'a>(message: &'a Message) -> Result<StructReader<'a>> {
-    message.root()?.get_struct(0)?.context("an empty Return")?.get_struct(0)?.context("a Return with no payload")
-}
-
-/// The content struct of the results.
-pub(crate) fn results_struct(message: &Message) -> Result<StructReader<'_>> {
-    payload(message)?.get_struct(0)?.context("the results have no content")
-}
-
-/// The import id of the capability in the results of a bootstrap.
-pub(crate) fn imported_capability(message: &Message) -> Result<u32> {
-    let payload = payload(message)?;
-    let index = payload.get_capability(0)?.context("the bootstrap answer has no capability")?;
-    let table = payload.get_struct_list(1)?;
-    let descriptor = table.get(index as usize).context("the capability is not in the cap table")?;
-    match descriptor.get_u16(0) {
-        CAP_SENDER_HOSTED | CAP_SENDER_PROMISE => Ok(descriptor.get_u32(1)),
-        other => bail!("unsupported capability descriptor {other}"),
-    }
-}
-
-/// `Finish` for `question`.
-fn finish(question: u32, release_result_caps: bool) -> Builder {
-    let mut b = Builder::new();
-    let root = b.init_root(1, 1);
-    b.set_u16(root, 0, MSG_FINISH);
-    let f = b.init_struct(root, 0, 1, 0);
-    b.set_u32(f, 0, question);
-    // The default of releaseResultCaps is true: the stored bit is the XOR.
-    b.set_bool(f, 32, !release_result_caps);
-    b
-}
-
-/// The answer to a `Bootstrap` of the edge: our capability, export 0.
-pub(crate) fn our_bootstrap_return(question: u32) -> Builder {
-    let mut b = Builder::new();
-    let root = b.init_root(1, 1);
-    b.set_u16(root, 0, MSG_RETURN);
-    // Return: 2 data words, 1 pointer.
-    let ret = b.init_struct(root, 0, 2, 1);
-    b.set_u32(ret, 0, question);
-    b.set_u16(ret, 3, RETURN_RESULTS);
-    let payload = b.init_struct(ret, 0, 0, 2);
-    b.set_capability(payload, 0, 0);
-    // CapDescriptor: 1 data word, 1 pointer.
-    let table = b.init_struct_list(payload, 1, 1, 1, 1);
-    b.set_u16(table[0], 0, CAP_SENDER_HOSTED);
-    b.set_u32(table[0], 1, OUR_EXPORT);
-    b
-}
-
-/// A `Return` with an `unimplemented` exception for `question`.
-pub(crate) fn exception_return(question: u32, reason: &str) -> Builder {
-    let mut b = Builder::new();
-    let root = b.init_root(1, 1);
-    b.set_u16(root, 0, MSG_RETURN);
-    let ret = b.init_struct(root, 0, 2, 1);
-    b.set_u32(ret, 0, question);
-    b.set_u16(ret, 3, RETURN_EXCEPTION);
-    // Exception: 1 data word, 2 pointers; type is u16 at index 2.
-    let exception = b.init_struct(ret, 0, 1, 2);
-    b.set_text(exception, 0, reason);
-    b.set_u16(exception, 2, EXCEPTION_UNIMPLEMENTED);
-    b
 }
 
 #[cfg(test)]

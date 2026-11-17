@@ -14,7 +14,8 @@
 //! tokio-tungstenite. The client side (the dial of a forward) is the
 //! consumer's.
 
-use anyhow::{Context, Result};
+use crate::fail::{Context, IoFail, Result};
+use pod_core::Stage;
 use pod_ws::Limits;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
 
@@ -87,8 +88,10 @@ pub async fn serve_websocket(
         Err(err) => {
             const TEXT: &str = "the forward target does not answer\n";
             write_response_meta(&mut writer, 502, &plain(TEXT)).await?;
-            futures::io::AsyncWriteExt::write_all(&mut writer, TEXT.as_bytes()).await?;
-            futures::io::AsyncWriteExt::close(&mut writer).await?;
+            futures::io::AsyncWriteExt::write_all(&mut writer, TEXT.as_bytes())
+                .await
+                .io_fail(Stage::EdgeStream, "writing to the edge")?;
+            futures::io::AsyncWriteExt::close(&mut writer).await.io_fail(Stage::EdgeStream, "writing to the edge")?;
             return Err(err).with_context(|| format!("dialing forward target {}", target.describe()));
         }
     };

@@ -40,6 +40,8 @@ pub mod stream;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use pod_core::{Class, Failure, Stage};
+
 /// The edge's endpoint of the transport `role` (`quic`, `h2`): the first of
 /// the role of `cloudflare-tunnel-edge` (`pod-services`).
 fn edge_endpoint(role: &str) -> &'static crate::services::Endpoint {
@@ -107,12 +109,16 @@ pub enum Protocol {
 
 impl Protocol {
     /// Parse the `--protocol` value cloudflared accepts.
-    pub fn parse(s: &str) -> Result<Protocol, String> {
+    pub fn parse(s: &str) -> Result<Protocol, Failure> {
         match s.to_ascii_lowercase().as_str() {
             "auto" | "" => Ok(Protocol::Auto),
             "quic" => Ok(Protocol::Quic),
             "http2" | "h2" => Ok(Protocol::Http2),
-            other => Err(format!("unknown protocol {other:?}; expected auto, quic or http2")),
+            other => Err(Failure::new(
+                Stage::Host,
+                Class::Usage,
+                format!("unknown protocol {other:?}; expected auto, quic or http2"),
+            )),
         }
     }
 
@@ -234,49 +240,25 @@ pub struct Credentials {
 impl Credentials {
     /// Parse a tunnel UUID into its 16 raw bytes, which is how it goes on the
     /// wire (`tunnelId :Data`).
-    pub fn tunnel_id_bytes(&self) -> Result<[u8; 16], String> {
+    pub fn tunnel_id_bytes(&self) -> Result<[u8; 16], Failure> {
         parse_uuid(&self.tunnel_id)
     }
 }
 
 /// Parse a hyphenated UUID into 16 bytes.
-fn parse_uuid(s: &str) -> Result<[u8; 16], String> {
+fn parse_uuid(s: &str) -> Result<[u8; 16], Failure> {
+    let bad = |text: String| Failure::new(Stage::Host, Class::Config, text);
     let hex: String = s.chars().filter(|c| *c != '-').collect();
-    if hex.len() != 32 {
-        return Err(format!("tunnel id {:?} is not a 32-character uuid", s));
+    if hex.len() != 32 || !hex.is_ascii() {
+        return Err(bad(format!("tunnel id {s:?} is not a 32-character uuid")));
     }
     let mut out = [0u8; 16];
     for i in 0..16 {
-        out[i] = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).map_err(|e| format!("bad hex in uuid {s:?}: {e}"))?;
+        out[i] =
+            u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).map_err(|e| bad(format!("bad hex in uuid {s:?}: {e}")))?;
     }
     Ok(out)
 }
-
-/// Why the edge could not be found or reached.
-#[derive(Debug)]
-pub enum EdgeError {
-    /// The SRV lookup failed.
-    Resolve(String),
-    /// A transport could not connect.
-    Connect(String),
-    /// Registration was refused.
-    Registration(String),
-    /// The edge asked for something this client does not implement.
-    Unsupported(String),
-}
-
-impl std::fmt::Display for EdgeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            EdgeError::Resolve(m) => write!(f, "edge discovery failed: {m}"),
-            EdgeError::Connect(m) => write!(f, "edge connect failed: {m}"),
-            EdgeError::Registration(m) => write!(f, "registration refused: {m}"),
-            EdgeError::Unsupported(m) => write!(f, "unsupported: {m}"),
-        }
-    }
-}
-
-impl std::error::Error for EdgeError {}
 
 /// Build a rustls client config for the edge, over the roots and the
 /// provider of `tls`.
@@ -286,9 +268,9 @@ impl std::error::Error for EdgeError {}
 /// empty for the HTTP/2 transport, which cloudflared relies on: the edge
 /// initiates every stream, so negotiating `h2` changes the handshake shape and
 /// breaks it.
-pub fn edge_tls_config(tls: &pod_tls::Context, alpn: &[u8]) -> Result<Arc<rustls::ClientConfig>, String> {
+pub fn edge_tls_config(tls: &pod_tls::Context, alpn: &[u8]) -> Result<Arc<rustls::ClientConfig>, Failure> {
     let alpns: &[&[u8]] = if alpn.is_empty() { &[] } else { &[alpn] };
-    tls.client_config_with(&[edge_roots_pem()], alpns).map(Arc::new).map_err(|e| format!("{e:#}"))
+    tls.client_config_with(&[edge_roots_pem()], alpns).map(Arc::new).map_err(Failure::from)
 }
 
 #[cfg(test)]

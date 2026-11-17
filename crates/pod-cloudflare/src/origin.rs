@@ -5,7 +5,8 @@
 
 use std::sync::{Arc, Mutex, OnceLock};
 
-use anyhow::{Context, Result, bail};
+use crate::fail::{IoFail, OrFail, Result, bail};
+use pod_core::Class;
 use pod_core::{BoxedIo, Stage};
 use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
@@ -59,18 +60,19 @@ async fn dial(origins: &Origins, service: &Service, options: &OriginOptions) -> 
             Service::Unix(path) => dial_unix(origins, path, false, options).await,
             Service::UnixTls(path) => dial_unix(origins, path, true, options).await,
             Service::Tcp(addr) => {
-                let (host, port) = split_host_port(addr).with_context(|| format!("{addr} is not HOST:PORT"))?;
+                let (host, port) =
+                    split_host_port(addr).or_fail(Stage::Origin, Class::Config, format!("{addr} is not HOST:PORT"))?;
                 let s = connect_origin(host, port).await?;
                 let _ = s.set_nodelay(true);
                 Ok(Box::new(s) as BoxedIo)
             }
-            other => bail!("{} is not a forward service", other.describe()),
+            other => bail!(Stage::Origin, Class::Config, "{} is not a forward service", other.describe()),
         }
     };
     match timeout {
-        Some(limit) => tokio::time::timeout(limit, connect)
-            .await
-            .map_err(|_| anyhow::anyhow!("origin connect timed out after {limit:?}"))?,
+        Some(limit) => tokio::time::timeout(limit, connect).await.map_err(|_| {
+            crate::fail::new(Stage::Origin, Class::Timeout, format!("origin connect timed out after {limit:?}"))
+        })?,
         None => connect.await,
     }
 }
@@ -78,7 +80,8 @@ async fn dial(origins: &Origins, service: &Service, options: &OriginOptions) -> 
 /// Dial a filesystem socket, optionally wrapping it in TLS.
 #[cfg(unix)]
 async fn dial_unix(origins: &Origins, path: &std::path::Path, tls: bool, options: &OriginOptions) -> Result<BoxedIo> {
-    let stream = UnixStream::connect(path).await.with_context(|| format!("connecting to unix:{}", path.display()))?;
+    let stream =
+        UnixStream::connect(path).await.io_fail(Stage::Origin, format!("connecting to unix:{}", path.display()))?;
     if tls {
         if options.no_tls_verify {
             origins.note_unverified(&format!("unix+tls:{}", path.display()));
@@ -96,7 +99,7 @@ async fn dial_unix(
     _tls: bool,
     _options: &OriginOptions,
 ) -> Result<BoxedIo> {
-    bail!("unix sockets are not supported on this platform: {}", path.display())
+    bail!(Stage::Origin, Class::Unsupported, "unix sockets are not supported on this platform: {}", path.display())
 }
 
 impl Origins {
@@ -121,9 +124,13 @@ impl Origins {
         S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     {
         let connector = if no_verify { self.no_verify_connector() } else { self.verified_connector() };
-        let name = ServerName::try_from(server_name.to_string())
-            .map_err(|_| anyhow::anyhow!("invalid TLS server name {server_name:?}"))?;
-        let tls = connector.connect(name, stream).await.with_context(|| format!("TLS handshake with {server_name}"))?;
+        let name = ServerName::try_from(server_name.to_string()).or_fail(
+            Stage::Origin,
+            Class::Config,
+            format!("invalid TLS server name {server_name:?}"),
+        )?;
+        let tls =
+            connector.connect(name, stream).await.io_fail(Stage::Tls, format!("TLS handshake with {server_name}"))?;
         Ok(Box::new(tls))
     }
 
@@ -237,7 +244,7 @@ pub async fn connect_origin(host: &str, port: u16) -> Result<TcpStream> {
             Some(ips) => ips.into_iter().map(|ip| (ip, port).into()).collect(),
             None => tokio::net::lookup_host((host, port))
                 .await
-                .map_err(|e| crate::fail::at(Stage::Dns, anyhow::anyhow!("resolving the origin {host}: {e}")))?
+                .io_fail(Stage::Dns, format!("resolving the origin {host}"))?
                 .collect(),
         },
     };
@@ -245,28 +252,34 @@ pub async fn connect_origin(host: &str, port: u16) -> Result<TcpStream> {
     for addr in &addrs {
         match TcpStream::connect(addr).await {
             Ok(tcp) => return Ok(tcp),
-            Err(e) => last = Some(anyhow::anyhow!("connecting to {addr}: {e}")),
+            Err(e) => {
+                last =
+                    Some(crate::fail::caused(Stage::Origin, Class::of_io(e.kind()), format!("connecting to {addr}"), e))
+            }
         }
     }
-    Err(last.unwrap_or_else(|| anyhow::anyhow!("the origin {host} has no address")))
+    Err(last
+        .unwrap_or_else(|| crate::fail::new(Stage::Dns, Class::NotFound, format!("the origin {host} has no address"))))
 }
 
 /// Parse `http(s)://host[:port]` into `(host, port, tls)`.
 pub fn parse_http_url(url: &str) -> Result<(String, u16, bool)> {
-    let (scheme, rest) = url.split_once("://").context("origin URL is missing a scheme")?;
+    let (scheme, rest) =
+        url.split_once("://").or_fail(Stage::Origin, Class::Config, "origin URL is missing a scheme")?;
     let tls = match scheme {
         "http" => false,
         "https" => true,
-        other => bail!("unsupported origin scheme {other:?}"),
+        other => bail!(Stage::Origin, Class::Config, "unsupported origin scheme {other:?}"),
     };
     let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
     if authority.is_empty() {
-        bail!("origin URL has no host");
+        bail!(Stage::Origin, Class::Config, "origin URL has no host");
     }
     let (host, port) = if let Some(rest) = authority.strip_prefix('[') {
-        let (host, rest) = rest.split_once(']').context("origin URL has an unclosed IPv6 address")?;
+        let (host, rest) =
+            rest.split_once(']').or_fail(Stage::Origin, Class::Config, "origin URL has an unclosed IPv6 address")?;
         let port = match rest.strip_prefix(':') {
-            Some(port) => port.parse().context("origin URL port is invalid")?,
+            Some(port) => port.parse().or_fail(Stage::Origin, Class::Config, "origin URL port is invalid")?,
             None if rest.is_empty() => {
                 if tls {
                     443
@@ -274,20 +287,20 @@ pub fn parse_http_url(url: &str) -> Result<(String, u16, bool)> {
                     80
                 }
             }
-            None => bail!("origin URL has trailing characters after the IPv6 address"),
+            None => bail!(Stage::Origin, Class::Config, "origin URL has trailing characters after the IPv6 address"),
         };
         (host.to_string(), port)
     } else {
         match authority.rsplit_once(':') {
             Some((host, port)) if !port.contains(']') => {
-                let port: u16 = port.parse().context("origin URL port is invalid")?;
+                let port: u16 = port.parse().or_fail(Stage::Origin, Class::Config, "origin URL port is invalid")?;
                 (host.to_string(), port)
             }
             _ => (authority.to_string(), if tls { 443 } else { 80 }),
         }
     };
     if host.is_empty() {
-        bail!("origin URL has no host");
+        bail!(Stage::Origin, Class::Config, "origin URL has no host");
     }
     Ok((host, port, tls))
 }

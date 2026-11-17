@@ -1,8 +1,9 @@
 //! The forward of a request to an origin: HTTP/1.1 with its body and its
 //! answer, an upgrade as a byte pump, and raw TCP.
 
-use anyhow::Result;
+use crate::fail::{IoFail, Result};
 use pod_core::BoxedIo;
+use pod_core::Stage;
 
 use super::copy::*;
 use super::head::*;
@@ -39,7 +40,9 @@ pub async fn forward_http(
         }
     };
     let mut io = origins.dial(service, options).await?;
-    tokio::io::AsyncWriteExt::write_all(&mut io, head.as_bytes()).await?;
+    tokio::io::AsyncWriteExt::write_all(&mut io, head.as_bytes())
+        .await
+        .io_fail(Stage::Origin, "writing the request head")?;
 
     if upgrade || is_chunked(request) {
         return proxy_bidi(&mut reader, &mut writer, io, metrics).await;
@@ -66,7 +69,7 @@ pub async fn forward_http(
     }
     if !leftover.is_empty() {
         futures_write_all(&mut writer, &leftover).await?;
-        futures::io::AsyncWriteExt::flush(&mut writer).await?;
+        futures::io::AsyncWriteExt::flush(&mut writer).await.io_fail(Stage::EdgeStream, "writing to the edge")?;
         metrics.add_out(leftover.len() as u64);
     }
     match resp_len {
@@ -101,7 +104,7 @@ async fn proxy_bidi(reader: &mut EdgeReader, writer: &mut EdgeWriter, io: BoxedI
         }
         copy_tokio_to_futures_eof(&mut io_r, writer, &out_metrics).await?;
         futures_close(writer).await?;
-        Ok::<(), anyhow::Error>(())
+        Ok::<(), crate::fail::Failure>(())
     };
     let (_, response) = tokio::join!(request_pump, response_pump);
     response

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::BoxFuture;
-use pod_core::{BoxedIo, Dial, NoObserver, Observer};
+use pod_core::{BoxedIo, Class, Dial, Failure, NoObserver, Observer, Stage};
 
 use crate::cloudflare::stream::ConnectRequest;
 use crate::ingress::Service;
@@ -19,7 +19,7 @@ use crate::proxy::{EdgeReader, EdgeWriter};
 pub trait ServiceDispatch: Send + Sync {
     /// Check and build the service of rule `index` before the tunnel
     /// starts. An error stops the start (a missing directory, for example).
-    fn prepare(&self, index: usize, service: &Service) -> anyhow::Result<()>;
+    fn prepare(&self, index: usize, service: &Service) -> Result<(), Failure>;
 
     /// Answer one request of the edge for rule `index`. `host` is the host
     /// of the request.
@@ -30,7 +30,7 @@ pub trait ServiceDispatch: Send + Sync {
         host: &'a str,
         reader: EdgeReader,
         writer: EdgeWriter,
-    ) -> BoxFuture<'a, anyhow::Result<()>>;
+    ) -> BoxFuture<'a, Result<(), Failure>>;
 }
 
 /// A consumer with no services of its own: a rule that names one is
@@ -38,8 +38,9 @@ pub trait ServiceDispatch: Send + Sync {
 pub struct NoServices;
 
 impl ServiceDispatch for NoServices {
-    fn prepare(&self, _index: usize, service: &Service) -> anyhow::Result<()> {
-        anyhow::bail!("the service {} needs the consumer, which gives none", service.describe())
+    fn prepare(&self, _index: usize, service: &Service) -> Result<(), Failure> {
+        let text = format!("the service {} needs the consumer, which gives none", service.describe());
+        Err(Failure::new(Stage::Host, Class::Config, text))
     }
 
     fn serve<'a>(
@@ -49,8 +50,8 @@ impl ServiceDispatch for NoServices {
         _host: &'a str,
         _reader: EdgeReader,
         _writer: EdgeWriter,
-    ) -> BoxFuture<'a, anyhow::Result<()>> {
-        Box::pin(async { anyhow::bail!("the consumer serves no service") })
+    ) -> BoxFuture<'a, Result<(), Failure>> {
+        Box::pin(async { Err(Failure::new(Stage::Origin, Class::Config, "the consumer serves no service")) })
     }
 }
 
@@ -69,14 +70,14 @@ pub struct WarpSession {
 pub trait WarpSessions: Send + Sync {
     /// Open a new session. The first call registers the device or loads
     /// it; a later call opens a session with the same device.
-    fn open(&self) -> BoxFuture<'_, anyhow::Result<WarpSession>>;
+    fn open(&self) -> BoxFuture<'_, Result<WarpSession, Failure>>;
 }
 
 /// The SRV records of a name from the system resolver of the consumer
 /// (`/etc/resolv.conf`): the second step of the discovery of the edge.
 pub trait SystemSrv: Send + Sync {
     /// The targets and the ports of the SRV records of `name`.
-    fn srv<'a>(&'a self, name: &'a str) -> BoxFuture<'a, anyhow::Result<Vec<(String, u16)>>>;
+    fn srv<'a>(&'a self, name: &'a str) -> BoxFuture<'a, Result<Vec<(String, u16)>, Failure>>;
 }
 
 /// The relay for the leg `http2+relay`.
@@ -174,13 +175,10 @@ impl Host {
 
     /// Send `request` with [`Host::client`]. A failure keeps its stage
     /// ([`crate::fail::stage_of`]) and names the request, with no query.
-    pub async fn send(&self, request: pod_proxy::client::Request) -> anyhow::Result<pod_proxy::http::Response> {
+    pub async fn send(&self, request: pod_proxy::client::Request) -> Result<pod_proxy::http::Response, Failure> {
         let url = request.url.split(['?', '#']).next().unwrap_or_default();
         let what = format!("{} {url}", request.method);
-        self.client().send(request).await.map_err(|failure| {
-            let stage = failure.stage;
-            crate::fail::at(stage, anyhow::Error::new(failure).context(what))
-        })
+        self.client().send(request).await.map_err(|failure| crate::fail::wrap(failure, what))
     }
 
     /// The step of the chain of the resolver that answers `host` now:
@@ -198,9 +196,9 @@ impl Host {
     }
 
     /// Open TCP to `target` through the way out, in at most `limit`.
-    pub async fn connect(&self, target: &pod_core::Target, limit: Duration) -> anyhow::Result<BoxedIo> {
+    pub async fn connect(&self, target: &pod_core::Target, limit: Duration) -> Result<BoxedIo, Failure> {
         let deadline = tokio::time::Instant::now() + limit;
-        let connected = self.dial.dial(target, deadline).await.map_err(anyhow::Error::new)?;
+        let connected = self.dial.dial(target, deadline).await?;
         Ok(connected.io)
     }
 }

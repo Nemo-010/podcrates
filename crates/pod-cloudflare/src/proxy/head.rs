@@ -1,8 +1,9 @@
 //! The heads of HTTP/1.1: the request to the origin, the answer of the
 //! origin, and the `ConnectResponse` to the edge.
 
-use anyhow::{Context, Result, anyhow, bail};
+use crate::fail::{IoFail, OrFail, Result, bail};
 use http::{HeaderName, HeaderValue};
+use pod_core::{Class, Stage};
 
 use super::copy::{futures_close, futures_write_all};
 use super::{EdgeWriter, cqstream};
@@ -93,11 +94,11 @@ pub fn build_request_head(
 ) -> Result<String> {
     let method = request.meta(HTTP_METHOD_KEY).unwrap_or("GET");
     if http::Method::from_bytes(method.as_bytes()).is_err() {
-        bail!("the request method {method:?} is not a token");
+        bail!(Stage::EdgeStream, Class::Protocol, "the request method {method:?} is not a token");
     }
     let path = request_path(&request.dest);
     if !path.bytes().all(|b| b > b' ' && b != 0x7f) {
-        bail!("the request target {path:?} has a space or a control character");
+        bail!(Stage::EdgeStream, Class::Protocol, "the request target {path:?} has a space or a control character");
     }
     let host = match &options.http_host_header {
         Some(host) => host.clone(),
@@ -105,7 +106,7 @@ pub fn build_request_head(
     };
     if HeaderValue::from_bytes(host.as_bytes()).is_err() {
         let from = if options.http_host_header.is_some() { "httpHostHeader" } else { "the request" };
-        bail!("the Host {host:?} of {from} has a control character");
+        bail!(Stage::EdgeStream, Class::Protocol, "the Host {host:?} of {from} has a control character");
     }
     let prefix = format!("{HTTP_HEADER_KEY}:");
     let headers =
@@ -207,13 +208,17 @@ pub(crate) fn response_length(headers: &[(String, String)]) -> Result<Option<u64
     for (_, value) in headers.iter().filter(|(name, _)| name.eq_ignore_ascii_case("content-length")) {
         for item in value.split(',') {
             let item = item.trim();
-            let n = item
-                .parse::<u64>()
-                .ok()
-                .filter(|_| item.bytes().all(|b| b.is_ascii_digit()))
-                .with_context(|| format!("the origin answer has a bad Content-Length {item:?}"))?;
+            let n = item.parse::<u64>().ok().filter(|_| item.bytes().all(|b| b.is_ascii_digit())).or_fail(
+                Stage::Origin,
+                Class::Protocol,
+                format!("the origin answer has a bad Content-Length {item:?}"),
+            )?;
             if length.is_some_and(|l| l != n) {
-                bail!("the origin answer has conflicting framing: two Content-Length values");
+                bail!(
+                    Stage::Origin,
+                    Class::Protocol,
+                    "the origin answer has conflicting framing: two Content-Length values"
+                );
             }
             length = Some(n);
         }
@@ -227,7 +232,11 @@ pub(crate) fn response_length(headers: &[(String, String)]) -> Result<Option<u64
         if encodings.iter().any(|v| v.contains("chunked")) {
             return Ok(None);
         }
-        bail!("the origin answer has conflicting framing: Content-Length and Transfer-Encoding");
+        bail!(
+            Stage::Origin,
+            Class::Protocol,
+            "the origin answer has conflicting framing: Content-Length and Transfer-Encoding"
+        );
     }
     Ok(length)
 }
@@ -239,20 +248,22 @@ where
     let mut buf: Vec<u8> = Vec::with_capacity(4096);
     let mut tmp = [0u8; 2048];
     loop {
-        let n = tokio::io::AsyncReadExt::read(io, &mut tmp).await?;
+        let n = tokio::io::AsyncReadExt::read(io, &mut tmp)
+            .await
+            .io_fail(Stage::Origin, "reading the answer of the origin")?;
         if n == 0 {
-            bail!("origin closed before sending a response head");
+            bail!(Stage::Origin, Class::Unavailable, "origin closed before sending a response head");
         }
         buf.extend_from_slice(&tmp[..n]);
         if buf.len() > MAX_HEAD_BYTES {
-            bail!("origin response head exceeds {MAX_HEAD_BYTES} bytes");
+            bail!(Stage::Origin, Class::Protocol, "origin response head exceeds {MAX_HEAD_BYTES} bytes");
         }
         let parsed = {
             let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
             let mut response = httparse::Response::new(&mut headers);
-            match response.parse(&buf)? {
+            match response.parse(&buf).or_fail(Stage::Origin, Class::Protocol, "the answer head of the origin")? {
                 httparse::Status::Complete(consumed) => {
-                    let status = response.code.ok_or_else(|| anyhow!("no status code"))?;
+                    let status = response.code.or_fail(Stage::Origin, Class::Protocol, "no status code")?;
                     let pairs = response
                         .headers
                         .iter()

@@ -28,7 +28,10 @@ use std::time::Duration;
 
 use noq::{ClientConfig, Endpoint, TransportConfig};
 
-use super::{EdgeAddr, EdgeError};
+use pod_core::{Class, Failure, Stage};
+
+use super::EdgeAddr;
+use crate::fail::{Result, bail};
 
 /// Handshake timeout for the QUIC edge connection.
 pub const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
@@ -59,16 +62,16 @@ pub fn transport_config(initial_mtu: u16) -> TransportConfig {
 /// Split out from [`client_config`] so the ALPN and the trust roots can be
 /// asserted on directly: noq's own config has no getters, so a test that
 /// reads back a noq config would prove nothing.
-pub fn tls_config(tls: &pod_tls::Context) -> Result<Arc<rustls::ClientConfig>, EdgeError> {
-    super::edge_tls_config(tls, super::quic_alpn()).map_err(EdgeError::Connect)
+pub fn tls_config(tls: &pod_tls::Context) -> Result<Arc<rustls::ClientConfig>> {
+    super::edge_tls_config(tls, super::quic_alpn())
 }
 
 /// Build a noq client config for the edge.
-pub fn client_config(tls: &pod_tls::Context) -> Result<ClientConfig, EdgeError> {
+pub fn client_config(tls: &pod_tls::Context) -> Result<ClientConfig> {
     let tls = tls_config(tls)?;
 
     let quic_tls = noq::crypto::rustls::QuicClientConfig::try_from(tls)
-        .map_err(|e| EdgeError::Connect(format!("quic tls config: {e}")))?;
+        .map_err(|e| crate::fail::caused(Stage::Tls, Class::Config, "quic tls config", e))?;
 
     let mut config = ClientConfig::new(Arc::new(quic_tls));
 
@@ -82,38 +85,42 @@ pub fn client_config(tls: &pod_tls::Context) -> Result<ClientConfig, EdgeError> 
 
 /// Make a client endpoint on an ephemeral UDP port, with the edge client
 /// configuration over the roots and the provider of `tls`.
-pub fn build_endpoint(tls: &pod_tls::Context) -> anyhow::Result<Endpoint> {
+pub fn build_endpoint(tls: &pod_tls::Context) -> Result<Endpoint> {
     let bind: std::net::SocketAddr = "[::]:0".parse().expect("a valid address");
     let endpoint = match pod_quic::endpoint::bind(bind) {
         Ok(endpoint) => endpoint,
         // A host without IPv6 refuses `[::]`; use IPv4 only.
         Err(_) => pod_quic::endpoint::bind("0.0.0.0:0".parse().expect("a valid address")).map_err(|e| {
-            anyhow::anyhow!(
-                "could not open a local UDP socket: {e}. QUIC needs UDP; \
-                 where it is blocked, use --protocol http2"
-            )
+            let text = format!(
+                "could not open a local UDP socket: {}. QUIC needs UDP; \
+                 where it is blocked, use --protocol http2",
+                e.text()
+            );
+            Failure::caused(Stage::Quic, e.class, text, e)
         })?,
     };
-    endpoint.set_default_client_config(client_config(tls).map_err(|e| anyhow::anyhow!("{e}"))?);
+    endpoint.set_default_client_config(client_config(tls)?);
     Ok(endpoint)
 }
 
 /// Complete a QUIC handshake with `addr`. The SNI is `quic.cftunnel.com`
 /// for every address.
-pub async fn dial(endpoint: &Endpoint, addr: &EdgeAddr) -> anyhow::Result<noq::Connection> {
+pub async fn dial(endpoint: &Endpoint, addr: &EdgeAddr) -> Result<noq::Connection> {
     let socket = addr.socket();
-    let connecting = endpoint
-        .connect(socket, super::quic_sni())
-        .map_err(|e| anyhow::anyhow!("could not start connecting to {socket}: {e}"))?;
+    let connecting = endpoint.connect(socket, super::quic_sni()).map_err(|e| {
+        crate::fail::caused(Stage::Quic, Class::Unavailable, format!("could not start connecting to {socket}"), e)
+    })?;
     match tokio::time::timeout(HANDSHAKE_TIMEOUT, connecting).await {
         Ok(Ok(conn)) => Ok(conn),
-        Ok(Err(e)) => Err(anyhow::anyhow!("QUIC handshake with {socket}: {e}")),
-        Err(_) => Err(anyhow::anyhow!("QUIC handshake with {socket} timed out")),
+        Ok(Err(e)) => {
+            Err(crate::fail::caused(Stage::Quic, Class::Unavailable, format!("QUIC handshake with {socket}"), e))
+        }
+        Err(_) => Err(crate::fail::new(Stage::Quic, Class::Timeout, format!("QUIC handshake with {socket} timed out"))),
     }
 }
 
 /// Try the addresses in sequence. Return the first connection.
-pub async fn dial_any(endpoint: &Endpoint, edges: &[EdgeAddr]) -> anyhow::Result<noq::Connection> {
+pub async fn dial_any(endpoint: &Endpoint, edges: &[EdgeAddr]) -> Result<noq::Connection> {
     let mut failures = Vec::new();
     for addr in edges {
         match dial(endpoint, addr).await {
@@ -125,9 +132,9 @@ pub async fn dial_any(endpoint: &Endpoint, edges: &[EdgeAddr]) -> anyhow::Result
         }
     }
     if failures.is_empty() {
-        anyhow::bail!("no edge addresses to dial");
+        bail!(Stage::Quic, Class::Config, "no edge addresses to dial");
     }
-    anyhow::bail!("no edge answered: {}", failures.join("; "))
+    bail!(Stage::Quic, Class::Unavailable, "no edge answered: {}", failures.join("; "))
 }
 
 /// A QUIC connection in memory for tests: a local server (in the place of

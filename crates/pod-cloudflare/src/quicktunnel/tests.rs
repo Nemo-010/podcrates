@@ -62,6 +62,7 @@ fn truncation_lands_on_a_character_boundary() {
 }
 
 use super::*;
+use pod_core::{Class, Failure, Stage};
 
 const OK_BODY: &str = r#"{"success":true,"result":{"id":"6ff42ae2-765d-4adf-8112-31c55c1551ef","hostname":"t.trycloudflare.com","account_tag":"0123456789abcdef","secret":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}}"#;
 
@@ -104,17 +105,19 @@ const TO: std::time::Duration = std::time::Duration::from_secs(5);
 /// Issue 210: the refusal of a provision as fields.
 #[test]
 fn the_refusal_in_an_error_chain() {
-    let err = anyhow::Error::new(ProvisionError::Status {
-        code: 429,
-        body: "error code: 1015".into(),
-        retry_after: Some(std::time::Duration::from_secs(1379)),
-    })
-    .context("provisioning quick tunnel");
+    let err = crate::fail::wrap(
+        Failure::from(ProvisionError::Status {
+            code: 429,
+            body: "error code: 1015".into(),
+            retry_after: Some(std::time::Duration::from_secs(1379)),
+        }),
+        "provisioning quick tunnel",
+    );
     let r = retry_of(&err).unwrap();
     assert_eq!(r, Refusal { status: 429, code: Some(1015), retry_after_s: Some(1379), retryable: true });
-    let other = anyhow::Error::new(ProvisionError::Status { code: 404, body: String::new(), retry_after: None });
+    let other = Failure::from(ProvisionError::Status { code: 404, body: String::new(), retry_after: None });
     assert!(!retry_of(&other).unwrap().retryable);
-    assert!(retry_of(&anyhow::anyhow!("other")).is_none());
+    assert!(retry_of(&Failure::new(Stage::Host, Class::Config, "other")).is_none());
 }
 
 #[tokio::test]
@@ -274,6 +277,7 @@ const T: std::time::Duration = std::time::Duration::from_secs(5);
 async fn endpoint_must_be_an_absolute_http_url() {
     let host = crate::testing::host();
     let err = request_quick_tunnel(&host, "ftp://example.com", AuthMode::Public, "t", T, None).await.unwrap_err();
+    let err = crate::fail::find::<ProvisionError>(&err).expect("a provision error");
     assert!(matches!(err, ProvisionError::BadEndpoint(_)), "got {err:?}");
 }
 
@@ -281,7 +285,7 @@ async fn endpoint_must_be_an_absolute_http_url() {
 async fn trailing_slash_on_the_endpoint_is_not_doubled() {
     let host = crate::testing::host();
     let err = request_quick_tunnel(&host, "not-a-url/", AuthMode::Public, "t", T, None).await.unwrap_err();
-    match err {
+    match crate::fail::find::<ProvisionError>(&err).expect("a provision error") {
         ProvisionError::BadEndpoint(url) => {
             assert!(url.ends_with("/tunnel"), "unexpected url {url}");
             assert!(!url.contains("//tunnel"), "double slash in {url}");
@@ -303,6 +307,7 @@ async fn a_closed_proxy_is_a_transport_failure() {
     )
     .await
     .unwrap_err();
+    let err = crate::fail::find::<ProvisionError>(&err).expect("a provision error");
     assert!(
         matches!(err, ProvisionError::Http(_) | ProvisionError::Status { .. }),
         "expected a transport failure, got {err:?}"

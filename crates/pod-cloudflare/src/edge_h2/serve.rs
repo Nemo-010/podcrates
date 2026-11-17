@@ -24,8 +24,11 @@ where
     // the dial (issue 272).
     let mut conn = tokio::time::timeout(DIAL_TIMEOUT, server_builder().handshake::<_, Bytes>(io))
         .await
-        .map_err(|_| anyhow::anyhow!("the HTTP/2 handshake with the edge timed out in {} s", DIAL_TIMEOUT.as_secs()))?
-        .context("HTTP/2 handshake with the edge")?;
+        .map_err(|_| {
+            let text = format!("the HTTP/2 handshake with the edge timed out in {} s", DIAL_TIMEOUT.as_secs());
+            crate::fail::new(Stage::EdgeStream, Class::Timeout, text)
+        })?
+        .or_fail(Stage::EdgeStream, Class::Protocol, "HTTP/2 handshake with the edge")?;
     let ping = conn.ping_pong();
     let (control_tx, control_rx) = tokio::sync::oneshot::channel();
     let (drain_tx, drain_rx) = tokio::sync::oneshot::channel::<String>();
@@ -190,8 +193,12 @@ pub(super) async fn serve_stream(
     for (name, value) in &headers {
         response = response.header(name.as_str(), value.as_str());
     }
-    let response = response.body(()).context("building the edge response")?;
-    let send = respond.send_response(response, false).context("sending the response head")?;
+    let response = response.body(()).or_fail(Stage::EdgeStream, Class::Protocol, "building the edge response")?;
+    let send = respond.send_response(response, false).or_fail(
+        Stage::EdgeStream,
+        Class::Unavailable,
+        "sending the response head",
+    )?;
     pump_to_h2(from_service.into_inner(), send).await?;
     let _ = service.await;
     Ok(())
@@ -215,8 +222,16 @@ pub(super) async fn answer_configuration(
             serde_json::json!({ "lastAppliedVersion": -1, "err": err.to_string() }).to_string()
         }
     };
-    let mut send = respond.send_response(http::Response::new(()), false)?;
-    send.send_data(Bytes::from(reply), true)?;
+    let mut send = respond.send_response(http::Response::new(()), false).or_fail(
+        Stage::EdgeStream,
+        Class::Unavailable,
+        "answering a configuration push",
+    )?;
+    send.send_data(Bytes::from(reply), true).or_fail(
+        Stage::EdgeStream,
+        Class::Unavailable,
+        "answering a configuration push",
+    )?;
     Ok(())
 }
 
@@ -231,9 +246,21 @@ pub(super) async fn read_configuration<R: AsyncRead + Unpin>(reader: R, limit: D
     let mut reader = reader.take(MAX_CONFIGURATION as u64 + 1);
     tokio::time::timeout(limit, reader.read_to_end(&mut text))
         .await
-        .map_err(|_| anyhow::anyhow!("the configuration push did not end in {} s", limit.as_secs()))??;
+        .map_err(|_| {
+            crate::fail::new(
+                Stage::EdgeStream,
+                Class::Timeout,
+                format!("the configuration push did not end in {} s", limit.as_secs()),
+            )
+        })?
+        .io_fail(Stage::EdgeStream, "reading a configuration push")?;
     if text.len() > MAX_CONFIGURATION {
-        bail!("the configuration push is larger than {} KiB", MAX_CONFIGURATION / 1024);
+        bail!(
+            Stage::EdgeStream,
+            Class::Protocol,
+            "the configuration push is larger than {} KiB",
+            MAX_CONFIGURATION / 1024
+        );
     }
     Ok(text)
 }
@@ -282,27 +309,34 @@ where
 {
     let mut buf = vec![0u8; 16 * 1024];
     loop {
-        let n = source.read(&mut buf).await?;
+        let n = source.read(&mut buf).await.io_fail(Stage::EdgeStream, "reading the answer of the service")?;
         if n == 0 {
-            send.send_data(Bytes::new(), true)?;
+            send.send_data(Bytes::new(), true).or_fail(Stage::EdgeStream, Class::Unavailable, "ending the stream")?;
             return Ok(());
         }
         let mut offset = 0;
         while offset < n {
             send.reserve_capacity(n - offset);
-            let granted =
-                match tokio::time::timeout(WRITE_STALL, std::future::poll_fn(|cx| send.poll_capacity(cx))).await {
-                    Ok(granted) => granted.context("the edge closed the stream")??,
-                    Err(_) => {
-                        send.send_reset(h2::Reason::CANCEL);
-                        bail!("the edge read nothing for {} s", WRITE_STALL.as_secs());
-                    }
-                };
+            let granted = match tokio::time::timeout(WRITE_STALL, std::future::poll_fn(|cx| send.poll_capacity(cx)))
+                .await
+            {
+                Ok(granted) => granted
+                    .or_fail(Stage::EdgeStream, Class::Unavailable, "the edge closed the stream")?
+                    .or_fail(Stage::EdgeStream, Class::Unavailable, "the edge closed the stream")?,
+                Err(_) => {
+                    send.send_reset(h2::Reason::CANCEL);
+                    bail!(Stage::EdgeStream, Class::Timeout, "the edge read nothing for {} s", WRITE_STALL.as_secs());
+                }
+            };
             let take = granted.min(n - offset);
             if take == 0 {
                 continue;
             }
-            send.send_data(Bytes::copy_from_slice(&buf[offset..offset + take]), false)?;
+            send.send_data(Bytes::copy_from_slice(&buf[offset..offset + take]), false).or_fail(
+                Stage::EdgeStream,
+                Class::Unavailable,
+                "sending to the edge",
+            )?;
             offset += take;
         }
     }
