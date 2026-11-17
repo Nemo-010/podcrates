@@ -1,0 +1,7 @@
+# The checksum of a clamped MSS takes each 16-bit word that the value
+# touches, also when the value starts at an odd offset (T-819).
+ENTRY=T-819
+GROUP=netstack
+EXPECT='the_option_is_found_after_other_options'
+RUN='cargo test -p pod-netstack --all-features --lib mss'
+LIMIT=1800

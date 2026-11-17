@@ -1,0 +1,11 @@
+--- a/crates/pod-netstack/src/mss.rs
++++ b/crates/pod-netstack/src/mss.rs
+@@ -38,7 +38,7 @@ pub fn clamp_mss(packet: &mut [u8], mtu: u16) -> Option<(u16, u16)> {
+     }
+     // The value can start at an odd offset: the words of the checksum that
+     // it touches are the even span around it.
+-    let (first, last) = ((at + 2) & !1, (at + 4 + 1) & !1);
++    let (first, last) = (at + 2, at + 4);
+     let before: Vec<u16> = words(&segment[first..last.min(segment.len())]);
+     segment[at + 2..at + 4].copy_from_slice(&limit.to_be_bytes());
+     let after: Vec<u16> = words(&segment[first..last.min(segment.len())]);
