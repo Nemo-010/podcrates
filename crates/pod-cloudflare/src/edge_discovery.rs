@@ -126,7 +126,9 @@ pub async fn discover(host: &Host, filter: IpVersionFilter) -> Result<Vec<EdgeAd
     if edges.is_empty() {
         failures.push("the static list has no address for this IP version".to_string());
     } else {
-        tracing::warn!("using the static edge list; DNS discovery failed");
+        let text =
+            format!("DNS discovery of the edge failed ({}); the static edge list is in use", failures.join("; "));
+        host.event(pod_core::Event::warn("edge.discovery", text));
         return Ok(edges);
     }
 

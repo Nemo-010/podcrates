@@ -5,7 +5,6 @@ use std::time::Duration;
 
 use crate::fail::{Context, Result, bail};
 use pod_core::{Class, Stage};
-use tracing::{info, warn};
 
 use super::{IpVersionFilter, edge, edge_override};
 use crate::Host;
@@ -24,10 +23,8 @@ pub(super) async fn warp_targets(host: &Host) -> Result<(Vec<edge::EdgeAddr>, Ar
     };
     let session = sessions.open().await.context("opening the WARP MASQUE tunnel on TCP 443")?;
     let endpoint = session.endpoint.clone();
-    info!(
-        edge = %first.socket(),
-        "the tunnel edge is reached through WARP on TCP 443"
-    );
+    let text = format!("the tunnel edge {} is reached through WARP on TCP 443", first.socket());
+    host.event(pod_core::Event::info("warp.session", text));
     let link = Arc::new(WarpLink { sessions, current: tokio::sync::Mutex::new((session, std::time::Instant::now())) });
     Ok((discovered, link, endpoint))
 }
@@ -49,7 +46,7 @@ impl WarpLink {
         let mut current = self.current.lock().await;
         let closed = (current.0.closed)();
         if closed || (stale && current.1.elapsed() >= WARP_REBUILD_GAP) {
-            warn!(session_closed = closed, "opening a new WARP session for the edge leg");
+            tracing::debug!(session_closed = closed, "opening a new WARP session for the edge leg");
             let session = self.sessions.open().await.context("opening the WARP MASQUE tunnel on TCP 443 again")?;
             *current = (session, std::time::Instant::now());
         }

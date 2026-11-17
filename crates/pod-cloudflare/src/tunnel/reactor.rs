@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::fail::Context;
+use pod_core::Event;
 
 /// The first registered leg.
 pub(super) enum First {
@@ -69,7 +70,8 @@ pub(super) async fn reactor(
             // T-402: a closed WARP session stops the timers of the QUIC
             // connection in it, so the loss is seen here, not by accept_bi.
             _ = source.closed() => {
-                warn!(conn_index, "the WARP session of the edge leg closed; a reconnect follows");
+                let text = format!("the WARP session of the edge connection {conn_index} closed; a reconnect follows");
+                runtime.host().event(Event::warn("tunnel.reconnect", text));
                 true
             }
             accepted = conn.accept_bi() => {
@@ -86,7 +88,7 @@ pub(super) async fn reactor(
                         // The reason (who closed it, and why) and the path
                         // state help to find an edge limit (issue 92).
                         let stats = conn.stats();
-                        warn!(
+                        tracing::debug!(
                             conn_index,
                             error = %err,
                             rtt_ms = conn.rtt(noq::PathId::ZERO).unwrap_or_default().as_millis() as u64,
@@ -95,6 +97,8 @@ pub(super) async fn reactor(
                             lost_packets = stats.lost_packets,
                             "edge closed the connection; a reconnect follows"
                         );
+                        let text = format!("the edge closed the connection {conn_index} ({err}); a reconnect follows");
+                        runtime.host().event(Event::warn("tunnel.reconnect", text));
                         true
                     }
                 }
@@ -129,7 +133,8 @@ pub(super) async fn reactor(
             .await;
             match result {
                 Ok((new_conn, new_control, location)) => {
-                    info!(conn_index, attempt, %location, "reconnected");
+                    let text = format!("the edge connection {conn_index} reconnected at {location}");
+                    runtime.host().event(Event::info("tunnel.reconnect", text));
                     metrics.reconnect();
                     metrics.connection_opened();
                     conn = new_conn;
@@ -141,11 +146,16 @@ pub(super) async fn reactor(
                     metrics.error();
                     match policy.next(attempt, &err) {
                         Next::Retry(wait) => {
-                            warn!(conn_index, attempt, error = %format!("{err:#}"), retry_in = ?wait, "reconnect failed");
+                            let text = format!(
+                                "the reconnect {attempt} of the edge connection {conn_index} failed: {err}; the next one is in {} s",
+                                wait.as_secs()
+                            );
+                            runtime.host().event(Event::warn("tunnel.reconnect", text));
                             delay = wait;
                         }
                         Next::Stop(reason) => {
-                            tracing::error!(conn_index, %reason, "the QUIC leg stops");
+                            let text = format!("the QUIC edge connection {conn_index} stops: {reason}");
+                            runtime.host().event(Event::warn("tunnel.leg_stopped", text));
                             return Some(reason);
                         }
                     }

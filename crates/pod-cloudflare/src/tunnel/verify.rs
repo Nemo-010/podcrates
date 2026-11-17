@@ -3,8 +3,7 @@
 use std::time::Duration;
 
 use crate::fail::{Failure, Result};
-use pod_core::{Class, Stage};
-use tracing::info;
+use pod_core::{Class, Event, Stage};
 
 use crate::Host;
 
@@ -36,13 +35,15 @@ pub(super) async fn verify_fetch(
                 let ok = response.is_success() && expected.map(|token| body.contains(token)).unwrap_or(true);
                 if ok {
                     let dns = public_dns(host, url).await;
-                    info!(%url, status = response.status, attempt, dns, "verified public URL");
+                    let text = format!("verified {url}: HTTP {} at attempt {attempt}, DNS step {dns}", response.status);
+                    host.event(Event::info("tunnel.verify", text));
                     if dns == "doh" {
-                        info!(
+                        host.event(Event::info(
+                            "tunnel.verify",
                             "the system resolver of this host does not resolve the new name yet; \
                              public DNS does. A visitor whose resolver cached NXDOMAIN gets an \
-                             error for some seconds more"
-                        );
+                             error for some seconds more",
+                        ));
                     }
                     return Ok(Verified { dns, unverified: None });
                 }
@@ -52,9 +53,14 @@ pub(super) async fn verify_fetch(
                 let edge_error = matches!(response.status, 502..=504 | 520..=530);
                 if expected.is_none() && !edge_error {
                     if accepted.contains(&response.status) {
-                        info!(%url, status = response.status, "the origin answered HTTP {}, its normal answer; the tunnel is up", response.status);
+                        let text = format!(
+                            "{url}: the origin answered HTTP {}, its normal answer; the tunnel is up",
+                            response.status
+                        );
+                        host.event(Event::info("tunnel.verify", text));
                     } else {
-                        tracing::warn!(%url, status = response.status, "the origin answered HTTP {}; the tunnel is up", response.status);
+                        let text = format!("{url}: the origin answered HTTP {}; the tunnel is up", response.status);
+                        host.event(Event::warn("tunnel.verify", text));
                     }
                     return Ok(Verified { dns: public_dns(host, url).await, unverified: None });
                 }
@@ -64,7 +70,8 @@ pub(super) async fn verify_fetch(
                 if is_resolution_failure(&err) {
                     last = format!("waiting for DNS: {err:#}");
                     if attempt == 1 && crate::fail::stage_of(&err) == Some(Stage::Dns) {
-                        info!("this host does not resolve the new name yet; {}", REMEDY);
+                        let text = format!("this host does not resolve the new name yet; {REMEDY}");
+                        host.event(Event::info("tunnel.verify", text));
                     }
                 } else {
                     resolution_only = false;
@@ -80,24 +87,28 @@ pub(super) async fn verify_fetch(
         // looked like a hang for up to a minute.
         let left_s = left.as_secs();
         if attempt > 10 && attempt.is_multiple_of(5) {
-            tracing::warn!(attempt, left_s, %last, "the public URL does not answer yet; podnet tries again");
+            let text = format!("the public URL does not answer yet ({last}); podnet tries again for {left_s} s");
+            host.event(Event::warn("tunnel.verify", text));
         } else if attempt == 1 || attempt.is_multiple_of(5) {
-            info!(attempt, left_s, %last, "the public URL does not answer yet (a new name takes some seconds); podnet tries again");
+            let text = format!(
+                "the public URL does not answer yet ({last}; a new name takes some seconds); podnet tries again for {left_s} s"
+            );
+            host.event(Event::info("tunnel.verify", text));
         } else {
             tracing::debug!(attempt, %last, "verification retry");
         }
         tokio::time::sleep(interval.min(left)).await;
     }
     if expected.is_none() && matches!(last_status, Some(s) if s != 530) {
-        tracing::warn!(%url, "the public URL answers {last}; the tunnel is up, check the origin");
+        host.event(Event::warn("tunnel.verify", format!("{url} answers {last}; the tunnel is up, check the origin")));
         return Ok(Verified { dns: public_dns(host, url).await, unverified: None });
     }
     if resolution_only && !strict {
-        tracing::warn!(
-            %url, %last,
-            "the tunnel is registered; this host cannot reach the name yet; the URL is not proved. \
+        let text = format!(
+            "the tunnel is registered; this host cannot reach {url} yet ({last}); the URL is not proved. \
              Set PODNET_VERIFY_STRICT=1 to make this an error"
         );
+        host.event(Event::warn("tunnel.verify", text));
         return Ok(Verified { dns: "none", unverified: Some("resolution") });
     }
     let hint = if resolution_only { format!("; {REMEDY}") } else { String::new() };

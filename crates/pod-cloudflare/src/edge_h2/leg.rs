@@ -2,6 +2,7 @@
 //! reactor that keeps the leg registered.
 
 use super::*;
+use pod_core::Event;
 
 /// Dial the first edge address that answers, register, and serve streams.
 pub async fn connect(
@@ -211,7 +212,8 @@ pub async fn reactor(
                 }
                 reason = &mut draining => {
                     let reason = reason.unwrap_or_else(|_| "the connection task ended".into());
-                    warn!(conn_index, %reason, "the HTTP/2 edge connection ends; connecting a replacement now");
+                    let text = format!("the HTTP/2 edge connection {conn_index} ends ({reason}); a replacement connects now");
+                    runtime.host().event(Event::info("tunnel.reconnect", text));
                     // The old connection finishes its open streams on its
                     // own (GOAWAY can come while streams are open). The
                     // control stream stays until then: a reset of it can
@@ -241,7 +243,8 @@ pub async fn reactor(
         options.replace_existing = true;
         match connect(&edges, &auth, tunnel_id, conn_index, &options, runtime.clone(), ingress.clone()).await {
             Ok(next) => {
-                info!(conn_index, attempt, location = %next.location, "reconnected over HTTP/2");
+                let text = format!("the HTTP/2 edge connection {conn_index} reconnected at {}", next.location);
+                runtime.host().event(Event::info("tunnel.reconnect", text));
                 metrics.reconnect();
                 metrics.connection_opened();
                 leg = Some(next);
@@ -250,11 +253,16 @@ pub async fn reactor(
                 metrics.error();
                 match policy.next(attempt, &err) {
                     Next::Retry(wait) => {
-                        warn!(conn_index, attempt, error = %format!("{err:#}"), retry_in = ?wait, "HTTP/2 reconnect failed");
+                        let text = format!(
+                            "the reconnect {attempt} of the HTTP/2 edge connection {conn_index} failed: {err}; the next one is in {} s",
+                            wait.as_secs()
+                        );
+                        runtime.host().event(Event::warn("tunnel.reconnect", text));
                         delay = wait;
                     }
                     Next::Stop(reason) => {
-                        tracing::error!(conn_index, %reason, "the HTTP/2 leg stops");
+                        let text = format!("the HTTP/2 edge connection {conn_index} stops: {reason}");
+                        runtime.host().event(Event::warn("tunnel.leg_stopped", text));
                         return Some(reason);
                     }
                 }

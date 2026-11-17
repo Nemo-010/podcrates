@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::BoxFuture;
-use pod_core::{BoxedIo, Class, Dial, Failure, NoObserver, Observer, Stage};
+use pod_core::{BoxedIo, Class, Dial, Event, Failure, Report, Stage};
 
 use crate::cloudflare::stream::ConnectRequest;
 use crate::ingress::Service;
@@ -140,8 +140,9 @@ pub struct Host {
     pub system_srv: Option<Arc<dyn SystemSrv>>,
     /// The services of the consumer.
     pub services: Arc<dyn ServiceDispatch>,
-    /// The counters of the decisions (the leg that won).
-    pub observer: Arc<dyn Observer>,
+    /// The lines for the user (events) and the counters of the decisions
+    /// (the leg that won).
+    pub report: Report,
     /// The relay of the leg `http2+relay`.
     pub relay: Option<EdgeRelay>,
     /// The WARP sessions of the leg `quic+warp`.
@@ -161,11 +162,18 @@ impl Host {
             resolver: Arc::new(resolver),
             system_srv: None,
             services: Arc::new(NoServices),
-            observer: Arc::new(NoObserver),
+            report: Report::default(),
             relay: None,
             warp: None,
             settings: Settings::default(),
         }
+    }
+
+    /// Give the consumer a line for the user. The line goes to `tracing`
+    /// at the level debug too.
+    pub fn event(&self, event: Event) {
+        tracing::debug!(kind = event.kind, "{}", event.text);
+        self.report.event(event);
     }
 
     /// The HTTP client over the TLS and the way out of the host.

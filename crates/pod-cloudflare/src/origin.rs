@@ -27,11 +27,24 @@ pub struct Origins {
     verified: OnceLock<TlsConnector>,
     unverified: OnceLock<TlsConnector>,
     seen: Mutex<Vec<String>>,
+    report: pod_core::Report,
 }
 
 impl Origins {
     pub fn new(tls: Arc<pod_tls::Context>) -> Origins {
-        Origins { tls, verified: OnceLock::new(), unverified: OnceLock::new(), seen: Mutex::new(Vec::new()) }
+        Origins {
+            tls,
+            verified: OnceLock::new(),
+            unverified: OnceLock::new(),
+            seen: Mutex::new(Vec::new()),
+            report: pod_core::Report::default(),
+        }
+    }
+
+    /// The lines for the user go to `report`.
+    pub fn with_report(mut self, report: pod_core::Report) -> Origins {
+        self.report = report;
+        self
     }
 
     /// Dial the origin for a forward service.
@@ -115,7 +128,8 @@ impl Origins {
         if seen.len() < 256 {
             seen.push(origin.to_string());
         }
-        tracing::warn!(%origin, "noTLSVerify: the TLS certificate of this origin is not checked");
+        let text = format!("noTLSVerify: the TLS certificate of the origin {origin} is not checked");
+        self.report.event(pod_core::Event::warn("origin.no_verify", text));
         true
     }
 
@@ -142,7 +156,8 @@ impl Origins {
                     .client_config_with(&[], &[])
                     .map(Arc::new)
                     .or_else(|err| {
-                        tracing::warn!("{err:#}; the compiled-in roots alone are used");
+                        let text = format!("{err}; the compiled-in roots alone are used");
+                        self.report.event(pod_core::Event::warn("origin.roots", text));
                         pod_tls::client_config(
                             &pod_tls::roots_from_compiled_set(),
                             context.provider().clone(),
@@ -308,6 +323,22 @@ pub fn parse_http_url(url: &str) -> Result<(String, u16, bool)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The warning of an origin with no check of its certificate is an
+    /// event for the user, not a line of the crate.
+    #[test]
+    fn an_unverified_origin_is_an_event() {
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let kept = seen.clone();
+        let events = move |event: pod_core::Event| kept.lock().unwrap().push(event);
+        let report = pod_core::Report { events: Arc::new(events), observer: Arc::new(pod_core::NoObserver) };
+        let origins = Origins::new(crate::testing::tls()).with_report(report);
+        assert!(origins.note_unverified("https://a.test.invalid:8443"));
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 1);
+        assert_eq!((seen[0].level, seen[0].kind), (pod_core::Level::Warn, "origin.no_verify"));
+        assert!(seen[0].text.contains("https://a.test.invalid:8443"), "{}", seen[0].text);
+    }
 
     /// #248: the first dial of an origin with noTLSVerify warns; the next
     /// dials of it do not.

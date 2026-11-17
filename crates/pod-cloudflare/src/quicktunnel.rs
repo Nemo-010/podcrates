@@ -26,7 +26,7 @@ pub use error::*;
 
 use std::sync::Arc;
 
-use pod_core::{Class, Dial, Failure, Stage};
+use pod_core::{Class, Dial, Event, Failure, Stage};
 use serde::{Deserialize, Serialize};
 
 use crate::Host;
@@ -214,15 +214,17 @@ pub async fn provision(
         let left = budget.saturating_sub(start.elapsed());
         if attempt >= PROVISION_ATTEMPTS || wait > left {
             if wait > left {
-                tracing::warn!(
+                let text = format!(
                     "the quick-tunnel service asks to wait {} s, more than the {} s left",
                     wait.as_secs(),
                     left.as_secs()
                 );
+                host.event(Event::warn("quick.provision", text));
             }
             return Err(err.into());
         }
-        tracing::warn!(attempt, retry_in = ?wait, "provisioning failed: {err}; trying again");
+        let text = format!("provisioning failed: {err}; the try {} is in {} s", attempt + 1, wait.as_secs());
+        host.event(Event::warn("quick.provision", text));
         tokio::time::sleep(wait).await;
     }
 }

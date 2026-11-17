@@ -15,10 +15,10 @@ use crate::cloudflare as edge;
 use crate::cloudflare::{IpVersionFilter, quic as quic_dial, rpc};
 use crate::fail::{Result, bail};
 use pod_core::Class;
-use pod_core::Stage;
+use pod_core::{Event, Stage};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
-use tracing::{info, warn};
+use tracing::info;
 use uuid::Uuid;
 
 use crate::Host;
@@ -195,9 +195,9 @@ impl Tunnel {
         let (plan, note) = plan_with_proxy(plan, protocol, proxy.as_deref());
         if let Some(note) = note {
             if matches!(protocol, Protocol::Auto) {
-                info!("{note}");
+                host.event(Event::info("tunnel.plan", note));
             } else {
-                tracing::warn!("{note}");
+                host.event(Event::warn("tunnel.plan", note));
             }
         }
         let egress = match udp_probe {
@@ -206,7 +206,7 @@ impl Tunnel {
         };
         let (plan, note) = plan_with_udp(plan, udp, egress.as_ref())?;
         if let Some(note) = note {
-            info!("{note}");
+            host.event(Event::info("tunnel.plan", note));
         }
         let (shutdown_tx, shutdown_rx) = watch::channel(false);
         let (legs, stopped) = Legs::new();
@@ -280,17 +280,20 @@ impl Tunnel {
             }
         };
         for (i, err) in &won.failures {
-            warn!(leg = %plan[*i], error = %format!("{err:#}"), "edge leg failed");
+            host.event(Event::warn("tunnel.leg_failed", format!("the edge leg {} failed: {err}", plan[*i])));
         }
         let kind = plan[won.index];
-        info!(leg = %kind, after = ?won.after, "the leg won the race");
-        host.observer.decision("leg", &kind.to_string());
+        host.event(Event::info("tunnel.leg", format!("the edge leg {kind} won after {} ms", won.after.as_millis())));
+        host.report.decision("leg", &kind.to_string());
         let (first, warp_keepalive) = won.value;
         metrics.connection_opened();
 
         let location = match first {
             First::Quic(edges, endpoint, conn, control, location) => {
-                info!(leg = %kind, %location, "registered with the edge");
+                host.event(Event::info(
+                    "tunnel.registered",
+                    format!("registered with the edge at {location} ({kind})"),
+                ));
                 let edges = Arc::new(edges);
                 let source = match &warp_keepalive {
                     Some(link) => EndpointSource::Warp(link.clone()),
@@ -327,7 +330,8 @@ impl Tunnel {
                         let endpoint = match source.endpoint(1).await {
                             Ok(endpoint) => endpoint,
                             Err(err) => {
-                                warn!(conn_index = index, error = %format!("{err:#}"), "HA leg failed to register");
+                                let text = format!("the edge connection {index} did not register: {err}");
+                                runtime.host().event(Event::warn("tunnel.leg_failed", text));
                                 return None;
                             }
                         };
@@ -335,7 +339,8 @@ impl Tunnel {
                         match connect_once(&endpoint, &auth, tunnel_id, index, false, &edges, version).await {
                             Ok((conn, control, location)) => {
                                 metrics.connection_opened();
-                                info!(conn_index = index, %location, "HA leg registered");
+                                let text = format!("the edge connection {index} registered at {location}");
+                                runtime.host().event(Event::info("tunnel.registered", text));
                                 reactor(
                                     runtime,
                                     ingress,
@@ -353,7 +358,8 @@ impl Tunnel {
                                 .await
                             }
                             Err(err) => {
-                                warn!(conn_index = index, error = %err, "HA leg failed to register");
+                                let text = format!("the edge connection {index} did not register: {err}");
+                                runtime.host().event(Event::warn("tunnel.leg_failed", text));
                                 None
                             }
                         }
@@ -362,7 +368,8 @@ impl Tunnel {
                 location
             }
             First::H2(edges, leg) => {
-                info!(leg = %kind, location = %leg.location, "registered with the edge");
+                let text = format!("registered with the edge at {} ({kind})", leg.location);
+                host.event(Event::info("tunnel.registered", text));
                 let location = leg.location.clone();
                 let edges = Arc::new(edges);
                 let mut first_leg = Some(leg);
@@ -395,11 +402,14 @@ impl Tunnel {
                                 {
                                     Ok(leg) => {
                                         metrics.connection_opened();
-                                        info!(conn_index = index, location = %leg.location, "HA leg registered");
+                                        let text =
+                                            format!("the edge connection {index} registered at {}", leg.location);
+                                        runtime.host().event(Event::info("tunnel.registered", text));
                                         Some(leg)
                                     }
                                     Err(err) => {
-                                        warn!(conn_index = index, error = %err, "HA leg failed to register");
+                                        let text = format!("the edge connection {index} did not register: {err}");
+                                        runtime.host().event(Event::warn("tunnel.leg_failed", text));
                                         return None;
                                     }
                                 }
