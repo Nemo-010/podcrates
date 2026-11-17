@@ -130,9 +130,9 @@ impl<'a> StructReader<'a> {
                 let ptrs = (tag >> 48) as u16;
                 let size = usize::from(data) + usize::from(ptrs);
                 self.msg.check_range(segment, start + 1, (count * size) as u64)?;
-                // An element of 0 words reads no word: charge one word for
-                // each, as the reference implementation does, so a short
-                // message cannot make a long list.
+                // An element of 0 words reads no word. Charge one word for
+                // each element, as the reference implementation does. Then a
+                // short message cannot make a long list.
                 if size == 0 {
                     self.msg.spend(count as u64)?;
                 }

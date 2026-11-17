@@ -1,8 +1,8 @@
 use super::*;
 
 /// A fake edge on the other end of an in-memory stream. It does what the
-/// edge does: it bootstraps the client, answers the bootstrap of the client, and
-/// answers registerConnection with connection details.
+/// edge does. It bootstraps the client and answers the bootstrap of the
+/// client. It answers registerConnection with connection details.
 async fn fake_edge(stream: tokio::io::DuplexStream, seen: oneshot::Sender<(u8, String, Vec<String>, bool)>) {
     let (mut read, mut write) = tokio::io::split(stream);
     let send = |b: Builder| b.to_bytes();

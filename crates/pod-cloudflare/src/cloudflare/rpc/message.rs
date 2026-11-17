@@ -54,7 +54,8 @@ pub(super) fn finish(question: u32, release_result_caps: bool) -> Builder {
     b
 }
 
-/// The answer to a `Bootstrap` of the edge: our capability, export 0.
+/// The answer to a `Bootstrap` of the edge: the capability of the client,
+/// export 0.
 pub(crate) fn our_bootstrap_return(question: u32) -> Builder {
     let mut b = Builder::new();
     let root = b.init_root(1, 1);

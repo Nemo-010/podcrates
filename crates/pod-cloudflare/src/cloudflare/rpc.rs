@@ -1,8 +1,8 @@
 //! The Cap'n Proto RPC subset that registers a tunnel connection.
 //!
 //! Reference: `rpc.capnp` of Cap'n Proto (the two-party protocol). The
-//! control stream carries one framed RPC message after the other, in the two
-//! directions. This module implements these exchanges:
+//! control stream carries framed RPC messages one after the other, in the
+//! two directions. This module does these exchanges:
 //!
 //! | Direction | Messages |
 //! | --- | --- |
@@ -38,7 +38,8 @@ pub use super::schema::{ConnectionError, ConnectionOptions, RegistrationDetails,
 
 /// The longest time for the registration.
 pub const DEFAULT_RPC_TIMEOUT: Duration = Duration::from_secs(15);
-/// The text of the edge when the same connection index is registered.
+/// The text of the edge for a second registration of the same connection
+/// index.
 pub const DUPLICATE_CONNECTION_ERROR: &str = "connection with this index already registered";
 
 // rpc.capnp: `Message` union tags (u16 at index 0, struct in pointer 0).
@@ -173,8 +174,8 @@ struct RegisterArgs {
     options: ConnectionOptions,
 }
 
-/// The name of the client in its version text: `podnet/0.4.0` gives
-/// `podnet`.
+/// The name of the client in its version text: the version text
+/// `podnet/0.4.0` gives `podnet`.
 fn client_name(version: &str) -> &str {
     version.split('/').next().unwrap_or(version)
 }
@@ -203,8 +204,8 @@ impl<W: AsyncWrite + Unpin> Session<W> {
         id
     }
 
-    /// Wait for the answer to `question`, and serve the messages of the edge
-    /// meanwhile.
+    /// Wait for the answer to `question`. Serve the messages of the edge
+    /// during the wait.
     async fn wait(&mut self, question: u32) -> Result<Answer> {
         loop {
             if let Some(answer) = self.answers.remove(&question) {

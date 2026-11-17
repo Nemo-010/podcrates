@@ -287,7 +287,7 @@ impl Message {
         let words: u64 = segments.iter().map(|s| s.len() as u64).sum();
         Self {
             segments,
-            // Each word may be read a few times; more than that is an attack
+            // A word can be read a few times. More reads are an attack
             // (pointers that point at the same data again and again).
             budget: std::sync::atomic::AtomicU64::new(words.saturating_mul(8).max(1024)),
         }

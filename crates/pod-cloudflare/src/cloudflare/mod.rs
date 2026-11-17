@@ -2,33 +2,33 @@
 //!
 //! # What this is
 //!
-//! A Cloudflare tunnel holds a long-lived connection to an edge machine. The
-//! edge opens a stream per visitor request and the connector answers it by
-//! talking to the origin. Two transports carry that connection:
+//! A Cloudflare tunnel keeps a long connection to an edge machine. The edge
+//! opens a stream for each visitor request. The connector answers it with a
+//! request to the origin. Two transports carry that connection:
 //!
-//! * **QUIC**, with ALPN `argotunnel` and SNI `quic.cftunnel.com`. Note the two
-//!   strings are *different*: passing the ALPN value as SNI completes key
-//!   derivation and then dies silently. This is the single most common mistake
-//!   when writing a client, and it is why the constants below are separate.
-//! * **HTTP/2**, with SNI `h2.cftunnel.com` and **no ALPN at all**. cloudflared
-//!   omits the ALPN extension and then runs an HTTP/2 server on the connection,
-//!   because the edge initiates every stream.
+//! * **QUIC**, with ALPN `argotunnel` and SNI `quic.cftunnel.com`. The two
+//!   strings are *different*. With the ALPN value as SNI, the key derivation
+//!   completes, and then the connection stops with no message. This is the
+//!   most frequent error in a client. Thus the constants below are separate.
+//! * **HTTP/2**, with SNI `h2.cftunnel.com` and **no ALPN**. cloudflared
+//!   omits the ALPN extension. It then runs an HTTP/2 server on the
+//!   connection, because the edge opens each stream.
 //!
-//! The QUIC path needs UDP. The HTTP/2 path is TCP, which matters: it is the
-//! only transport that can work where UDP is blocked.
+//! The QUIC path needs UDP. The HTTP/2 path uses TCP. This is important: it is
+//! the only transport that can work where UDP is blocked.
 //!
 //! # Trust
 //!
-//! The edge certificate chains to Cloudflare-internal roots that are in no
-//! public trust store, so they are embedded here. That is the same set
-//! `cloudflared` ships, sourced from its `tlsconfig/cloudflare_ca.go` under
+//! The edge certificate chains to internal roots of Cloudflare. No public
+//! trust store has them, so the crate embeds them. It is the same set that
+//! `cloudflared` ships, from its `tlsconfig/cloudflare_ca.go` under
 //! Apache-2.0.
 //!
 //! # Credentials
 //!
-//! Registration is a Cap'n Proto RPC over the first stream. The tunnel secret
-//! goes on the wire verbatim, as `TunnelAuth.tunnelSecret`; it is not hashed or
-//! otherwise transformed.
+//! The registration is a Cap'n Proto RPC over the first stream. The tunnel
+//! secret goes on the wire as it is, as `TunnelAuth.tunnelSecret`. No hash
+//! or other change applies to it.
 
 pub mod capnp;
 pub mod http2;
@@ -42,25 +42,26 @@ use std::sync::Arc;
 
 use pod_core::{Class, Failure, Stage};
 
-/// The edge's endpoint of the transport `role` (`quic`, `h2`): the first of
+/// The endpoint of the edge for the transport `role` (`quic`, `h2`): the first of
 /// the role of `cloudflare-tunnel-edge` (`pod-services`).
 fn edge_endpoint(role: &str) -> &'static crate::services::Endpoint {
     let endpoints = crate::services::endpoints_of(crate::services::EDGE, role);
     endpoints.first().copied().unwrap_or_else(|| panic!("the edge of pod-services has no role {role}"))
 }
 
-/// ALPN for the QUIC transport: the ALPN of the role `quic`.
+/// The ALPN of the QUIC transport: the ALPN of the role `quic`.
 pub fn quic_alpn() -> &'static [u8] {
     let alpn = edge_endpoint("quic").alpn();
     alpn.first().map_or(b"argotunnel".as_slice(), |a| a.as_bytes())
 }
 
-/// SNI for the QUIC transport. Deliberately not the same as [`quic_alpn`].
+/// The SNI of the QUIC transport. It is not the same as [`quic_alpn`], and
+/// this difference is necessary.
 pub fn quic_sni() -> &'static str {
     edge_endpoint("quic").server_name()
 }
 
-/// SNI for the HTTP/2 transport.
+/// The SNI of the HTTP/2 transport.
 pub fn h2_sni() -> &'static str {
     edge_endpoint("h2").server_name()
 }
@@ -72,8 +73,8 @@ pub fn h2_sni() -> &'static str {
 pub const MAX_EDGE_STREAMS: u32 = 256;
 
 /// The cloudflared release whose protocol the client speaks: the fact
-/// `cloudflared-tag` of the edge (`pod-services`). Errors that a protocol
-/// change can cause name it.
+/// `cloudflared-tag` of the edge (`pod-services`). An error that a change of
+/// the protocol can cause names it.
 pub fn speaks() -> String {
     let tag = crate::services::text(crate::services::EDGE, "cloudflared-tag");
     format!("cloudflared {tag}")
@@ -99,16 +100,16 @@ pub const DATA_STREAM_VERSION: &[u8] = b"01";
 /// Which edge transport to use.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Protocol {
-    /// Try QUIC, fall back to HTTP/2 if it cannot be established.
+    /// Try QUIC. When QUIC does not connect, use HTTP/2.
     Auto,
-    /// QUIC only. Requires UDP.
+    /// QUIC only. It needs UDP.
     Quic,
-    /// HTTP/2 only. Runs over TCP, so it works where UDP is blocked.
+    /// HTTP/2 only. It uses TCP, so it works where UDP is blocked.
     Http2,
 }
 
 impl Protocol {
-    /// Parse the `--protocol` value cloudflared accepts.
+    /// Parse a value of `--protocol`, as cloudflared accepts it.
     pub fn parse(s: &str) -> Result<Protocol, Failure> {
         match s.to_ascii_lowercase().as_str() {
             "auto" | "" => Ok(Protocol::Auto),
@@ -122,7 +123,7 @@ impl Protocol {
         }
     }
 
-    /// The name as cloudflared spells it.
+    /// The name, as cloudflared writes it.
     pub fn as_str(&self) -> &'static str {
         match self {
             Protocol::Auto => "auto",
@@ -131,7 +132,7 @@ impl Protocol {
         }
     }
 
-    /// The transports to attempt, in order.
+    /// The transports to try, in order.
     pub fn candidates(&self) -> Vec<Protocol> {
         match self {
             Protocol::Auto => vec![Protocol::Quic, Protocol::Http2],
@@ -226,20 +227,20 @@ pub fn for_connection(edges: &[EdgeAddr], conn_index: u8) -> Vec<EdgeAddr> {
     out
 }
 
-/// Credentials for one tunnel, as returned by the provisioning API.
+/// The credentials of one tunnel, as the provisioning API gives them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Credentials {
-    /// Hex account tag from the provisioning response.
+    /// The hex account tag of the provisioning response.
     pub account_tag: String,
-    /// Raw secret bytes, sent to the edge untransformed.
+    /// The raw secret bytes. They go to the edge with no change.
     pub tunnel_secret: Vec<u8>,
-    /// Tunnel UUID.
+    /// The tunnel UUID.
     pub tunnel_id: String,
 }
 
 impl Credentials {
-    /// Parse a tunnel UUID into its 16 raw bytes, which is how it goes on the
-    /// wire (`tunnelId :Data`).
+    /// Parse a tunnel UUID into its 16 raw bytes, its form on the wire
+    /// (`tunnelId :Data`).
     pub fn tunnel_id_bytes(&self) -> Result<[u8; 16], Failure> {
         parse_uuid(&self.tunnel_id)
     }
@@ -263,11 +264,10 @@ fn parse_uuid(s: &str) -> Result<[u8; 16], Failure> {
 /// Build a rustls client config for the edge, over the roots and the
 /// provider of `tls`.
 ///
-/// The embedded Cloudflare roots are added alongside the platform's, because
-/// the edge presents a certificate that chains to internal CAs. `alpn` is
-/// empty for the HTTP/2 transport, which cloudflared relies on: the edge
-/// initiates every stream, so negotiating `h2` changes the handshake shape and
-/// breaks it.
+/// The embedded Cloudflare roots go next to the roots of the platform: the
+/// certificate of the edge chains to internal CAs. `alpn` is empty for the
+/// HTTP/2 transport, as cloudflared requires. The edge opens each stream, so
+/// a negotiation of `h2` changes the shape of the handshake and breaks it.
 pub fn edge_tls_config(tls: &pod_tls::Context, alpn: &[u8]) -> Result<Arc<rustls::ClientConfig>, Failure> {
     let alpns: &[&[u8]] = if alpn.is_empty() { &[] } else { &[alpn] };
     tls.client_config_with(&[edge_roots_pem()], alpns).map(Arc::new).map_err(Failure::from)
@@ -277,8 +277,8 @@ pub fn edge_tls_config(tls: &pod_tls::Context, alpn: &[u8]) -> Result<Arc<rustls
 mod tests {
     use super::*;
 
-    /// podssh, cloudflared: connection 0 starts at region1, connection 1 at
-    /// region2. IPv4 stays before IPv6.
+    /// As in podssh and cloudflared: connection 0 starts at region1,
+    /// connection 1 at region2. IPv4 stays before IPv6.
     #[test]
     fn each_connection_starts_at_another_region() {
         let at = |text: &str, region: u8| EdgeAddr::new(text.parse().unwrap()).in_region(region);
@@ -332,8 +332,8 @@ mod tests {
 
     #[test]
     fn auto_tries_quic_first_then_falls_back_to_http2() {
-        // QUIC first because it is faster where it works; HTTP/2 second because
-        // it is the only option when UDP is blocked.
+        // QUIC first, because it is faster where it works. HTTP/2 second,
+        // because it is the only option when UDP is blocked.
         assert_eq!(Protocol::Auto.candidates(), vec![Protocol::Quic, Protocol::Http2]);
         assert_eq!(Protocol::Quic.candidates(), vec![Protocol::Quic]);
         assert_eq!(Protocol::Http2.candidates(), vec![Protocol::Http2]);

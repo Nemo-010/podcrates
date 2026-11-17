@@ -1,8 +1,8 @@
 use super::super::Credentials;
 use super::*;
 
-/// Response headers that are scoped to one connection and must not reach the
-/// visitor. Mirrors the request path's filter.
+/// The response headers of one connection. They must not get to the visitor.
+/// The filter of the request path has the same list.
 const HOP_BY_HOP: &[&str] = &[
     "Connection",
     "Keep-Alive",
@@ -49,8 +49,8 @@ fn a_response_drops_hop_by_hop_headers_like_the_request_does() {
 
 #[test]
 fn a_request_keeps_its_method_and_path_when_a_header_is_refused() {
-    // A header the http crate rejects must not take the whole request with
-    // it. What this pins is the visitor's POST becoming a GET of `/`.
+    // A header that the http crate refuses must not remove the full request.
+    // This test stops a POST of the visitor from becoming a GET of `/`.
     let headers =
         vec![("content-type".to_string(), "text/plain".to_string()), ("bad header".to_string(), "value".to_string())];
     let request = build_visitor_request("POST", "/api/submit?x=1", "example.test", &headers);
@@ -82,8 +82,8 @@ fn base64_round_trips() {
 
 #[test]
 fn base64_matches_the_known_encoding() {
-    // The unpadded RFC 4648 vectors, because cloudflared uses
-    // base64.RawStdEncoding rather than padded StdEncoding.
+    // The RFC 4648 vectors with no padding: cloudflared uses
+    // base64.RawStdEncoding, not StdEncoding with padding.
     assert_eq!(base64_encode(b""), "");
     assert_eq!(base64_encode(b"f"), "Zg");
     assert_eq!(base64_encode(b"fo"), "Zm8");
@@ -124,8 +124,8 @@ fn a_control_stream_is_recognised() {
 
 #[test]
 fn a_configuration_push_wins_over_the_visitor_case() {
-    // It can also carry a proxy-source header, and misrouting it to an
-    // origin would send a control message to a web server.
+    // A push can also have a proxy-source header. A push sent to an origin
+    // sends a control message to a web server.
     let headers = vec![
         (CONTROL_STREAM_HEADER.to_string(), "update-configuration".to_string()),
         (PROXY_SRC_HEADER.to_string(), "127.0.0.1:8080".to_string()),
@@ -163,7 +163,7 @@ fn pseudo_and_cf_headers_are_not_forwarded_to_the_origin() {
 
 #[test]
 fn the_edge_tls_config_offers_no_alpn() {
-    // Offering h2 here is the mistake that makes this transport hang.
+    // An offer of h2 here makes this transport hang.
     let config = edge_tls(&crate::testing::tls()).expect("config");
     assert!(config.alpn_protocols.is_empty(), "the HTTP/2 edge transport must offer no ALPN");
 }
@@ -181,8 +181,8 @@ fn a_visitor_request_carries_method_path_and_authority() {
 
 #[test]
 fn credentials_are_not_needed_to_describe_a_stream() {
-    // A compile-time reminder that stream framing is independent of auth:
-    // credentials travel on the control stream only.
+    // A reminder at compile time: the framing of a stream does not use the
+    // credentials. The credentials go on the control stream only.
     let creds = Credentials {
         account_tag: "abc".into(),
         tunnel_secret: vec![0u8; 32],

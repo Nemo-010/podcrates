@@ -2,26 +2,27 @@
 //!
 //! # The handshake
 //!
-//! QUIC is the default and the faster transport, but it needs UDP, which many
-//! networks and most sandboxes do not allow. It is here for the normal case;
-//! [`super::http2`] is what works where UDP is blocked.
+//! QUIC is the default and the faster transport. But it needs UDP, and many
+//! networks and most sandboxes block UDP. This transport is for the normal
+//! case. [`super::http2`] works where UDP is blocked.
 //!
-//! Two details decide whether this works at all:
+//! Two details decide if this transport works:
 //!
 //! * **ALPN is `argotunnel`** and **SNI is `quic.cftunnel.com`**. These are
-//!   *different strings*. Using the ALPN value as SNI completes key derivation
-//!   and then dies silently after the handshake timeout, which is the most
-//!   common way to get this transport wrong and the hardest to diagnose.
-//! * **The edge certificate chains to Cloudflare-internal roots**, which are in
-//!   no public trust store, so [`super::edge_roots_pem`] is added to the
-//!   platform roots rather than replacing them.
+//!   *different strings*. With the ALPN value as SNI, the key derivation
+//!   completes. Then the connection stops with no message after the handshake
+//!   timeout. This is the most frequent error of this transport, and the
+//!   most difficult to find.
+//! * **The edge certificate chains to internal roots of Cloudflare.** No
+//!   public trust store has them. Thus [`super::edge_roots_pem`] goes next to
+//!   the platform roots and does not replace them.
 //!
 //! # Streams
 //!
-//! The **first** stream the client opens is the control plane; the edge assumes
-//! so, and opens everything else. Each visitor request then arrives as its own
-//! bidi stream, framed by a six-byte signature and a version before the
-//! Cap'n Proto payload.
+//! The **first** stream that the client opens is the control plane. The edge
+//! expects this and opens each other stream. Each visitor request then
+//! arrives on its own bidirectional stream. A six-byte signature and a
+//! version come before the Cap'n Proto payload.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -33,11 +34,11 @@ use pod_core::{Class, Failure, Stage};
 use super::EdgeAddr;
 use crate::fail::{Result, bail};
 
-/// Handshake timeout for the QUIC edge connection.
+/// The handshake timeout of the QUIC edge connection.
 pub const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Idle timeout. The edge sends keepalives, so a short idle timeout would drop
-/// an otherwise healthy tunnel between them.
+/// The idle timeout. The edge sends keepalives. A short idle timeout can drop
+/// a good tunnel between two keepalives.
 pub const MAX_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// How often to send a keepalive.
@@ -59,9 +60,9 @@ pub fn transport_config(initial_mtu: u16) -> TransportConfig {
 
 /// The rustls config for the QUIC edge.
 ///
-/// Split out from [`client_config`] so the ALPN and the trust roots can be
-/// asserted on directly: noq's own config has no getters, so a test that
-/// reads back a noq config would prove nothing.
+/// This function is separate from [`client_config`], so that a test can
+/// check the ALPN and the trust roots directly. The config of noq has no
+/// getters, so a test that reads back a noq config proves nothing.
 pub fn tls_config(tls: &pod_tls::Context) -> Result<Arc<rustls::ClientConfig>> {
     super::edge_tls_config(tls, super::quic_alpn())
 }
@@ -75,8 +76,8 @@ pub fn client_config(tls: &pod_tls::Context) -> Result<ClientConfig> {
 
     let mut config = ClientConfig::new(Arc::new(quic_tls));
 
-    // 1252 is the IPv4-safe payload size that avoids fragmentation-related
-    // blackholing on consumer routers. cloudflared uses the same value.
+    // 1252 is a safe IPv4 payload size. It prevents the loss of fragmented
+    // packets on home routers. cloudflared uses the same value.
     let transport = transport_config(1252);
     config.transport_config(Arc::new(transport));
 
@@ -91,7 +92,7 @@ pub fn build_endpoint(tls: &pod_tls::Context, protocol: &str) -> Result<Endpoint
     let bind: std::net::SocketAddr = "[::]:0".parse().expect("a valid address");
     let endpoint = match pod_quic::endpoint::bind(bind) {
         Ok(endpoint) => endpoint,
-        // A host without IPv6 refuses `[::]`; use IPv4 only.
+        // A host with no IPv6 refuses `[::]`. Use IPv4 only.
         Err(_) => pod_quic::endpoint::bind("0.0.0.0:0".parse().expect("a valid address")).map_err(|e| {
             let text = format!(
                 "could not open a local UDP socket: {}. QUIC needs UDP; \
@@ -196,9 +197,9 @@ mod tests {
 
     #[test]
     fn noq_accepts_the_tls_config_it_is_given() {
-        // The failure this catches is real: rustls 0.23 and noq disagree
-        // about crypto provider versions, and noq's try_from is where that
-        // surfaces, with an error that reads as a TLS problem at handshake.
+        // This failure can occur: rustls 0.23 and noq can have different
+        // versions of the crypto provider. The try_from of noq shows the
+        // error, and it looks like a TLS problem of the handshake.
         client_config(&crate::testing::tls()).expect("noq accepts the edge tls config");
     }
 }

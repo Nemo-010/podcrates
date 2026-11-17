@@ -42,8 +42,8 @@ fn a_pointer_loop_ends_with_an_error() {
     assert!(text.contains("deep") || text.contains("limit") || text.contains("depth"), "{text}");
 }
 
-/// A list pointer with a count far above the size of the message is
-/// refused before any allocation of that size.
+/// The reader refuses a list pointer with a count far above the size of the
+/// message, before an allocation of that size.
 #[test]
 fn a_huge_list_count_is_refused() {
     // A byte list (element size 2) of 2^29 - 1 elements in a 2-word
@@ -57,17 +57,17 @@ fn a_huge_list_count_is_refused() {
         assert!(root.get_text_list(0).is_err());
         assert!(root.get_struct_list(0).is_err());
     }
-    // A segment table that claims 4 GiB is refused by the framing.
+    // The framing refuses a segment table that claims 4 GiB.
     let mut bytes = Vec::new();
     bytes.extend_from_slice(&0u32.to_le_bytes());
     bytes.extend_from_slice(&u32::MAX.to_le_bytes());
     assert!(Message::parse(&bytes).is_err());
 }
 
-/// Found by the fuzz target capnp_message: a composite list of
-/// zero-size structs with a huge count. Each element reads no word, so
-/// the range check passed, and the reader made one reader for each of
-/// the 2^24 elements (an allocation of 80 MiB for 96 bytes).
+/// A case of the fuzz target capnp_message: a composite list of zero-size
+/// structs with a very large count. Each element reads no word, so the range
+/// check passes. With no charge, the reader makes one reader for each of the
+/// 2^24 elements (an allocation of 80 MiB for 96 bytes).
 #[test]
 fn fuzz_a_zero_size_struct_list_is_charged() {
     use base64::Engine as _;
