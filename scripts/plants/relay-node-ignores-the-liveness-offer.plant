@@ -1,0 +1,6 @@
+# A node takes the slower Ping that the relay offers in hello (T-845).
+ENTRY=T-845
+GROUP=relay
+EXPECT='a_node_takes_the_slower_ping_of_the_relay_s_offer'
+RUN='cargo test -p pod-relay --all-features --test liveness_offer'
+LIMIT=1800
