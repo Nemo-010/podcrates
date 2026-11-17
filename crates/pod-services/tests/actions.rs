@@ -14,7 +14,9 @@ fn the_actions_hosts_name_their_source_and_flag_the_multi_tenant_wildcards() {
     for name in ["full-domains", "wildcard-domains", "multi-tenant"] {
         let fact = actions.fact(name).unwrap();
         assert!(matches!(fact.source().origin(), Origin::Url(u) if u.contains("api.github.com/meta")), "{name}");
-        assert_eq!(fact.source().read().to_string(), "2026-11-11", "{name}");
+        // A list that moves is read again: its date is the first reading or later.
+        let read = fact.source().read().to_string();
+        assert!(read.as_str() >= "2026-11-11", "{name} read {read}");
     }
     // Each endpoint is one of GitHub's hosts, and each multi-tenant flag
     // names one of GitHub's wildcards.

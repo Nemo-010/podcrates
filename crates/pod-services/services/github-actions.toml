@@ -245,6 +245,8 @@ value = [
     "hosted-compute-request-orchestrator-prod-iad-02.githubapp.com",
     "hosted-compute-request-orchestrator-prod-eus-01.githubapp.com",
     "hosted-compute-request-orchestrator-prod-eus-02.githubapp.com",
+    "hosted-compute-request-orchestrator-gccus02-01.githubapp.com",
+    "hosted-compute-request-orchestrator-gccus02-02.githubapp.com",
     "mpsghub.actions.githubusercontent.com",
     "pipelinesghubeus1.actions.githubusercontent.com",
     "pipelinesghubeus10.actions.githubusercontent.com",
@@ -288,7 +290,7 @@ value = [
     "runnerproxweu1.actions.githubusercontent.com",
     "tokenghub.actions.githubusercontent.com",
 ]
-source = { url = "https://api.github.com/meta", read = 2026-11-11, note = "domains.actions_inbound, read through the mirror forge.web.pkgforge.dev/github/meta" }
+source = { url = "https://api.github.com/meta", read = 2026-11-17, note = "domains.actions_inbound, read through the mirror forge.web.pkgforge.dev/github/meta; two hosts of the region gccus02 came on 2026-11-17" }
 
 # The wildcards of the same list.
 [[fact]]

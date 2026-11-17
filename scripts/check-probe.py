@@ -23,6 +23,8 @@ from pathlib import Path
 ALLOWED = {
     ("pod-proxy", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
     ("pod-cloudflare", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
+    ("pod-cloudflare", "standin"): "the stand-ins of the quick-tunnel service and of the edge, for the tests of this "
+                                   "crate and of a consumer; a consumer turns it on in [dev-dependencies] only",
     ("pod-gsr", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
     ("pod-link", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
     ("pod-link", "s3-standin"): "the stand-in of the S3 API of the tests of this crate and of a consumer; "
