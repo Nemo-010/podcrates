@@ -516,6 +516,16 @@ server.
   `reverse node lost: WHY`; the test
   `PodUtils/podssh:crates/podssh-relay/tests/relay_serve_lost.rs` (a real RST on the
   loopback). The import reads podssh at `d8e54f0` or later.
+- Two ideas of the dig study that podssh took into the role
+  (PodUtils/podssh#299, answer to COORD-127): an upgrade with a missing or
+  wrong token counts against its address in the brake (podssh T-806,
+  `2c4df79`), and `podssh relay serve --proxy-protocol RANGES` reads the
+  PROXY header (v1, v2) of the owner's balancer for the brake, the slots and
+  the log, tested on haproxy 2.8.30's own bytes (podssh T-807, `2c6323e`).
+  The import reads podssh at `2c6323e` or later. The two speeds of the role
+  are the multi-thread runtime's placement of tasks, not the role
+  (`PodUtils/podssh:crates/podssh-relay/tests/relay_serve_rate.rs`): podssh keeps
+  the runtime.
 
 ## Approach
 
