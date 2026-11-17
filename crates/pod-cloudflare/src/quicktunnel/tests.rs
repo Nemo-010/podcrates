@@ -157,7 +157,7 @@ async fn a_5xx_is_retried_and_a_403_is_not() {
     let err = provision(&crate::testing::host(), &url, AuthMode::Public, "t", TO, BUDGET).await.unwrap_err();
     assert_eq!(hits(&count), 1);
     let text = err.to_string();
-    assert!(text.ends_with("HTTP 403: forbiddennow"), "{text:?}");
+    assert!(text.ends_with("HTTP 403: forbidden now"), "{text:?}");
 }
 
 #[test]

@@ -266,9 +266,9 @@ pub fn validate_quick_hostname(raw: &str) -> Result<String, Failure> {
 /// real responses without a live service.
 pub(crate) fn parse_quick_tunnel_response(status: u16, body: &str) -> Result<QuickTunnel, ProvisionError> {
     if !(200..300).contains(&status) {
-        // The body of an error, for a terminal: 1 KiB at most, with no
-        // control characters.
-        let mut clipped = crate::text::clean(body.trim());
+        // The body of an error, for one line of a terminal: 1 KiB at most,
+        // with no control character and no escape sequence.
+        let mut clipped = pod_core::text::one_line(body);
         if clipped.len() > 1024 {
             let mut cut = 1024;
             while !clipped.is_char_boundary(cut) {

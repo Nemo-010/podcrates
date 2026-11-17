@@ -11,6 +11,7 @@
 /// formatting characters are dropped, and every run of whitespace, line breaks
 /// included, becomes one space. Leading and trailing whitespace is removed.
 pub fn one_line(text: &str) -> String {
+    let text = &without_escapes(text);
     let mut out = String::with_capacity(text.len());
     let mut space = false;
     for c in text.chars() {
@@ -33,6 +34,7 @@ pub fn one_line(text: &str) -> String {
 /// instruction): CR LF and a lone CR become LF, tabs stay, and every other
 /// control or bidirectional formatting character is dropped.
 pub fn multi_line(text: &str) -> String {
+    let text = &without_escapes(text);
     let mut out = String::with_capacity(text.len());
     let mut chars = text.chars().peekable();
     while let Some(c) = chars.next() {
@@ -46,6 +48,61 @@ pub fn multi_line(text: &str) -> String {
             '\n' | '\t' => out.push(c),
             c if c.is_control() || is_bidi_control(c) => {}
             c => out.push(c),
+        }
+    }
+    out
+}
+
+/// `text` with each escape sequence of a terminal removed whole, so that
+/// its parameters do not stay as text: a CSI (ESC `[`, or U+009B) up to its
+/// final byte, an OSC (ESC `]`, or U+009D) up to BEL or ST (ESC `\`, or
+/// U+009C), and another escape (ESC, its intermediates and its final
+/// character). The controls that
+/// stay are for [`one_line`] and [`multi_line`].
+fn without_escapes(text: &str) -> String {
+    if !text.contains(['\u{1b}', '\u{9b}', '\u{9d}']) {
+        return text.to_string();
+    }
+    let mut out = String::with_capacity(text.len());
+    let mut chars = text.chars().peekable();
+    while let Some(c) = chars.next() {
+        let csi = match c {
+            '\u{1b}' => match chars.next() {
+                Some('[') => true,
+                Some(']') => false,
+                // Another escape: ESC, its intermediates (0x20 to 0x2f), then
+                // its final character.
+                Some(c) if ('\u{20}'..='\u{2f}').contains(&c) => {
+                    while chars.next_if(|c| ('\u{20}'..='\u{2f}').contains(c)).is_some() {}
+                    chars.next();
+                    continue;
+                }
+                _ => continue,
+            },
+            '\u{9b}' => true,
+            '\u{9d}' => false,
+            c => {
+                out.push(c);
+                continue;
+            }
+        };
+        if csi {
+            // The parameters and the intermediates, up to the final byte.
+            for c in chars.by_ref() {
+                if ('\u{40}'..='\u{7e}').contains(&c) {
+                    break;
+                }
+            }
+        } else {
+            while let Some(c) = chars.next() {
+                if c == '\u{7}' || c == '\u{9c}' {
+                    break;
+                }
+                if c == '\u{1b}' && chars.peek() == Some(&'\\') {
+                    chars.next();
+                    break;
+                }
+            }
         }
     }
     out
@@ -143,10 +200,24 @@ mod tests {
         // ESC sequences, BEL, a bare CR that would overwrite the line, and the
         // 8-bit CSI (U+009B). The CR is whitespace, so one line shows a space.
         let hostile = "ok\x1b[2J\x1b]0;title\x07\rFAKE\u{9b}31m";
-        assert_eq!(one_line(hostile), "ok[2J]0;title FAKE31m");
+        assert_eq!(one_line(hostile), "ok FAKE", "each sequence goes whole");
         assert!(!multi_line(hostile).contains('\x1b'));
         assert!(!multi_line(hostile).contains('\x07'));
         assert!(!multi_line(hostile).contains('\u{9b}'));
+    }
+
+    /// The sequences of the three copies that this rule replaces
+    /// (`pod_cloudflare::text::clean`, podnet's `report::clean`): a colour, a
+    /// title ended by ST, a 7-bit and an 8-bit form, and an ESC at the end.
+    #[test]
+    fn each_escape_sequence_goes_with_its_parameters() {
+        assert_eq!(multi_line("\x1b[1;31mred\x1b[0m"), "red");
+        assert_eq!(multi_line("a\x1b]8;;https://x.test\x1b\\link\x1b]8;;\x1b\\b"), "alinkb");
+        assert_eq!(multi_line("a\u{9d}0;title\u{9c}b\u{9b}2Kc"), "abc");
+        assert_eq!(multi_line("a\x1b(Bb\x1b"), "ab", "ESC, an intermediate and a final; a last ESC");
+        assert_eq!(multi_line("a\x1b7b\x1bMc"), "abc", "ESC and one character");
+        assert_eq!(one_line("x\x1b[999999999999999999m"), "x", "long parameters");
+        assert_eq!(multi_line("\x1b["), "", "a sequence that the text cuts");
     }
 
     #[test]

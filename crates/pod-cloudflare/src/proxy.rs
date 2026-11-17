@@ -150,7 +150,7 @@ async fn serve_request(
     writer: EdgeWriter,
 ) -> Result<()> {
     // A failure that a visitor sees names its request in the log.
-    let what = format!("{} {}", request.meta(HTTP_METHOD_KEY).unwrap_or("-"), crate::text::clean(&request.dest));
+    let what = format!("{} {}", request.meta(HTTP_METHOD_KEY).unwrap_or("-"), pod_core::text::one_line(&request.dest));
     serve_request_inner(runtime, ingress, request, reader, writer).await.with_context(|| what)
 }
 
@@ -247,7 +247,7 @@ fn authority_of(url: &str) -> Option<String> {
 
 /// The path and the query of a destination URL (`https://host/a?b` gives
 /// `/a?b`).
-pub(crate) fn path_and_query(dest: &str) -> String {
+pub fn path_and_query(dest: &str) -> String {
     if let Some(scheme) = dest.find("://") {
         let rest = &dest[scheme + 3..];
         return match rest.find(['/', '?', '#']) {
