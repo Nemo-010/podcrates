@@ -2158,7 +2158,7 @@ cargo test -p pod-core -p pod-cloudflare --all-features
 **Milestone:** M3
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -2180,3 +2180,8 @@ The pin of cloudflared is 2026.10.7. cloudflared 2026.11.0 (released 2026-11-12,
 python3 -I crates/pod-cloudflare/tools/check-upstream.py
 cargo test -p pod-cloudflare -p pod-services --all-features
 ```
+
+## Correction
+
+2026-11-17: each cloudflared file that the facts cite (`connection/protocol.go`, `cmd/cloudflared/tunnel/cmd.go`, `cmd/cloudflared/tunnel/quick_tunnel.go`, `edgediscovery/allregions/discovery.go`, `tlsconfig/cloudflare_ca.go`, `features/features.go`) has the same blob at 2026.10.7 and at 2026.11.0. The fact `cloudflared-tag` is a ruling over the pins of the consumers (podnet's, now the crate's, and podssh's at 2026.10.6), and podssh's words come from it: the move goes with the README table of the two pins and with podssh, by its hand-off.
+
