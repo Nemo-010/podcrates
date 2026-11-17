@@ -1,0 +1,6 @@
+# No road writes the headers of the caller for a host (T-847).
+ENTRY=T-847
+GROUP=ws
+EXPECT='the_tls_roads_carry_the_headers_after_the_token'
+RUN='cargo test -p pod-ws --all-features --test caller_headers'
+LIMIT=1800

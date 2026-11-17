@@ -1,0 +1,11 @@
+--- a/crates/pod-ws/src/headers.rs
++++ b/crates/pod-ws/src/headers.rs
+@@ -152,7 +152,7 @@ impl Extra {
+ 
+     /// Each header, as a request writes it.
+     pub fn iter(&self) -> impl Iterator<Item = (&'static str, &str)> {
+-        self.0.iter().map(|(name, value)| (*name, value.as_str()))
++        self.0.iter().map(|(name, value)| (*name, value.as_str())).filter(|_| false)
+     }
+ 
+     /// `(name, value)`, then each header: the list of a request that writes
