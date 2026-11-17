@@ -76,3 +76,11 @@ impl pod_core::Dial for Refusing {
         })
     }
 }
+
+/// A report whose events the test reads back.
+pub fn recorded() -> (pod_core::Report, Arc<std::sync::Mutex<Vec<pod_core::Event>>>) {
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let kept = seen.clone();
+    let events = move |event: pod_core::Event| kept.lock().unwrap().push(event);
+    (pod_core::Report { events: Arc::new(events), observer: Arc::new(pod_core::NoObserver) }, seen)
+}

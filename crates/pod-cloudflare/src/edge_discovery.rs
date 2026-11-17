@@ -60,9 +60,14 @@ pub fn fixed_targets() -> Vec<(&'static str, u16)> {
     endpoints.iter().map(|e| (e.host(), e.port())).collect()
 }
 
-/// The SRV targets to use: `targets` when they have the known shape, else
-/// [`fixed_targets`], with one line that gives the reason.
+/// [`checked_targets_with`] with no report.
 pub fn checked_targets(targets: Vec<(String, u16)>) -> Vec<(String, u16)> {
+    checked_targets_with(targets, &pod_core::Report::default())
+}
+
+/// The SRV targets to use: `targets` when they have the known shape, else
+/// [`fixed_targets`], with an event for `report` that gives the reason.
+pub fn checked_targets_with(targets: Vec<(String, u16)>, report: &pod_core::Report) -> Vec<(String, u16)> {
     let mut ports: Vec<u16> = targets.iter().map(|(_, p)| *p).collect();
     ports.sort();
     ports.dedup();
@@ -89,12 +94,13 @@ pub fn checked_targets(targets: Vec<(String, u16)>) -> Vec<(String, u16)> {
         Some(reason) => {
             let fixed = fixed_targets();
             let names: Vec<&str> = fixed.iter().map(|(n, _)| *n).collect();
-            tracing::warn!(
+            let text = format!(
                 "the SRV answer of {} has an unexpected shape: {reason}; the client uses {} on port {}",
                 edge_srv(),
                 names.join(" and "),
                 services::edge_port()
             );
+            report.event(pod_core::Event::warn("edge.discovery", text));
             fixed.into_iter().map(|(n, p)| (n.to_string(), p)).collect()
         }
     }
@@ -145,7 +151,7 @@ pub async fn discover_system(host: &Host, filter: IpVersionFilter) -> Result<Vec
     let targets: Vec<(String, u16)> =
         targets.into_iter().map(|(target, port)| (target.trim_end_matches('.').to_string(), port)).collect();
     let mut edges = Vec::new();
-    for (region, (target, port)) in (0u8..).zip(checked_targets(targets)) {
+    for (region, (target, port)) in (0u8..).zip(checked_targets_with(targets, &host.report)) {
         let Ok(addrs) = tokio::net::lookup_host((target.as_str(), port)).await else {
             continue;
         };
@@ -172,7 +178,7 @@ pub async fn discover_doh(host: &Host, filter: IpVersionFilter) -> Result<Vec<Ed
             targets.push((target, port));
         }
     }
-    let targets = checked_targets(targets);
+    let targets = checked_targets_with(targets, &host.report);
 
     let mut edges = Vec::new();
     for (region, (target, port)) in (0u8..).zip(targets) {
@@ -296,6 +302,18 @@ mod tests {
         assert_eq!(checked_targets(t(&[("evil.example.com", 7844)])), fixed);
         assert_eq!(checked_targets(t(&[("a.argotunnel.com", 7844), ("b.argotunnel.com", 443)])), fixed);
         assert_eq!(checked_targets(Vec::new()), fixed);
+    }
+
+    /// The reason of the fixed names is an event for the user.
+    #[test]
+    fn an_srv_answer_of_another_shape_is_an_event() {
+        let (report, seen) = crate::testing::recorded();
+        let three = ["a", "b", "c"].map(|n| (format!("{n}.argotunnel.com"), 7844)).to_vec();
+        checked_targets_with(three, &report);
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 1);
+        assert_eq!((seen[0].level, seen[0].kind), (pod_core::Level::Warn, "edge.discovery"));
+        assert!(seen[0].text.contains("3 targets"), "{}", seen[0].text);
     }
 
     #[test]

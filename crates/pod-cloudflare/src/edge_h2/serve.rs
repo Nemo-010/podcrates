@@ -18,6 +18,7 @@ pub async fn serve_connection<T>(
 where
     T: AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
 {
+    let host = runtime.host().clone();
     let goaway = Arc::new(tokio::sync::Notify::new());
     let io = GoawayScan { inner: io, scan: FrameScan::new(), seen: Some(goaway.clone()) };
     // TLS has its own time limit; a silent edge after TLS must not hold
@@ -76,7 +77,8 @@ where
                 next = conn.accept() => next,
                 reason = &mut spent, if drain_tx.is_some() => {
                     // A planned replacement: the open streams go on.
-                    info!(%reason, "the HTTP/2 edge connection is replaced before a limit of the relay");
+                    let text = format!("the HTTP/2 edge connection is replaced before a limit of the relay: {reason}");
+                    host.event(pod_core::Event::info("tunnel.reconnect", text));
                     if let Some(tx) = drain_tx.take() {
                         let _ = tx.send(reason);
                     }

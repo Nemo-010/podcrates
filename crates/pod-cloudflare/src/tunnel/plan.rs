@@ -226,7 +226,18 @@ pub(super) fn attempt_limit(kind: LegKind) -> Option<Duration> {
 /// that it asks for (1 s to 5 s). A new quick tunnel can be "not found" at
 /// the edge for a moment after its provision; before, the first refusal
 /// ended the leg, and with one leg the start exited 69.
-pub(super) async fn register_retrying<T, F, Fut>(mut attempt: F) -> Result<T>
+#[cfg(test)]
+pub(super) async fn register_retrying<T, F, Fut>(attempt: F) -> Result<T>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T>>,
+{
+    register_retrying_with(&pod_core::Report::default(), attempt).await
+}
+
+/// [`register_retrying`], with the line of each retry as an event for
+/// `report`.
+pub(super) async fn register_retrying_with<T, F, Fut>(report: &pod_core::Report, mut attempt: F) -> Result<T>
 where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = Result<T>>,
@@ -241,12 +252,12 @@ where
         match refused {
             Some(refused) if tries < REGISTER_TRIES => {
                 let wait = refused.retry_after.clamp(REGISTER_WAIT_MIN, REGISTER_WAIT_MAX);
-                info!(
-                    cause = %refused.cause,
-                    try_ = tries,
-                    wait_s = wait.as_secs(),
-                    "the edge refused the registration and asks for a retry; the registration runs again"
+                let text = format!(
+                    "the edge refused the registration ({}) and asks for a retry; the registration runs again in {} s",
+                    refused.cause,
+                    wait.as_secs()
                 );
+                report.event(pod_core::Event::info("tunnel.register", text));
                 tokio::time::sleep(wait).await;
                 tries += 1;
             }

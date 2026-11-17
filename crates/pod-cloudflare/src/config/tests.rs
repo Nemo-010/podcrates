@@ -392,3 +392,19 @@ fn the_default_transport_is_auto() {
     assert_eq!(Transport::default(), Transport::Auto);
     assert_eq!(Transport::default().to_string(), "auto");
 }
+
+/// A file with no credentials starts a quick tunnel, and the user gets an
+/// event that says so.
+#[test]
+fn a_file_with_no_credentials_gives_an_event() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.yml");
+    std::fs::write(&path, "url: http://127.0.0.1:8080\n").unwrap();
+    let (report, seen) = crate::testing::recorded();
+    let config = load_file_with(&path, &report).unwrap();
+    assert!(matches!(config.credentials, Credentials::Quick));
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen.len(), 1);
+    assert_eq!(seen[0].kind, "config.quick");
+    assert!(seen[0].text.contains("a quick tunnel starts"), "{}", seen[0].text);
+}

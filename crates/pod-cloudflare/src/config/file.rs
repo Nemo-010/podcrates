@@ -280,6 +280,12 @@ pub(super) fn check_top_values(file: &std::path::Path, value: &serde_json::Value
 /// * The top-level `originRequest` is the default of each rule.
 /// * The last ingress rule must match each request (no hostname, no path).
 pub fn load_file(path: &std::path::Path) -> Result<Config> {
+    load_file_with(path, &pod_core::Report::default())
+}
+
+/// [`load_file`], with the lines for the user (a file that starts a quick
+/// tunnel) as events for `report`.
+pub fn load_file_with(path: &std::path::Path, report: &pod_core::Report) -> Result<Config> {
     let text = std::fs::read_to_string(path).io_fail(Stage::Host, format!("reading config {}", path.display()))?;
     let mut value = crate::yaml::parse(&text).with_context(|| format!("parsing {}", path.display()))?;
     check_top_values(path, &value)?;
@@ -357,7 +363,7 @@ pub fn load_file(path: &std::path::Path) -> Result<Config> {
         }
         config.credentials = credentials;
     } else {
-        credentials_of_file(path, raw.tunnel, raw.credentials_file, &mut config)?;
+        credentials_of_file(path, raw.tunnel, raw.credentials_file, &mut config, report)?;
     }
     if let Some(protocol) = raw.protocol {
         config.protocol = Protocol::parse(&protocol)?;
@@ -377,6 +383,7 @@ pub(super) fn credentials_of_file(
     tunnel: Option<String>,
     credentials_file: Option<PathBuf>,
     config: &mut Config,
+    report: &pod_core::Report,
 ) -> Result<()> {
     match (tunnel, credentials_file) {
         (tunnel, Some(file)) => {
@@ -407,10 +414,9 @@ pub(super) fn credentials_of_file(
             config.credentials = parse_token(&tunnel)?;
         }
         (None, None) => {
-            tracing::info!(
-                "{} has no tunnel:, no credentials-file: and no token:; a quick tunnel starts",
-                path.display()
-            );
+            let text =
+                format!("{} has no tunnel:, no credentials-file: and no token:; a quick tunnel starts", path.display());
+            report.event(pod_core::Event::info("config.quick", text));
         }
     }
     Ok(())

@@ -225,16 +225,17 @@ impl Tunnel {
                     let edges = direct_targets(&host).await?;
                     let endpoint = quic_dial::build_endpoint(&host.tls, &host.settings.words.protocol)?;
                     let version = &host.settings.client_version;
-                    let (conn, control, location) =
-                        register_retrying(|| connect_once(&endpoint, auth, tunnel_id, 0, false, &edges, version))
-                            .await?;
+                    let (conn, control, location) = register_retrying_with(&host.report, || {
+                        connect_once(&endpoint, auth, tunnel_id, 0, false, &edges, version)
+                    })
+                    .await?;
                     Ok((First::Quic(edges, endpoint, conn, control, location), None))
                 })),
                 LegKind::H2Direct | LegKind::H2Relay => Box::pin(bounded(limit(*kind), async move {
                     let relay = relay_for(*kind, &host)?;
                     let edges = direct_targets(&host).await?;
                     let options = rpc::ConnectionOptions::default_for_quick_tunnel(&host.settings.client_version);
-                    let leg = register_retrying(|| {
+                    let leg = register_retrying_with(&host.report, || {
                         let (runtime, ingress) = (runtime.clone(), ingress.clone());
                         crate::edge_h2::connect(&edges, auth, tunnel_id, 0, &options, runtime, ingress, relay.as_ref())
                     })
@@ -244,9 +245,10 @@ impl Tunnel {
                 LegKind::QuicWarp => Box::pin(async move {
                     let (edges, link, endpoint) = warp_targets(&host).await?;
                     let version = &host.settings.client_version;
-                    let (conn, control, location) =
-                        register_retrying(|| connect_once(&endpoint, auth, tunnel_id, 0, false, &edges, version))
-                            .await?;
+                    let (conn, control, location) = register_retrying_with(&host.report, || {
+                        connect_once(&endpoint, auth, tunnel_id, 0, false, &edges, version)
+                    })
+                    .await?;
                     let kept = Some(link);
                     Ok((First::Quic(edges, endpoint, conn, control, location), kept))
                 }),
