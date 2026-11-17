@@ -19,19 +19,27 @@ is done. Git and the record keep finished work.
    on COORD-125 (#215), and of `v0.66.0` on COORD-126 (#216): amend the body, and close it when each consumer took its
    part. `v0.65.0` holds T-806, T-805, T-801, T-797, T-807, T-808 and the
    trial of `pod-iroh` (T-810).
-3. The next tag (`v0.67.0`) holds T-834 (PodUtils/podssh#294), T-836
-   (PodUtils/podssh#295, a route to a Unix socket), T-825 (part 1, the
-   plan by family behind `Settings::families`), T-827 (`PeerText`), T-831
-   (`scripts/check-loopback.py`) and the live measurement of T-812, T-814
-   and T-835. Answer podssh#294 and podssh#295 on its hand-off.
-4. Read the scheduled nightly: T-789 (armv7) and T-766 (riscv64) are the
+3. The release `v0.67.0`: its head is `1d7e983` (pushed; the full local
+   check passed, 4924 tests). When `ci`, `adoption` and `plants` are green
+   at that head, run `release.yml` (dry, then `version=0.67.0`), then open
+   the hand-off `(to all)` from the draft
+   `scratchpad/coord128.md` of the session (it answers podssh#294,
+   podssh#295 and podnet#607; write it again from
+   `docs/releases/v0.67.0.md` when the draft is gone). The local commits
+   after the head (T-378 steps 2 and 3, T-385) wait for the tag: a push
+   cancels the runs of the head.
+4. T-029 (`pod-cloudflare`, P1): an agent imports podnet's tunnel in the
+   local worktree `.claude/worktrees/t029` (branch `t029-cloudflare`, not
+   pushed): the import, the edition, a crate that builds. Merge its
+   commits into `main` after its report, then the adaptation.
+5. Read the scheduled nightly: T-789 (armv7) and T-766 (riscv64) are the
    jobs that stayed red; a new red job needs an entry.
-5. T-767 (PodUtils/podssh#283, P1, partial): the seventh failure shows
+6. T-767 (PodUtils/podssh#283, P1, partial): the seventh failure shows
    that the node's reader of the target stopped before the stall, with
    no byte in flight. Wait for podssh's next stall with the lines
    `session.resume` and `session.stall` (from `v0.64.0`), then find the
    cause; T-768 beside it.
-6. Then the work order of `TODO/PROGRESS.md`: T-378 (`pod-devtunnel`,
+7. Then the work order of `TODO/PROGRESS.md`: T-378 (`pod-devtunnel`,
    part 2), then the move of podssh (T-029, T-030, T-039, T-036), then
    T-526.
 
