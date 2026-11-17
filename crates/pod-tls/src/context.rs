@@ -127,10 +127,19 @@ impl Context {
     }
 
     /// The trust anchors for `trust`. A caller's configuration holds its own,
-    /// which cannot be listed.
+    /// which cannot be listed. `Trust::Default` takes the CA file of the
+    /// settings alone where there is one ([`Context::roots`]), as each other
+    /// road of the consumer does: a proxy that signs TLS with its own CA is
+    /// then trusted on each road, and a CA file that cannot be used is an
+    /// error, not a silent fall back to the default roots.
     pub fn roots_for(&self, trust: &Trust) -> Result<TlsRoots, Error> {
         match trust {
             Trust::File(path) => trust::roots_from_bundle(path),
+            Trust::Default if self.settings.ca_file.is_some() => {
+                let roots = self.roots()?;
+                let store = (*roots.store).clone();
+                Ok(TlsRoots { count: store.len(), roots: store, source: roots.sources.join(" + ") })
+            }
             Trust::Default => Ok(self.default_roots()),
             Trust::Caller(_) => {
                 Err(Error::Config("the caller's TLS configuration holds its own roots; they cannot be listed".into()))

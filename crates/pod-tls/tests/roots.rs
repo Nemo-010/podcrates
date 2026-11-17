@@ -243,3 +243,31 @@ async fn a_private_ca_is_trusted_only_when_it_is_given() {
         assert!(refused.contains("invalid peer certificate"), "{name}: {refused}");
     }
 }
+
+/// `Trust::Default`, which each road of `pod-ws` and `pod-relay` passes,
+/// takes the CA file of the settings, as `client_config_with` does
+/// (PodUtils/podnet#608): a proxy that signs TLS with the CA of
+/// `SSL_CERT_FILE` is trusted, and the file is the only root.
+#[tokio::test]
+async fn the_default_trust_takes_the_ca_file_of_the_settings() {
+    pod_testkit::need_loopback!();
+    let dir = Dir::new("default");
+    let file = dir.file("ca.pem", &server_ca());
+    for (name, provider) in tls::providers() {
+        let given = context(provider.clone(), Some(CaFile::new("SSL_CERT_FILE", file.clone())), None);
+        let roots = given.roots_for(&pod_tls::Trust::Default).unwrap();
+        assert_eq!(roots.count, 1, "{name}: the CA file alone");
+        assert!(roots.source.starts_with("SSL_CERT_FILE"), "{name}: {}", roots.source);
+        let config = (*given.config_for(&pod_tls::Trust::Default).unwrap()).clone();
+        assert_eq!(handshake(config).await.as_deref(), Ok("private CA reached"), "{name}");
+
+        let plain = context(provider.clone(), None, None);
+        let config = (*plain.config_for(&pod_tls::Trust::Default).unwrap()).clone();
+        let refused = handshake(config).await.unwrap_err();
+        assert!(refused.contains("UnknownIssuer"), "{name}: {refused}");
+
+        let absent = context(provider, Some(CaFile::new("--ca-file", dir.0.join("absent.pem"))), None);
+        let err = absent.roots_for(&pod_tls::Trust::Default).unwrap_err();
+        assert!(err.to_string().starts_with("--ca-file"), "{name}: no fall back to the default roots: {err}");
+    }
+}
