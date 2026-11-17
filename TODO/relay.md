@@ -9907,3 +9907,30 @@ cargo test -p pod-piping --all-features --lib probe
 ## Done
 
 2026-11-17, fdfcba699: `probe::upgrade` takes `Way::extra` of the relay's host (an error of the headers is `Probe::Unknown` with its words), `request` writes it after `User-Agent`, and the answer's error goes through `Extra::masked`. Test: `the_probe_carries_the_headers_of_the_caller` (the order after `User-Agent`; a refusal that quotes the secret shows none of it). The tests of the library of `pod-piping` pass. Plant `piping-probe-without-headers`, caught. podssh drops its skip of the probe (`process_names`) with the take.
+
+# T-865: `pod-relay`: keep a relay member's `meet` from its `/relays.json` (PodUtils/podssh#307)
+
+**Source:** PodUtils/podssh#307 (COORD-110 of podssh, PodUtils/podssh@T-720).
+**Category:** feature
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+podssh's relay role advertises its meeting points in `/relays.json` as `meet` (`{"iroh": "https://HOST/", "derp": "HOST", "probe": "/generate_204"}`, each key `null` when its road is off). A member of a net lists its net's relay host first, as its iroh relay and its DERP home, when that host's `meet` names them. `pod_relay::pool::members` reads each relay member's `/relays.json` once a day and keeps no `meet`.
+
+## Premise
+
+- Read: PodUtils/podssh#307; `crates/pod-relay/src/pool/members.rs` (`take_from`, `ask_due_with`) and its cache.
+
+## Approach
+
+`members` keeps a member's `meet` beside what it keeps now, in the same cached file, on the same daily read, with no new connection; `members::meet(cache, &Member) -> Option<Meet { iroh: Option<String>, derp: Option<String> }>` gives it. A value that is not an `https://` URL (iroh) or a name (DERP) of the member's own host is dropped, so a member cannot send the net's traffic to another party. Tests; a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-relay --all-features
+```

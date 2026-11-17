@@ -9683,3 +9683,32 @@ cargo test -p pod-guest --all-features --lib agent
 ## Done
 
 2026-11-17, f431c8306: `AGENT_CMD` appends `TIME wqagent start` to `COM1` before its first probe, `TIME wqagent found D: after N tries` when it finds the mailbox, and `TIME wqagent no mailbox after 600 tries` when it gives up (the label `:lost`). QEMU's UART keeps CTS and DSR up, so a write to `COM1` does not wait. Tests: `the_agent_gives_up_after_600_tries_with_no_mailbox` holds the two lines of a run with no mailbox, and `the_serial_log_shows_the_start_and_the_find`; the walk of the tests reads each new line. The tests of `pod-guest` pass. Plant `guest-agent-silent-before-the-mailbox`, caught. For podvm: an image takes the new agent at its next provision (the installer copies `AGENT_CMD`), the fingerprint of a warm state changes with it, and `Settings::evidence` keeps the screen and the serial log of each timeout.
+
+# T-864: `pod-enter`: a new devpts instance and `/dev/ptmx` on the namespace rung, so that `openpty` works in a unit (PodUtils/podvm#469)
+
+**Source:** PodUtils/podvm#469 (COORD-176 of podvm, PodUtils/podvm@T-1934; from PodUtils/podrunner#216).
+**Category:** defect
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+On the namespace rung, `/dev/pts` is the bind of the host's devpts (`ns_optional`), mounted `mode=600,ptmxmode=000`, and `ns_dev_bind::DEVICES` has no `ptmx`: `/dev/ptmx` does not exist, `os.openpty()` gives ENOENT, and an open of `/dev/pts/ptmx` gives EACCES. A job that needs a terminal (`script`, `pty.spawn`) fails. In a user namespace a new instance mounts and works (`mount -t devpts -o newinstance,ptmxmode=0666,mode=0620`).
+
+## Premise
+
+- Read: PodUtils/podvm#469; `crates/pod-enter/src/ns_dev_bind.rs` (`DEVICES`), `src/ns_optional.rs` (the bind of `/dev/pts`), and the rung's mount sequence.
+
+## Approach
+
+1. In a user namespace, mount a new devpts instance on the `/dev/pts` of the image (`newinstance,ptmxmode=0666,mode=0620`), and make `/dev/ptmx` a bind of `/dev/pts/ptmx`, with its mount point made where the image has none.
+2. Where the mount is refused, keep the bind of the host's `/dev/pts`, also bind the host's `/dev/ptmx`, and write the refused line, so that the consumer names a unit with no pty.
+3. A test in the userns tests: an `openpty` in the unit passes; a plant.
+
+## Prove
+
+```sh
+sh scripts/ci/userns-tests.sh
+```

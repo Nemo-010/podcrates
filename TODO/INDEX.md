@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**696 entries: 128 open, 21 partial, 7 blocked, 540 done.**
+**698 entries: 130 open, 21 partial, 7 blocked, 540 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 10 | 8 | 0 | 152 | 170 |
-| P2 | 55 | 3 | 4 | 277 | 339 |
+| P2 | 57 | 3 | 4 | 277 | 341 |
 | P3 | 63 | 10 | 3 | 109 | 185 |
-| **All** | 128 | 21 | 7 | 540 | 696 |
+| **All** | 130 | 21 | 7 | 540 | 698 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -743,3 +743,5 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-861](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: a mailbox run that times out before `WQREADY` tells nothing of the agent (PodUtils/podvm#468) |
 | [T-862](upkeep.md) | P1 | S | M5 | defect | done | `pod-broker`: names mode still resolves each name on the host, so a host whose names resolve only through its proxy refuses each CONNECT (PodUtils/podrunner#215) |
 | [T-863](fleet.md) | P2 | S | M0 | chore | open | `pod-manual`: the changes of podssh to the imported files before its take (port review) |
+| [T-864](podvm.md) | P2 | S | M6 | defect | open | `pod-enter`: a new devpts instance and `/dev/ptmx` on the namespace rung, so that `openpty` works in a unit (PodUtils/podvm#469) |
+| [T-865](relay.md) | P2 | S | M2 | feature | open | `pod-relay`: keep a relay member's `meet` from its `/relays.json` (PodUtils/podssh#307) |
