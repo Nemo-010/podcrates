@@ -32,6 +32,13 @@ CI runs the same on each push, and more (`docs/design.md`, section 9).
 A Rust file has 500 lines or fewer. There is no allowlist: split a longer
 file. Do not remove comments to make a file shorter.
 
+## Loopback ports
+
+Product code binds a loopback address only on port 0, or on an address that
+its caller gives. A fixed port of the loopback can collide with another
+service. `scripts/check-loopback.py` (CI) finds such a bind; a file that must
+keep one goes into its `EXCEPTIONS` with the reason.
+
 ## Rules for tests
 
 * **The tests of the source come with the code.** Each test keeps its

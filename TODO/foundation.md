@@ -2036,7 +2036,7 @@ cargo test -p pod-core --all-features
 **Milestone:** M0
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2053,5 +2053,14 @@ One allocation in `pod-core` with a scan that can fail, and a test that fills th
 ## Prove
 
 ```sh
-cargo test -p pod-core --all-features
+python3 -I scripts/check-loopback.py
+python3 -I scripts/check-loopback.py --self-test
 ```
+
+## Correction
+
+No product code of podcrates binds a fixed port of the loopback: each bind takes port 0 (the kernel gives a free port) or an address of its caller, so no two crates can take the same port, and a table of addresses would have no user. The rule is kept by a scan of the source in place of a table: a new bind of a fixed loopback port fails CI.
+
+## Done
+
+2026-11-17. `scripts/check-loopback.py`, a step of `ci.yml`, and a section "Loopback ports" in `docs/development.md`. The scan reads each `.rs` file of `crates/*/src` but not the test files (`tests.rs`, `*_tests.rs`, `test_*.rs`, a directory `tests`) and not a `#[cfg(test)]` module, which it removes by brace matching over a view of the code with blank comments, strings and character literals. In each bind call it finds a loopback address with a fixed port: a string `"127.x.x.x:N"`, `"localhost:N"` or `"[::1]:N"`, a tuple of such a host or of `Ipv4Addr::LOCALHOST`, `Ipv6Addr::LOCALHOST`, `Ipv4Addr::new(127, ...)` or `[127, ...]` with a number or a constant. A dial, a comment and text out of a bind call do not count. `EXCEPTIONS` is empty. A scan of fewer than 200 files is a fault. The tree: 1101 files, no fault. `--self-test`: 14 cases (11 banned spellings, one of them over lines; product code after a test module; the control, with port 0, a port of the caller, a dial, a comment, a test module and braces in literals; an empty tree) agree.
