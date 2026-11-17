@@ -9576,3 +9576,32 @@ cargo test -p pod-relay --all-features --test routes_unix
 ## Done
 
 2026-11-17. `crates/pod-relay/src/reverse/unix_target.rs`: `UNIX` (`unix:`), `Route::unix(name, path)`, `Route::unix_path`, `unix_path(host)` (a host with a path after the prefix) and `connect(path, timeout)`: a blocking connect in `spawn_blocking` under the timeout (`@NAME`: `SocketAddr::from_abstract_name` on Linux and Android), then the descriptor as a `std::net::TcpStream`, non-blocking, as a tokio `TcpStream`; with no Unix socket on the system, a refusal. `reverse::tcp::dial_target` dials a Unix host that way, and the words of the roost's check name the socket. So `Routes::open` and `open_with` (a route of the command line or a share), `TcpHandler` and the move of a session take a Unix route with no change of a type; `pod-e2e`'s `move_out` gets a `TcpStream` of the socket. The address and the TCP options of such a stream are not there. Only the node's owner names a target (a route or a share); an operator names a route, and an exit dials through the node's own `ExitDial`, which must refuse a host `unix:` (podssh's exit dials TCP alone). Tests: `tests/routes_unix.rs`, 6 (a path both ways, an abstract name on Linux, a socket that is not there refused with its path, the roost's check that passes and that refuses, the stream taken as a std `TcpStream` and back, the prefix). The plant `relay-unix-route-as-tcp` (the Unix branch removed) is caught. podssh's `--caller-line` stays podssh's: it writes the first line on the stream that `open_with` gives.
+
+# T-837: `pod-relay`: a node ends a session whose local side still reads, at the first MiB that waits for it
+
+**Source:** T-835 (the live copy of `live.yml` run 44007816989).
+**Category:** defect
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`reverse::route::offer` ends a session (`close` with "the node's local side does not read") when the bytes that wait for its local side pass `Handler::queue_bytes`, at once. A handler with no layer has `QUEUE_BYTES`, 1 MiB. The relay has no flow control for one session, so its frames come in bursts: at 20 MiB/s a pause of 50 ms of the local copy is 1 MiB. The live copy through the default relay, with a local side that only sinks the bytes, was ended so after 19 MiB of its second session. A plain node of podnet (a TCP or Unix target, `TcpHandler`) has the same bound for an upload.
+
+## Premise
+
+- Read: `crates/pod-relay/src/reverse/route.rs` (`offer`, `to_local`); `src/reverse/node.rs` (`QUEUE_BYTES`); the test `a_local_side_that_does_not_read_ends_its_session_and_not_the_others` of `tests/reverse_node.rs` (a flood of 2.5 MiB to a local side that never reads).
+- The layered handler of podssh has `2 * replay_capacity`.
+- Not measured: the bursts of the relay; podnet's plain mode under an upload.
+
+## Approach
+
+A local side "does not read" when a write to it has waited for a grace time (`STALL_GRACE`), not when the queue passes the limit once. Over `queue_bytes`, a frame waits while the local copy made progress within the grace; a hard bound (a multiple of `queue_bytes`) still ends a session at once, so the memory of a stuck session stays bounded. The flood test keeps its result with a flood above the hard bound, and a new test: a local side that reads slowly with bursts above `queue_bytes` keeps its session.
+
+## Prove
+
+```sh
+cargo test -p pod-relay --all-features --test reverse_node
+```

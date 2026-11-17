@@ -56,8 +56,16 @@ const READY: u8 = b'K';
 const COPY_SESSION: usize = 56 * MIB;
 const COPY_SESSIONS: usize = 5;
 
+/// The bytes that may wait for the echo: the copy measures the relay, not
+/// the node's bound of a local side that does not keep up (T-837).
+const ECHO_QUEUE: usize = 64 * MIB;
+
 impl Handler for Echo {
     type Stream = DuplexStream;
+
+    fn queue_bytes(&self) -> usize {
+        ECHO_QUEUE
+    }
 
     fn open(&self, _id: SessionId) -> Opening<DuplexStream> {
         Box::pin(async {

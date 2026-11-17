@@ -52,11 +52,24 @@ node says that it is ready; the copy wrote at once. The copy now waits for
 a byte of the node before it streams. An SSH client waits for the banner of
 the server, so a session of podssh does not meet this bound.
 
-What the three runs say:
+## 2026-11-17, `live.yml` run 44007816989 (the same runner image)
+
+| Host | Open | Round trip p50 | p99 | Echo |
+| --- | --- | --- | --- | --- |
+| `tcp.ssh.relay.ajam.dev` (the default) | 600.4 ms | 79.5 ms | 254.9 ms | 6.59 MiB/s |
+
+The copy waited for the node, and its second session was ended after
+19 MiB by the node itself: "the node's local side does not read". The node
+ends a session when more than `queue_bytes` (1 MiB for a handler with no
+layer) waits for its local side, also while the local side reads; the
+relay sends in bursts. That is the defect T-837. The copy now gives its
+echo a queue of 64 MiB, so that it measures the relay.
+
+What the four runs say:
 
 - The spread between runs of the same hour is large: the echo rate went
-  from 17.33 to 9.29 to 4.57 MiB/s, and the p99 of the round trip from 58.3
-  to 245.4 to 499.9 ms. One reading does not give the rate of a host; a rank by
+  from 17.33 to 9.29 to 4.57 to 6.59 MiB/s, and the p99 of the round trip
+  from 58.3 to 245.4 to 499.9 to 254.9 ms. One reading does not give the rate of a host; a rank by
   rate needs the median of many sessions (`pod_relay::rates`, T-814).
 - At 9.29 MiB/s a session of 48 MiB moves about each 5.2 s of full use.
 

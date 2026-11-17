@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**669 entries: 130 open, 18 partial, 7 blocked, 514 done.**
+**670 entries: 131 open, 18 partial, 7 blocked, 514 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
-| P2 | 55 | 4 | 4 | 264 | 327 |
+| P2 | 56 | 4 | 4 | 264 | 328 |
 | P3 | 64 | 6 | 3 | 101 | 174 |
-| **All** | 130 | 18 | 7 | 514 | 669 |
+| **All** | 131 | 18 | 7 | 514 | 670 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -716,3 +716,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-834](relay.md) | P2 | S | M2 | defect | done | `pod-relay`: a renewal reads the default relay's `400` for an unknown reverse path as an error, not as no renewal (PodUtils/podssh#294) |
 | [T-835](relay.md) | P3 | S | M2 | measurement | open | `pod-relay`: the cost of a move of a session for a copy on the default relay |
 | [T-836](relay.md) | P2 | S | M2 | feature | done | `pod-relay`: a route of a node to a Unix socket (PodUtils/podssh#295) |
+| [T-837](relay.md) | P2 | S | M2 | defect | open | `pod-relay`: a node ends a session whose local side still reads, at the first MiB that waits for it |
