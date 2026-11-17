@@ -3043,7 +3043,7 @@ changes`.
 **Milestone:** M5
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -3062,6 +3062,15 @@ Write two documents under docs/research, one for each study: what each measured 
 ```sh
 cargo todo check
 ```
+
+## Done
+
+2026-11-17. `docs/research/dig-study.md` and
+`docs/research/ingest-study.md`: what each archive measured and how, the
+numbers (the ingest study's with its seven corrections), the limits, what
+the repository has (no measurement of the rate of a relay; the default relay
+`tcp.ssh.relay.ajam.dev` first; its caps still hold each session), and the
+entry of each finding.
 
 # T-817: A call on references under GPL or AGPL: their designs, never their code
 

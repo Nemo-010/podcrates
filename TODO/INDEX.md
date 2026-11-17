@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**666 entries: 142 open, 14 partial, 7 blocked, 503 done.**
+**666 entries: 141 open, 14 partial, 7 blocked, 504 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
-| P2 | 57 | 3 | 4 | 261 | 325 |
+| P2 | 56 | 3 | 4 | 262 | 325 |
 | P3 | 74 | 3 | 3 | 93 | 173 |
-| **All** | 142 | 14 | 7 | 503 | 666 |
+| **All** | 141 | 14 | 7 | 504 | 666 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -695,7 +695,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-813](relay.md) | P3 | S | M2 | research | open | `pod-ws`: the speed of a relay path in two modes (75 and 330 MiB/s) that the dig study saw |
 | [T-814](relay.md) | P3 | M | M2 | feature | open | `pod-relay`: the bytes and the time of each session for each host, and an order by measured rate in shadow |
 | [T-815](relay.md) | P3 | S | M2 | research | open | `pod-relay`: the budget of a session under a relay whose caps are larger than the default relay's |
-| [T-816](upkeep.md) | P2 | S | M5 | docs | open | The dig study and the ingest study of 2026-11-16 as research documents, with their corrections |
+| [T-816](upkeep.md) | P2 | S | M5 | docs | done | The dig study and the ingest study of 2026-11-16 as research documents, with their corrections |
 | [T-817](upkeep.md) | P2 | S | M5 | chore | done | A call on references under GPL or AGPL: their designs, never their code |
 | [T-818](relay.md) | P3 | L | M2 | feature | open | `pod-link`: forward error correction and a NACK backstop (TR-1, TR-2 of the ingest study) |
 | [T-819](relay.md) | P3 | M | M2 | feature | open | `pod-netstack`: a ladder of the path MTU, a clamp of the MSS, and a class for each flow (TR-3, TR-4 of the ingest study) |
