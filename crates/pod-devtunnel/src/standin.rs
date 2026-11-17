@@ -9,6 +9,7 @@
 //! caller gave, never a token.
 
 mod host;
+mod login;
 mod writes;
 
 use std::io;
@@ -27,6 +28,7 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
 pub use host::Port;
+pub use login::{DEVICE_CODE, Logins, REFRESH_TOKEN, USER_CODE};
 
 use crate::service;
 
@@ -129,11 +131,16 @@ pub(crate) struct State {
     other: PrivateKey,
     port: u16,
     made: Mutex<writes::Made>,
+    logins: Mutex<Logins>,
 }
 
 impl State {
     fn seen(&self) -> MutexGuard<'_, Seen> {
         self.seen.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn logins(&self) -> MutexGuard<'_, Logins> {
+        self.logins.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     fn made(&self) -> MutexGuard<'_, writes::Made> {
@@ -174,6 +181,7 @@ impl Standin {
             other: key()?,
             port,
             made: Mutex::default(),
+            logins: Mutex::default(),
         });
         let served = state.clone();
         let accept = tokio::spawn(async move {
@@ -191,6 +199,16 @@ impl Standin {
 
     pub fn addr(&self) -> SocketAddr {
         SocketAddr::from(([127, 0, 0, 1], self.state.port))
+    }
+
+    /// How the logins answer from now on; their counts start again.
+    pub fn set_logins(&self, logins: Logins) {
+        *self.state.logins() = logins;
+    }
+
+    /// The logins: how they answer, and the polls and the refreshes so far.
+    pub fn logins(&self) -> Logins {
+        self.state.logins().clone()
     }
 
     /// What the stand-in saw so far.
@@ -232,7 +250,7 @@ async fn serve(state: Arc<State>, mut tcp: TcpStream) {
         relay(state, tcp, head, rest).await;
         return;
     }
-    if writes::is_write(&head) {
+    if login::is_login(&head) || writes::is_write(&head) {
         // The body of a write: as long as its length, which is short.
         let length: usize = head.header("content-length").and_then(|n| n.parse().ok()).unwrap_or(0).min(64 * 1024);
         let mut chunk = [0u8; 4096];
@@ -242,7 +260,12 @@ async fn serve(state: Arc<State>, mut tcp: TcpStream) {
                 Ok(n) => rest.extend_from_slice(&chunk[..n]),
             }
         }
-        let answer = writes::answer(&state, &head, &rest[..rest.len().min(length)]);
+        let body = &rest[..rest.len().min(length)];
+        let answer = if login::is_login(&head) {
+            login::answer(&state, &head, body)
+        } else {
+            writes::answer(&state, &head, body)
+        };
         let _ = tcp.write_all(&answer).await;
         let _ = tcp.shutdown().await;
         return;

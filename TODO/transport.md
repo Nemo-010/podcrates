@@ -5551,11 +5551,34 @@ its source in the vendor's client at the same commit; the watch of
 `http_client.rs` holds `write-calls`. The stand-in serves the writes (the
 user's token alone; a tunnel access token gets 403). Tests: `tests/writes.rs`
 (3), two unit tests. Plants `devtunnel-list-not-global`,
-`devtunnel-create-unchecked`. Open: step 2, the device-code flows of
-GitHub (the vendor's `PROD_GITHUB_APP_CLIENT_ID`) and of AAD (the
-caller's client id, the scope of `PROD_FIRST_PARTY_APP_ID`, the
-`organizations` authority of the vendor's test), with the refresh of an
-AAD token; step 3, the token store in a private file.
+`devtunnel-create-unchecked`.
+
+2026-11-17: the device-code logins are in (the second part, step 2 of 3):
+`pod_devtunnel::login`. `Login::github()` (the vendor's GitHub App,
+`https://github.com/login/device/code` and `/login/oauth/access_token`)
+and `Login::aad(client_id)` (the caller's client id, the authority
+`organizations`, the scope `PROD_FIRST_PARTY_APP_ID/.default`, at
+`https://login.microsoftonline.com`); `Login::at` for a stand-in. `start`
+gives a `DeviceCode` (the user code, the address, the life, the interval;
+the device code stays in the crate). `poll` waits each interval through the
+caller's clock, adds 5 s at `slow_down`, ends at a token, `access_denied`,
+`expired_token` or the end of the code's life, and gives `Granted` (a
+`UserToken` of the scheme `github` or `aad`, the refresh token of Entra ID,
+the life). `refresh` gives a new Entra token. No token and no device code
+is in a `Debug`, a line or an error text. The facts `github-login`,
+`github-client-id`, `aad-login`, `aad-tenant`, `aad-app-id` of
+`microsoft-devtunnel.toml`, each with its source (the vendor's client at
+the same commit, GitHub's document of the device flow). The stand-in serves
+both hosts on its listener (`Standin::set_logins`, `Standin::logins`):
+GitHub's pending poll with 200, Entra's with 400, as the hosts do; the
+token that it gives is the plan's user token, which its management API
+takes. Tests: `tests/login.rs` (4: a GitHub login whose token the
+management API takes, an Entra login with its refresh and a refused
+refresh, `slow_down`, a refusal and the end of the code with no secret in
+the words) and two unit tests. The plant `devtunnel-poll-no-slow-down` is
+caught. Login failures name the step `Management`: a new step would break
+the exhaustive match of podssh's `step_word`. Open: step 3, the token store
+in a private file (`pod_core::files::replace_private`, T-192).
 
 # T-385: `pod-ws`: a client upgrade checks the subprotocol of the answer
 

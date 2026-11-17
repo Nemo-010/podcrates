@@ -71,6 +71,32 @@ pub fn connect_host() -> &'static str {
     text("connect-host")
 }
 
+/// The host of GitHub's device flow (`https://github.com`).
+pub fn github_login() -> String {
+    text("github-login").to_string()
+}
+
+/// The client id of the vendor's GitHub App.
+pub fn github_client_id() -> &'static str {
+    text("github-client-id")
+}
+
+/// The host of Microsoft Entra ID (`https://login.microsoftonline.com`).
+pub fn aad_login() -> String {
+    text("aad-login").to_string()
+}
+
+/// The tenant of the authority of a login of Entra ID.
+pub fn aad_tenant() -> &'static str {
+    text("aad-tenant")
+}
+
+/// The scope that a token of Entra ID asks for: the service's first-party
+/// app, `ID/.default`.
+pub fn aad_scope() -> String {
+    format!("{}/.default", text("aad-app-id"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -85,5 +111,8 @@ mod tests {
         assert_eq!((ssh_user(), text("ssh-auth"), text("channel-type")), ("tunnel", "none", "direct-tcpip"));
         assert_eq!(connect_host(), "127.0.0.1");
         assert_eq!(service().kind(), "devtunnel");
+        assert_eq!((github_login(), github_client_id()), ("https://github.com".to_string(), "Iv1.e7b89e013f801f03"));
+        assert_eq!((aad_login(), aad_tenant()), ("https://login.microsoftonline.com".to_string(), "organizations"));
+        assert_eq!(aad_scope(), "46da2f7e-b5ef-422a-88d4-2a7f9de6a0b2/.default");
     }
 }

@@ -1,0 +1,11 @@
+--- a/crates/pod-devtunnel/src/login.rs
++++ b/crates/pod-devtunnel/src/login.rs
+@@ -235,7 +235,7 @@ where
+         match (token.access_token, token.error.as_deref()) {
+             (Some(access), _) => return granted(login.scheme(), access, token.refresh_token, token.expires_in),
+             (None, Some("authorization_pending")) => {}
+-            (None, Some("slow_down")) => interval += SLOW_DOWN,
++            (None, Some("slow_down")) => interval += Duration::ZERO,
+             (None, Some("expired_token")) => {
+                 return Err(fail(
+                     Step::Management,

@@ -107,6 +107,34 @@ name = "connect-host"
 value = "127.0.0.1"
 source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/connections/relay_tunnel_client.rs", read = 2026-11-12, note = "the host to connect and the originator of each direct-tcpip channel, with the originator port 0" }
 
+# The device-code logins of a user (T-378, part 2, step 2): GitHub with the
+# vendor's GitHub App, and Microsoft Entra ID with the caller's client id
+# and the scope of the service's first-party app.
+[[fact]]
+name = "github-login"
+value = "https://github.com"
+source = { url = "https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps", read = 2026-11-17, note = "the device flow: POST https://github.com/login/device/code, then POST https://github.com/login/oauth/access_token with the grant type of a device code; authorization_pending, slow_down, expired_token, access_denied" }
+
+[[fact]]
+name = "github-client-id"
+value = "Iv1.e7b89e013f801f03"
+source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/contracts/tunnel_service_properties.rs", read = 2026-11-17, note = "PROD_GITHUB_APP_CLIENT_ID, the client id of the vendor's GitHub App: public, no secret" }
+
+[[fact]]
+name = "aad-login"
+value = "https://login.microsoftonline.com"
+source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/http_client.rs", read = 2026-11-17, note = "do_device_code_flow of the tests: https://login.microsoftonline.com/organizations/oauth2/v2.0, then /devicecode and /token" }
+
+[[fact]]
+name = "aad-tenant"
+value = "organizations"
+source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/http_client.rs", read = 2026-11-17, note = "do_device_code_flow: the authority organizations" }
+
+[[fact]]
+name = "aad-app-id"
+value = "46da2f7e-b5ef-422a-88d4-2a7f9de6a0b2"
+source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/contracts/tunnel_service_properties.rs", read = 2026-11-17, note = "PROD_FIRST_PARTY_APP_ID; do_device_code_flow asks for the scope ID/.default" }
+
 # The words of the vendor's client that hold the facts above. A watch of a
 # bare value would pass for the wrong reason: `none` names a compression
 # mode, and `tunnel` is in the subprotocol and in the name of the file.

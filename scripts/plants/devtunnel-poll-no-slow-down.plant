@@ -1,0 +1,7 @@
+# A poll of a device-code login waits 5 s longer after slow_down (RFC 8628,
+# section 3.5; T-378).
+ENTRY=T-378
+GROUP=devtunnel
+EXPECT='a_slow_down_adds_five_seconds_to_the_wait'
+RUN='cargo test -p pod-devtunnel --all-features --test login'
+LIMIT=1800

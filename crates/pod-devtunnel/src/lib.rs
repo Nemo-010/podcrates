@@ -16,13 +16,15 @@
 //! failure is a [`pod_core::Failure`] whose chain names its [`Step`]
 //! ([`step_of`]).
 //!
-//! The host side, the creation, the list and the delete of tunnels, the
-//! device-code logins and a token store are not in this crate (T-378, the
-//! second part).
+//! The management API also lists, makes and deletes the user's tunnels and
+//! adds a port ([`Management`]), and a user signs in with a device code of
+//! GitHub or of Microsoft Entra ID ([`login`]). The host side and a token
+//! store are not in this crate (T-378, the second part).
 
 pub mod failure;
 pub mod info;
 mod live;
+pub mod login;
 pub mod management;
 pub mod relay;
 pub mod service;
