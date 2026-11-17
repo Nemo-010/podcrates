@@ -237,7 +237,7 @@ impl Host {
     pub async fn send(&self, request: pod_proxy::client::Request) -> Result<pod_proxy::http::Response, Failure> {
         let url = request.url.split(['?', '#']).next().unwrap_or_default();
         let what = format!("{} {url}", request.method);
-        self.client().send(request).await.map_err(|failure| crate::fail::wrap(failure, what))
+        self.client().send(request).await.map_err(|failure| sent(failure, &what))
     }
 
     /// The step of the chain of the resolver that answers `host` now:
@@ -262,9 +262,49 @@ impl Host {
     }
 }
 
+/// A failed request: the request and why. A handshake that the network
+/// ended is said in the words of [`crate::fail::tls_text`] (a reset during
+/// the TLS handshake), not as a bare error of I/O.
+fn sent(failure: Failure, what: &str) -> Failure {
+    match (failure.stage, failure.io_cause()) {
+        (Stage::Network, Some(io)) => {
+            let text = format!("{what}: TLS: {}", crate::fail::tls_text(io));
+            Failure::caused(failure.stage, failure.class, text, failure)
+        }
+        _ => crate::fail::wrap(failure, what),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A reset of the connection during the TLS handshake of a request is
+    /// said as such, with the request.
+    #[tokio::test]
+    async fn a_reset_in_the_tls_handshake_is_named() {
+        pod_testkit::need_loopback!();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            for conn in listener.incoming() {
+                let Ok(conn) = conn else { break };
+                // The ClientHello stays unread: the close sends a reset.
+                std::thread::sleep(Duration::from_millis(200));
+                drop(conn);
+            }
+        });
+        let host = crate::testing::host();
+        let url = format!("https://localhost:{port}/tunnel");
+        let failure = host.send(pod_proxy::client::Request::new("POST", url)).await.unwrap_err();
+        let text = failure.chain();
+        assert!(
+            text.contains("reset during the TLS handshake") || text.contains("closed during the TLS handshake"),
+            "{text}"
+        );
+        assert!(text.contains(&format!("POST https://localhost:{port}/tunnel")), "{text}");
+        assert_eq!(failure.stage, Stage::Network, "{text}");
+    }
 
     /// The default words name no consumer; the path of a forward keeps
     /// podnet's wire, which its client dials.
