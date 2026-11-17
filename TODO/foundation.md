@@ -2005,7 +2005,7 @@ cargo test -p pod-testkit -p pod-e2e -p pod-link --all-features
 
 ## Done
 
-2026-11-17. The four parts of the Approach:
+2026-11-17, commit 2b3fa92a. The four parts of the Approach:
 
 - `pod_testkit::alloc`: `Counting`, the system allocator with a count for each thread in a scope, and `count(f)`, the allocations of `f` on this thread (`None` where the binary did not set the allocator). `crates/pod-e2e/tests/allocations.rs` sets it: 1000 seals make 1000 allocations and 1000 opens 1000, with and without padding (the `Vec` of the record and of the payload, each one; nothing more for each record); a second test proves that another thread does not count.
 - `crates/pod-link/src/icmp/wire.rs`: `the_checksum_of_each_word_is_the_reference`: each of the 65,536 words, alone, after a block of 61 bytes and with an odd byte after it, against a second form of RFC 1071 (a ones-complement add of each word in turn), and each with its checksum in place sums to zero. There is no SIMD form of a checksum in the tree; the test holds the one form.
