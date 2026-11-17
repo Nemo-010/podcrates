@@ -1,0 +1,11 @@
+--- a/crates/pod-ws/src/url.rs
++++ b/crates/pod-ws/src/url.rs
+@@ -289,7 +289,7 @@ pub async fn dial_asking(
+     let upgraded = tokio::time::timeout(timeout, client::upgrade_answering(stream, &request, &key)).await;
+     let late = |_| ConnectError::Timeout { step: "the WebSocket upgrade", after: timeout };
+     let (stream, pending, chosen) = upgraded.map_err(late)??;
+-    check_chosen(asking.protocol, chosen.as_deref())?;
++    let _ = chosen;
+     tracing::debug!(
+         connect_ms = tcp_tls.as_millis() as u64,
+         upgrade_ms = (started.elapsed() - tcp_tls).as_millis() as u64,

@@ -1,0 +1,7 @@
+# A dial that offered a subprotocol refuses an answer that names another
+# one (T-385, RFC 6455 section 4.1).
+ENTRY=T-385
+GROUP=ws
+EXPECT='an_answer_with_another_subprotocol_is_refused'
+RUN='cargo test -p pod-ws --all-features --test subprotocol'
+LIMIT=1800
