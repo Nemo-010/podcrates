@@ -17,10 +17,10 @@ service `microsoft-devtunnel` of `pod-services`, with its source, and the
 watches of that file check the vendor's client each day.
 
 The asks: GitHub #94 (a contributor) and PodUtils/podssh#216 (COORD-041,
-for PodUtils/podssh@T-755). This crate is the first part of T-378 (the
-client side, podssh's ask); the second part is the creation, the list and
-the delete of tunnels, the device-code logins of GitHub and AAD and the
-token store (T-378, partial).
+for PodUtils/podssh@T-755). The crate holds the client side
+(podssh's ask), the creation, the list and the delete of tunnels, the
+device-code logins of GitHub and Entra ID (`login`) and the token store
+(`store`) (T-378). The live run is T-386.
 
 ## API
 

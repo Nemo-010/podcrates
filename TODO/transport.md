@@ -5462,7 +5462,7 @@ are re-exports; no copy of the codec stays in `pod-proxy`.
 **Milestone:** M1
 **Priority:** P2
 **Effort:** L
-**Status:** partial
+**Status:** done
 
 ## Problem
 
@@ -5577,8 +5577,25 @@ management API takes, an Entra login with its refresh and a refused
 refresh, `slow_down`, a refusal and the end of the code with no secret in
 the words) and two unit tests. The plant `devtunnel-poll-no-slow-down` is
 caught. Login failures name the step `Management`: a new step would break
-the exhaustive match of podssh's `step_word`. Open: step 3, the token store
-in a private file (`pod_core::files::replace_private`, T-192).
+the exhaustive match of podssh's `step_word`.
+
+## Done
+
+2026-11-17: the token store (the second part, step 3 of 3), and so the
+second part. `pod_devtunnel::store::TokenStore` (`TokenStore::at(path)`):
+`save(granted, now_ms)` writes the scheme, the token, the refresh token and
+the end in milliseconds as JSON with `pod_core::files::replace_private`
+(mode 0600, its directory made private; `Some(why)` when the directory was
+not synced); `load()` reads it with `read_own(Others::NoAccess)` and gives
+`Kept` (a `UserToken`, the refresh token, the end; `old(now_ms)` within
+`MARGIN`, 5 minutes), and refuses a file that others can read or of another
+shape or schema with no byte of it in the words; `forget()`. The text and
+the tokens are cleared when they go; `Kept` has a `Debug` with no token.
+Tests: `tests/store.rs` (4: a kept token read back and taken by the
+management API of the stand-in, an Entra token with its refresh and end,
+the mode 0600 and a file of mode 0644 refused, a file of another shape
+refused). `cargo test -p pod-devtunnel --all-features`: 53 passed. The
+plant `devtunnel-store-others-read` is caught. The live run is T-386.
 
 # T-385: `pod-ws`: a client upgrade checks the subprotocol of the answer
 

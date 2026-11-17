@@ -92,6 +92,11 @@ impl UserToken {
     pub(crate) fn header(&self) -> Zeroizing<String> {
         Zeroizing::new(format!("{} {}", self.scheme.word(), self.secret.as_str()))
     }
+
+    /// The token alone, for the store of this crate.
+    pub(crate) fn secret(&self) -> &str {
+        &self.secret
+    }
 }
 
 impl fmt::Debug for UserToken {

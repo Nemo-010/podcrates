@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 672 entries: 129 open, 18 partial, 7 blocked, 518 done.
+`TODO/INDEX.md` holds 672 entries: 129 open, 17 partial, 7 blocked, 519 done.
 
 ## State
 
@@ -85,10 +85,9 @@ for podnet (item 3c): T-526. Then the items below, in order.
    `docs/research/ingest-study.md`): T-812 (a measurement of the throughput
    of the hosted relays: podcrates has none), then T-814 (partial: a rank by measured rate); the rest of T-818 to
    T-830 by priority; T-832 waits for podswarm.
-1. **The defects and asks of the consumers:** T-378 (`pod-devtunnel`, GitHub #94 and
-   PodUtils/podssh#216: partial: the client side is in `v0.33.0` for
-   PodUtils/podssh@T-755; the second part is the creation of tunnels, the
-   logins and the token store; then T-386 and T-385); T-330 (podvm's pair
+1. **The defects and asks of the consumers:** `pod-devtunnel` (GitHub #94
+   and PodUtils/podssh#216: the client, the writes, the logins and the token
+   store are in): T-386 (its live run) and T-385; T-330 (podvm's pair
    commands, after its take of the blocking facade, PodUtils/podvm#285;
    it waits for podvm).
 2. **podrunner** (PodUtils/podrunner#1): T-692 (`pod-lab`, PodUtils/podrunner#180; part 1 done, for the tag after `v0.53.0`; part 2 next), then T-696, T-693, T-694, T-695. T-146

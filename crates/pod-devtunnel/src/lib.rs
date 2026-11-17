@@ -18,8 +18,8 @@
 //!
 //! The management API also lists, makes and deletes the user's tunnels and
 //! adds a port ([`Management`]), and a user signs in with a device code of
-//! GitHub or of Microsoft Entra ID ([`login`]). The host side and a token
-//! store are not in this crate (T-378, the second part).
+//! GitHub or of Microsoft Entra ID ([`login`]), whose token a private file
+//! keeps ([`TokenStore`]). The host side is not in this crate.
 
 pub mod failure;
 pub mod info;
@@ -32,6 +32,7 @@ pub mod settings;
 pub mod ssh;
 #[cfg(feature = "standin")]
 pub mod standin;
+pub mod store;
 pub mod stream;
 pub mod token;
 
@@ -40,5 +41,6 @@ pub use info::{ConnectInfo, Endpoint, Tunnel};
 pub use management::{Locator, Management, Owned, OwnedPort, new_id};
 pub use relay::Relay;
 pub use settings::{Base, Settings, Way};
+pub use store::TokenStore;
 pub use stream::Stream;
 pub use token::{AccessToken, ConnectToken, Credential, Scheme, UserToken};

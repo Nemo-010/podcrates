@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**672 entries: 129 open, 18 partial, 7 blocked, 518 done.**
+**672 entries: 129 open, 17 partial, 7 blocked, 519 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
-| P2 | 55 | 4 | 4 | 266 | 329 |
+| P2 | 55 | 3 | 4 | 267 | 329 |
 | P3 | 63 | 6 | 3 | 103 | 175 |
-| **All** | 129 | 18 | 7 | 518 | 672 |
+| **All** | 129 | 17 | 7 | 519 | 672 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -366,7 +366,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-375](transport.md) | P3 | S | M1 | feature | done | `pod-services`: `tuns-sh`, the hosted SSH tunnel of pico.sh, as data (GitHub #99) |
 | [T-376](transport.md) | P3 | S | M1 | feature | done | `pod-services`: QSocket's relay and Portal's public relays as candidates, with their measured limits (GitHub #96) |
 | [T-377](transport.md) | P2 | L | M1 | feature | done | `pod-turn`: a TURN client (RFC 8656) over UDP and TLS, on the STUN codec moved out of `pod-proxy` (GitHub #100) |
-| [T-378](transport.md) | P2 | L | M1 | feature | partial | `pod-devtunnel`: a client of Microsoft Dev Tunnels: the management API and the relay (GitHub #94) |
+| [T-378](transport.md) | P2 | L | M1 | feature | done | `pod-devtunnel`: a client of Microsoft Dev Tunnels: the management API and the relay (GitHub #94) |
 | [T-380](transport.md) | P2 | M | M1 | feature | done | `pod-turn`: the client against coturn on the loopback, over UDP and TLS |
 | [T-381](transport.md) | P3 | M | M1 | feature | done | `pod-turn`: the options of RFC 8489 and RFC 8656 that the client does not use |
 | [T-385](transport.md) | P3 | S | M1 | defect | open | `pod-ws`: a client upgrade checks the subprotocol of the answer |
