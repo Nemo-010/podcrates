@@ -209,7 +209,7 @@ pub(super) const fn leg_budget(one_try: Duration) -> Duration {
 pub(super) const QUIC_TRY_BUDGET: Duration = quic_dial::HANDSHAKE_TIMEOUT.saturating_add(REGISTER_TIMEOUT);
 
 /// The time limit of a leg attempt with `--leg-failover serial` when
-/// another leg can follow (issue 273): the budget of the leg, from the
+/// another leg can follow: the budget of the leg, from the
 /// limits of its steps. A slow edge in these limits is not stopped. A try
 /// over more than one edge address can take longer; the limit then stops
 /// it, and the next leg starts. The WARP leg has no limit.

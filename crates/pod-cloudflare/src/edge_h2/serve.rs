@@ -4,7 +4,7 @@
 
 use super::*;
 
-/// Serve the HTTP/2 connection `io` of the edge (podnet is the HTTP/2 server).
+/// Serve the HTTP/2 connection `io` of the edge (the client is the HTTP/2 server).
 /// One task accepts the streams, gives the control stream to the caller,
 /// and sends a PING each `keepalive.interval`. When `budget` is spent, the
 /// connection drains as for a GOAWAY of the edge.
@@ -21,7 +21,7 @@ where
     let goaway = Arc::new(tokio::sync::Notify::new());
     let io = GoawayScan { inner: io, scan: FrameScan::new(), seen: Some(goaway.clone()) };
     // TLS has its own time limit; a silent edge after TLS must not hold
-    // the dial (issue 272).
+    // the dial.
     let mut conn = tokio::time::timeout(DIAL_TIMEOUT, server_builder().handshake::<_, Bytes>(io))
         .await
         .map_err(|_| {
@@ -134,7 +134,7 @@ where
 }
 
 /// A task that is aborted when this value is dropped. A failed attempt
-/// stops the tasks that it started (issue 272).
+/// stops the tasks that it started.
 pub(super) struct AbortOnDrop(Option<JoinHandle<()>>);
 
 impl AbortOnDrop {
@@ -235,12 +235,12 @@ pub(super) async fn answer_configuration(
     Ok(())
 }
 
-/// The largest configuration push that podnet reads. podnet does not apply a
+/// The largest configuration push that the client reads. The client does not apply a
 /// remote configuration: it reads only the version.
 pub const MAX_CONFIGURATION: usize = 64 * 1024;
 
 /// Read a configuration push of at most [`MAX_CONFIGURATION`] bytes in
-/// `limit` (issue 272: the read had no cap and no time limit).
+/// `limit` (the read had no cap and no time limit).
 pub(super) async fn read_configuration<R: AsyncRead + Unpin>(reader: R, limit: Duration) -> Result<Vec<u8>> {
     let mut text = Vec::new();
     let mut reader = reader.take(MAX_CONFIGURATION as u64 + 1);

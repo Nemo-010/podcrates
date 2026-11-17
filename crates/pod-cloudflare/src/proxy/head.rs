@@ -14,9 +14,8 @@ use crate::proxy::path_and_query;
 
 pub(crate) const MAX_HEAD_BYTES: usize = 32 * 1024;
 
-/// The most header lines of an origin answer (issue 238: 64 was too few
-/// for an answer with many Set-Cookie lines). MAX_HEAD_BYTES limits the
-/// head too.
+/// The most header lines of an origin answer: an answer can have many
+/// Set-Cookie lines. MAX_HEAD_BYTES limits the head too.
 pub(crate) const MAX_HEADERS: usize = 256;
 
 // ── Response helpers ────────────────────────────────────────────────────────
@@ -37,7 +36,7 @@ pub async fn write_simple_response_with(
     body: &[u8],
     extra: &[(String, String)],
 ) -> Result<()> {
-    // Issue 271: a reply that podnet makes (the PIN page, the unlock
+    // A reply that the client makes (the PIN page, the unlock
     // redirect, an error) is not stored by a cache.
     let mut headers = vec![
         ("Content-Type".to_string(), content_type.to_string()),
@@ -82,9 +81,9 @@ pub async fn write_response_meta(writer: &mut EdgeWriter, status: u16, headers: 
 ///
 /// The method, the target and the host come from the edge (the QUIC leg has
 /// no HTTP parser before this) or from `httpHostHeader`: each one with a
-/// control character, a space or a line break is an error (issue 226). A
+/// control character, a space or a line break is an error. A
 /// header with a bad name or value is dropped. The hop-by-hop headers and
-/// the headers that `Connection` names stay on their hop (issue 235), but
+/// the headers that `Connection` names stay on their hop, but
 /// `Transfer-Encoding` stays: a chunked request body goes to the origin as
 /// it is.
 pub fn build_request_head(
@@ -198,8 +197,8 @@ pub fn is_websocket(request: &cqstream::ConnectRequest) -> bool {
 
 // ── Response head ───────────────────────────────────────────────────────────
 
-/// The Content-Length of an origin answer, after a check of its framing
-/// (issue 238). Each Content-Length value (also each item of a list) must
+/// The Content-Length of an origin answer, after a check of its framing.
+/// Each Content-Length value (also each item of a list) must
 /// be the same number (RFC 9110 section 8.6). A Content-Length together
 /// with a Transfer-Encoding that is not chunked is an error. With a chunked
 /// Transfer-Encoding, the chunks frame the body (RFC 9112 section 6.3).

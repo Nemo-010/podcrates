@@ -21,7 +21,7 @@ pub(super) async fn verify_fetch(
     let mut last;
     let mut last_status;
     // Each attempt so far failed before the edge: at name resolution, or at
-    // the CONNECT of the proxy (T-160).
+    // the CONNECT of the proxy.
     let mut resolution_only = true;
     let deadline = tokio::time::Instant::now() + budget;
     let mut attempt = 0u32;
@@ -84,8 +84,8 @@ pub(super) async fn verify_fetch(
         if left.is_zero() {
             break;
         }
-        // Issue 94: the retries were at DEBUG only, so a slow new name
-        // looked like a hang for up to a minute.
+        // The user sees the retries: a new name can need a minute, and a
+        // check with no line looks like a hang.
         let left_s = left.as_secs();
         if attempt > 10 && attempt.is_multiple_of(5) {
             let text = format!("the public URL does not answer yet ({last}); the check runs again for {left_s} s");
@@ -121,8 +121,8 @@ pub(super) async fn verify_fetch(
     ))
 }
 
-/// The time of the retries of the verify fetch (issue 119: 20 tries in
-/// about 40 s were too few for a new name in public DNS).
+/// The time of the retries of the verify fetch: a new name can need more
+/// than a minute in public DNS.
 pub(super) const VERIFY_BUDGET: Duration = Duration::from_secs(180);
 /// The pause between two verify fetches.
 pub(super) const VERIFY_INTERVAL: Duration = Duration::from_secs(2);
@@ -184,7 +184,7 @@ mod tests {
         format!("http://{addr}/")
     }
 
-    // Issue 119: the retries go on for a time budget, not for a count.
+    // The retries go on for a time budget, not for a count.
     #[tokio::test]
     async fn verify_waits_through_edge_errors() {
         pod_testkit::need_loopback!();
@@ -202,7 +202,7 @@ mod tests {
         assert!(ok.is_ok(), "{ok:?}");
     }
 
-    // Issue 119: a verify that fails exits 69 (unavailable), not 1.
+    // A verify that fails exits 69 (unavailable), not 1.
     #[tokio::test]
     async fn a_failed_verify_exits_69_after_the_budget() {
         pod_testkit::need_loopback!();
@@ -224,7 +224,7 @@ mod tests {
         assert!(format!("{err:#}").contains("HTTP 530"), "{err:#}");
     }
 
-    // Issue 119: a 404 of `serve` with no index.html is its normal answer.
+    // A 404 of `serve` with no index.html is its normal answer.
     #[tokio::test]
     async fn an_accepted_status_of_the_origin_verifies() {
         pod_testkit::need_loopback!();
@@ -242,7 +242,7 @@ mod tests {
         assert!(ok.is_ok(), "{ok:?}");
     }
 
-    /// Issue 94: the host of the URL goes to the resolver chain; an
+    /// The host of the URL goes to the resolver chain; an
     /// address needs no lookup, and a URL with no host is "none".
     #[tokio::test]
     async fn the_dns_step_of_a_url() {
@@ -253,7 +253,7 @@ mod tests {
         assert_eq!(public_dns(&host, "https:///x").await, "none");
     }
 
-    // T-160: a name that this host cannot resolve keeps the tunnel up.
+    // A name that this host cannot resolve keeps the tunnel up.
     #[tokio::test]
     async fn a_name_that_does_not_resolve_keeps_the_tunnel_up() {
         if crate::testing::host().proxy_for("podnet-no-such-name.invalid", 80).is_some() {
@@ -289,7 +289,7 @@ mod tests {
         assert_eq!(ok.unverified, Some("resolution"));
     }
 
-    // T-160, T-171: the strict switch gives exit 69, and the error names the remedy.
+    // The strict switch gives exit 69, and the error names the remedy.
     #[tokio::test]
     async fn verify_failure_names_the_remedy() {
         if crate::testing::host().proxy_for("podnet-no-such-name.invalid", 80).is_some() {
@@ -312,7 +312,7 @@ mod tests {
         assert!(format!("{err:#}").contains("--no-verify"), "{err:#}");
     }
 
-    // T-160: a refusal of CONNECT by a proxy is a failure before the edge.
+    // A refusal of CONNECT by a proxy is a failure before the edge.
     #[test]
     fn a_proxy_refusal_is_a_resolution_failure() {
         let refusal = Failure::from(pod_proxy::DialError::ProxyRefused {

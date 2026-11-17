@@ -71,7 +71,7 @@ pub fn h2_sni() -> &'static str {
 /// is 100.
 pub const MAX_EDGE_STREAMS: u32 = 256;
 
-/// The cloudflared release whose protocol podnet speaks: the fact
+/// The cloudflared release whose protocol the client speaks: the fact
 /// `cloudflared-tag` of the edge (`pod-services`). Errors that a protocol
 /// change can cause name it.
 pub fn speaks() -> String {

@@ -23,7 +23,7 @@ use crate::fail::{Result, bail};
 use pod_core::{Class, Stage};
 use serde_json::{Map, Number, Value};
 
-/// The most levels of nested mappings and sequences (issue 231). A
+/// The most levels of nested mappings and sequences. A
 /// cloudflared config uses about 5.
 pub const MAX_DEPTH: usize = 64;
 
@@ -38,7 +38,7 @@ struct Line<'a> {
 
 /// Read `text` as YAML of the subset above.
 pub fn parse(text: &str) -> Result<Value> {
-    // Issue 172: a UTF-8 BOM (an editor of Windows) is not part of a key.
+    // A UTF-8 BOM (an editor of Windows) is not part of a key.
     let text = text.strip_prefix('\u{feff}').unwrap_or(text);
     let mut lines = Vec::new();
     for (i, raw) in text.lines().enumerate() {
@@ -70,7 +70,7 @@ pub fn parse(text: &str) -> Result<Value> {
     Ok(value)
 }
 
-/// The line (from 1) of each item of the top-level list `key` (T-080):
+/// The line (from 1) of each item of the top-level list `key`:
 /// the errors of a config file name the line of an ingress rule. Empty
 /// when there is no such list.
 pub fn item_lines(text: &str, key: &str) -> Vec<usize> {

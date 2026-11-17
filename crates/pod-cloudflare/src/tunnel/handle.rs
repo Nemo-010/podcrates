@@ -5,14 +5,14 @@ use super::*;
 
 /// A running tunnel.
 pub struct TunnelHandle {
-    /// The path of the `--forward` WebSocket endpoint (issue 203).
+    /// The path of the `--forward` WebSocket endpoint.
     pub(super) forward_path: Option<String>,
     pub(super) url: Option<String>,
     pub(super) tunnel_id: Uuid,
     pub(super) account_tag: String,
     pub(super) locations: Vec<String>,
     /// The edge leg that won the race: quic, http2, quic+warp or
-    /// http2+relay (issue 95).
+    /// http2+relay.
     pub(super) leg: String,
     pub(super) metrics: Metrics,
     pub(super) runtime: Arc<Runtime>,
@@ -41,7 +41,7 @@ impl TunnelHandle {
         }
     }
 
-    /// The wss:// endpoint of `--forward` for `podnet connect` (issue 203):
+    /// The wss:// endpoint of `--forward` for `podnet connect`:
     /// with a public URL. A named tunnel gives the path only
     /// ([`TunnelHandle::forward_path`]).
     pub fn forward(&self) -> Option<String> {
@@ -102,11 +102,11 @@ impl TunnelHandle {
     }
 
     /// Like [`verify_url`](Self::verify_url). A status of `accepted` is the
-    /// normal answer of the origin (issue 119: `serve` of a directory with
+    /// normal answer of the origin (`serve` of a directory with
     /// no `index.html` answers 404 for `/`): it is logged at info, not as a
     /// warning.
     ///
-    /// The retries go on for `VERIFY_BUDGET` (issue 119: a new name can
+    /// The retries go on for `VERIFY_BUDGET` (a new name can
     /// need more than a minute in public DNS). A failure exits 69.
     pub async fn verify_accepting(&self, url: &str, expected: Option<&str>, accepted: &[u16]) -> Result<Verified> {
         let host = self.runtime.host();

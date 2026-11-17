@@ -234,7 +234,7 @@ pub fn origin_label(service: &Service) -> String {
 }
 
 /// The addresses of a name of RFC 6761 for this host: `localhost` and
-/// `*.localhost` (issue 119: a static build on a host with no /etc/hosts
+/// `*.localhost` (a static build on a host with no /etc/hosts
 /// did not resolve `localhost`).
 pub fn local_name(host: &str) -> Option<Vec<std::net::IpAddr>> {
     let name = host.trim_end_matches('.').to_ascii_lowercase();
@@ -250,8 +250,8 @@ pub fn split_host_port(addr: &str) -> Option<(&str, u16)> {
 }
 
 /// Connect to an origin. `localhost` needs no resolver. The error says if
-/// the name or the connection failed (issue 119: both were "connecting to
-/// HOST:PORT"). An origin name does not go to DNS over HTTPS.
+/// the name or the connection failed. An origin name does not go to DNS
+/// over HTTPS.
 pub async fn connect_origin(host: &str, port: u16) -> Result<TcpStream> {
     let addrs: Vec<std::net::SocketAddr> = match host.parse::<std::net::IpAddr>() {
         Ok(ip) => vec![(ip, port).into()],
@@ -355,7 +355,7 @@ mod tests {
         assert!(seen[0].text.contains("https://a.test.invalid:8443"), "{}", seen[0].text);
     }
 
-    /// #248: the first dial of an origin with noTLSVerify warns; the next
+    /// The first dial of an origin with noTLSVerify warns; the next
     /// dials of it do not.
     #[test]
     fn an_unverified_origin_is_named_one_time() {
@@ -366,7 +366,7 @@ mod tests {
         assert!(note_unverified("https://b.test.invalid:8443"));
     }
 
-    // Issue 119: localhost needs no resolver (a host with no /etc/hosts).
+    // Localhost needs no resolver (a host with no /etc/hosts).
     #[test]
     fn localhost_is_a_local_name() {
         for name in ["localhost", "LOCALHOST.", "app.localhost"] {

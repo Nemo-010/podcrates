@@ -32,7 +32,7 @@ fn resolves_first_match() {
     assert!(matches!(ingress.resolve("other.example.com", "/").unwrap().service, Service::Status(503)));
 }
 
-// Issue 269: a path: is a regular expression, unanchored, as in
+// A path: is a regular expression, unanchored, as in
 // cloudflared. A prefix of the builder has no special character.
 #[test]
 fn a_path_pattern_is_a_regular_expression() {
@@ -70,7 +70,7 @@ fn durations() {
     assert!(humantime("x").is_err());
 }
 
-// T-077: the match reads the decoded path, as cloudflared does.
+// The match reads the decoded path, as cloudflared does.
 #[test]
 fn a_path_rule_matches_the_decoded_path() {
     let rule = PathPattern::regex("^/a b$").unwrap();

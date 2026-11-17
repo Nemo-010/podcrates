@@ -25,7 +25,7 @@ pub(super) struct RawConfig {
     hello_world: Option<bool>,
 }
 
-/// The top-level keys of a cloudflared config.yml. podnet reads `tunnel`,
+/// The top-level keys of a cloudflared config.yml. The client reads `tunnel`,
 /// `credentials-file`, `token`, `ingress`, `url`, `hello-world`, `protocol`
 /// and `ha-connections`, and ignores the others. A key outside this list is a typo: an error.
 pub const CLOUDFLARED_KEYS: &[&str] = &[
@@ -60,7 +60,7 @@ pub const CLOUDFLARED_KEYS: &[&str] = &[
 
 pub use crate::ingress::RULE_KEYS;
 
-/// The keys of `originRequest` that cloudflared knows. podnet reads
+/// The keys of `originRequest` that cloudflared knows. The client reads
 /// `noTLSVerify`, `httpHostHeader`, `connectTimeout`, `tlsTimeout`,
 /// `keepAliveTimeout`, `disableChunkedEncoding` and its own
 /// `stripAcceptEncoding`, and ignores the others.
@@ -104,8 +104,8 @@ pub(super) fn check_keys(
     Ok(())
 }
 
-/// Check the keys of each ingress rule and of each `originRequest`
-/// (issue 170: `hostnam:` made a catch-all rule). The top-level
+/// Check the keys of each ingress rule and of each `originRequest`: a
+/// misspelt key (`hostnam:`) is an error, not a catch-all rule. The top-level
 /// `originRequest` is the default of each rule; the key of a rule wins.
 pub(super) fn check_and_merge_rules(file: &Path, value: &mut serde_json::Value, at: &[usize]) -> Result<()> {
     let Some(map) = value.as_object_mut() else {
@@ -160,7 +160,7 @@ pub(super) fn check_and_merge_rules(file: &Path, value: &mut serde_json::Value, 
                 bail!(Stage::Host, Class::Config, "{}: {place}: {key}: give a string", file.display());
             }
         }
-        // Issue 269: path: is a regular expression, as in cloudflared. A
+        // The key path: is a regular expression, as in cloudflared. A
         // path that does not compile is an error at load.
         if let Some(path) = rule.get("path").and_then(|v| v.as_str()) {
             crate::ingress::PathPattern::regex(path).with_context(|| format!("{}: {place}", file.display()))?;
@@ -186,7 +186,7 @@ pub(super) fn check_and_merge_rules(file: &Path, value: &mut serde_json::Value, 
     Ok(())
 }
 
-/// The types of the values of `originRequest` that podnet reads (issue 172):
+/// The types of the values of `originRequest` that the client reads:
 /// a time needs a unit, a flag is true or false.
 pub(super) fn check_origin_values(
     file: &std::path::Path,
@@ -227,7 +227,7 @@ pub(super) fn check_origin_values(
     Ok(())
 }
 
-/// The types of the top-level values that podnet reads (issue 172).
+/// The types of the top-level values that the client reads.
 pub(super) fn check_top_values(file: &std::path::Path, value: &serde_json::Value) -> Result<()> {
     let map = match value {
         serde_json::Value::Null => bail!(
@@ -274,7 +274,7 @@ pub(super) fn check_top_values(file: &std::path::Path, value: &serde_json::Value
 /// * With `tunnel:` only, it is a named-tunnel token.
 /// * With `token:`, the value is the named-tunnel token. `credentials-file:`
 ///   is then an error. A `tunnel:` must then be the tunnel id of the token.
-/// * With none of the three, podnet starts a quick tunnel, and says so.
+/// * With none of the three, the client starts a quick tunnel, and says so.
 /// * A key that cloudflared does not know is an error: at the top level,
 ///   in an ingress rule and in `originRequest`.
 /// * The top-level `originRequest` is the default of each rule.
@@ -304,7 +304,7 @@ pub fn load_file(path: &std::path::Path) -> Result<Config> {
         }
         config.ingress = crate::ingress::ingress_from_raw(raw.ingress)?;
     }
-    // Issue 269: url: and hello-world: of cloudflared give one catch-all
+    // The keys url: and hello-world: of cloudflared give one catch-all
     // rule when the file has no ingress rules.
     let hello = raw.hello_world == Some(true);
     match (&raw.url, hello) {
@@ -332,7 +332,7 @@ pub fn load_file(path: &std::path::Path) -> Result<Config> {
         (None, false) => {}
     }
     if let Some(token) = &raw.token {
-        // Issue 269: a token of the file is the named tunnel, not a quick
+        // A token of the file is the named tunnel, not a quick
         // tunnel.
         config.secrets.push(token.clone());
         if raw.credentials_file.is_some() {

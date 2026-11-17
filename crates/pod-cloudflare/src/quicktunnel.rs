@@ -201,7 +201,7 @@ pub async fn provision(
                 return Err(err.into());
             }
             // A name that does not resolve: one retry, then only when the
-            // answering step changed (T-170).
+            // answering step changed.
             ProvisionError::Http(inner) if retry::is_dns(inner) => {
                 if !dns.again(host, endpoint).await {
                     return Err(err.into());

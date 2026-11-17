@@ -125,7 +125,7 @@ pub fn h2_header_block(data: &[u8]) {
 }
 
 /// The HTTP/1.1 head to the origin, from the fields of a `ConnectRequest`
-/// of the edge (issue 272): the fields are split at the 0 bytes (the
+/// of the edge: the fields are split at the 0 bytes (the
 /// method, the destination, the host, then header names and values). A
 /// head that is built has one empty line, at its end, and each line ends
 /// with CR LF.
@@ -151,7 +151,7 @@ pub fn request_head(data: &[u8]) {
             let crlf = head.matches("\r\n").count();
             assert_eq!(head.matches('\r').count(), crlf, "{head:?}");
             assert_eq!(head.matches('\n').count(), crlf, "{head:?}");
-            // Each header line is a pair of the input, or a line that podnet
+            // Each header line is a pair of the input, or a line that the client
             // writes: no field makes a line of its own.
             let pairs: Vec<String> = fields
                 .get(3..)
@@ -206,9 +206,10 @@ pub fn seeds(target: &str) -> Vec<Vec<u8>> {
 mod tests {
     use super::*;
 
-    /// The crash input of `capnp_message` of podnet's fuzz run 43590953876
-    /// (PodUtils/podnet#555), and the same shape by hand: a double-far pointer to a list in segment 10 of a message of 1 segment.
-    /// Each reader of a list gives an error, and nothing panics.
+    /// A crash input of `capnp_message` (SOURCES names its issue), and the
+    /// same shape by hand: a double-far pointer to a list in segment 10 of a
+    /// message of 1 segment. Each reader of a list gives an error, and
+    /// nothing panics.
     #[test]
     fn fuzz_a_list_in_a_missing_segment_is_an_error() {
         use base64::Engine as _;

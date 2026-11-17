@@ -67,7 +67,7 @@ impl Dns {
 mod tests {
     use super::*;
 
-    // T-170: one retry, then a retry only for a new answering step.
+    // One retry, then a retry only for a new answering step.
     #[test]
     fn a_dns_failure_is_retried_once() {
         let mut dns = Dns::default();

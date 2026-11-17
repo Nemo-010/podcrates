@@ -143,8 +143,8 @@ where
         )?;
         if size == 0 {
             // The trailer: header lines up to an empty line, at most
-            // MAX_TRAILER_LINE bytes each and MAX_TRAILER_BYTES in all
-            // (issue 244). podnet does not send the trailer on.
+            // MAX_TRAILER_LINE bytes each and MAX_TRAILER_BYTES in all. The
+            // client does not send the trailer on.
             let mut total = 0;
             loop {
                 line.clear();

@@ -6,7 +6,7 @@ fn nested(levels: usize) -> String {
     (0..levels).map(|i| format!("{}a:\n", " ".repeat(i))).collect()
 }
 
-// Issue 231: a deep document is an error with a line number, not a
+// A deep document is an error with a line number, not a
 // stack overflow.
 #[test]
 fn a_deep_document_is_an_error() {

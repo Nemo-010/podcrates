@@ -172,7 +172,7 @@ fn service() -> (Arc<Runtime>, Arc<Ingress>) {
     (runtime, ingress)
 }
 
-/// Issue 272: an edge that is silent after TLS does not hold the
+/// An edge that is silent after TLS does not hold the
 /// HTTP/2 handshake.
 #[tokio::test(start_paused = true)]
 async fn a_silent_edge_fails_the_handshake_in_the_dial_time() {
@@ -189,7 +189,7 @@ async fn a_silent_edge_fails_the_handshake_in_the_dial_time() {
     assert_eq!(start.elapsed(), DIAL_TIMEOUT);
 }
 
-/// Issue 272: a failed registration closes the connection: the task
+/// A failed registration closes the connection: the task
 /// that serves it does not go on.
 #[tokio::test(start_paused = true)]
 async fn a_failed_registration_closes_the_connection() {
@@ -213,7 +213,7 @@ async fn a_failed_registration_closes_the_connection() {
     assert!(closed.is_ok(), "the connection is still served");
 }
 
-/// Issue 272: the configuration push has a cap and a time limit.
+/// The configuration push has a cap and a time limit.
 #[tokio::test(start_paused = true)]
 async fn a_configuration_push_has_a_cap_and_a_time_limit() {
     let ok = read_configuration(&br#"{"version":7}"#[..], REGISTER_TIMEOUT).await;
@@ -228,7 +228,7 @@ async fn a_configuration_push_has_a_cap_and_a_time_limit() {
     assert!(err.to_string().contains("did not end"), "{err:#}");
 }
 
-/// Issue 272: the edge can open as many streams as on QUIC, not
+/// The edge can open as many streams as on QUIC, not
 /// u32::MAX.
 #[tokio::test]
 async fn the_edge_gets_the_stream_limit_of_quic() {
@@ -238,7 +238,7 @@ async fn the_edge_gets_the_stream_limit_of_quic() {
     let _served = serve_connection(podnet_side, runtime, ingress, Keepalive::default(), None).await.unwrap();
     let (send, connection) = client.await.unwrap().unwrap();
     let driver = tokio::spawn(connection);
-    // The SETTINGS of podnet come with the first round trip.
+    // The SETTINGS of the client come with the first round trip.
     let send = send.ready().await.unwrap();
     let mut send = send;
     let request = http::Request::builder().method("GET").uri("https://x.trycloudflare.com/").body(()).unwrap();
@@ -382,7 +382,7 @@ async fn goaway_with_an_open_stream_drains_at_once() {
     edge.write_all(&start).await.unwrap();
     let served = serve_connection(podnet_side, runtime, ingress, Keepalive::default(), None).await.unwrap();
     let mut draining = served.draining;
-    // The edge reads what podnet sends, so podnet is not blocked.
+    // The edge reads what the client sends, so the client is not blocked.
     let (mut edge_read, mut edge_write) = tokio::io::split(edge);
     let reader = tokio::spawn(async move {
         let mut buf = vec![0u8; 1 << 16];

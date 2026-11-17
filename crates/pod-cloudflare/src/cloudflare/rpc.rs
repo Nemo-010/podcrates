@@ -6,10 +6,10 @@
 //!
 //! | Direction | Messages |
 //! | --- | --- |
-//! | podnet to edge | `Bootstrap` (question 0); `Call registerConnection` on the bootstrap capability (question 1); `Call unregisterConnection` at shutdown; `Finish` for each answer |
-//! | edge to podnet | `Return` for each question; `Bootstrap` (podnet answers with its capability, export 0); `Call` on that capability (podnet answers with an `unimplemented` exception); `Finish`, `Release`, `Abort` |
+//! | client to edge | `Bootstrap` (question 0); `Call registerConnection` on the bootstrap capability (question 1); `Call unregisterConnection` at shutdown; `Finish` for each answer |
+//! | edge to client | `Return` for each question; `Bootstrap` (the client answers with its capability, export 0); `Call` on that capability (the client answers with an `unimplemented` exception); `Finish`, `Release`, `Abort` |
 //!
-//! The edge uses the bootstrap of podnet as a liveness check. Without an answer,
+//! The edge uses the bootstrap of the client as a liveness check. Without an answer,
 //! the edge marks the tunnel as down.
 
 mod message;
@@ -57,7 +57,7 @@ const CAP_SENDER_HOSTED: u16 = 1;
 const CAP_SENDER_PROMISE: u16 = 2;
 // `Exception.Type`.
 const EXCEPTION_UNIMPLEMENTED: u16 = 3;
-/// The capability that podnet exports to the edge.
+/// The capability that the client exports to the edge.
 const OUR_EXPORT: u32 = 0;
 
 /// What the edge answered to a question.

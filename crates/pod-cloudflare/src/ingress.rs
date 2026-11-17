@@ -96,13 +96,13 @@ impl std::fmt::Debug for Custom {
 }
 
 impl Service {
-    /// Parse a cloudflared-style service string, plus podnet extensions
+    /// Parse a cloudflared-style service string, plus extensions of the consumer
     /// (`static:` / `spa:` / `metrics`).
     pub fn parse(value: &str) -> Result<Self> {
         let value = value.trim();
         if value.starts_with("http://") || value.starts_with("https://") {
             // A URL with no host (http://) is refused here, before any
-            // network work (issue 57), not at the first dial.
+            // network work, not at the first dial.
             crate::origin::parse_http_url(value).with_context(|| format!("the origin {value}"))?;
             return Ok(Service::Http(value.to_string()));
         }
@@ -181,13 +181,13 @@ pub struct OriginOptions {
     pub strip_accept_encoding: bool,
 }
 
-/// The `path:` of a rule (issue 269). As in cloudflared, it is a regular
+/// The `path:` of a rule. As in cloudflared, it is a regular
 /// expression that can match any part of the request path: `/api` also
 /// matches `/x/api`, and `^/api/` matches only paths that start with
 /// `/api/`. The syntax is that of the `regex` crate, which is close to Go
 /// RE2. The query (from `?`) is not part of the path. The match reads the
 /// decoded path (`%XX` gives its byte, `+` stays), as cloudflared reads
-/// `URL.Path` of Go (T-077).
+/// `URL.Path` of Go.
 #[derive(Clone, Debug)]
 pub struct PathPattern {
     text: String,
@@ -196,7 +196,7 @@ pub struct PathPattern {
     prefix: bool,
 }
 
-/// The path with each `%XX` decoded (T-077). A `%` with no two hex digits
+/// The path with each `%XX` decoded. A `%` with no two hex digits
 /// after it stays. Bytes that are not UTF-8 become U+FFFD.
 fn decode_path(path: &str) -> std::borrow::Cow<'_, str> {
     if !path.contains('%') {
@@ -348,7 +348,7 @@ pub fn credentials(user: &str, file: &std::path::Path) -> Result<pod_proxy::Cred
 #[derive(Clone, Debug, Default)]
 pub struct Ingress {
     pub rules: Vec<IngressRule>,
-    /// Issue 205: each request must give this user and password (HTTP
+    /// Each request must give this user and password (HTTP
     /// Basic) before it reaches a rule (`--auth-user`).
     pub auth: Option<pod_proxy::Credentials>,
 }
@@ -401,7 +401,7 @@ impl Ingress {
 /// The keys of an ingress rule.
 pub const RULE_KEYS: &[&str] = &["hostname", "path", "service", "originRequest"];
 
-/// Issue 241: the keys of a rule are exactly [`RULE_KEYS`],
+/// The keys of a rule are exactly [`RULE_KEYS`],
 /// so an unknown key is an error here too.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]

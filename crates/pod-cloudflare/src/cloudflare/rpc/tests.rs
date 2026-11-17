@@ -1,12 +1,12 @@
 use super::*;
 
 /// A fake edge on the other end of an in-memory stream. It does what the
-/// edge does: it bootstraps podnet, answers the bootstrap of podnet, and
+/// edge does: it bootstraps the client, answers the bootstrap of the client, and
 /// answers registerConnection with connection details.
 async fn fake_edge(stream: tokio::io::DuplexStream, seen: oneshot::Sender<(u8, String, Vec<String>, bool)>) {
     let (mut read, mut write) = tokio::io::split(stream);
     let send = |b: Builder| b.to_bytes();
-    // The edge asks for the bootstrap of podnet (question 7).
+    // The edge asks for the bootstrap of the client (question 7).
     let mut b = Builder::new();
     let root = b.init_root(1, 1);
     b.set_u16(root, 0, MSG_BOOTSTRAP);
@@ -35,7 +35,7 @@ async fn fake_edge(stream: tokio::io::DuplexStream, seen: oneshot::Sender<(u8, S
                 write.write_all(&send(b)).await.unwrap();
             }
             MSG_RETURN => {
-                // The answer of podnet to question 7: one capability.
+                // The answer of the client to question 7: one capability.
                 let ret = root.get_struct(0).unwrap().unwrap();
                 assert_eq!(ret.get_u32(0), 7);
                 let payload = ret.get_struct(0).unwrap().unwrap();

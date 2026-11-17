@@ -80,7 +80,7 @@ fn load_file_follows_cloudflared() {
     .unwrap_err();
     assert!(err.contains("the last ingress rule must match each request"), "{err}");
 
-    // Keys of cloudflared that podnet does not use are accepted.
+    // Keys of cloudflared that the client does not use are accepted.
     load(format!("credentials-file: {c}\nmetrics: localhost:2000\nno-autoupdate: true\nwarp-routing:\n  enabled: true\n{catch_all}")).unwrap();
 }
 
@@ -105,7 +105,7 @@ fn load_file_reads_a_cloudflared_config() {
     assert!(err.contains("line 3: the key \"service\" is given two times"), "{err}");
 }
 
-// Issue 269: token: of a file gives the named tunnel, not a quick tunnel.
+// The key token: of a file gives the named tunnel, not a quick tunnel.
 #[test]
 fn a_token_key_makes_a_named_tunnel() {
     let dir = tempfile::tempdir().unwrap();
@@ -137,7 +137,7 @@ fn a_token_key_makes_a_named_tunnel() {
     assert!(err.contains("token: give a string"), "{err}");
 }
 
-// Issue 269: url: and hello-world: give a catch-all rule; with ingress:
+// The keys url: and hello-world: give a catch-all rule; with ingress:
 // they are an error.
 #[test]
 fn url_and_hello_world_make_a_catch_all_rule() {
@@ -164,7 +164,7 @@ fn url_and_hello_world_make_a_catch_all_rule() {
     assert!(err.contains("hello-world: give true or false"), "{err}");
 }
 
-// Issue 269 (#289 item 3): path: is a regular expression, as in
+// The key path: is a regular expression, as in
 // cloudflared. A path that does not compile is an error that names the
 // file and the rule.
 #[test]
@@ -240,7 +240,7 @@ fn serde_fields<'de, T: serde::Deserialize<'de>>() -> &'static [&'static str] {
     fields.0.expect("a struct")
 }
 
-// Issue 241: each key that a raw struct reads is in its key list. A field
+// Each key that a raw struct reads is in its key list. A field
 // that is not in the list is refused by check_keys and never read.
 #[test]
 fn each_field_of_a_raw_struct_is_in_its_key_list() {
@@ -266,7 +266,7 @@ fn each_field_of_a_raw_struct_is_in_its_key_list() {
     assert!(unknown.is_err());
 }
 
-// Issue 170: a misspelt key of a rule or of originRequest is an error.
+// A misspelt key of a rule or of originRequest is an error.
 #[test]
 fn a_misspelt_rule_key_is_an_error() {
     let dir = tempfile::tempdir().unwrap();
@@ -289,11 +289,11 @@ fn a_misspelt_rule_key_is_an_error() {
     let err = load("originRequest:\n  bogusKey: 1\ningress:\n  - service: http_status:404\n").unwrap_err();
     assert!(err.contains("not a key of originRequest"), "{err}");
 
-    // Keys of cloudflared that podnet does not read still load.
+    // Keys of cloudflared that the client does not read still load.
     load("ingress:\n  - service: http://127.0.0.1:1\n    originRequest:\n      tcpKeepAlive: 30s\n      caPool: /x.pem\n").unwrap();
 }
 
-// Issue 170: the top-level originRequest is the default of each rule.
+// The top-level originRequest is the default of each rule.
 #[test]
 fn a_top_level_origin_request_is_the_default() {
     let dir = tempfile::tempdir().unwrap();
@@ -311,7 +311,7 @@ fn a_top_level_origin_request_is_the_default() {
     assert_eq!(rules[1].origin.http_host_header.as_deref(), Some("top"));
 }
 
-// Issue 172: clear errors for a list, a BOM, an empty file, bad types,
+// Clear errors for a list, a BOM, an empty file, bad types,
 // a short key and a rule with no service.
 #[test]
 fn config_errors_are_clear() {
@@ -341,7 +341,7 @@ fn config_errors_are_clear() {
     assert!(err.contains("did you mean credentials-file?"), "{err}");
 }
 
-// Issue 172: a credentials file with no TunnelID names the field.
+// A credentials file with no TunnelID names the field.
 #[test]
 fn a_credentials_file_error_names_the_field() {
     let dir = tempfile::tempdir().unwrap();
@@ -352,7 +352,7 @@ fn a_credentials_file_error_names_the_field() {
     assert!(!err.contains("not JSON"), "{err}");
 }
 
-// Issue 171: a file value out of range is an error, not a silent clamp.
+// A file value out of range is an error, not a silent clamp.
 #[test]
 fn ha_connections_of_a_file_is_checked() {
     let dir = tempfile::tempdir().unwrap();

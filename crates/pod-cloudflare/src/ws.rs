@@ -83,8 +83,8 @@ pub async fn serve_websocket(
         return write_response_meta(&mut writer, 400, &plain("missing Sec-WebSocket-Key")).await;
     };
 
-    // Dial first: the visitor gets 101 only for a target that answers
-    // (issue 273), else 502.
+    // Dial first: the visitor gets 101 only for a target that answers, else
+    // 502.
     let service = match target {
         ForwardTarget::Tcp(addr) => Service::Tcp(addr.clone()),
         ForwardTarget::Unix(path) => Service::Unix(path.clone()),
@@ -128,7 +128,7 @@ fn plain(message: &str) -> Vec<(String, String)> {
 mod tests {
     use super::*;
 
-    /// Issue 273: a forward target that does not answer gives 502, not
+    /// A forward target that does not answer gives 502, not
     /// 101 and then a closed WebSocket.
     #[tokio::test]
     async fn a_target_that_does_not_answer_gives_502() {
@@ -154,7 +154,7 @@ mod tests {
         assert!(!meta.iter().any(|(k, _)| k.contains("Sec-WebSocket-Accept")), "{meta:?}");
     }
 
-    // Issue 203: the forward endpoint of a public URL.
+    // The forward endpoint of a public URL.
     #[test]
     fn the_forward_url_of_a_public_url() {
         assert_eq!(

@@ -165,7 +165,7 @@ fn hop_by_hop_headers_are_recognised() {
     }
 }
 
-/// Issue 235: the names in Connection are hop-by-hop too.
+/// The names in Connection are hop-by-hop too.
 #[test]
 fn connection_names_its_hop_by_hop_headers() {
     assert_eq!(

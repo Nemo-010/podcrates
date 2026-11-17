@@ -119,7 +119,7 @@ async fn small_writes_go_out_at_once() {
     }
 }
 
-/// Issue 238: an answer with more than 64 headers passes.
+/// An answer with more than 64 headers passes.
 #[tokio::test]
 async fn an_origin_answer_with_many_headers_passes() {
     let mut raw = b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n".to_vec();
@@ -131,7 +131,7 @@ async fn an_origin_answer_with_many_headers_passes() {
     assert_eq!((status, headers.len(), leftover.as_slice()), (200, 101, &b"ok"[..]));
 }
 
-/// Issue 238: two different Content-Length values, or Content-Length
+/// Two different Content-Length values, or Content-Length
 /// with a Transfer-Encoding that is not chunked, are an error.
 #[test]
 fn the_framing_of_an_origin_answer_is_checked() {
@@ -154,7 +154,7 @@ fn the_framing_of_an_origin_answer_is_checked() {
     }
 }
 
-/// Issue 244: the trailer of a chunked answer has a cap, in all and
+/// The trailer of a chunked answer has a cap, in all and
 /// for each line.
 #[tokio::test]
 async fn the_trailer_of_the_origin_has_a_cap() {
@@ -229,7 +229,7 @@ fn req(dest: &str, metadata: Vec<(&str, &str)>) -> cqstream::ConnectRequest {
     }
 }
 
-// Issue 205: with --auth-user, a request with no right credential gets
+// With --auth-user, a request with no right credential gets
 // 401 and reaches no origin; the right one passes, and the origin does
 // not get the header.
 #[tokio::test]
@@ -299,7 +299,7 @@ async fn the_credential_in_front_of_the_tunnel() {
     }
 }
 
-// Issue 199: an HTTP request to a raw TCP origin gets 501, with no dial.
+// An HTTP request to a raw TCP origin gets 501, with no dial.
 #[tokio::test]
 async fn an_http_request_to_a_tcp_origin_gets_501() {
     pod_testkit::need_loopback!();
@@ -338,7 +338,7 @@ fn head_and_flags() {
     assert!(head.contains("Connection: close\r\n"));
 }
 
-/// Issue 56: a WebSocket stream of the QUIC leg (connection type
+/// A WebSocket stream of the QUIC leg (connection type
 /// Websocket) with no Upgrade header still upgrades the origin.
 #[test]
 fn a_websocket_stream_with_no_upgrade_header_upgrades() {
@@ -363,7 +363,7 @@ fn a_websocket_stream_with_no_upgrade_header_upgrades() {
     assert_eq!(head.matches("pgrade: websocket").count(), 1, "{head}");
 }
 
-/// Issue 226: a line break in a field of the edge does not reach the
+/// A line break in a field of the edge does not reach the
 /// origin as a new header line.
 #[test]
 fn a_line_break_does_not_make_a_header_line() {
@@ -399,7 +399,7 @@ fn a_line_break_does_not_make_a_header_line() {
     assert!(err.to_string().contains("httpHostHeader"), "{err}");
 }
 
-/// Issue 235: the hop-by-hop headers and the headers that Connection
+/// The hop-by-hop headers and the headers that Connection
 /// names do not go to the origin. Transfer-Encoding stays for a chunked
 /// body.
 #[test]

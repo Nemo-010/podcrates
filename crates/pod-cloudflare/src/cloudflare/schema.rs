@@ -25,11 +25,11 @@ pub struct TunnelAuth {
     pub tunnel_secret: Vec<u8>,
 }
 
-/// The features that podnet sends at registration: the default features of
+/// The features that the client sends at registration: the default features of
 /// cloudflared 2026.10.7 (`features/features.go`). cloudflared removes the
 /// legacy features `serialized_headers`, `quick_reconnects`,
 /// `allow_remote_config`, `support_quic_eof` and `management_logs` before it
-/// sends the list (TUN-10904: the edge supports them with no flag). podnet
+/// sends the list (TUN-10904: the edge supports them with no flag). The client
 /// does not send `postquantum` (it uses classical key exchange) and does
 /// not send `support_datagram_v3_2` (it carries no UDP or ICMP datagram for
 /// a visitor).

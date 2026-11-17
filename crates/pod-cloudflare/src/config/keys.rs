@@ -20,7 +20,7 @@ pub(super) fn nearest_key(key: &str, known: &[&'static str]) -> Option<&'static 
         .iter()
         .map(|k| (distance(key, k), *k))
         .min()
-        // Issue 172: a short key is near each short key; "a" is not "tag".
+        // A short key is near each short key; "a" is not "tag".
         .filter(|(d, _)| *d <= (key.chars().count() / 3).max(1) && *d < key.chars().count())
         .map(|(_, k)| k)
 }

@@ -140,7 +140,7 @@ pub async fn dial_any(endpoint: &Endpoint, edges: &[EdgeAddr]) -> Result<noq::Co
 }
 
 /// A QUIC connection in memory for tests: a local server (in the place of
-/// the edge) and a client with the edge transport config of podnet.
+/// the edge) and a client with the edge transport config of the client.
 #[cfg(test)]
 pub(crate) mod testing {
     use super::*;
@@ -148,7 +148,7 @@ pub(crate) mod testing {
     pub struct Pair {
         /// The connection on the side of the edge.
         pub edge: noq::Connection,
-        /// The connection on the side of podnet.
+        /// The connection on the side of the client.
         pub client: noq::Connection,
         _endpoints: (Endpoint, Endpoint),
     }

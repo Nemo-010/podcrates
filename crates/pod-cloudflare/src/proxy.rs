@@ -88,7 +88,7 @@ pub async fn serve_stream(
         return;
     }
     if signature == crate::cloudflare::RPC_STREAM_SIGNATURE {
-        // The edge calls the connector (a configuration push). podnet serves
+        // The edge calls the connector (a configuration push). The client serves
         // no RPC on such a stream: reset it, so the edge gets an answer at
         // once.
         tracing::debug!("the edge opened an RPC stream; it is reset");

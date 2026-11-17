@@ -213,7 +213,7 @@ pub enum Next {
     Stop(String),
 }
 
-/// The longest `retry_after` that podnet obeys.
+/// The longest `retry_after` that the client obeys.
 pub const MAX_RETRY_AFTER: Duration = Duration::from_secs(300);
 
 impl ReconnectPolicy {

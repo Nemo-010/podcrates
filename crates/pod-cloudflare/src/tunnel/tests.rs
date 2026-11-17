@@ -1,8 +1,8 @@
 use super::*;
 
-// A refusal with retry: yes in the first registration is tried again
-// (live run 41743390095: "Tunnel not found" for a new quick tunnel); a
-// refusal with retry: no ends the leg at once.
+// A refusal with retry: yes in the first registration is tried again (the
+// edge can answer "Tunnel not found" for a new quick tunnel); a refusal with
+// retry: no ends the leg at once.
 #[tokio::test(start_paused = true)]
 async fn a_retryable_refusal_of_the_first_registration_is_tried_again() {
     let refused = |retry: bool| {
@@ -40,7 +40,7 @@ async fn a_retryable_refusal_of_the_first_registration_is_tried_again() {
     assert_eq!(calls, REGISTER_TRIES);
 }
 
-// Issue 273: the limit of a serial leg attempt is at least the sum of
+// The limit of a serial leg attempt is at least the sum of
 // the budgets of the steps of the leg, with the tries of the
 // registration and the waits between them. It was 8 s for each leg.
 #[test]
@@ -59,7 +59,7 @@ fn the_serial_limit_covers_the_budgets_of_each_leg() {
     assert_eq!(limit(LegKind::H2Direct).as_secs(), 280);
 }
 
-// Issue 273: a registration that the edge refuses twice with retry: yes
+// A registration that the edge refuses twice with retry: yes
 // and a wait of 5 s completes in the serial limit.
 #[tokio::test(start_paused = true)]
 async fn a_slow_registration_completes_in_the_serial_limit() {
@@ -113,7 +113,7 @@ fn podnet_udp_and_the_probe_shape_the_plan() {
     let _ = refused;
 }
 
-// Issue 182: with a proxy, auto drops QUIC on UDP 7844; an explicit
+// With a proxy, auto drops QUIC on UDP 7844; an explicit
 // quic keeps it, with a note.
 #[test]
 fn a_proxy_and_the_quic_leg() {

@@ -67,7 +67,7 @@ pub(super) async fn reactor(
                 control.shutdown_graceful(SHUTDOWN_GRACE).await;
                 return None;
             }
-            // T-402: a closed WARP session stops the timers of the QUIC
+            // A closed WARP session stops the timers of the QUIC
             // connection in it, so the loss is seen here, not by accept_bi.
             _ = source.closed() => {
                 let text = format!("the WARP session of the edge connection {conn_index} closed; a reconnect follows");
@@ -86,7 +86,7 @@ pub(super) async fn reactor(
                     }
                     Err(err) => {
                         // The reason (who closed it, and why) and the path
-                        // state help to find an edge limit (issue 92).
+                        // state help to find an edge limit.
                         let stats = conn.stats();
                         tracing::debug!(
                             conn_index,

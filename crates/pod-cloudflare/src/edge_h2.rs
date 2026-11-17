@@ -3,9 +3,9 @@
 //! This is the TCP transport of cloudflared (`--protocol http2`). Use it where
 //! UDP is blocked and the QUIC transport cannot work.
 //!
-//! * podnet opens TCP to the edge (port 7844) and starts TLS with the SNI
+//! * The client opens TCP to the edge (port 7844) and starts TLS with the SNI
 //!   `h2.cftunnel.com` and no ALPN.
-//! * On that connection the edge is the HTTP/2 client and podnet is the HTTP/2
+//! * On that connection the edge is the HTTP/2 client and the client is the HTTP/2
 //!   server. The edge opens one stream for each request.
 //! * The first stream has the header
 //!   `Cf-Cloudflared-Proxy-Connection-Upgrade: control-stream`. Its request
@@ -79,7 +79,7 @@ const PIPE_BUFFER: usize = 64 * 1024;
 const WEBSOCKET_VALUE: &str = "websocket";
 /// The header value that marks a configuration push.
 const CONFIGURATION_VALUE: &str = "update-configuration";
-/// The meta header for a response that podnet makes itself.
+/// The meta header for a response that the client makes itself.
 const META_CLOUDFLARED: &str = r#"{"src":"cloudflared"}"#;
 
 /// What the edge opened a stream for.
@@ -207,7 +207,7 @@ pub struct Served {
     pub draining: tokio::sync::oneshot::Receiver<String>,
 }
 
-/// The window of each stream that podnet gives the edge.
+/// The window of each stream that the client gives the edge.
 pub const STREAM_WINDOW: u32 = 1 << 20;
 /// The window of the connection.
 pub const CONNECTION_WINDOW: u32 = 1 << 24;
@@ -221,11 +221,11 @@ const SMALLEST_FRAME: usize = 6;
 /// window, 8 MiB) is about 43,000 unread frames of 60 bytes: a few visitors
 /// whose origin reads slowly ended the connection of all visitors. This
 /// budget holds the whole window in the smallest frames, so the windows
-/// stop the edge first (podssh T-408).
+/// stop the edge first.
 pub const DATA_FRAME_BUDGET: usize = CONNECTION_WINDOW as usize / SMALLEST_FRAME * (256 - SMALLEST_FRAME);
 const _: () = assert!(DATA_FRAME_BUDGET >= CONNECTION_WINDOW as usize / 60 * (256 - 60));
 
-/// HTTP/2 as podnet serves its connection to the edge.
+/// HTTP/2 as the client serves its connection to the edge.
 pub fn server_builder() -> h2::server::Builder {
     let mut builder = h2::server::Builder::new();
     builder

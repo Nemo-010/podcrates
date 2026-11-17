@@ -24,7 +24,7 @@ pub async fn forward_http(
     metrics: &Metrics,
 ) -> Result<()> {
     // The QUIC leg marks a WebSocket by the connection type and may keep no
-    // Upgrade header (issue 56): is_websocket checks both.
+    // Upgrade header: is_websocket checks both.
     let upgrade = is_websocket(request);
     let head = match build_request_head(request, options, upgrade) {
         Ok(head) => head,

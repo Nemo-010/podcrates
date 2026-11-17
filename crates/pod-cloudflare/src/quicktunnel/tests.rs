@@ -102,7 +102,7 @@ fn hits(h: &std::sync::atomic::AtomicUsize) -> usize {
 const BUDGET: std::time::Duration = std::time::Duration::from_secs(60);
 const TO: std::time::Duration = std::time::Duration::from_secs(5);
 
-/// Issue 210: the refusal of a provision as fields.
+/// The refusal of a provision as fields.
 #[test]
 fn the_refusal_in_an_error_chain() {
     let err = crate::fail::wrap(
@@ -172,9 +172,9 @@ fn retry_after_values() {
     assert_eq!(parse_retry_after("soon"), None);
 }
 
-/// A response captured from a real `POST https://api.trycloudflare.com/tunnel`
-/// run against the live service on 2026-10-09. The values are real but the
-/// tunnel is long dead; only the shape matters to these tests.
+/// A response of a real `POST https://api.trycloudflare.com/tunnel` of the
+/// live service. The tunnel does not exist now; these tests read only the
+/// shape.
 const REAL_RESPONSE: &str = r#"{
   "id": "c1267064-5604-4d16-9a83-66b7ed37f182",
   "name": "operator-icon-sheffield-compression",
