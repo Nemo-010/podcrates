@@ -5,6 +5,7 @@
 
 mod acme;
 mod actions;
+mod cloudflare;
 mod devtunnel;
 mod egress;
 mod hold;
@@ -134,10 +135,8 @@ fn main() {
     lines.push(netlab::netlab());
     lines.extend([turn::turn(), transit::transit()]);
     lines.extend([tor::tor(), iroh::iroh()]);
-    lines.push(egress::egress());
-    lines.push(acme::acme());
-    lines.push(udf::udf());
-    lines.push(manual::manual());
+    lines.extend([egress::egress(), acme::acme()]);
+    lines.extend([udf::udf(), manual::manual()]);
     let direct = pod_proxy::Dialer::new(
         pod_proxy::Settings::new("static-probe", pod_proxy::ProxyChoice::Direct),
         std::sync::Arc::new(pod_proxy::resolve::System::new()),
@@ -145,6 +144,7 @@ fn main() {
     let direct: std::sync::Arc<dyn pod_core::Dial> = std::sync::Arc::new(direct);
     lines.push(link::link(direct.clone()));
     lines.push(warp::warp(std::sync::Arc::new(pod_tls::crypto::provider()), direct.clone()));
+    lines.push(cloudflare::cloudflare(direct.clone()));
     lines.push(devtunnel::devtunnel(std::sync::Arc::new(pod_tls::crypto::provider()), direct));
     for line in lines {
         println!("{line}");

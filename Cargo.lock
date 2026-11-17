@@ -7262,6 +7262,7 @@ dependencies = [
  "pod-actions-store",
  "pod-actions-workflow",
  "pod-broker",
+ "pod-cloudflare",
  "pod-confine",
  "pod-core",
  "pod-derp",

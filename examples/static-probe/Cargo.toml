@@ -86,6 +86,8 @@ pod-ws = { workspace = true, features = ["ech", "serve"] }
 pod-wormhole = { workspace = true }
 # `fuzzing` is out: it is for the fuzz targets of fuzz/, and no consumer turns it on.
 pod-warp = { workspace = true }
+# `fuzzing` is out: it is for the fuzz targets of fuzz/, and no consumer turns it on.
+pod-cloudflare = { workspace = true }
 pod-wg = { workspace = true, features = ["standin"] }
 # A runtime of one thread for the endpoint of pod-quic, the stack of
 # pod-netstack, the hold of a SYN of pod-hold, with the timer of its wait,
