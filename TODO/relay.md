@@ -9544,3 +9544,35 @@ session before the budget ends.
 cargo test -p pod-relay --features pair --test live_measure -- --ignored --nocapture
 ```
 
+
+# T-836: `pod-relay`: a route of a node to a Unix socket (PodUtils/podssh#295)
+
+**Source:** PodUtils/podssh#295 (COORD-099 of podssh, PodUtils/podssh@T-714; cfb's ask A-S-08).
+**Category:** feature
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+A node of podssh offers a route to a Unix socket (`ROUTE=unix-connect:PATH`). `pod_relay::reverse::routes::Route` holds a host and a port, and `dial_target` dials TCP alone, so podssh serves a Unix route in an opener of its own beside `Routes::open_with`. `pod-e2e`'s `move_out` takes the target as a `TcpStream`, so a session to a Unix socket must also be one to move.
+
+## Premise
+
+- Read: PodUtils/podssh#295; `crates/pod-relay/src/reverse/routes.rs` and `tcp.rs`; `crates/pod-e2e/src/hold/mod.rs` (`move_out`).
+- podssh builds `Route` with struct literals (`node.rs`, `node_udp.rs`, `share/file.rs`, `node_temp.rs`): a new field breaks it.
+
+## Approach
+
+Keep the type of `Route`: a Unix target is the host `unix:PATH`, or `unix:@NAME` for an abstract name on Linux, with port 0. `dial_target` connects to it and gives the socket as a `TcpStream` of the same descriptor, so `Routes`, the roost's check and `move_out` take it with no change.
+
+## Prove
+
+```sh
+cargo test -p pod-relay --all-features --test routes_unix
+```
+
+## Done
+
+2026-11-17. `crates/pod-relay/src/reverse/unix_target.rs`: `UNIX` (`unix:`), `Route::unix(name, path)`, `Route::unix_path`, `unix_path(host)` (a host with a path after the prefix) and `connect(path, timeout)`: a blocking connect in `spawn_blocking` under the timeout (`@NAME`: `SocketAddr::from_abstract_name` on Linux and Android), then the descriptor as a `std::net::TcpStream`, non-blocking, as a tokio `TcpStream`; with no Unix socket on the system, a refusal. `reverse::tcp::dial_target` dials a Unix host that way, and the words of the roost's check name the socket. So `Routes::open` and `open_with` (a route of the command line or a share), `TcpHandler` and the move of a session take a Unix route with no change of a type; `pod-e2e`'s `move_out` gets a `TcpStream` of the socket. The address and the TCP options of such a stream are not there. Only the node's owner names a target (a route or a share); an operator names a route, and an exit dials through the node's own `ExitDial`, which must refuse a host `unix:` (podssh's exit dials TCP alone). Tests: `tests/routes_unix.rs`, 6 (a path both ways, an abstract name on Linux, a socket that is not there refused with its path, the roost's check that passes and that refuses, the stream taken as a std `TcpStream` and back, the prefix). The plant `relay-unix-route-as-tcp` (the Unix branch removed) is caught. podssh's `--caller-line` stays podssh's: it writes the first line on the stream that `open_with` gives.

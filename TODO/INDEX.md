@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**668 entries: 132 open, 17 partial, 7 blocked, 512 done.**
+**669 entries: 132 open, 17 partial, 7 blocked, 513 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
-| P2 | 55 | 4 | 4 | 263 | 326 |
+| P2 | 55 | 4 | 4 | 264 | 327 |
 | P3 | 66 | 5 | 3 | 100 | 174 |
-| **All** | 132 | 17 | 7 | 512 | 668 |
+| **All** | 132 | 17 | 7 | 513 | 669 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -715,3 +715,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-833](fleet.md) | P3 | S | M8 | feature | done | `pod-control`: a test that the catalogue is the dispatch, tiers of surfaces, a budget of callbacks (reports 03, 11, 12 of the dig study, with T-103) |
 | [T-834](relay.md) | P2 | S | M2 | defect | done | `pod-relay`: a renewal reads the default relay's `400` for an unknown reverse path as an error, not as no renewal (PodUtils/podssh#294) |
 | [T-835](relay.md) | P3 | S | M2 | measurement | open | `pod-relay`: the cost of a move of a session for a copy on the default relay |
+| [T-836](relay.md) | P2 | S | M2 | feature | done | `pod-relay`: a route of a node to a Unix socket (PodUtils/podssh#295) |

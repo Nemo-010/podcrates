@@ -36,7 +36,8 @@ impl Handler for TcpHandler {
     }
 }
 
-/// One connection to `host:port` through `dialer`; with `sshd`, a roost's,
+/// One connection to `host:port` through `dialer`, or to the Unix socket of
+/// a host `unix:PATH` ([`super::unix_target`]); with `sshd`, a roost's,
 /// which must then send an SSH version line first (podssh T-166). The line
 /// stays in the stream for the session's SSH client.
 pub async fn dial_target(
@@ -46,9 +47,16 @@ pub async fn dial_target(
     timeout: Duration,
     sshd: bool,
 ) -> Result<TcpStream, String> {
-    let stream = dialer.tcp(host, port, timeout).await.map_err(|e| e.to_string())?;
+    let unix = super::unix_target::unix_path(host);
+    let stream = match unix {
+        Some(path) => super::unix_target::connect(path, timeout).await?,
+        None => dialer.tcp(host, port, timeout).await.map_err(|e| e.to_string())?,
+    };
     if sshd {
-        let at = pod_proxy::host::authority(host, port);
+        let at = match unix {
+            Some(path) => format!("the Unix socket {path}"),
+            None => pod_proxy::host::authority(host, port),
+        };
         sshd::check(&stream, sshd::BANNER_LIMIT).await.map_err(|why| format!("{at} is not an SSH server: it {why}"))?;
     }
     Ok(stream)

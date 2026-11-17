@@ -32,6 +32,7 @@ pub mod sshd;
 pub mod state;
 pub mod tcp;
 pub mod udp;
+pub mod unix_target;
 pub mod wire;
 
 pub use closes::RelayClose;
