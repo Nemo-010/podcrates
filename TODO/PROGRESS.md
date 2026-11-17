@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 667 entries: 140 open, 15 partial, 7 blocked, 505 done.
+`TODO/INDEX.md` holds 667 entries: 138 open, 15 partial, 7 blocked, 507 done.
 
 ## State
 
@@ -82,8 +82,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
 1. **The two studies of 2026-11-16** (an archive of the owner each:
    the dig study and the ingest study, `docs/research/dig-study.md` and
    `docs/research/ingest-study.md`): T-812 (a measurement of the throughput
-   of the hosted relays: podcrates has none), then T-813 to T-815 (the two speeds of a relay path, a rank by
-   measured rate, the budget under larger caps); the rest of T-818 to
+   of the hosted relays: podcrates has none), then T-814 and T-815 (a rank by measured rate, the budget under larger caps); the rest of T-818 to
    T-833 by priority; T-832 waits for podswarm.
 1. **The defects and asks of the consumers:** T-378 (`pod-devtunnel`, GitHub #94 and
    PodUtils/podssh#216: partial: the client side is in `v0.33.0` for

@@ -9207,7 +9207,7 @@ stand-in says nothing of a hosted relay).
 **Milestone:** M2
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -9227,6 +9227,15 @@ Run the ignored throughput test of `pod-ws` 20 times; where it is bimodal, find 
 ```sh
 cargo test -p pod-ws --all-features --test bridge throughput -- --ignored --nocapture
 ```
+
+## Done
+
+2026-11-17. Measured: the bridge of `pod-ws` on both ends (`bridge::bridge`,
+`Limits::TUNGSTENITE`), 16 MiB in chunks of 49,152 bytes on the loopback, 20
+runs in a release build: 521, 578, then 793 to 1165 MiB/s; a warm-up and no
+split near 75 and 330 MiB/s. The cause of the study's two speeds is not in
+the bridge of `pod-ws`: COORD-127 (#217) asks podssh to run the study's
+matrix on its relay role again.
 
 # T-814: `pod-relay`: the bytes and the time of each session for each host, and an order by measured rate in shadow
 
@@ -9400,7 +9409,7 @@ cargo test -p pod-e2e -p pod-tls --all-features
 **Milestone:** M2
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -9419,6 +9428,11 @@ Open a COORD issue `(to podssh)` with the ideas and their numbers; T-036 takes w
 ```sh
 cargo todo check
 ```
+
+## Done
+
+2026-11-17. COORD-127 (#217) to podssh: the five ideas of report 01 for the
+relay server with their numbers, beside the two speeds of T-813.
 
 # T-834: `pod-relay`: a renewal reads the default relay's `400` for an unknown reverse path as an error, not as no renewal (PodUtils/podssh#294)
 
