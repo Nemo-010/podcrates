@@ -5133,3 +5133,34 @@ cargo todo check
 ## Done
 
 2026-11-17. The Approach of T-103 now names the three: one catalogue of methods with tests in both directions that it is the dispatch, a tier for each method with a refusal that does not tell of a control method, and a duplex frame with a budget of callbacks for each request and for each connection and a read timeout; and the plants that prove them. The code comes with T-103 (P1, M8).
+
+# T-859: `pod-actions-workflow`: the error of an unknown need gives the place of the job, not of the need (PodUtils/podrunner#214)
+
+**Source:** PodUtils/podrunner#214 (COORD-077 of podrunner, PodUtils/podrunner@T-331).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+`Graph::new` refused a need that is not a job of the file with the line and the column of the job's key: for `needs: nope` at line 7, the error said line 6, column 3 (`b:`). `podrunner run --validate` gives the error as it is, so a user reads the wrong line.
+
+## Premise
+
+- Read: PodUtils/podrunner#214; `crates/pod-actions-workflow/src/graph.rs`, `src/read.rs` (`needs`), `src/model.rs` (`Job`); `tests/expand.rs`.
+
+## Approach
+
+`Job` keeps the place of each id of `needs`; the error of an unknown need takes the place of that id (of the item, in a list). A test of one id and of a list; a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-actions-workflow --all-features --test expand
+```
+
+## Done
+
+2026-11-17, 2059803e2: `Job::needs_marks` holds the place of each id of `needs`, in its order; `Graph::new` gives the place of the id that names no job. `a_missing_need_and_a_cycle_are_errors_by_name` holds `jobs.a.needs (line 5, column 12)` for `needs: ghost` and `(line 9, column 9)` for the item `nope` of a list. The tests of `pod-actions-workflow` pass. Plant `actions-unknown-need-marks-the-job`, caught.

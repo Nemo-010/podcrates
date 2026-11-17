@@ -1,0 +1,6 @@
+# The error of an unknown need points at the id that names no job (T-859).
+ENTRY=T-859
+GROUP=actions
+EXPECT='a_missing_need_and_a_cycle_are_errors_by_name'
+RUN='cargo test -p pod-actions-workflow --all-features --test expand'
+LIMIT=1800

@@ -1,0 +1,12 @@
+diff --git a/crates/pod-actions-workflow/src/graph.rs b/crates/pod-actions-workflow/src/graph.rs
+--- a/crates/pod-actions-workflow/src/graph.rs
++++ b/crates/pod-actions-workflow/src/graph.rs
+@@ -23,7 +23,7 @@ impl Graph {
+                 let Some(i) = ids.iter().position(|id| id == need) else {
+                     let path = format!("jobs.{}.needs", job.id);
+                     // The place of the id that names no job, not of the job.
+-                    let mark = job.needs_marks.get(k).copied().unwrap_or(job.mark);
++                    let mark = job.mark;
+                     return Err(Error::new(path, Some(mark), ErrorKind::UnknownNeed(need.clone())));
+                 };
+                 list.push(i);
