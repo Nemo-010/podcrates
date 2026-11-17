@@ -1,0 +1,7 @@
+# A second rotation while a previous key is kept is refused, and the
+# current key is not changed (T-826).
+ENTRY=T-826
+GROUP=identity
+EXPECT='a_second_rotation_is_refused_and_the_current_key_stays_byte_for_byte'
+RUN='cargo test -p pod-identity --all-features --lib rotate'
+LIMIT=1800

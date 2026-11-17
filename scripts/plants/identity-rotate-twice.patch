@@ -1,0 +1,19 @@
+--- a/crates/pod-identity/src/rotate.rs
++++ b/crates/pod-identity/src/rotate.rs
+@@ -79,12 +79,13 @@ pub fn rotate_at(path: &Path, entropy: &mut dyn Entropy) -> Result<Rotated, Stri
+     let old = read(path)?.ok_or_else(|| format!("{}: there is no key to rotate", path.display()))?;
+     let slot = previous_path(path);
+     let open = || format!("{}: a rotation is open; retire the previous key first", slot.display());
+-    if read(&slot)?.is_some() {
++    if read(&slot)?.is_some() && false {
+         return Err(open());
+     }
+     // A new file only: of two rotations at once, the second finds it.
+-    let made = cache::create_private(&slot, &body(&old))
+-        .map_err(|e| format!("{}: could not keep the previous key: {e}", slot.display()))?;
++    let made = cache::replace_private(&slot, &body(&old), 0o600, false)
++        .map_err(|e| format!("{}: could not keep the previous key: {e}", slot.display()))
++        .is_ok();
+     if !made {
+         return Err(open());
+     }
