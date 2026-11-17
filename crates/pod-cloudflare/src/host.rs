@@ -174,6 +174,11 @@ pub struct Host {
     /// The resolver: the SRV record of the edge by DNS over HTTPS, and the
     /// step that answers a name.
     pub resolver: Arc<pod_dns::Resolver>,
+    /// The TLS configuration for an origin with `noTLSVerify`, which the
+    /// consumer builds with the check that it chooses. The crate makes no
+    /// TLS with no check: with `None`, the dial of such an origin fails
+    /// (the class `Policy`).
+    pub origin_no_verify: Option<Arc<rustls::ClientConfig>>,
     /// The SRV records of the system resolver; `None`: the discovery skips
     /// this step.
     pub system_srv: Option<Arc<dyn SystemSrv>>,
@@ -199,6 +204,7 @@ impl Host {
             tls,
             dial,
             resolver: Arc::new(resolver),
+            origin_no_verify: None,
             system_srv: None,
             services: Arc::new(NoServices),
             report: Report::default(),

@@ -55,8 +55,10 @@ impl Runtime {
                 host.services.prepare(index, &rule.service)?;
             }
         }
-        let origins =
-            Origins::new(host.tls.clone()).with_report(host.report.clone()).with_words(host.settings.words.clone());
+        let origins = Origins::new(host.tls.clone())
+            .with_report(host.report.clone())
+            .with_words(host.settings.words.clone())
+            .with_no_verify(host.origin_no_verify.clone());
         Ok(Self { host, origins, metrics })
     }
 
