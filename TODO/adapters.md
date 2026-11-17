@@ -344,17 +344,32 @@ four plants of the group `cloudflare` are caught (the bound check of a
 capnp list, `noTLSVerify` with no configuration, the relay on each leg, the
 relay of the host on a direct leg). 192 tests.
 
+2026-11-17, more (commits `600f312` to `dc623e0`): podnet's
+`tests/quick_tunnel_standin.rs` and its stand-in (the API of the quick
+tunnels, an HTTP/2 edge with `registerConnection`, the front, a test CA, a
+CONNECT proxy) drive the library: 12 tests keep their names, an event in
+place of a log line, a class in place of an exit code,
+`TunnelHandle::shutdown` in place of SIGTERM. The tests of podnet's command
+line, flags, API, trust, egress, signals and services stay in podnet.
+`crates/pod-cloudflare/README.md`: the API, the settings, the parity list,
+the adoption map. `examples/static-probe/src/cloudflare.rs`: a message of
+Cap'n Proto and a named tunnel against a closed edge. Two defects of the
+split of step 3, found by the moved tests, are fixed: the items of
+`edge_h2` that podnet calls are public again, and the HTTP/2 reactor waits
+for its aborted connection at a shutdown (a test failed one run in two).
+204 tests. Findings: T-842 (the QUIC leg at a shutdown), T-843 (the probe's
+`main.rs` at the limit).
+
 - Step 3, the rest: the comments in ASD-STE100; the hook of
   `tunnel --inspect` on `forward_http`; the watch of the pin of cloudflared.
-- Step 4, the rest: podnet's tests of the tunnel.
-- Step 6: the README, the parity list, the adoption map: podnet reads its
+- Step 6 is done (the README); the adoption map in it: podnet reads its
   `PODNET_RESOLVE` pins into the resolver, hides `Config::secrets` itself,
   adds its counters of decisions to the metrics text, calls the `_with`
   forms of `load_file` and `checked_targets` with its report, sets `Host.relay` for
   `--transport relay`, gives its words (`Words`) and the prefix `podnet` of
   its metrics, and passes its own configuration with no check in
   `Host.origin_no_verify` for `noTLSVerify`.
-- Step 7: a module of the static probe, the patch of the trial of podnet
+- Step 7: the patch of the trial of podnet
   and the trial; then T-030 (podssh's quick tunnels).
 - To podnet at the hand-off: its `src/proxy.rs` has a stray doc comment
   over `a_built_in_body_of_no_known_size_is_streamed` and a dangling comment
@@ -1988,3 +2003,59 @@ issuer), and
 Plants, each caught by hand: `warp-t549-proxy-on-direct-road` (the label
 of the dial as a proxy on the direct road), `warp-t549-issuer-unnamed`;
 `warp-pin-unchecked` was remade on the new code and caught.
+
+# T-842: `pod-cloudflare`: a shutdown of a tunnel on the QUIC leg closes its connection before `shutdown` returns
+
+**Source:** T-029 (found in the move of podnet's tests of the tunnel).
+**Category:** defect
+**Milestone:** M3
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+At a shutdown, the HTTP/2 reactor aborted its connection task and did not wait for it, so a connection to the edge stayed open after `TunnelHandle::shutdown` returned (fixed in T-029). The QUIC reactor calls `shutdown_graceful` on its control session and returns: whether its connection is closed when `shutdown` returns is not known.
+
+## Premise
+
+- Read: the QUIC reactor of `crates/pod-cloudflare/src/tunnel/`; the fix of the HTTP/2 reactor in the commit of the moved tests of T-029.
+- Not measured: the stand-in has no QUIC edge.
+
+## Approach
+
+A QUIC edge in the stand-in of `tests/`; a test that the edge sees the close of the connection before `shutdown` returns; the same wait as the HTTP/2 reactor.
+
+## Prove
+
+```sh
+cargo test -p pod-cloudflare --all-features
+```
+
+# T-843: `static-probe`: its `main.rs` is at the limit of 500 lines
+
+**Source:** T-029 (found when the probe took `pod-cloudflare`).
+**Category:** chore
+**Milestone:** M0
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`examples/static-probe/src/main.rs` has 500 lines, so the line of the next crate does not fit.
+
+## Premise
+
+- Read: `examples/static-probe/src/main.rs`.
+
+## Approach
+
+The calls of the probe go to a list in a module of their own, so that `main.rs` keeps the run and the report.
+
+## Prove
+
+```sh
+cargo build -p static-probe
+python3 -I scripts/check-size.py
+```
