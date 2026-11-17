@@ -1,0 +1,6 @@
+# The token store refuses a file that others can read (T-378).
+ENTRY=T-378
+GROUP=devtunnel
+EXPECT='the_file_is_private_and_one_that_others_can_read_is_refused'
+RUN='cargo test -p pod-devtunnel --all-features --test store'
+LIMIT=1800

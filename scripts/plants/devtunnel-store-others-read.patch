@@ -1,0 +1,11 @@
+--- a/crates/pod-devtunnel/src/store.rs
++++ b/crates/pod-devtunnel/src/store.rs
+@@ -112,7 +112,7 @@ impl TokenStore {
+     /// others can read, or that is not the store's shape, is refused with
+     /// the reason, never read.
+     pub fn load(&self) -> Result<Option<Kept>, Failure> {
+-        let Some(text) = files::read_own(&self.path, Others::NoAccess).map_err(|why| self.failed(&why))? else {
++        let Some(text) = files::read_own(&self.path, Others::Read).map_err(|why| self.failed(&why))? else {
+             return Ok(None);
+         };
+         let text = Zeroizing::new(text);
