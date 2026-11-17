@@ -7615,3 +7615,30 @@ cargo test -p pod-tls --all-features
 ## Done
 
 2026-11-17. The workspace takes `rsa` 0.10.0 (features `std`, `encoding`, `pkcs1v15`; crates.io 2026-11-08) with sha2 0.11, the one of the rest of the provider, so the second copy `sha2-rsa` (sha2 0.10) is gone. `crates/pod-tls/src/crypto/rsa_sig.rs`: `PublicKey` (the new name), `Pss::<D>::new()` (the hash is a type of the padding; its salt is the length of the hash, as TLS asks), `bit_width` for the bound of 2048 bits. The tests of `pod-tls` (175, the RSA vectors and the TLS 1.2 tests among them) and of the crates that take the feature `rsa` (`pod-lab`, `pod-services-watch`, `pod-acme`: 180) pass; the clippy of the workspace and `cargo deny` pass. The lock still holds rsa 0.9.10 through arti (`ssh-key-fork-arti`, which `pod-tor` takes): podssh, which takes `pod-tor`, keeps that copy until arti moves.
+
+# T-852: The ignores of the unmaintained chrono and humantime (RUSTSEC-2026-0543, RUSTSEC-2026-0542)
+
+**Source:** the deny run 44063162666 (2026-11-17); call C776.
+**Category:** chore
+**Milestone:** M1
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+chrono and humantime have no maintainer (RUSTSEC-2026-0543, RUSTSEC-2026-0542). chrono comes only through iroh (`tokio-rustls-acme` of `iroh-relay`, `wmi` of `netwatch`), humantime only through arti. `deny.toml` ignores both, so a fault that comes later in either crate has no fix.
+
+## Premise
+
+- Read: the two advisories (the announcement is chronotope/chrono#1768); `cargo tree -i chrono` and `cargo tree -i humantime`.
+
+## Approach
+
+At each release of iroh and of arti, look at `cargo tree -i chrono` and `cargo tree -i humantime`; remove each ignore when no crate brings it; ask upstream for the change where there is no plan.
+
+## Prove
+
+```sh
+cargo deny --locked check advisories
+```

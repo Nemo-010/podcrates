@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**684 entries: 125 open, 22 partial, 7 blocked, 530 done.**
+**685 entries: 126 open, 22 partial, 7 blocked, 530 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 10 | 9 | 0 | 147 | 166 |
 | P2 | 55 | 3 | 4 | 273 | 335 |
-| P3 | 60 | 10 | 3 | 108 | 181 |
-| **All** | 125 | 22 | 7 | 530 | 684 |
+| P3 | 61 | 10 | 3 | 108 | 182 |
+| **All** | 126 | 22 | 7 | 530 | 685 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -731,3 +731,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-849](adapters.md) | P2 | S | M3 | chore | done | `pod-cloudflare`: the watches that podnet ran: the pin of cloudflared, the header oracle, the planted loop of Cap'n Proto |
 | [T-850](adapters.md) | P3 | S | M0 | chore | done | `pod-core`: one clean text of a peer: the strip of escape sequences and the words of a TLS failure |
 | [T-851](adapters.md) | P3 | S | M3 | chore | partial | `pod-cloudflare`: the pin of cloudflared moves to 2026.11.0 |
+| [T-852](transport.md) | P3 | S | M1 | chore | open | The ignores of the unmaintained chrono and humantime (RUSTSEC-2026-0543, RUSTSEC-2026-0542) |

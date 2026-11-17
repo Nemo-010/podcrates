@@ -48,6 +48,13 @@ ignore = [
   # paste: a proc-macro at build time, no code at run time; pod-tor brings
   # it through pwd-grp of arti's fs-mistrust (call C766). Read 2026-11-16.
   { id = "RUSTSEC-2024-0436", reason = "unmaintained build-time proc-macro, only through arti's fs-mistrust (pod-tor)" },
+  # chrono and humantime, unmaintained: no fault, no safe version. chrono
+  # comes only through iroh (tokio-rustls-acme of iroh-relay, wmi of
+  # netwatch on Windows) for pod-iroh; humantime only through arti for
+  # pod-tor. No crate of podcrates names either. Remove each ignore when
+  # iroh and arti drop them (call C776, T-852). Read 2026-11-17.
+  { id = "RUSTSEC-2026-0543", reason = "chrono is unmaintained, with no known fault; only iroh brings it (pod-iroh)" },
+  { id = "RUSTSEC-2026-0542", reason = "humantime is unmaintained, with no known fault; only arti brings it (pod-tor)" },
 ]
 
 [licenses]
