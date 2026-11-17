@@ -26,9 +26,9 @@
     manual come from `pod-manual` with no workaround of T-725; it runs the one
     watcher and the sync of the issues; its installer on
     `scripts/install/core.sh` is PodUtils/podnet@T-360).
-  - podvm: `v0.65.0` (`87026a4`, PodUtils/podvm#460: `pid_namespace:
-    false` until a tag carries T-811; its installer core is still of
-    `v0.58.0`, PodUtils/podvm@T-1925).
+  - podvm: `v0.66.0` (`b1fa48f`, PodUtils/podvm#461: `pid_namespace:
+    true` for each run of the namespace rung of `podvm-supervise`; its
+    installer core is still of `v0.58.0`, PodUtils/podvm@T-1925).
   - podrunner: `v0.52.0` (`45bd964`, PodUtils/podrunner#169).
 - Takes that wait: podvm's check of T-208 against `lambda-al2023`, and
   its module set of T-206 with PodUtils/podvm@T-1662 (after `pod-netlab`,
