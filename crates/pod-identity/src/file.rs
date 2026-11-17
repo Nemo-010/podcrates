@@ -132,14 +132,24 @@ pub fn existing(places: &Places, place: &Place) -> Result<Option<Identity>, Stri
 /// searches as [`load_in`] does, and a file that is there and refused is
 /// the answer, as it stops that search.
 pub fn existing_in(dirs: &[PathBuf], place: &Place) -> Result<Option<Identity>, String> {
+    match kept_path_in(dirs, place)? {
+        Some(path) => read(&path),
+        None => Ok(None),
+    }
+}
+
+/// The file of the key kept at `place`, searched as [`existing_in`]
+/// searches; `None` where there is no file, and for an ephemeral key.
+pub fn kept_path_in(dirs: &[PathBuf], place: &Place) -> Result<Option<PathBuf>, String> {
     match place {
         Place::Ephemeral => Ok(None),
-        Place::File(path) => read(path),
+        Place::File(path) => Ok(read(path)?.map(|_| path.clone())),
         Place::Cache { name, old } => {
             for name in std::iter::once(name).chain(old) {
                 for dir in dirs {
-                    if let Some(identity) = read(&dir.join(name))? {
-                        return Ok(Some(identity));
+                    let path = dir.join(name);
+                    if read(&path)?.is_some() {
+                        return Ok(Some(path));
                     }
                 }
             }
@@ -161,7 +171,7 @@ fn settled(path: PathBuf, identity: Identity, made: bool) -> Result<Key, String>
 }
 
 /// The key in the file at `path`; `None` when there is no file.
-fn read(path: &Path) -> Result<Option<Identity>, String> {
+pub(crate) fn read(path: &Path) -> Result<Option<Identity>, String> {
     let Some(text) = cache::read_own(path, Others::NoAccess)? else { return Ok(None) };
     let text = Zeroizing::new(text);
     let word = text.trim();
@@ -181,14 +191,14 @@ fn read(path: &Path) -> Result<Option<Identity>, String> {
 
 /// A new key from the OS's random source; an error, not a panic, when the
 /// source cannot be read.
-fn make(entropy: &mut dyn Entropy) -> Result<Identity, String> {
+pub(crate) fn make(entropy: &mut dyn Entropy) -> Result<Identity, String> {
     let mut seed = Zeroizing::new([0u8; 32]);
     entropy.fill(&mut seed[..]).map_err(|_| "the OS gave no random bytes for a new key".to_string())?;
     Ok(Identity::from_seed(&seed))
 }
 
 /// The file's text: the seed in lower-case hex and a newline.
-fn body(identity: &Identity) -> Zeroizing<Vec<u8>> {
+pub(crate) fn body(identity: &Identity) -> Zeroizing<Vec<u8>> {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let seed = identity.seed();
     let mut text = Zeroizing::new(Vec::with_capacity(65));

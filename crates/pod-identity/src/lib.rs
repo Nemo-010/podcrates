@@ -14,6 +14,7 @@ pub mod allow;
 pub mod display;
 pub mod file;
 pub mod pins;
+pub mod rotate;
 
 pub use display::{DisplayError, DisplayFingerprint};
 

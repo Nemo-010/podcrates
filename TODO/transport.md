@@ -7409,7 +7409,7 @@ Part 2, open: measure the plan on a dual-stack host (a lab of `pod-lab` with IPv
 **Milestone:** M1
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -7428,6 +7428,13 @@ Two slots, the next key published beside the current one, then a retire step; on
 ```sh
 cargo test -p pod-identity --all-features
 ```
+
+## Done
+
+2026-11-17, part 1 (the slots on disk). `crates/pod-identity/src/rotate.rs`: the previous key is the file of the key with `.previous` after its name (`previous_path`). `rotate_at(path)` reads the current key (a rotation makes no first key), refuses when a previous key is there ("retire the previous key first", the current file unchanged), keeps the old key in the previous slot with `create_private` (a new file only, so of two rotations at once one is refused), then writes a new key with `pod_core::files::replace_private` (T-192) and gives `Rotated { previous, current, unconfirmed }`. `previous_at`, `slots_at` (`Single`, `Overlapping`), and `retire_at` (removes the previous slot and syncs the directory; `false` when there was none). `rotate`, `previous` and `retire` take a `Place` in the `Places` of the app; a key of the old name rotates in its own file (`file::kept_path_in`, which `existing_in` now uses). Tests: 6 in `src/rotate_tests.rs` (both keys kept and read by a new run, a second rotation refused with the current file byte for byte, a rotation again after a retire, a retire once then no change, no key and an ephemeral key refused with nothing made, both slots mode 0600, a key of the old name). The plant `identity-rotate-twice` (the two refusals removed) is caught.
+
+Part 2, open: the overlap at the handshake. A node that holds two keys proves the old one to a peer that pins only it (a second listener or a second certificate of `pod-tls`), and a test that such a peer connects during the overlap and fails after the retire. Its form waits for a consumer that rotates a key (podssh's node, podnet's identity), by a COORD issue at the release.
+
 
 # T-828: `pod-services`: the DIG relay, its measured limits and its framing, or a call that names it unfit
 
