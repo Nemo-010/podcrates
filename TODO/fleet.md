@@ -5193,3 +5193,57 @@ cargo test -p pod-actions-workflow --all-features --test expand
 ```sh
 python3 -I scripts/check-sources.py pod-manual
 ```
+
+# T-866: `pod-lab`: a profile of the three limits together: no `AF_INET` bind, no network namespace, no write of another process's memory (PodUtils/podnet#649)
+
+**Source:** PodUtils/podnet#649 (COORD-102 of podnet, its QA round; PodUtils/podnet@T-453), ask 1.
+**Category:** feature
+**Milestone:** M0
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+podnet's defect PodUtils/podnet#610 hid on a host where three limits hold at once: no `AF_INET` bind, no network namespace, and `process_vm_writev` refused. No profile of `pod-lab` has the three together, so no lane runs a consumer there.
+
+## Premise
+
+- Read: PodUtils/podnet#649; `crates/pod-lab/src/profile.rs` and the labs that hold each limit alone.
+
+## Approach
+
+A profile that joins the three limits, with its row of `podlab run --list`, its check that each limit holds inside, and a test in the userns tests.
+
+## Prove
+
+```sh
+sh scripts/ci/userns-tests.sh
+```
+
+# T-867: `pod-manual`: a check of each example of the model against the consumer's parser (PodUtils/podnet#649)
+
+**Source:** PodUtils/podnet#649 (COORD-102 of podnet, PodUtils/podnet@T-451), ask 2.
+**Category:** feature
+**Milestone:** M0
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+podnet's testers found flags that the help names and the command refuses (PodUtils/podnet#612, #647). `pod_manual::check::flags(manual, parser)` already holds each command and flag of the model against the parser; nothing holds each example (`Manual::examples`, `Example::command`) against it, and the long help can name a flag that is only in its text.
+
+## Premise
+
+- Read: `crates/pod-manual/src/check.rs` (`flags`, `ParserCommand`), `src/model.rs` (`Example`).
+
+## Approach
+
+`check::examples(manual, parse)`: each example's command line, split as a shell splits it, goes to the consumer's `parse` (its own parser, with no run), and a refusal is a finding with the example. A test with a stand-in parser; a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-manual --all-features
+```
