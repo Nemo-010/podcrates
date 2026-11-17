@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**643 entries: 122 open, 14 partial, 6 blocked, 501 done.**
+**644 entries: 122 open, 14 partial, 6 blocked, 502 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 11 | 8 | 0 | 146 | 165 |
+| P1 | 11 | 8 | 0 | 147 | 166 |
 | P2 | 55 | 3 | 4 | 260 | 322 |
 | P3 | 56 | 3 | 2 | 93 | 154 |
-| **All** | 122 | 14 | 6 | 501 | 643 |
+| **All** | 122 | 14 | 6 | 502 | 644 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -690,3 +690,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-808](roads.md) | P2 | S | M4 | defect | done | `pod-iroh`: the fork of iroh-relay sends the name of the relay to a `socks5://` proxy (T-037) |
 | [T-809](roads.md) | P3 | M | M4 | feature | open | `pod-iroh`: the relay dial of iroh takes a proxy URL, not the caller's dialer (T-037) |
 | [T-810](roads.md) | P2 | M | M4 | chore | done | `pod-iroh`: the adoption trial of podssh (T-037) |
+| [T-811](podvm.md) | P1 | S | M6 | defect | done | `pod-enter`: the init of a PID namespace keeps the descriptors of the caller, so `run -d` never returns (PodUtils/podvm#460) |

@@ -347,6 +347,25 @@ pub fn close(fd: i64) -> Sysres {
     unsafe { sys(SYS_CLOSE, [fd as u64, 0, 0, 0, 0, 0]) }
 }
 
+/// The most descriptors that [`close_from`] closes one by one on a kernel
+/// with no `close_range` (before 5.9).
+const CLOSE_EACH_MOST: i64 = 65_536;
+
+/// Close each descriptor from `first` up, as a process that forked and
+/// does not exec must: it holds each descriptor of its parent, also those
+/// with close-on-exec. `close_range`, else a close of each number up to
+/// [`CLOSE_EACH_MOST`]. Async-signal-safe.
+pub fn close_from(first: u32) -> Sysres {
+    let ranged = unsafe { sys(SYS_CLOSE_RANGE, [u64::from(first), u64::from(u32::MAX), 0, 0, 0, 0]) };
+    if ranged.is_ok() {
+        return ranged;
+    }
+    for fd in i64::from(first)..CLOSE_EACH_MOST {
+        let _ = close(fd);
+    }
+    Ok(0)
+}
+
 /// `fcntl(2)`, for the commands whose argument is an integer.
 ///
 /// Restricted to `F_GETFD`, `F_SETFD` and `F_DUPFD_CLOEXEC` by its own

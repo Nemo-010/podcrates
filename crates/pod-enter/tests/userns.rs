@@ -226,6 +226,15 @@ fn a_join_lands_in_the_pid_namespace_of_its_run() {
 }
 
 #[test]
+fn the_init_of_a_pid_namespace_keeps_no_descriptor_of_the_caller() {
+    pid::as_root_then_nobody(
+        "the_init_of_a_pid_namespace_keeps_no_descriptor_of_the_caller",
+        "pid-fds",
+        pid::keeps_no_descriptor,
+    );
+}
+
+#[test]
 fn a_caller_with_no_capabilities_joins_its_run() {
     as_nobody("a_caller_with_no_capabilities_joins_its_run", "join", joins_its_run);
 }

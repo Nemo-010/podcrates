@@ -141,3 +141,44 @@ pub fn a_join_lands_in_it(root: &Path) {
     assert_eq!(code.map_err(|e| e.to_string()), Ok(0), "the joined exec: {joined}");
     assert!(!joined.contains("does not share the mounts"), "{joined}");
 }
+
+/// Whether the read end `r` gets its end of file within 5 s, on a thread
+/// of its own.
+fn ends_soon(mut r: std::io::PipeReader) -> bool {
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        let _ = tx.send(r.read_to_end(&mut buf).is_ok());
+    });
+    rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap_or(false)
+}
+
+/// The init and the relay of a join keep no descriptor of the caller: a
+/// caller that waits for the end of file of a pipe with close-on-exec, as
+/// the launcher of `pod-supervise` waits for its ready pipe, returns while
+/// the payload runs (PodUtils/podvm#460).
+pub fn keeps_no_descriptor(root: &Path) {
+    if !caller() {
+        return;
+    }
+    let dir = RootDir::open(root.to_str().unwrap()).unwrap();
+    let mut err = Vec::new();
+    let (r, w) = std::io::pipe().unwrap();
+    let run = spawn_namespace(&dir, &with_pid("touch /tmp/up && exec sleep 60"), &mut err).unwrap();
+    drop(w);
+    let ended = ends_soon(r);
+    wait_for(&run, "sleep");
+    let pidfd = sys::pidfd_open(run.pid).unwrap();
+    let (r, w) = std::io::pipe().unwrap();
+    let mut joined = Vec::new();
+    let exec = spawn_joined(&dir, &plan("exec sleep 60", None), pidfd, &mut joined).unwrap();
+    drop(w);
+    let join_ended = ends_soon(r);
+    let _ = sys::close(pidfd);
+    let _ = sys::kill(exec.pid, 9);
+    let _ = exec.wait();
+    let _ = sys::kill(run.pid, 9);
+    let _ = run.wait();
+    assert!(ended, "the init held a pipe of the caller: {}", String::from_utf8_lossy(&err));
+    assert!(join_ended, "the relay of the join held a pipe of the caller: {}", String::from_utf8_lossy(&joined));
+}

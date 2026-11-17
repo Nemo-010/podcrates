@@ -1,10 +1,10 @@
 diff --git a/crates/pod-enter/src/ns_pid.rs b/crates/pod-enter/src/ns_pid.rs
 --- a/crates/pod-enter/src/ns_pid.rs
 +++ b/crates/pod-enter/src/ns_pid.rs
-@@ -131,7 +131,7 @@ impl Pid {
-     /// init or relay, with `close` closed. Returns in the payload, or where
-     /// the fork has no place. Async-signal-safe.
-     pub(crate) fn split(&self, close: &[i64]) -> std::result::Result<(), (u8, Errno)> {
+@@ -137,7 +137,7 @@ impl Pid {
+     /// `pod-supervise`, PodUtils/podvm#460), a lock, a socket. They close
+     /// each one, the standard ones too: they read and write none.
+     pub(crate) fn split(&self) -> std::result::Result<(), (u8, Errno)> {
 -        if !self.relay {
 +        if !self.relay || self.own {
              return Ok(());

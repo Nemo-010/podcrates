@@ -1,0 +1,6 @@
+# pod-enter: the init of a PID namespace keeps each descriptor of the caller, so a caller that waits for the end of file of its ready pipe never returns; the live test of the descriptors must fail (T-811, PodUtils/podvm#460).
+ENTRY=T-811
+GROUP=enter
+EXPECT='the init held a pipe of the caller'
+RUN='sh scripts/ci/userns-tests.sh'
+LIMIT=1800

@@ -1,0 +1,11 @@
+diff --git a/crates/pod-enter/src/ns_pid.rs b/crates/pod-enter/src/ns_pid.rs
+--- a/crates/pod-enter/src/ns_pid.rs
++++ b/crates/pod-enter/src/ns_pid.rs
+@@ -148,7 +148,6 @@ impl Pid {
+                 Ok(())
+             }
+             Ok(payload) => {
+-                let _ = sys::close_from(0);
+                 relay(payload)
+             }
+             Err(e) => Err((NS_PID_FORK_STEP, e)),

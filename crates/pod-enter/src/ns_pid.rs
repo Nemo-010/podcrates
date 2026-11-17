@@ -128,9 +128,15 @@ impl Pid {
     }
 
     /// In the child, just before the exec: fork the payload and stay as its
-    /// init or relay, with `close` closed. Returns in the payload, or where
-    /// the fork has no place. Async-signal-safe.
-    pub(crate) fn split(&self, close: &[i64]) -> std::result::Result<(), (u8, Errno)> {
+    /// init or relay. Returns in the payload, or where the fork has no
+    /// place. Async-signal-safe.
+    ///
+    /// The init and the relay never exec, so they would keep each
+    /// descriptor of the caller, also each one with close-on-exec: a pipe
+    /// whose end of file a caller waits for (the ready pipe of
+    /// `pod-supervise`, PodUtils/podvm#460), a lock, a socket. They close
+    /// each one, the standard ones too: they read and write none.
+    pub(crate) fn split(&self) -> std::result::Result<(), (u8, Errno)> {
         if !self.relay {
             return Ok(());
         }
@@ -142,9 +148,7 @@ impl Pid {
                 Ok(())
             }
             Ok(payload) => {
-                for &fd in close {
-                    let _ = sys::close(fd);
-                }
+                let _ = sys::close_from(0);
                 relay(payload)
             }
             Err(e) => Err((NS_PID_FORK_STEP, e)),

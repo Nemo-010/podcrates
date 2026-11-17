@@ -9516,3 +9516,53 @@ process in the background; a join sees `/proc/2` of the run and its own
 pid there), as root and as uid 65534, each failing with
 `pid_namespace: false`; unit tests in `src/ns_pid/tests.rs` and
 `src/ns_join/tests.rs`; five plants `enter-pid-*`.
+
+# T-811: `pod-enter`: the init of a PID namespace keeps the descriptors of the caller, so `run -d` never returns (PodUtils/podvm#460)
+
+**Source:** PodUtils/podvm#460 (COORD-167 of podvm, PodUtils/podvm@T-1930); a defect of T-806.
+**Category:** defect
+**Milestone:** M6
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+podvm took `v0.65.0` with `pid_namespace: true` for `run -d`: the
+isolation holds, but `podvm run -d` never returns. The launcher of
+`pod-supervise` reads its ready pipe to the end of file; the write end has
+close-on-exec, which an exec drops. The init of the PID namespace (T-806)
+is a fork with no exec, so it keeps each descriptor of the caller, the
+ready pipe too, until the payload ends. The relay of a join is the same.
+
+## Premise
+
+- Read: PodUtils/podvm#460; `Pid::split` in `crates/pod-enter/src/ns_pid.rs`
+  (the init closed the write end of the readiness pipe, the root and the
+  memfd alone).
+- Read: `close_range(2)` (Linux 5.9) closes a range in one call.
+
+## Approach
+
+The init and the relay close each descriptor, from 0 up, before their
+loop: they read and write none (`sys::close_from` of `pod-hostprobe`:
+`close_range`, else a close of each number). A live test: a caller that
+waits for the end of file of a pipe with close-on-exec returns while the
+payload runs, for the run and for a join; a plant.
+
+## Prove
+
+```sh
+sh scripts/ci/userns-tests.sh
+```
+
+## Done
+
+2026-11-17. `Pid::split` calls `sys::close_from(0)` in the init and in the
+relay before the loop (`close_range(0, ~0, 0)`, else a close of each
+number up to 65536, `crates/pod-hostprobe/src/sys/raw.rs`). Test:
+`the_init_of_a_pid_namespace_keeps_no_descriptor_of_the_caller` of
+`tests/userns.rs` (`pid::keeps_no_descriptor`): the end of file of a pipe
+with close-on-exec comes within 5 s while the payload of the run and the
+exec of a join run, as root and as uid 65534. Plant
+`enter-pid-init-keeps-fds`.

@@ -376,7 +376,7 @@ pub(crate) fn spawn_with(
 
             // The payload of a PID namespace forks here, under its init or
             // its relay (`ns_pid`).
-            if let Err((step, e)) = pid_ns.split(&[write_end, root_fd, fd_exec.unwrap_or(-1)]) {
+            if let Err((step, e)) = pid_ns.split() {
                 report(step, e);
             }
             // The program resolves here, in the process that changed the
