@@ -4,7 +4,7 @@ use crate::testing::{Scratch, no_in_root};
 
 fn rewrite_with(text: &str, yes: bool) -> (String, Vec<String>) {
     let mut probe = Fixed(yes);
-    rewrite(text, &mut Prober::new(&mut probe))
+    rewrite(text, false, &mut Prober::new(&mut probe))
 }
 
 /// The scheme, and nothing else: the host, the port, the path, the suite
@@ -66,7 +66,7 @@ fn the_probe_gets_the_host_and_not_the_user_part_or_an_address() {
     let mut p = Prober::new(&mut probe);
     let src = "a http://user@127.0.0.1/x\nb http://user:pw@mirror.example/y\nc http://u@0x7f000001/\n\
                d http://127.1/\ne http://evil.example\\@internal/\nf http://[::1]:8080/\n";
-    let (got, hosts) = rewrite(src, &mut p);
+    let (got, hosts) = rewrite(src, false, &mut p);
     drop(p);
     assert_eq!(asked, ["mirror.example"]);
     assert_eq!(hosts, ["mirror.example"]);
@@ -75,6 +75,42 @@ fn the_probe_gets_the_host_and_not_the_user_part_or_an_address() {
         "a http://user@127.0.0.1/x\nb https://user:pw@mirror.example/y\nc http://u@0x7f000001/\n\
          d http://127.1/\ne http://evil.example\\@internal/\nf http://[::1]:8080/\n"
     );
+}
+
+/// The `ubuntu.sources` of `ubuntu:24.04`: the URL of its comment is no
+/// source, and the probe never hears of its host (PodUtils/podvm#463).
+#[test]
+fn a_comment_and_a_field_that_is_not_uris_are_not_read() {
+    let src = "## Ubuntu distribution repository\n\
+               ## See http://help.ubuntu.com/community/UpgradeNotes for how to upgrade to\n\
+               Types: deb\n\
+               URIs: http://archive.ubuntu.com/ubuntu/\n\
+               Suites: noble noble-updates noble-backports\n\
+               Components: main universe restricted multiverse\n\
+               Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg\n\
+               \n\
+               Types: deb\n\
+               URIs:\n  http://security.ubuntu.com/ubuntu/\n\
+               Suites: noble-security\n\
+               X-Repolib-Name: see http://other.example/\n";
+    let mut asked: Vec<String> = Vec::new();
+    let mut probe = |h: &str| {
+        asked.push(h.to_string());
+        Answer::Https
+    };
+    let mut p = Prober::new(&mut probe);
+    let (got, hosts) = rewrite(src, true, &mut p);
+    drop(p);
+    assert_eq!(asked, ["archive.ubuntu.com", "security.ubuntu.com"]);
+    assert_eq!(hosts, asked);
+    let want =
+        src.replace("URIs: http://archive", "URIs: https://archive").replace("  http://security", "  https://security");
+    assert_eq!(got, want);
+    // A one-line file: a comment line stays, also after blanks.
+    let (got, hosts) =
+        rewrite_with("  # deb http://old.example/debian sid main\ndeb http://deb.debian.org/debian sid main\n", true);
+    assert_eq!(got, "  # deb http://old.example/debian sid main\ndeb https://deb.debian.org/debian sid main\n");
+    assert_eq!(hosts, ["deb.debian.org"]);
 }
 
 /// Rule 3 from end to end: a change, then a run with the fixup off, and the

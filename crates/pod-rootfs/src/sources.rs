@@ -14,6 +14,12 @@
 //! 4. **The mirror must speak HTTPS first** ([`crate::reach`]), one question
 //!    for each host; a file whose host does not stays.
 //!
+//! A URL counts only on a line that the package manager reads: never on a
+//! comment line (its first character that is not blank is `#`), and in a
+//! deb822 file (`*.sources`) only in its `URIs:` field. A comment such as
+//! `# See http://help.ubuntu.com/...` of Ubuntu's `ubuntu.sources` is no
+//! source, and a probe of its host is a request that the payload never makes.
+//!
 //! An address and a loopback name are never changed: a mirror at
 //! `http://127.0.0.1:8080` is a cache of the caller, and `https://` there is
 //! a refused connection.
@@ -106,7 +112,7 @@ fn run(root: &Root, settings: &Settings, probe: &mut dyn Probe) -> Result<Vec<Fi
         let Some(text) = root.read_text(&path)? else {
             continue;
         };
-        let (new, hosts) = rewrite(&text, &mut prober);
+        let (new, hosts) = rewrite(&text, path.ends_with(".sources"), &mut prober);
         if hosts.is_empty() {
             continue;
         }
@@ -166,10 +172,47 @@ fn host_of(authority: &str) -> Option<&str> {
 /// option around them stay. Only a DNS name is asked about
 /// ([`is_name`]): an address, a loopback name or a text that is not a name
 /// stays `http://`, also behind a user part (`http://user@127.0.0.1/`).
-pub(crate) fn rewrite(text: &str, prober: &mut Prober<'_>) -> (String, Vec<String>) {
+/// Only the lines that [`read`] gives are read; `deb822` is a file of
+/// stanzas (`*.sources`).
+pub(crate) fn rewrite(text: &str, deb822: bool, prober: &mut Prober<'_>) -> (String, Vec<String>) {
     let mut out = String::with_capacity(text.len());
     let mut hosts: Vec<String> = Vec::new();
-    let mut rest = text;
+    let mut field = String::new();
+    for line in text.split_inclusive('\n') {
+        if read(line, deb822, &mut field) {
+            rewrite_line(line, prober, &mut out, &mut hosts);
+        } else {
+            out.push_str(line);
+        }
+    }
+    (out, hosts)
+}
+
+/// Whether the package manager reads a URL of `line`: not a comment line,
+/// and in a deb822 file a line of the field `URIs` (its first line, or a
+/// line that continues it). `field` is the field of the line before.
+fn read(line: &str, deb822: bool, field: &mut String) -> bool {
+    let body = line.trim_start();
+    if body.starts_with('#') {
+        return false;
+    }
+    if !deb822 {
+        return true;
+    }
+    if body.is_empty() {
+        field.clear();
+        return false;
+    }
+    // A line that starts with a blank continues the field before it.
+    if !line.starts_with([' ', '\t']) {
+        *field = line.split_once(':').map_or("", |(name, _)| name).trim().to_ascii_lowercase();
+    }
+    field == "uris"
+}
+
+/// [`rewrite`] of one line that the package manager reads, into `out`.
+fn rewrite_line(line: &str, prober: &mut Prober<'_>, out: &mut String, hosts: &mut Vec<String>) {
+    let mut rest = line;
     while let Some(at) = rest.find("http://") {
         out.push_str(&rest[..at]);
         let after = &rest[at + "http://".len()..];
@@ -190,7 +233,6 @@ pub(crate) fn rewrite(text: &str, prober: &mut Prober<'_>) -> (String, Vec<Strin
         rest = &after[end..];
     }
     out.push_str(rest);
-    (out, hosts)
 }
 
 /// The original of `rel`: one flat directory, with `%` and `/` escaped.
