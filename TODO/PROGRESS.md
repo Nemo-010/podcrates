@@ -5,16 +5,13 @@
 ## State
 
 - `docs/HANDOFF.md` has what is in flight and what waits.
-- Last release: `v0.68.0` at `4efa604` (`docs/releases/v0.68.0.md`; ci
-  44049442746, adoption 44049442885 and plants 44049442663 at `4efa604`,
-  the release dry run 44056193769, the release 44056852486): T-845
-  (PodUtils/podssh#300), T-847 and T-848 (PodUtils/podssh#302), T-844
-  (PodUtils/podssh#298), T-840 and T-841 (PodUtils/podssh#297), T-846
-  (PodUtils/podvm#463), T-385, T-378, T-819 (part), T-823 (part), T-843,
-  T-029 (part). The hand-off is COORD-129 (#219). `v0.67.0` (`1d7e983`)
-  has COORD-128 (#218); `v0.66.0` (`b317117`) has COORD-126 (#216);
-  `v0.65.0` (`4122f39`) has COORD-125 (#215); `v0.64.0` (`6a965ef`) has
-  COORD-124 (#214).
+- Last release: `v0.69.0` at `d85f2d2` (`docs/releases/v0.69.0.md`; ci
+  44069252208 at `d85f2d2`, adoption 44069224819 at `5377c17`, plants
+  44068594101 at `c953f56`, the release dry run 44078238563, the release
+  44079616476): T-029 (the API for podnet's take of `pod-cloudflare`, its
+  trial, the comments), T-849, T-850, T-838 (part), T-854, T-855, C776
+  (T-852). The hand-off is COORD-130 (#220). `v0.68.0` (`4efa604`) has
+  COORD-129 (#219); `v0.67.0` (`1d7e983`) has COORD-128 (#218).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.68.0` (`94c01b0`, PodUtils/podssh#303: 3619 tests; the

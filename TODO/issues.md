@@ -224,5 +224,6 @@ kinds and the rules.
 | #217 | coord | COORD-127: the dig study and the relay role: two speeds of `podssh relay serve`, and five ideas for the server (to podssh) | closed | T-813, T-829 |
 | #218 | coord | COORD-128: v0.67.0: a route to a Unix socket (podssh#295), the renewal against the default relay (podssh#294), the remote port of localhost.run (podnet#607), a durable replace of a file (to all) | open | T-836, T-834, T-839, T-192, T-837 |
 | #219 | coord | COORD-129: v0.68.0: a relay's liveness offer (podssh#300), the headers of Cloudflare Access (podssh#302), a Unix route on Windows (podssh#298), new roots and one rsa (podssh#297), the source fixup reads no comment (podvm#463) (to all) | open | T-845, T-847, T-848, T-844, T-840, T-841, T-846 |
+| #220 | coord | COORD-130: v0.69.0: pod-cloudflare for podnet's take, one clean text of a peer, the hosts of GitHub Actions, two advisories ignored (to all) | open | T-029, T-850, T-849, T-854, T-855, T-852 |
 
 #79 to #81 are pull requests.

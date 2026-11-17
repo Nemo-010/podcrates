@@ -19,18 +19,15 @@ is done. Git and the record keep finished work.
    on COORD-125 (#215), and of `v0.66.0` on COORD-126 (#216): amend the body, and close it when each consumer took its
    part. `v0.65.0` holds T-806, T-805, T-801, T-797, T-807, T-808 and the
    trial of `pod-iroh` (T-810).
-3. `v0.68.0` is out at `4efa604`; its hand-off is COORD-129 (#219), and
-   `v0.67.0` (`1d7e983`) has COORD-128 (#218). Record each take on them.
-   #219 answers PodUtils/podssh#300 (T-845), PodUtils/podssh#302 (T-847,
-   T-848), PodUtils/podssh#298 (T-844), PodUtils/podssh#297 (T-840, T-841)
-   and PodUtils/podvm#463 (T-846). The next tag holds T-838 (part), the
-   trial of `pod-cloudflare` in podnet and its five changes of the API
-   (T-029): its hand-off tells podnet to take the crate, with
-   `cargo update -p webpki-roots`, and gives the three findings for podnet
-   that #219 lists.
-4. T-029 (`pod-cloudflare`, P1, partial): the trial of podnet is on
-   `main`; the `adoption` workflow must pass it. Then the comments in
-   ASD-STE100, T-849 (the watches that podnet ran) and T-850.
+3. `v0.69.0` is out at `d85f2d2`; its hand-off is COORD-130 (#220), and
+   `v0.68.0` (`4efa604`) has COORD-129 (#219), taken by podssh, podnet
+   and podvm. Record each take. #220 asks podnet to take `pod-cloudflare`
+   by the trial's patch. The next tag holds T-857 (PodUtils/podvm#467),
+   T-858 (PodUtils/podnet#608) and T-120 (PodUtils/podssh#304): answer
+   each on its hand-off.
+4. T-029 (`pod-cloudflare`, P1, partial): the crate waits for podnet's
+   take (#220); then remove `adoption/podnet/pod-cloudflare.*` and close
+   the entry. T-851 (the pin of cloudflared) and T-853 stay.
 5. Read the scheduled nightly: T-789 (armv7) and T-766 (riscv64) are the
    jobs that stayed red; a new red job needs an entry.
 6. T-767 (PodUtils/podssh#283, P1, partial): the seventh failure shows
