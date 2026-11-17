@@ -10,6 +10,7 @@
 //! * [`exit_codes`]: each exit code that the program gives has a fact, and
 //!   each fact of one code is a code that it gives.
 //! * [`flags`]: each command and flag of the model against the parser.
+//! * [`examples`]: each example of the program against its parser.
 //! * [`model`]: each rule names flags of its command, a need of one of
 //!   names two or more, and each name selects one section.
 
@@ -19,8 +20,10 @@ use std::path::{Path, PathBuf};
 use crate::model::{Manual, Rule};
 use crate::rules::Kind;
 
+mod examples;
 mod walk;
 
+pub use examples::examples;
 pub use walk::texts;
 
 /// One finding of a check.
