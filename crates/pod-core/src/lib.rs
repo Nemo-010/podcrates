@@ -31,6 +31,7 @@ pub mod files;
 #[cfg(feature = "async")]
 pub mod metered;
 pub mod names;
+pub mod pick;
 pub mod text;
 
 #[cfg(feature = "async")]
