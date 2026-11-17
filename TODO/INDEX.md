@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**668 entries: 135 open, 16 partial, 7 blocked, 510 done.**
+**668 entries: 134 open, 16 partial, 7 blocked, 511 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
 | P2 | 55 | 4 | 4 | 263 | 326 |
-| P3 | 69 | 4 | 3 | 98 | 174 |
-| **All** | 135 | 16 | 7 | 510 | 668 |
+| P3 | 68 | 4 | 3 | 99 | 174 |
+| **All** | 134 | 16 | 7 | 511 | 668 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -712,6 +712,6 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-830](fleet.md) | P3 | M | M8 | feature | open | Updates: a gate of health with a rollback, a check of loadability, a store of logs, scheduled updates, a floor of rollback in the feed (report 15 of the dig study, with T-104) |
 | [T-831](foundation.md) | P3 | S | M0 | feature | done | `pod-core`: one table of the loopback addresses that a process takes, with a test that it can fail |
 | [T-832](fleet.md) | P3 | L | M8 | research | blocked | The intake of the dig study for podswarm: NAT traversal, a DHT, gossip, sealed messages, content addressing, storage, sealed secrets |
-| [T-833](fleet.md) | P3 | S | M8 | feature | open | `pod-control`: a test that the catalogue is the dispatch, tiers of surfaces, a budget of callbacks (reports 03, 11, 12 of the dig study, with T-103) |
+| [T-833](fleet.md) | P3 | S | M8 | feature | done | `pod-control`: a test that the catalogue is the dispatch, tiers of surfaces, a budget of callbacks (reports 03, 11, 12 of the dig study, with T-103) |
 | [T-834](relay.md) | P2 | S | M2 | defect | done | `pod-relay`: a renewal reads the default relay's `400` for an unknown reverse path as an error, not as no renewal (PodUtils/podssh#294) |
 | [T-835](relay.md) | P3 | S | M2 | measurement | open | `pod-relay`: the cost of a move of a session for a copy on the default relay |

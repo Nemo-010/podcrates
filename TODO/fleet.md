@@ -152,6 +152,13 @@ JSON lines with a schema version in each answer. The methods `version`, `status`
 `drain` and `stop`. One error code for an unknown method. A check of the peer user. A Unix socket and a
 Windows named pipe. The JSON Schema goes to `schemas/`. A conformance test that a consumer runs.
 
+From the dig study (T-833; reports 03, 11 and 12, `docs/research/dig-study.md`):
+
+- One catalogue of methods, an enum with the wire name, the routing (local or delegated), a summary and the tier of each method. The dispatch routes on it, and an unknown name gets the one error code. Tests in both directions: each method in the catalogue is served, and each served method is in the catalogue; the local and the delegated sets do not overlap. Discovery and the JSON Schema are made from the catalogue.
+- A tier for each method (read, operate, the master token). A refusal does not tell that a control method exists to a caller of a lower tier. A method whose effect outlives its token (a new principal, a kept forward target) takes the highest tier.
+- A duplex frame: a line transport with one cap of length, a check of UTF-8 and an outcome for a line that is too long; requests of the service on the same connection, demultiplexed by id; a budget of callbacks for each request and a total for each connection, then a fault; a read timeout.
+- Plants: a method that is served and not in the catalogue, a lower tier for a master method, a raised budget.
+
 ## Prove
 
 ```sh
@@ -5103,7 +5110,7 @@ The ruling "podswarm" (`docs/decisions.md`): an ask that helps podswarm alone wa
 **Milestone:** M8
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -5122,3 +5129,7 @@ Take the three into the scope of T-103 when it starts.
 ```sh
 cargo todo check
 ```
+
+## Done
+
+2026-11-17. The Approach of T-103 now names the three: one catalogue of methods with tests in both directions that it is the dispatch, a tier for each method with a refusal that does not tell of a control method, and a duplex frame with a budget of callbacks for each request and for each connection and a read timeout; and the plants that prove them. The code comes with T-103 (P1, M8).
