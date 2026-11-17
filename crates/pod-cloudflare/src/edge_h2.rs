@@ -25,6 +25,7 @@ mod serve;
 pub use leg::*;
 use scan::*;
 use serve::*;
+pub use serve::{MAX_CONFIGURATION, body_reader, body_writer, serve_connection};
 
 use std::net::SocketAddr;
 use std::sync::Arc;

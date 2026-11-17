@@ -214,7 +214,10 @@ pub async fn reactor(
             tokio::select! {
                 _ = shutdown.changed() => {
                     control.shutdown_graceful(grace).await;
+                    // The connection closes when the aborted task ends:
+                    // after the shutdown, no connection of the leg is open.
                     serve.abort();
+                    let _ = serve.await;
                     return None;
                 }
                 reason = &mut draining => {
