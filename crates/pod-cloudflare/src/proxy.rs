@@ -1,9 +1,11 @@
-//! Inbound tunnel streams: parse the edge framing and dispatch to a service.
+//! Inbound tunnel streams: parse the edge framing and send each stream to a
+//! service.
 //!
-//! One QUIC stream carries one request. After the `ConnectRequest` preamble the
-//! stream is either HTTP (an HTTP/1.1 request goes to the origin and the
-//! response comes back) or raw TCP (byte pump). The services of the consumer
-//! (static files, shares) get the request through [`crate::ServiceDispatch`].
+//! One QUIC stream carries one request. After the `ConnectRequest` preamble,
+//! the stream is HTTP or raw TCP. With HTTP, an HTTP/1.1 request goes to the
+//! origin and the response comes back. With raw TCP, the bytes are copied.
+//! The services of the consumer (static files, shares) get the request
+//! through [`crate::ServiceDispatch`].
 
 use std::sync::Arc;
 
@@ -46,9 +48,9 @@ pub struct Runtime {
 }
 
 impl Runtime {
-    /// Prepare each rule of `ingress`. A service of the consumer that cannot
-    /// be built (a missing directory, a missing file) stops here, so the
-    /// tunnel never starts half-configured.
+    /// Prepare each rule of `ingress`. A service of the consumer that the
+    /// consumer cannot build (a missing directory, a missing file) stops
+    /// here. Thus the tunnel never starts with only a part of its services.
     pub fn build(host: Arc<Host>, ingress: &Ingress, metrics: Metrics) -> Result<Self> {
         for (index, rule) in ingress.rules.iter().enumerate() {
             if matches!(rule.service, Service::Static { .. } | Service::Custom(_)) {
@@ -75,7 +77,7 @@ impl Runtime {
     }
 }
 
-/// Handle one inbound stream. Errors are logged, never propagated to the edge.
+/// Handle one inbound stream. An error goes to the log, never to the edge.
 pub async fn serve_stream(
     runtime: Arc<Runtime>,
     ingress: Arc<Ingress>,

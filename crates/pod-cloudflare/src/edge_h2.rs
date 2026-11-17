@@ -215,18 +215,19 @@ pub const CONNECTION_WINDOW: u32 = 1 << 24;
 /// The smallest DATA frame of a visitor: a WebSocket frame with no
 /// payload, a header of 2 bytes and a mask of 4 (RFC 6455, section 5.2).
 const SMALLEST_FRAME: usize = 6;
-/// h2's budget of small DATA frames that wait unread. h2 counts, for each
-/// frame under 256 bytes, 256 bytes less its size until the reader takes
-/// it, and past the budget it ends the connection with ENHANCE_YOUR_CALM,
-/// and each visitor's stream with it. Its default (half the connection
-/// window, 8 MiB) is about 43,000 unread frames of 60 bytes: a few visitors
-/// whose origin reads slowly ended the connection of all visitors. This
-/// budget holds the whole window in the smallest frames, so the windows
-/// stop the edge first.
+/// The budget of h2 for small DATA frames that wait unread. For each frame
+/// under 256 bytes, h2 counts 256 bytes less its size until the reader takes
+/// it. Past the budget, h2 ends the connection with ENHANCE_YOUR_CALM, and
+/// the stream of each visitor with it. The default of h2 (half the
+/// connection window, 8 MiB) is about 43,000 unread frames of 60 bytes. With
+/// it, a few visitors whose origin reads slowly end the connection of all
+/// visitors. This budget holds the full window in the smallest frames, so
+/// the windows stop the edge first.
 pub const DATA_FRAME_BUDGET: usize = CONNECTION_WINDOW as usize / SMALLEST_FRAME * (256 - SMALLEST_FRAME);
 const _: () = assert!(DATA_FRAME_BUDGET >= CONNECTION_WINDOW as usize / 60 * (256 - 60));
 
-/// HTTP/2 as the client serves its connection to the edge.
+/// The HTTP/2 settings with which the client serves its connection to the
+/// edge.
 pub fn server_builder() -> h2::server::Builder {
     let mut builder = h2::server::Builder::new();
     builder
@@ -248,7 +249,7 @@ pub struct Budget {
 
 impl Budget {
     /// The budget of an edge connection through the relay of `context`:
-    /// under the limits of the relay in use, as a forward session's
+    /// under the limits of the relay in use, as for a forward session
     /// (`pod_relay::relay::byte_budget`, `time_budget`). Gives the budget,
     /// its signal and its bytes.
     fn relay(context: &pod_relay::Context) -> (Self, Arc<tokio::sync::Notify>, u64) {

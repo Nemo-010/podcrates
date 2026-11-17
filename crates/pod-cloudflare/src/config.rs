@@ -63,8 +63,8 @@ struct CredentialsJson {
     tunnel_secret: String,
 }
 
-/// Decode a named-tunnel token. Cloudflare emits standard base64 of the JSON
-/// envelope; the secret inside is base64 as well.
+/// Decode a named-tunnel token. Cloudflare gives the JSON envelope in standard
+/// base64. The secret in the envelope is also base64.
 pub fn parse_token(token: &str) -> Result<Credentials> {
     let token = token.trim();
     let raw = decode_b64(token).context("token is not valid base64")?;
@@ -103,8 +103,8 @@ fn decode_b64(value: &str) -> Result<Vec<u8>> {
     )
 }
 
-/// Edge transport. QUIC is implemented; HTTP/2 is accepted for compatibility
-/// but currently returns a clear error at start.
+/// The edge protocol (`--protocol`): `auto`, `quic` or `http2`. The leg plan
+/// of the tunnel reads it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Protocol {
     #[default]
@@ -123,7 +123,8 @@ impl Protocol {
         }
     }
 
-    /// The transport actually used. `auto` prefers QUIC.
+    /// The protocol of the value: `auto` gives QUIC, the first protocol that
+    /// `auto` tries.
     pub fn resolved(self) -> Protocol {
         match self {
             Protocol::Auto => Protocol::Quic,
@@ -132,22 +133,23 @@ impl Protocol {
     }
 }
 
-/// How the connection to the tunnel edge is carried.
+/// The carrier of the connection to the tunnel edge.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum Transport {
-    /// Dial the edge directly on port 7844. Fast, and what `cloudflared` does.
+    /// Dial the edge directly on port 7844. This is fast, and `cloudflared`
+    /// does it.
     Direct,
-    /// Carry the edge connection inside a WARP MASQUE tunnel on TCP 443, so the
-    /// host never has to reach port 7844 at all.
+    /// Carry the edge connection in a WARP MASQUE tunnel on TCP 443. Then the
+    /// host does not connect to port 7844.
     Warp,
-    /// Decide from the host: direct when the edge answers on 7844, WARP when it
-    /// does not. The default, so a quick tunnel works on an egress that permits
-    /// only 443 without the caller having to know which network it is on.
+    /// Decide from the host: direct when the edge answers on 7844, else WARP.
+    /// This is the default. Thus a quick tunnel works on an egress that
+    /// permits only 443, and the caller does not have to know the network.
     #[default]
     Auto,
-    /// Carry the HTTP/2 leg in a WebSocket to a relay on TCP 443, which opens
-    /// TCP to the edge (`crate::ws_relay`). For a host whose proxy carries
-    /// only port 443 and no WARP.
+    /// Carry the HTTP/2 leg in a WebSocket to a relay on TCP 443. The relay
+    /// opens TCP to the edge ([`crate::host::EdgeRelay`]). For a host whose
+    /// proxy carries only port 443 and no WARP.
     Relay,
 }
 
@@ -176,7 +178,7 @@ impl std::fmt::Display for Transport {
     }
 }
 
-/// Reconnect behaviour when the edge drops a connection.
+/// What a leg does when the edge drops a connection.
 ///
 /// A leg tries again after each network error, with no limit by default:
 /// after a network loss of any length, the tunnel serves again. The delay
@@ -254,7 +256,7 @@ impl ReconnectPolicy {
     }
 }
 
-/// Everything needed to run a tunnel.
+/// All that is necessary to run a tunnel.
 #[derive(Clone, Debug)]
 pub struct Config {
     pub service_url: String,
@@ -292,7 +294,7 @@ impl Default for Config {
 }
 
 impl Config {
-    /// A single catch-all HTTP service.
+    /// One catch-all HTTP service.
     pub fn with_service(service: Service) -> Self {
         Config { ingress: Ingress::default().catch_all(service), ..Config::default() }
     }

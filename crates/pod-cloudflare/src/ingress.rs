@@ -1,4 +1,4 @@
-//! Ingress: which local service answers which public hostname/path.
+//! Ingress: the local service that answers each public hostname and path.
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -51,7 +51,7 @@ impl ForwardTarget {
     }
 }
 
-/// A local service the tunnel can expose.
+/// A local service that the tunnel can expose.
 #[derive(Clone, Debug)]
 pub enum Service {
     /// An `http://` or `https://` origin.
@@ -60,19 +60,20 @@ pub enum Service {
     Unix(PathBuf),
     /// An HTTPS origin on a filesystem socket.
     UnixTls(PathBuf),
-    /// A raw TCP origin (`tcp://host:port`), proxied byte-for-byte.
+    /// A raw TCP origin (`tcp://host:port`). The proxy copies it byte for
+    /// byte.
     Tcp(String),
     /// A WebSocket endpoint that bridges each connection to a raw stream.
     Forward(ForwardTarget),
-    /// cloudflared's built-in hello world.
+    /// The built-in hello world of cloudflared.
     HelloWorld,
     /// A fixed status code.
     Status(u16),
-    /// A directory served from disk (a `spa` fallback serves index.html;
+    /// A directory on the disk (a `spa` fallback serves index.html;
     /// with `tar`, `DIR/?tar` gives a directory as one tar stream). The
     /// consumer serves it ([`crate::ServiceDispatch`]).
     Static { root: PathBuf, spa: bool, tar: bool },
-    /// Prometheus metrics for this tunnel.
+    /// The Prometheus metrics of this tunnel.
     Metrics,
     /// A service of the consumer, which its [`crate::ServiceDispatch`]
     /// serves.
@@ -96,8 +97,8 @@ impl std::fmt::Debug for Custom {
 }
 
 impl Service {
-    /// Parse a cloudflared-style service string, plus extensions of the consumer
-    /// (`static:` / `spa:` / `metrics`).
+    /// Parse a service string as cloudflared writes it, and the extensions
+    /// of the consumer (`static:` / `spa:` / `metrics`).
     pub fn parse(value: &str) -> Result<Self> {
         let value = value.trim();
         if value.starts_with("http://") || value.starts_with("https://") {
@@ -159,14 +160,14 @@ impl Service {
         }
     }
 
-    /// Raw-TCP services bypass the HTTP layer entirely.
+    /// A raw TCP service does not use the HTTP layer.
     pub fn is_tcp(&self) -> bool {
         matches!(self, Service::Tcp(_))
     }
 }
 
-/// Per-rule origin tuning, mirroring the useful subset of cloudflared's
-/// `originRequest`.
+/// The origin settings of one rule: the useful subset of the
+/// `originRequest` of cloudflared.
 #[derive(Clone, Debug, Default)]
 pub struct OriginOptions {
     pub no_tls_verify: bool,
@@ -175,8 +176,8 @@ pub struct OriginOptions {
     pub tls_timeout: Option<Duration>,
     pub keep_alive_timeout: Option<Duration>,
     pub disable_chunked_encoding: bool,
-    /// Drop `Accept-Encoding` before the request reaches the origin. An
-    /// uncompressed response cannot be buffered by the edge, which matters for
+    /// Drop `Accept-Encoding` before the request gets to the origin. The edge
+    /// cannot buffer a response with no compression. This is important for
     /// streaming (SSE over POST, long-poll).
     pub strip_accept_encoding: bool,
 }
@@ -385,18 +386,18 @@ impl Ingress {
         self.rules.is_empty()
     }
 
-    /// First matching rule for a request, in declaration order.
+    /// The first rule that matches a request, in the order of declaration.
     pub fn resolve(&self, hostname: &str, path: &str) -> Option<&IngressRule> {
         self.rules.iter().find(|rule| rule.matches(hostname, path))
     }
 
-    /// Index of the first matching rule.
+    /// The index of the first rule that matches.
     pub fn resolve_index(&self, hostname: &str, path: &str) -> Option<usize> {
         self.rules.iter().position(|rule| rule.matches(hostname, path))
     }
 }
 
-// ── YAML parsing (cloudflared-compatible subset) ─────────────────────────────
+// ── YAML parsing (the subset of cloudflared) ─────────────────────────────────
 
 /// The keys of an ingress rule.
 pub const RULE_KEYS: &[&str] = &["hostname", "path", "service", "originRequest"];
@@ -441,7 +442,7 @@ fn parse_duration(value: &Option<String>) -> Option<Duration> {
     humantime(value).ok()
 }
 
-/// Minimal `30s` / `1m` / `500ms` parser.
+/// A minimal parser of `30s`, `1m` and `500ms`.
 fn humantime(value: &str) -> Result<Duration> {
     let value = value.trim();
     let (number, unit) =

@@ -1,23 +1,23 @@
-//! Provision an anonymous Cloudflare "quick tunnel", the way `cloudflared` does.
+//! Provision an anonymous Cloudflare "quick tunnel", as `cloudflared` does.
 //!
-//! # What this reproduces
+//! # What this module does again
 //!
-//! `cloudflared tunnel --url ...` calls `POST https://api.trycloudflare.com/tunnel`
-//! with an empty body and **no credentials of any kind**. The response carries a
-//! tunnel id, an account tag, a 32-byte secret (base64 in JSON) and the public
-//! hostname. The request is plain HTTPS on port 443.
+//! `cloudflared tunnel --url ...` sends `POST https://api.trycloudflare.com/tunnel`
+//! with an empty body and **no credentials**. The response has a tunnel id, an
+//! account tag, a 32-byte secret (base64 in JSON) and the public hostname. The
+//! request is plain HTTPS on port 443.
 //!
 //! References in the `cloudflared` source:
 //!
-//! * `cmd/cloudflared/tunnel/quick_tunnel.go` - `RunQuickTunnel` performs the
-//!   POST; `QuickTunnelResponse` is the response shape.
-//! * `cmd/cloudflared/tunnel/cmd.go` - `quick-service` defaults to
+//! * `cmd/cloudflared/tunnel/quick_tunnel.go` - `RunQuickTunnel` sends the
+//!   POST; `QuickTunnelResponse` is the shape of the response.
+//! * `cmd/cloudflared/tunnel/cmd.go` - the default of `quick-service` is
 //!   `https://api.trycloudflare.com`.
-//! * `quicktunnelauth` - when an email allow-list is requested the client sends
-//!   `{"auth_mode":"otp"}` instead of an empty body. The allow-list itself never
-//!   leaves the client; Cloudflare only learns that OTP is required.
+//! * `quicktunnelauth` - with an email allow-list, the client sends
+//!   `{"auth_mode":"otp"}` in place of an empty body. The allow-list stays on
+//!   the client. Cloudflare only gets the information that OTP is necessary.
 //!
-//! # What this does NOT do
+//! # What this module does NOT do
 //!
 //! It does not open the tunnel edge connection. See [`crate::tunnel`].
 
@@ -36,31 +36,32 @@ pub use retry::parse_retry_after;
 
 pub use crate::services::default_quick_service;
 
-/// The anonymous provisioning response. Only the fields the crate uses are modelled;
-/// cloudflared's `QuickTunnel` also carries `name`, which is unused here.
+/// The anonymous provisioning response, with only the fields that the crate
+/// uses. The `QuickTunnel` of cloudflared also has `name`; the crate does not
+/// use it.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct QuickTunnel {
-    /// Tunnel UUID.
+    /// The tunnel UUID.
     pub id: String,
-    /// The public hostname, e.g. `foo-bar.trycloudflare.com`.
+    /// The public hostname, for example `foo-bar.trycloudflare.com`.
     pub hostname: String,
-    /// Hex account tag the tunnel is billed/attributed to.
+    /// The hex tag of the account of the tunnel.
     pub account_tag: String,
-    /// Base64-encoded 32-byte tunnel secret. Sent to the edge verbatim by
-    /// cloudflared (`connection.Credentials.TunnelSecret`), not hashed.
+    /// The 32-byte tunnel secret in base64. cloudflared sends it to the edge
+    /// as it is (`connection.Credentials.TunnelSecret`), with no hash.
     pub secret: String,
 }
 
 impl QuickTunnel {
-    /// The public URL for this tunnel.
+    /// The public URL of this tunnel.
     pub fn url(&self) -> String {
         format!("https://{}", self.hostname)
     }
 
     /// The raw secret bytes, decoded from base64.
     ///
-    /// This is the value cloudflared puts on the wire as `TunnelAuth.tunnelSecret`
-    /// without any hashing step, so a reimplementation must not transform it.
+    /// cloudflared puts this value on the wire as `TunnelAuth.tunnelSecret`,
+    /// with no hash. Thus a new implementation must not change it.
     pub fn secret_bytes(&self) -> Result<Vec<u8>, Failure> {
         decode_base64(&self.secret).ok_or_else(|| {
             let text = format!("tunnel secret is not valid base64 ({} bytes of text)", self.secret.len());
@@ -69,7 +70,7 @@ impl QuickTunnel {
     }
 }
 
-/// Top-level envelope: `{"success":bool,"result":{...},"errors":[...]}`.
+/// The top-level envelope: `{"success":bool,"result":{...},"errors":[...]}`.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct QuickTunnelResponse {
     pub success: bool,
@@ -87,22 +88,23 @@ pub struct QuickTunnelError {
     pub message: String,
 }
 
-/// How the tunnel should be authenticated for visitors.
+/// The authentication of the visitors of the tunnel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthMode {
-    /// Anyone with the URL can reach the origin. Empty request body.
+    /// Each person with the URL can get to the origin. The request body is
+    /// empty.
     Public,
-    /// Visitors must pass a one-time PIN before reaching the origin.
-    /// Request body is `{"auth_mode":"otp"}`.
+    /// A visitor must give a one-time PIN before it gets to the origin. The
+    /// request body is `{"auth_mode":"otp"}`.
     ///
-    /// Note that the allow-list is enforced by the *client*, exactly as
-    /// `cloudflared --allowed-mail` does: Cloudflare is told only that OTP is
-    /// required, never which addresses are acceptable.
+    /// The *client* applies the allow-list, as `cloudflared --allowed-mail`
+    /// does. Cloudflare only gets the information that OTP is necessary. It
+    /// never gets the addresses that are permitted.
     Otp,
 }
 
 impl AuthMode {
-    /// The request body to POST. `None` means an empty body.
+    /// The request body of the POST. `None` is an empty body.
     pub fn request_body(self) -> Option<&'static str> {
         match self {
             AuthMode::Public => None,
@@ -229,9 +231,9 @@ pub async fn provision(
     }
 }
 
-/// The public host of a quick-tunnel URL, validated against the
-/// `*.trycloudflare.com` allowlist so a hostile API response cannot point the
-/// tool at another host.
+/// The public host of a quick-tunnel URL, checked against the allowlist
+/// `*.trycloudflare.com`. Thus a hostile API response cannot send the tool to
+/// a different host.
 pub fn validate_quick_hostname(raw: &str) -> Result<String, Failure> {
     let refuse = |text: String| Failure::new(Stage::EdgeRegister, Class::Protocol, text);
     let host = raw
@@ -260,10 +262,10 @@ pub fn validate_quick_hostname(raw: &str) -> Result<String, Failure> {
     Ok(format!("https://{host}"))
 }
 
-/// Parse and validate a provisioning response body.
+/// Parse and check the body of a provisioning response.
 ///
-/// Split out from [`request_quick_tunnel`] so it can be tested against captured
-/// real responses without a live service.
+/// This function is separate from [`request_quick_tunnel`], so that a test
+/// can use recorded real responses with no live service.
 pub(crate) fn parse_quick_tunnel_response(status: u16, body: &str) -> Result<QuickTunnel, ProvisionError> {
     if !(200..300).contains(&status) {
         // The body of an error, for one line of a terminal: 1 KiB at most,
@@ -279,11 +281,11 @@ pub(crate) fn parse_quick_tunnel_response(status: u16, body: &str) -> Result<Qui
         return Err(ProvisionError::Status { code: status, body: clipped, retry_after: None });
     }
 
-    // The provisioning body carries the tunnel's `secret`, `account_tag` and `id`,
-    // which are the credentials the edge expects at registration. A decode
-    // failure therefore has a body that is mostly credentials, and this error
-    // reaches the operator's stderr and any CI log. Redact before including any
-    // of it.
+    // The provisioning body has the `secret`, the `account_tag` and the `id`
+    // of the tunnel: the credentials that the edge expects at registration.
+    // Thus the body of a decode failure is mostly credentials. This error
+    // goes to the stderr of the operator and to each CI log. Redact the body
+    // before the error includes a part of it.
     let parsed: QuickTunnelResponse =
         serde_json::from_str(body).map_err(|e| ProvisionError::Decode(format!("{e}; body was: {}", redact(body))))?;
 
@@ -294,22 +296,22 @@ pub(crate) fn parse_quick_tunnel_response(status: u16, body: &str) -> Result<Qui
     parsed.result.ok_or(ProvisionError::MissingResult)
 }
 
-/// Replace the credential-bearing fields of a provisioning body with a marker,
-/// then clip it to something readable.
+/// Replace the fields with credentials of a provisioning body with a marker.
+/// Then clip the body to a length that a person can read.
 ///
-/// A provisioning response is mostly secret: `secret` is a 32-byte base64 blob
-/// and `account_tag` identifies the account, and both are what the edge expects
-/// at registration. Including the body in an error is useful for debugging a
-/// malformed response, but including the credentials in a log is a leak its
-/// readers cannot see. So the values are replaced rather than the whole body
-/// dropped, which keeps the diagnostic and loses nothing that matters.
+/// A provisioning response is mostly secret. `secret` is a 32-byte base64
+/// blob, and `account_tag` identifies the account. The edge expects both at
+/// registration. The body in an error helps to find the cause of a bad
+/// response. But the credentials in a log are a leak that its readers cannot
+/// see. Thus the values are replaced, and the body stays. The diagnostic
+/// stays, and nothing important is lost.
 fn redact(body: &str) -> String {
     const REDACTED: &str = "<redacted>";
     let mut out = String::with_capacity(body.len());
-    // One pass over the body, checking each key at every position. The keys are
-    // few and the body is short, so matching repeatedly per key would work too,
-    // but a single cursor cannot get the boundaries wrong: `copied` is always
-    // bytes the scan has already accepted.
+    // One pass over the body, with a check of each key at each position. The
+    // keys are few and the body is short, so a pass for each key also works.
+    // But one cursor cannot get the boundaries wrong: `out` always holds
+    // bytes that the scan already accepted.
     let keys: [&str; 4] = ["secret", "account_tag", "tunnel_secret", "id"];
     let mut i = 0;
     while i < body.len() {
@@ -351,8 +353,8 @@ fn truncate(s: &str, n: usize) -> String {
     if s.len() <= n {
         s.to_string()
     } else {
-        // Clip on a character boundary: a raw byte cut can land inside a
-        // multi-byte character and panic on the next slice.
+        // Clip on a character boundary. A cut at a raw byte can fall inside a
+        // multi-byte character, and the next slice then panics.
         let mut cut = n;
         while cut > 0 && !s.is_char_boundary(cut) {
             cut -= 1;
@@ -361,10 +363,10 @@ fn truncate(s: &str, n: usize) -> String {
     }
 }
 
-/// Minimal standard base64 decoder for the tunnel secret.
+/// A minimal decoder of standard base64 for the tunnel secret.
 ///
-/// Hand-rolled rather than pulling in a dependency: the secret is standard
-/// base64 with padding, and this keeps the dependency list small.
+/// The crate has its own decoder, not a dependency: the secret is standard
+/// base64 with padding, and the list of dependencies stays small.
 fn decode_base64(input: &str) -> Option<Vec<u8>> {
     fn value(c: u8) -> Option<u8> {
         match c {

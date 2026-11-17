@@ -237,12 +237,12 @@ pub(super) async fn answer_configuration(
     Ok(())
 }
 
-/// The largest configuration push that the client reads. The client does not apply a
-/// remote configuration: it reads only the version.
+/// The largest configuration push that the client reads. The client does not
+/// apply a remote configuration: it reads only the version.
 pub const MAX_CONFIGURATION: usize = 64 * 1024;
 
 /// Read a configuration push of at most [`MAX_CONFIGURATION`] bytes in
-/// `limit` (the read had no cap and no time limit).
+/// `limit`. The cap and the time limit stop an edge that sends with no end.
 pub(super) async fn read_configuration<R: AsyncRead + Unpin>(reader: R, limit: Duration) -> Result<Vec<u8>> {
     let mut text = Vec::new();
     let mut reader = reader.take(MAX_CONFIGURATION as u64 + 1);

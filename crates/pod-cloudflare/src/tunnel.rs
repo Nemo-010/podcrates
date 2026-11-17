@@ -38,7 +38,7 @@ pub use verify::Verified;
 use verify::{VERIFY_BUDGET, VERIFY_INTERVAL, verify_fetch};
 use warp_targets::{EndpointSource, WarpLink, warp_targets};
 
-/// Fluent builder for a [`Tunnel`] over the [`Host`] of the consumer.
+/// The builder of a [`Tunnel`] over the [`Host`] of the consumer.
 pub struct TunnelBuilder {
     config: Config,
     host: Arc<Host>,
@@ -163,7 +163,8 @@ impl Tunnel {
         TunnelBuilder::token(host, token)
     }
 
-    /// Provision/load credentials, register with the edge and start serving.
+    /// Get the credentials (provision or load), register with the edge, and
+    /// start to serve.
     pub async fn start(self) -> Result<TunnelHandle> {
         let host = self.host;
         let Config {

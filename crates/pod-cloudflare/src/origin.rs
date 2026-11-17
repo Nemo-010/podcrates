@@ -144,7 +144,7 @@ async fn dial(origins: &Origins, service: &Service, options: &OriginOptions) -> 
     }
 }
 
-/// Dial a filesystem socket, optionally wrapping it in TLS.
+/// Dial a filesystem socket, with TLS when `tls` is true.
 #[cfg(unix)]
 async fn dial_unix(origins: &Origins, path: &std::path::Path, tls: bool, options: &OriginOptions) -> Result<BoxedIo> {
     let unverified = match tls && options.no_tls_verify {
@@ -224,7 +224,7 @@ impl Origins {
     }
 }
 
-/// Convenience: the origin path for a service, used by logs.
+/// The origin path of a service, for the logs.
 pub fn origin_label(service: &Service) -> String {
     match service {
         Service::Unix(path) => format!("unix:{}", path.display()),
@@ -234,8 +234,8 @@ pub fn origin_label(service: &Service) -> String {
 }
 
 /// The addresses of a name of RFC 6761 for this host: `localhost` and
-/// `*.localhost` (a static build on a host with no /etc/hosts
-/// did not resolve `localhost`).
+/// `*.localhost`. With no such rule, a static build on a host with no
+/// /etc/hosts does not resolve `localhost`.
 pub fn local_name(host: &str) -> Option<Vec<std::net::IpAddr>> {
     let name = host.trim_end_matches('.').to_ascii_lowercase();
     (name == "localhost" || name.ends_with(".localhost"))

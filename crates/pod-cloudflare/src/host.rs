@@ -1,6 +1,7 @@
 //! What the consumer gives the tunnel: the TLS of the binary, the way out,
 //! the resolver, its own services, the relay and WARP, and the settings
-//! (section 1, rules 4 to 7 and 10). The crate keeps no process state.
+//! (`docs/design.md`, section 1, rules 4 to 7 and 10). The crate keeps no
+//! process state.
 
 use std::net::SocketAddr;
 use std::sync::Arc;

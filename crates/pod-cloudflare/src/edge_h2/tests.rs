@@ -81,7 +81,8 @@ fn serializes_response_headers_for_the_edge() {
 
 /// Visitors whose origin reads nothing send small WebSocket frames until
 /// the windows stop the edge. The connection must stay up and serve a
-/// new visitor (before: ENHANCE_YOUR_CALM ended it, and each visitor).
+/// new visitor. With the default budget of h2, ENHANCE_YOUR_CALM ends it,
+/// and each visitor with it.
 #[tokio::test(flavor = "multi_thread")]
 async fn small_frames_of_slow_visitors_do_not_end_the_connection() {
     use crate::ingress::{ForwardTarget, IngressRule, OriginOptions, Service};

@@ -1,23 +1,23 @@
-//! Edge discovery that works without a system resolver.
+//! Edge discovery that works with no system resolver.
 //!
-//! `cloudflared` finds the tunnel edge by resolving
-//! `_v2-origintunneld._tcp.argotunnel.com`, which returns the regional names
-//! and port 7844. A sealed sandbox usually has no working resolver: every
-//! nameserver in `/etc/resolv.conf` is unreachable, and DNS over TLS on 853 is
-//! blocked as well. The lookup therefore runs over HTTPS instead: Cloudflare's
-//! DNS-over-HTTPS endpoint answers the same SRV and address records on TCP 443,
-//! which is the one egress such a host has.
+//! `cloudflared` finds the tunnel edge with a lookup of
+//! `_v2-origintunneld._tcp.argotunnel.com`. The answer gives the regional
+//! names and port 7844. A closed sandbox usually has no resolver that works:
+//! no nameserver in `/etc/resolv.conf` answers, and DNS over TLS on 853 is
+//! also blocked. Thus the lookup uses HTTPS: the DNS-over-HTTPS endpoint of
+//! Cloudflare answers the same SRV and address records on TCP 443. That is
+//! the one egress of such a host.
 //!
-//! Order of attempts:
+//! The order of the attempts:
 //!
 //! 1. DoH of the resolver of the host ([`crate::Host::resolver`]), through
-//!    the proxy when one is configured.
+//!    the proxy when the host has one.
 //! 2. The system resolver of the consumer ([`crate::host::SystemSrv`]).
-//! 3. A short list of anycast addresses, for a host where DNS is entirely
-//!    unusable. These are a last resort and are labelled as such.
+//! 3. A short list of anycast addresses, for a host where no DNS works. This
+//!    list is the last option, and its label tells so.
 //!
-//! The port comes from the SRV record, not from a constant, so a future change
-//! at Cloudflare is followed rather than guessed. An SRV answer of another
+//! The port comes from the SRV record, not from a constant. Thus the crate
+//! follows a change at Cloudflare and does not guess. An SRV answer of another
 //! shape (more than two targets, a target outside `argotunnel.com`, two
 //! ports) is not used: the crate takes [`fixed_targets`] and says why.
 //!
@@ -37,17 +37,17 @@ use pod_core::{Class, Stage};
 /// The time of one step of the chain of resolvers.
 const STEP_TIMEOUT: Duration = Duration::from_secs(5);
 
-/// The SRV record cloudflared resolves: the fact `srv-name`.
+/// The SRV record that cloudflared resolves: the fact `srv-name`.
 pub fn edge_srv() -> &'static str {
     services::text(EDGE, "srv-name")
 }
 
-/// Last-resort anycast addresses, used only when both resolvers fail: the
-/// fact `static-addresses`.
+/// The anycast addresses of the last option, only for a failure of the two
+/// resolvers: the fact `static-addresses`.
 ///
-/// These are Cloudflare's published edge anycast addresses. They are not a
-/// substitute for discovery: the SRV record is the authority, and this list is
-/// here so a host with no DNS at all can still reach the service.
+/// These are the published anycast addresses of the edge of Cloudflare. They
+/// do not replace the discovery: the SRV record is the authority. This list
+/// lets a host with no DNS get to the service.
 fn static_edge_ips() -> Vec<&'static str> {
     let ips = services::get(EDGE).texts("static-addresses").unwrap_or_default();
     ips.iter().map(|ip| ip.as_ref()).collect()
@@ -111,8 +111,8 @@ fn zone() -> &'static str {
     services::text(EDGE, "srv-target-zone")
 }
 
-/// Resolve the edge, preferring DoH, then the system resolver, then the
-/// static list. Returns at least one address or an error naming every attempt.
+/// Resolve the edge: DoH first, then the system resolver, then the static
+/// list. Gives at least one address, or an error that names each attempt.
 pub async fn discover(host: &Host, filter: IpVersionFilter) -> Result<Vec<EdgeAddr>> {
     let mut failures = Vec::new();
 
@@ -166,7 +166,7 @@ pub async fn discover_system(host: &Host, filter: IpVersionFilter) -> Result<Vec
     Ok(edges)
 }
 
-/// Resolve through Cloudflare's DNS-over-HTTPS JSON API.
+/// Resolve through the DNS-over-HTTPS JSON API of Cloudflare.
 pub async fn discover_doh(host: &Host, filter: IpVersionFilter) -> Result<Vec<EdgeAddr>> {
     let srv = query(host, edge_srv(), "SRV").await?;
     let mut targets: Vec<(String, u16)> = Vec::new();

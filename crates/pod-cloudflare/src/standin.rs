@@ -15,7 +15,7 @@
 //!
 //! The stand-in tests the crate against the protocol as the crate reads
 //! it. It does not show that the real edge accepts a change. It has no QUIC
-//! leg yet.
+//! leg.
 //!
 //! Each test that uses it starts with `pod_testkit::need_loopback!()`.
 
@@ -186,7 +186,7 @@ impl Drop for Standin {
 /// The events of a tunnel, in order.
 pub type Events = Arc<std::sync::Mutex<Vec<pod_core::Event>>>;
 
-/// Whether an event of `events` holds `text`.
+/// True when an event of `events` holds `text`.
 pub fn said(events: &Events, text: &str) -> bool {
     events.lock().unwrap().iter().any(|e| e.text.contains(text))
 }

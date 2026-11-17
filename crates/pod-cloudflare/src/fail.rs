@@ -1,5 +1,5 @@
-//! The failures of the crate (section 1, rule 9): each is a
-//! [`pod_core::Failure`] with its stage (the part of the path that broke,
+//! The failures of the crate (`docs/design.md`, section 1, rule 9): each is
+//! a [`pod_core::Failure`] with its stage (the part of the path that broke,
 //! podnet's hop) and its class (what a caller can do, podnet's exit code).
 //! A context keeps the stage and the class of its cause, and its text holds
 //! the text of each cause.
@@ -141,7 +141,8 @@ impl fmt::Display for Refused {
 impl Error for Refused {}
 
 impl From<Refused> for Failure {
-    /// A refusal with no retry is final; one with a retry is for now.
+    /// A refusal with no retry is final. A refusal with a retry is
+    /// temporary.
     fn from(refused: Refused) -> Failure {
         let class = if refused.should_retry { Class::TempFail } else { Class::Refused };
         Failure::caused(Stage::EdgeRegister, class, refused.to_string(), refused)

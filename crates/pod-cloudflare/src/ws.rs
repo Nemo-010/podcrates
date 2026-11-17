@@ -1,18 +1,19 @@
-//! The edge side of a WebSocket-carried raw stream.
+//! The edge side of a raw stream in a WebSocket.
 //!
-//! A quick tunnel is an HTTP tunnel, but it proxies WebSocket upgrades. That is
-//! enough to carry *anything*: the origin exposes a WebSocket endpoint, each
-//! connection is bridged to a raw stream (TCP or unix), and a client on the far
-//! side turns local sockets into WebSocket connections. This is the websocat /
-//! wstunnel idea, and it removes the HTTP-only limit without needing the edge to
-//! understand the payload.
+//! A quick tunnel is an HTTP tunnel, but it proxies WebSocket upgrades. That
+//! is sufficient to carry *all* data. The origin exposes a WebSocket endpoint,
+//! and each connection is bridged to a raw stream (TCP or unix). A client on
+//! the far side changes local sockets into WebSocket connections. This is the
+//! method of websocat and wstunnel. It removes the limit to HTTP, and the edge
+//! does not have to understand the payload.
 //!
-//! One WebSocket message maps to one write, so binary framing is preserved and
-//! interactive protocols (SSH, RDP, databases, raw sockets) work unchanged.
+//! One WebSocket message is one write. Thus the binary framing stays, and
+//! interactive protocols (SSH, RDP, databases, raw sockets) work with no
+//! change.
 //!
 //! The WebSocket and its bridge are `pod-ws`, with the limits of
-//! tokio-tungstenite. The client side (the dial of a forward) is the
-//! consumer's.
+//! tokio-tungstenite. The client side (the dial of a forward) belongs to the
+//! consumer.
 
 use crate::fail::{Context, IoFail, Result};
 use pod_core::Stage;
@@ -55,10 +56,12 @@ pub fn forward_url(url: &str, path: &str) -> Option<String> {
     Some(format!("{}://{host}{path}", rest.0))
 }
 
-/// Compute `Sec-WebSocket-Accept` for a client's `Sec-WebSocket-Key`.
+/// Compute the `Sec-WebSocket-Accept` for the `Sec-WebSocket-Key` of a
+/// client.
 pub use pod_ws::handshake::accept_key;
 
-/// Serve one inbound WebSocket upgrade from the edge, bridging it to `target`.
+/// Serve one inbound WebSocket upgrade from the edge, and bridge it to
+/// `target`.
 pub async fn serve_websocket(
     origins: &Origins,
     target: &ForwardTarget,
@@ -97,9 +100,9 @@ pub async fn serve_websocket(
     ];
     write_response_meta(&mut writer, 101, &headers).await?;
 
-    // The edge stream is a QUIC bidi pair; join it into one socket for the
-    // WebSocket codec. `into_inner` recovers the noq halves from the
-    // futures-io wrappers used by the request framing.
+    // The edge stream is a futures-io reader and writer (a QUIC
+    // bidirectional pair, or the adapters of HTTP/2). Join them into one
+    // tokio socket for the WebSocket codec.
     let socket = tokio::io::join(reader.compat(), writer.compat_write());
     let session = pod_ws::server::session(socket, Vec::new(), None).with_limits(Limits::TUNGSTENITE);
     pod_ws::bridge(session, io, metrics).await.context("the bridge of the forward WebSocket")
