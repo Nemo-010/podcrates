@@ -126,17 +126,27 @@ async fn serve_h1<S: AsyncRead + AsyncWrite + Unpin>(mut io: S, seen: Arc<Seen>)
         let body = words.into_bytes();
         let head = format!("HTTP/1.1 {status} No\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
         let _ = io.write_all(&[head.into_bytes(), body].concat()).await;
-        return;
+        return close(io).await;
     }
     if head.method == "POST" {
         let _ = io.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n{}").await;
-        return;
+        return close(io).await;
     }
     let Ok(key) = pod_ws::server::check_upgrade(&head) else { return };
     let _ = io.write_all(&pod_ws::server::switching(&key)).await;
     // Held open until the client goes.
     let mut rest = [0u8; 64];
     while matches!(tokio::io::AsyncReadExt::read(&mut io, &mut rest).await, Ok(n) if n > 0) {}
+}
+
+/// End the answer, then read until the client goes: a socket closed with
+/// bytes of the request unread (a body) sends a reset, which can come
+/// before the client reads the answer.
+async fn close<S: AsyncRead + AsyncWrite + Unpin>(mut io: S) {
+    let _ = tokio::io::AsyncWriteExt::shutdown(&mut io).await;
+    let mut rest = [0u8; 256];
+    let drain = async { while matches!(tokio::io::AsyncReadExt::read(&mut io, &mut rest).await, Ok(n) if n > 0) {} };
+    let _ = tokio::time::timeout(std::time::Duration::from_secs(5), drain).await;
 }
 
 async fn serve_h2<S: AsyncRead + AsyncWrite + Unpin + Send + 'static>(io: S, seen: Arc<Seen>) {
