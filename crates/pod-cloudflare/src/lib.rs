@@ -17,7 +17,7 @@ pub mod proxy;
 pub mod quicktunnel;
 pub mod race;
 pub mod services;
-#[cfg(feature = "standin")]
+#[cfg(any(test, feature = "standin"))]
 pub mod standin;
 pub mod text;
 pub mod tunnel;

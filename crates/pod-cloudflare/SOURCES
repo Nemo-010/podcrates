@@ -47,7 +47,7 @@ file c9c4819f7635a24f60c6b142f817e14ca3b2080e src/cloudflare/cf-edge-roots.pem -
 file 0adf018ec9a2630f8fdee9b7b4c416d1ac15c7e4 src/cloudflare/cloudflared-pin.txt -> crates/pod-cloudflare/src/cloudflare/cloudflared-pin.txt
 file a4e2502e30ac19262e38881797780d3d0ccc7131 src/cloudflare/http2.rs -> crates/pod-cloudflare/src/cloudflare/http2.rs crates/pod-cloudflare/src/cloudflare/http2/tests.rs crates/pod-cloudflare/src/cloudflare/http2/protocol_tests.rs
 file d51dd5c99ff941f7fe5d5ff0e5703c68fbb3b4cc src/cloudflare/mod.rs -> crates/pod-cloudflare/src/cloudflare/mod.rs
-file 243fd8f17d7d09142cc95647025920a54c3530b9 src/cloudflare/quic.rs -> crates/pod-cloudflare/src/cloudflare/quic.rs
+file 243fd8f17d7d09142cc95647025920a54c3530b9 src/cloudflare/quic.rs -> crates/pod-cloudflare/src/cloudflare/quic.rs crates/pod-cloudflare/src/standin/quic.rs
 file 21dce910a0792a15de2df01716f1fd9c2ebf416c src/cloudflare/rpc.rs -> crates/pod-cloudflare/src/cloudflare/rpc.rs crates/pod-cloudflare/src/cloudflare/rpc/message.rs crates/pod-cloudflare/src/cloudflare/rpc/tests.rs
 file 8175da5f311eef96e27ad5eceed92bcd18aecc59 src/cloudflare/schema.rs -> crates/pod-cloudflare/src/cloudflare/schema.rs
 file 290a034a9e08513050eb382bfa309cd13619868c src/cloudflare/schemas/quic_metadata_protocol.capnp -> crates/pod-cloudflare/src/cloudflare/schemas/quic_metadata_protocol.capnp

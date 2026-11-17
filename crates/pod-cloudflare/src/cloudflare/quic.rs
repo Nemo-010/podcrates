@@ -139,48 +139,6 @@ pub async fn dial_any(endpoint: &Endpoint, edges: &[EdgeAddr]) -> Result<noq::Co
     bail!(Stage::Quic, Class::Unavailable, "no edge answered: {}", failures.join("; "))
 }
 
-/// A QUIC connection in memory for tests: a local server (in the place of
-/// the edge) and a client with the edge transport config of the client.
-#[cfg(test)]
-pub(crate) mod testing {
-    use super::*;
-
-    pub struct Pair {
-        /// The connection on the side of the edge.
-        pub edge: noq::Connection,
-        /// The connection on the side of the client.
-        pub client: noq::Connection,
-        _endpoints: (Endpoint, Endpoint),
-    }
-
-    pub async fn local_pair() -> Pair {
-        let key = rcgen::KeyPair::generate().unwrap();
-        let cert = rcgen::CertificateParams::new(vec!["edge.test".to_string()]).unwrap().self_signed(&key).unwrap();
-        let key_der = rustls::pki_types::PrivateKeyDer::Pkcs8(key.serialize_der().into());
-        let mut server_tls = rustls::ServerConfig::builder()
-            .with_no_client_auth()
-            .with_single_cert(vec![cert.der().clone()], key_der)
-            .unwrap();
-        server_tls.alpn_protocols = vec![b"podnet-test".to_vec()];
-        let server_crypto = noq::crypto::rustls::QuicServerConfig::try_from(server_tls).unwrap();
-        let server = pod_quic::endpoint::server(
-            pod_quic::endpoint::server_config(Arc::new(server_crypto)).unwrap(),
-            "127.0.0.1:0".parse().unwrap(),
-        )
-        .unwrap();
-        let addr = server.local_addr().unwrap();
-        let tls = crate::testing::tls().client_config_with(&[cert.pem().as_bytes()], &[b"podnet-test"]).unwrap();
-        let crypto = noq::crypto::rustls::QuicClientConfig::try_from(tls).unwrap();
-        let mut config = ClientConfig::new(Arc::new(crypto));
-        config.transport_config(Arc::new(transport_config(1252)));
-        let client = pod_quic::endpoint::bind("127.0.0.1:0".parse().unwrap()).unwrap();
-        let connecting = client.connect_with(config, addr, "edge.test").unwrap();
-        let (edge, client_conn) =
-            tokio::join!(async { server.accept().await.unwrap().await.unwrap() }, async { connecting.await.unwrap() });
-        Pair { edge, client: client_conn, _endpoints: (server, client) }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,7 +149,7 @@ mod tests {
     #[tokio::test]
     async fn the_edge_can_open_200_streams_at_the_same_time() {
         pod_testkit::need_loopback!();
-        let pair = testing::local_pair().await;
+        let pair = crate::standin::quic::local_pair().await;
         let edge = pair.edge.clone();
         let opener = tokio::spawn(async move {
             let mut streams = Vec::new();

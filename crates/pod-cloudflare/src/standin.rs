@@ -11,6 +11,7 @@
 //!   the CA file of its TLS context, as a consumer does with
 //!   `SSL_CERT_FILE`. No hook is in the code of the crate.
 //! * [`proxy`]: a CONNECT proxy that keeps the authorities.
+//! * [`quic`]: a QUIC connection in memory, the edge on one side.
 //!
 //! The stand-in tests the crate against the protocol as the crate reads
 //! it. It does not show that the real edge accepts a change. It has no QUIC
@@ -23,6 +24,7 @@ pub mod ca;
 pub mod edge;
 pub mod front;
 pub mod proxy;
+pub mod quic;
 
 use std::io::{Read as _, Write as _};
 use std::net::SocketAddr;

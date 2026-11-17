@@ -12,7 +12,7 @@ async fn an_rpc_stream_is_reset_and_a_data_stream_is_served() {
     use crate::cloudflare::schema::ConnectionType;
     use std::sync::Arc;
     use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
-    let pair = crate::cloudflare::quic::testing::local_pair().await;
+    let pair = crate::standin::quic::local_pair().await;
     let ingress = Arc::new(Ingress::new().catch_all(Service::HelloWorld));
     let runtime = Arc::new(Runtime::build(Arc::new(crate::testing::host()), &ingress, Metrics::new()).unwrap());
     let client = pair.client.clone();
