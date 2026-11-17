@@ -21,7 +21,13 @@ is done. Git and the record keep finished work.
    trial of `pod-iroh` (T-810).
 3. `v0.67.0` is out at `1d7e983`; its hand-off is COORD-128 (#218).
    Record each take on it. The next tag holds T-840 and T-841
-   (PodUtils/podssh#297: answer it on that hand-off), T-378, T-385.
+   (PodUtils/podssh#297: answer it on that hand-off), T-378, T-385. Its
+   hand-off says: take it with `cargo update -p webpki-roots` (podnet's
+   and podssh's tests hold their lock to `ROOTS_VERSION`), and with a russh
+   that takes rsa 0.10.0, not a release candidate (podssh: 0.65.2). The
+   `pod-warp` trials of both are removed: both took the crate long ago,
+   and their old commits could not resolve rsa 0.10.0 (adoption run
+   44023194891).
 4. T-029 (`pod-cloudflare`, P1, partial): the import and the adaptation of
    step 3 are on `main`; the rest of its record (four lines to events, the
    comments, the fuzz targets, the README and the adoption map, the trial)

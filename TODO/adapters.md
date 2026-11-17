@@ -982,7 +982,7 @@ not a step of `live.yml`. No trial patch of podnet or podssh exists
 
 The modules behind `cfg(target_os = "linux")` where they need it; a step
 of `live.yml` that runs `cargo test -p pod-warp --test live -- --ignored`;
-adoption/podnet/pod-warp.patch and adoption/podssh/pod-warp.patch
+the patch file of the pod-warp trial of podnet and the patch file of the pod-warp trial of podssh
 with their runs; then the COORD issue of the freeze to podnet and podssh.
 
 ## Prove
@@ -1462,7 +1462,7 @@ freeze of podnet's `src/warp/` cannot name a tag.
 
 ## Approach
 
-adoption/podnet/pod-warp.patch at `fb47f09` (or podnet's newest `main`,
+the patch file of the pod-warp trial of podnet at `fb47f09` (or podnet's newest `main`,
 with `pod-warp.commit`): each `pod-*` dependency of podnet at the next tag
 (with `version` beside `git` and `tag`), `src/warp/` reduced to the glue
 (podnet's flags and variables into `Settings`, `NetSettings`,
@@ -1493,7 +1493,7 @@ a tag holds `pod-warp`.
 ## Done
 
 2026-11-13. The patch is at podnet's newest `main`, `9c1fc4b`
-(`adoption/podnet/pod-warp.commit`; `src/warp/` has no change after
+(the commit file of the pod-warp trial of podnet (removed after its take); `src/warp/` has no change after
 `83e0c93`), and names `v0.35.0` (call C225). Commits `b7afb72` (part 1:
 the tags, the capsules, the order of the doors, the door file and the leg
 file, the hints, the parse of the route tables, the private file),
@@ -1552,7 +1552,7 @@ No trial patch of `pod-warp` in podssh exists (`docs/design.md`, section
 
 ## Approach
 
-adoption/podssh/pod-warp.patch at `79961227` (or podssh's newest
+the patch file of the pod-warp trial of podssh at `79961227` (or podssh's newest
 `main`, with `pod-warp.commit`): `PodUtils/podssh:crates/podssh-warp` becomes glue over
 `pod-warp` (its registration with `Api::with_bases` for its routes, its
 private file as an `IdentityFile`, its road as `WarpNet` as a `Dial`), or
@@ -1573,7 +1573,7 @@ sh scripts/adoption.sh podssh pod-warp
 ## Done
 
 2026-11-13. The patch is at podssh's newest `main`, `286e98d3`
-(`adoption/podssh/pod-warp.commit`), and names `v0.36.0` (call C236); its
+(the commit file of the pod-warp trial of podssh (removed after its take)), and names `v0.36.0` (call C236); its
 glue takes T-480 (a team's token, the base that answered, commit
 `c241af1`), so the hand-off takes the tag after `v0.36.0`. Commits
 `c241af1` (T-480), `6587118` (the patch, its commit and its 24 steps) and
@@ -1694,7 +1694,7 @@ that worked and the relay-first flag by hand (`with_won_door`,
 
 - Read: `crates/pod-warp/src/warp.rs` (`Settings`, `Warp`, `from_parts`,
   `with_won_door`, `with_relay_first`); the glue of T-412 (`rebuild` of
-  podnet's `src/warp/mod.rs` in `adoption/podnet/pod-warp.patch`).
+  podnet's `src/warp/mod.rs` in the patch file of the pod-warp trial of podnet (removed after its take)).
 
 ## Approach
 

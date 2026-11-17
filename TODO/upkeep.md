@@ -1507,7 +1507,7 @@ The trial of podssh runs `cargo test -p podssh-cli --features warp --lib`. Its t
 
 ## Approach
 
-`adoption/podssh/pod-warp.patch` takes a hunk that asks for at least four relays. The notes and the hand-off of `v0.41.0` tell podssh to change its test in the same way.
+the patch file of the pod-warp trial of podssh (removed after its take) takes a hunk that asks for at least four relays. The notes and the hand-off of `v0.41.0` tell podssh to change its test in the same way.
 
 ## Prove
 
@@ -1515,7 +1515,7 @@ The run of `adoption.yml` at the next head passes for podssh.
 
 ## Done
 
-2026-11-14. The hunk is in `adoption/podssh/pod-warp.patch`; `docs/releases/v0.41.0.md` names the change under "Breaking". The adoption run at the next head proves it.
+2026-11-14. The hunk is in the patch file of the pod-warp trial of podssh (removed after its take); `docs/releases/v0.41.0.md` names the change under "Breaking". The adoption run at the next head proves it.
 
 # T-563: `adoption.yml` at `b0533d0` is red for podssh: `Route::One` of `pod-relay` breaks a match of its role
 
@@ -1536,7 +1536,7 @@ T-559 adds the variant `One` to `pod_relay::http_road::Route`, and `http_road::r
 
 ## Approach
 
-`adoption/podssh/pod-warp.patch` takes a hunk: `None | Some(Route::One)` answer 404, as the trial's commit has no one form. The hunk has podssh's format (rustfmt with its `rustfmt.toml`). The notes and the hand-off of `v0.42.0` name the change under "Breaking": podssh adds an arm for `Route::One`.
+the patch file of the pod-warp trial of podssh (removed after its take) takes a hunk: `None | Some(Route::One)` answer 404, as the trial's commit has no one form. The hunk has podssh's format (rustfmt with its `rustfmt.toml`). The notes and the hand-off of `v0.42.0` name the change under "Breaking": podssh adds an arm for `Route::One`.
 
 ## Prove
 
@@ -1544,7 +1544,7 @@ The run of `adoption.yml` at the next head passes for podssh.
 
 ## Done
 
-2026-11-14. The hunk is in `adoption/podssh/pod-warp.patch`; `docs/releases/v0.42.0.md` names it. The two lines that it adds move a citation of podssh's record (its TODO/relay.md cites that file at line 142 at `286e98d3`; the arm moves it to 144): a second hunk of the patch moves it, as `cargo todo remap` does (`adoption.yml` run 43550476602). The adoption run at the next head proves it.
+2026-11-14. The hunk is in the patch file of the pod-warp trial of podssh (removed after its take); `docs/releases/v0.42.0.md` names it. The two lines that it adds move a citation of podssh's record (its TODO/relay.md cites that file at line 142 at `286e98d3`; the arm moves it to 144): a second hunk of the patch moves it, as `cargo todo remap` does (`adoption.yml` run 43550476602). The adoption run at the next head proves it.
 
 # T-571: `adoption.yml` at `e830136` is red for podnet: the field `preshared` of `pod_wg::Keys`
 
@@ -1565,7 +1565,7 @@ T-561 adds the field `preshared` to `pod_wg::Keys`. podnet builds `Keys` with a 
 
 ## Approach
 
-`adoption/podnet/pod-warp.patch` sets `preshared: None` in each literal, which keeps podnet's behaviour (no preshared key). The run file remaps the changed files of podnet, so each citation of podnet's record follows the added line. The notes of `v0.43.0` name the field under "Breaking".
+the patch file of the pod-warp trial of podnet (removed after its take) sets `preshared: None` in each literal, which keeps podnet's behaviour (no preshared key). The run file remaps the changed files of podnet, so each citation of podnet's record follows the added line. The notes of `v0.43.0` name the field under "Breaking".
 
 ## Prove
 
@@ -1573,7 +1573,7 @@ The run of `adoption.yml` at the next head passes for podnet.
 
 ## Done
 
-2026-11-14. The hunks of the three literals are in `adoption/podnet/pod-warp.patch`, and `adoption/podnet/pod-warp.run` remaps src/networks/wg.rs and src/wg_quick_tests.rs. The run at `5db4d56` (43558133970) built podnet and failed on the test literal; a search of each Rust file of podnet at `9c1fc4b` finds no other. The adoption run at the next head proves it.
+2026-11-14. The hunks of the three literals are in the patch file of the pod-warp trial of podnet (removed after its take), and the run file of the pod-warp trial of podnet (removed after its take) remaps src/networks/wg.rs and src/wg_quick_tests.rs. The run at `5db4d56` (43558133970) built podnet and failed on the test literal; a search of each Rust file of podnet at `9c1fc4b` finds no other. The adoption run at the next head proves it.
 
 # T-607: the nightly run at `f6479c7` is red on `windows-11-arm`: the ARQ of a test of `pod-link` through a resolver gives up in 7 s
 
