@@ -251,9 +251,9 @@ pub async fn dial(
     dial_offering(url, None, way, trust, timeout, idle).await
 }
 
-/// [`dial`], its upgrade offering `protocol` ([`offering`]). A server's
-/// choice of one in its answer is not checked: the one that a Wisp server
-/// may name is the one offered, and a server of version 1 names none.
+/// [`dial`], its upgrade offering `protocol` ([`offering`]). An answer that
+/// names another subprotocol is refused ([`check_chosen`]); one that names
+/// none goes on, as a Wisp server of version 1 names none.
 pub async fn dial_offering(
     url: &WsUrl,
     protocol: Option<&str>,
@@ -286,9 +286,10 @@ pub async fn dial_asking(
         let tcp = way.tcp(&url.host, url.port, timeout).await.map_err(ConnectError::Dial)?;
         (Stream::Plain(tcp.io), started.elapsed())
     };
-    let upgraded = tokio::time::timeout(timeout, client::upgrade_with(stream, &request, &key)).await;
+    let upgraded = tokio::time::timeout(timeout, client::upgrade_answering(stream, &request, &key)).await;
     let late = |_| ConnectError::Timeout { step: "the WebSocket upgrade", after: timeout };
-    let (stream, pending) = upgraded.map_err(late)??;
+    let (stream, pending, chosen) = upgraded.map_err(late)??;
+    check_chosen(asking.protocol, chosen.as_deref())?;
     tracing::debug!(
         connect_ms = tcp_tls.as_millis() as u64,
         upgrade_ms = (started.elapsed() - tcp_tls).as_millis() as u64,
@@ -296,6 +297,24 @@ pub async fn dial_asking(
         url.shown()
     );
     Ok(RelaySession::new(stream, pending, idle, WRITE_TIMEOUT).naming("the server").with_limits(asking.limits))
+}
+
+/// The subprotocol that the server chose is one that the request offered
+/// (RFC 6455, section 4.1). An answer that names none goes on, as a Wisp
+/// server of version 1 names none (T-385).
+pub fn check_chosen(offered: Option<&str>, chosen: Option<&str>) -> Result<(), ConnectError> {
+    let Some(chosen) = chosen.filter(|c| !c.is_empty()) else { return Ok(()) };
+    let mut each = offered.into_iter().flat_map(|o| o.split(',')).map(str::trim);
+    if each.any(|o| o.eq_ignore_ascii_case(chosen)) {
+        return Ok(());
+    }
+    let chosen = pod_core::text::one_line(chosen);
+    Err(ConnectError::Upgrade(match offered {
+        Some(offered) => {
+            format!("the server chose the subprotocol {chosen:?}, which the request did not offer ({offered})")
+        }
+        None => format!("the server chose the subprotocol {chosen:?}, and the request offered none"),
+    }))
 }
 
 /// What a failure of [`dial`] means, in this road's words: the URL as

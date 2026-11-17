@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**672 entries: 129 open, 17 partial, 7 blocked, 519 done.**
+**672 entries: 128 open, 17 partial, 7 blocked, 520 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
 | P2 | 55 | 3 | 4 | 267 | 329 |
-| P3 | 63 | 6 | 3 | 103 | 175 |
-| **All** | 129 | 17 | 7 | 519 | 672 |
+| P3 | 62 | 6 | 3 | 104 | 175 |
+| **All** | 128 | 17 | 7 | 520 | 672 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -369,7 +369,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-378](transport.md) | P2 | L | M1 | feature | done | `pod-devtunnel`: a client of Microsoft Dev Tunnels: the management API and the relay (GitHub #94) |
 | [T-380](transport.md) | P2 | M | M1 | feature | done | `pod-turn`: the client against coturn on the loopback, over UDP and TLS |
 | [T-381](transport.md) | P3 | M | M1 | feature | done | `pod-turn`: the options of RFC 8489 and RFC 8656 that the client does not use |
-| [T-385](transport.md) | P3 | S | M1 | defect | open | `pod-ws`: a client upgrade checks the subprotocol of the answer |
+| [T-385](transport.md) | P3 | S | M1 | defect | done | `pod-ws`: a client upgrade checks the subprotocol of the answer |
 | [T-386](transport.md) | P2 | S | M1 | measurement | open | `pod-devtunnel`: the live run against the service with the owner's own token |
 | [T-387](transport.md) | P2 | S | M1 | release | done | `pod-devtunnel`: the name on crates.io before the release |
 | [T-390](relay.md) | P2 | S | M2 | feature | done | `pod-identity`: a limit of entries for `Allowlist`, and a line in the display form (PodUtils/podnet#512 A11) |

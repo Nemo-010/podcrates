@@ -5604,7 +5604,7 @@ plant `devtunnel-store-others-read` is caught. The live run is T-386.
 **Milestone:** M1
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -5641,6 +5641,11 @@ removes the check.
 cargo test -p pod-ws --all-features
 cargo test -p pod-devtunnel --all-features
 ```
+
+## Done
+
+2026-11-17. `pod_ws::client::upgrade_answering` (beside `upgrade_with`, which keeps its type for its callers in `pod-piping`, `pod-egress` and `pod-iroh`) gives the subprotocol that the 101 names. `url::dial_asking` (so `dial_offering`) refuses with `ConnectError::Upgrade` an answer that names a subprotocol that the request did not offer, or one when it offered none (`url::check_chosen`: any of a list offered, in any case; its words clean the name); an answer that names none goes on, as a Wisp server of version 1 does. `handshake::check_chosen_protocol` stays the stricter rule of `pod-link`'s carrier, which refuses an answer with none too. The upgrade moved to `src/client/upgrade.rs`, so `client.rs` stays under 500 lines. Tests: `tests/subprotocol.rs` (3: another subprotocol refused, also when none was offered; the one offered, none, and none with none go on, through `dial_offering` against a server of the test; the rule). The tests of `pod-ws`, `pod-devtunnel`, `pod-egress`, `pod-services-watch` and `pod-wormhole` passed (630). The plant `ws-chosen-protocol-unchecked` is caught.
+
 
 # T-386: `pod-devtunnel`: the live run against the service with the owner's own token
 
