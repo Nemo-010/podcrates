@@ -41,12 +41,16 @@ const BULK: usize = 16 * MIB;
 const ROUNDS: usize = 100;
 const SMALL: usize = 64;
 
-/// A session whose first byte is [`SINK`] takes its bytes and sends none
-/// back (a copy); each other session echoes its bytes.
+/// A session whose first byte is [`SINK`] gets [`READY`] back, then takes
+/// its bytes and sends none back (a copy); each other session echoes its
+/// bytes.
 struct Echo;
 
 /// The first byte of a session of a copy.
 const SINK: u8 = b'S';
+/// The answer to [`SINK`]: the node is ready. A session takes at most 1 MiB
+/// before the node is ready (`Exit::NeverReady`), so a copy waits for it.
+const READY: u8 = b'K';
 /// The copy of T-835: sessions of this many bytes, one way, under the cap
 /// of 64 MiB of a session of the default relay.
 const COPY_SESSION: usize = 56 * MIB;
@@ -65,6 +69,9 @@ impl Handler for Echo {
                     return;
                 }
                 if first[0] == SINK {
+                    if w.write_all(&[READY]).await.is_err() {
+                        return;
+                    }
                     let _ = tokio::io::copy(&mut r, &mut tokio::io::sink()).await;
                     return;
                 }
@@ -184,10 +191,10 @@ async fn measure_session(pair: &Pair) -> Result<Figures, String> {
 /// A copy of [`COPY_SESSIONS`] sessions of [`COPY_SESSION`] bytes each,
 /// one way, one after another, as a copy that keeps the budget of a session
 /// opens the next one (T-835): the seconds of each session and of the whole.
-async fn measure_copy(pair: &Pair) -> Result<(Vec<f64>, f64), String> {
+async fn measure_copy(pair: &Pair) -> Result<(Vec<f64>, Vec<f64>, f64), String> {
     let chunk = vec![5u8; 64 * 1024];
     let started = Instant::now();
-    let mut each = Vec::new();
+    let (mut each, mut readies) = (Vec::new(), Vec::new());
     for _ in 0..COPY_SESSIONS {
         let at = Instant::now();
         let (io, mut user) = tokio::io::duplex(4 * MIB);
@@ -210,6 +217,13 @@ async fn measure_copy(pair: &Pair) -> Result<(Vec<f64>, f64), String> {
         // that went: a cut of the relay, or an end of the node.
         let mut sent = 0usize;
         let mut wrote = user.write_all(&[SINK]).await;
+        if wrote.is_ok() {
+            let mut ready = [0u8; 1];
+            match tokio::time::timeout(LIMIT, user.read_exact(&mut ready)).await {
+                Ok(Ok(_)) if ready[0] == READY => readies.push(at.elapsed().as_secs_f64()),
+                other => return Err(format!("session {}: no ready byte of the node: {other:?}", each.len() + 1)),
+            }
+        }
         while wrote.is_ok() && sent < COPY_SESSION {
             wrote = user.write_all(&chunk).await;
             sent += chunk.len();
@@ -230,7 +244,7 @@ async fn measure_copy(pair: &Pair) -> Result<(Vec<f64>, f64), String> {
         }
         each.push(at.elapsed().as_secs_f64());
     }
-    Ok((each, started.elapsed().as_secs_f64()))
+    Ok((each, readies, started.elapsed().as_secs_f64()))
 }
 
 /// A pair at `host`, a node of it, one session, then the stop of both.
@@ -259,13 +273,14 @@ async fn measure_host(host: &str) -> Result<Figures, String> {
     let figures = measure_session(&copy).await;
     if host == default_relay_host() && figures.is_ok() {
         match measure_copy(&copy).await {
-            Ok((each, secs)) => {
-                let shown: Vec<String> = each.iter().map(|s| format!("{s:.2}")).collect();
+            Ok((each, readies, secs)) => {
+                let shown = |v: &[f64]| v.iter().map(|s| format!("{s:.2}")).collect::<Vec<_>>().join(",");
                 let mib = COPY_SESSIONS * COPY_SESSION / MIB;
                 println!(
-                    "MEASURE scen=copy relay={host} sessions={COPY_SESSIONS} mib={mib} secs={secs:.2} mib_s={:.2} session_secs={}",
+                    "MEASURE scen=copy relay={host} sessions={COPY_SESSIONS} mib={mib} secs={secs:.2} mib_s={:.2} session_secs={} ready_secs={}",
                     mib as f64 / secs,
-                    shown.join(",")
+                    shown(&each),
+                    shown(&readies)
                 );
             }
             Err(why) => println!("MEASURE scen=copy relay={host} failed={}", why.replace(' ', "_")),
