@@ -9419,3 +9419,47 @@ Open a COORD issue `(to podssh)` with the ideas and their numbers; T-036 takes w
 ```sh
 cargo todo check
 ```
+
+# T-834: `pod-relay`: a renewal reads the default relay's `400` for an unknown reverse path as an error, not as no renewal (PodUtils/podssh#294)
+
+**Source:** PodUtils/podssh#294 (COORD-098 of podssh, PodUtils/podssh@T-713).
+**Category:** defect
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+`pair::renew::renew` reads `404` and `405` as `Renewed::NotServed` and each
+other status as an error. The default relay (`tcp.ssh.relay.ajam.dev`,
+version `2026-10-03-r2`) answers the path of a renewal with `400 reverse:
+use /v1/node/<name>, /v1/connect/<name>, /v1/status/<name> or
+/v1/stop/<name>`, so each renewal against it ends in an error where it means
+that the relay renews no pair.
+
+## Premise
+
+- Read: PodUtils/podssh#294 (podssh's conform check saw it live on
+  2026-11-17); `crates/pod-relay/src/pair/renew.rs`.
+
+## Approach
+
+`not_served(status, body)`: `404`, `405`, or a `400` whose words start with
+`reverse:` and name `/v1/stop/` (the list of the contract's reverse paths);
+a unit test with the exact body; a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-relay --all-features --lib renew
+```
+
+## Done
+
+2026-11-17. `pair::renew::not_served` reads the default relay's `400` with
+the list of the reverse paths as `Renewed::NotServed`; another `400`, and
+a `403`, stay errors. The unit test
+`the_default_relay_s_400_with_the_reverse_paths_renews_no_pair` and the
+plant `relay-renew-400-is-error`.
+

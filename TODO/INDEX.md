@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**666 entries: 140 open, 15 partial, 7 blocked, 504 done.**
+**667 entries: 140 open, 15 partial, 7 blocked, 505 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
-| P2 | 55 | 4 | 4 | 262 | 325 |
+| P2 | 55 | 4 | 4 | 263 | 326 |
 | P3 | 74 | 3 | 3 | 93 | 173 |
-| **All** | 140 | 15 | 7 | 504 | 666 |
+| **All** | 140 | 15 | 7 | 505 | 667 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -713,3 +713,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-831](foundation.md) | P3 | S | M0 | feature | open | `pod-core`: one table of the loopback addresses that a process takes, with a test that it can fail |
 | [T-832](fleet.md) | P3 | L | M8 | research | blocked | The intake of the dig study for podswarm: NAT traversal, a DHT, gossip, sealed messages, content addressing, storage, sealed secrets |
 | [T-833](fleet.md) | P3 | S | M8 | feature | open | `pod-control`: a test that the catalogue is the dispatch, tiers of surfaces, a budget of callbacks (reports 03, 11, 12 of the dig study, with T-103) |
+| [T-834](relay.md) | P2 | S | M2 | defect | done | `pod-relay`: a renewal reads the default relay's `400` for an unknown reverse path as an error, not as no renewal (PodUtils/podssh#294) |

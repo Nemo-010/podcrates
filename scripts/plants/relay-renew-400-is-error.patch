@@ -1,0 +1,11 @@
+diff --git a/crates/pod-relay/src/pair/renew.rs b/crates/pod-relay/src/pair/renew.rs
+--- a/crates/pod-relay/src/pair/renew.rs
++++ b/crates/pod-relay/src/pair/renew.rs
+@@ -59,7 +59,6 @@ pub fn not_served(status: u16, body: &[u8]) -> bool {
+     let words = words.trim_start().to_ascii_lowercase();
+     match status {
+         404 | 405 => true,
+-        400 => words.starts_with("reverse:") && words.contains("/v1/stop/"),
+         _ => false,
+     }
+ }

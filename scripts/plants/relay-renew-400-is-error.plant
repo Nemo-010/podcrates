@@ -1,0 +1,6 @@
+# pod-relay: a renewal reads the default relay's 400 with the list of the reverse paths as an error, not as no renewal; the unit test of the answer must fail (T-834, PodUtils/podssh#294).
+ENTRY=T-834
+GROUP=relay
+EXPECT='the_default_relay_s_400_with_the_reverse_paths_renews_no_pair'
+RUN='cargo test -p pod-relay --all-features --lib the_default_relay_s_400_with_the_reverse_paths_renews_no_pair'
+LIMIT=1800

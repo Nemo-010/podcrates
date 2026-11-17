@@ -5,7 +5,9 @@
 //! status names the pair's end beside the contract's fields, so that an
 //! operator's host, whose file names the end that it was given, learns the
 //! new one. A relay of the contract answers the path as one that it does not
-//! have (404, or 405), which is no refusal: it renews no pair.
+//! have (404, or 405), which is no refusal: it renews no pair. The default
+//! relay answers it with `400` and the list of the contract's reverse paths
+//! (PodUtils/podssh#294), which says the same.
 
 use serde::Deserialize;
 
@@ -44,8 +46,21 @@ pub async fn renew(ctx: &PairContext<'_>, pair: &Pair) -> Result<Renewed, PairEr
             }
             Ok(Renewed::Until(answer.expires))
         }
-        404 | 405 => Ok(Renewed::NotServed),
+        status if not_served(status, &response.body) => Ok(Renewed::NotServed),
         status => Err(refused(status, &response)),
+    }
+}
+
+/// Whether `status` with `body` says that the relay has no path of a
+/// renewal: `404` or `405`, or a `400` that lists the contract's reverse
+/// paths (`reverse: use /v1/node/<name>, ... or /v1/stop/<name>`).
+pub fn not_served(status: u16, body: &[u8]) -> bool {
+    let words = String::from_utf8_lossy(body);
+    let words = words.trim_start().to_ascii_lowercase();
+    match status {
+        404 | 405 => true,
+        400 => words.starts_with("reverse:") && words.contains("/v1/stop/"),
+        _ => false,
     }
 }
 
@@ -117,6 +132,18 @@ mod tests {
         let halted = r#"{"online": true, "sessions": 0, "expires": 5, "halted": true, "halt_reason": "a disk"}"#;
         let halted: Status = serde_json::from_str(halted).unwrap();
         assert_eq!((halted.halted, halted.halt_reason.as_deref()), (true, Some("a disk")), "the role's halt (T-647)");
+    }
+
+    /// The default relay's answer to the path of a renewal is no refusal:
+    /// it renews no pair (PodUtils/podssh#294). Another 400 is one.
+    #[test]
+    fn the_default_relay_s_400_with_the_reverse_paths_renews_no_pair() {
+        let body = b"reverse: use /v1/node/<name>, /v1/connect/<name>, /v1/status/<name> or /v1/stop/<name>\n";
+        assert!(not_served(400, body));
+        assert!(not_served(404, b"not found") && not_served(405, b""));
+        assert!(!not_served(400, b"reverse: the pair's name is not valid"));
+        assert!(!not_served(400, b"bad request"));
+        assert!(!not_served(403, body));
     }
 
     #[test]
