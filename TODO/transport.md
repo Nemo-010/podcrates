@@ -7429,7 +7429,7 @@ cargo test -p pod-identity --all-features
 **Milestone:** M1
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7447,5 +7447,9 @@ A service file with no rank and its facts, marked unfit for a bulk stream, or a 
 ## Prove
 
 ```sh
-cargo test -p pod-services
+cargo todo check
 ```
+
+## Done
+
+2026-11-17. The call C774 in `docs/decisions.md`: no service file and no rank for the DIG relay, unfit for a bulk stream, with the measured limits of the study (1 MiB/s, 256 frames each second and 1 GiB in a lifetime for each connection; a cut of a 16 MiB copy after 89 ms; messages of 256 KiB; about 3.6 bytes on the wire for each byte; 7.5 to 8.0 MiB/s with the caps off) and the condition to open it again (published caps above the budget of a session, and a binary frame). The Prove is the record: no code changed.
