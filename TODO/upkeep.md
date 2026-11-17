@@ -3149,7 +3149,7 @@ The public Trojan node `node-trojan-167-88-61-175` ends the TLS handshake with n
 
 ## Premise
 
-- Read: the log of the job; `crates/pod-services/services/node-trojan-167-88-61-175.toml`; the removal of `node-trojan-149-28-130-108` (the same failure, removed after a second run); `docs/maintenance.md`, "A red run of `services.yml`".
+- Read: the log of the job; crates/pod-services/services/node-trojan-167-88-61-175.toml; the removal of `node-trojan-149-28-130-108` (the same failure, removed after a second run); `docs/maintenance.md`, "A red run of `services.yml`".
 - The dispatch of `services.yml` with `service = node-trojan-167-88-61-175` (2026-11-17).
 
 ## Approach
@@ -3165,5 +3165,5 @@ cargo test -p pod-services-watch --all-features
 
 ## Done
 
-2026-11-17, 79e6514: the dispatch of `services.yml` with `service=node-trojan-167-88-61-175` (run 44068342066) failed again: "TLS for blog.browseseniorrolesandenhanceyourcareertoday.com at 167.88.61.175:443: tls handshake eof", as the scheduled run 44067490108. The node left as `node-trojan-149-28-130-108` did: its file `crates/pod-services/services/node-trojan-167-88-61-175.toml`; the count of the rows `node-*` in `crates/pod-services/README.md` (7 to 6). `cargo test -p pod-services -p pod-services-watch --all-features` passes. The hand-off of the next tag tells podssh that the id leaves its list (PodUtils/podssh@T-574).
+2026-11-17, 79e6514: the dispatch of `services.yml` with `service=node-trojan-167-88-61-175` (run 44068342066) failed again: "TLS for blog.browseseniorrolesandenhanceyourcareertoday.com at 167.88.61.175:443: tls handshake eof", as the scheduled run 44067490108. The node left as `node-trojan-149-28-130-108` did: its file crates/pod-services/services/node-trojan-167-88-61-175.toml; the count of the rows `node-*` in `crates/pod-services/README.md` (7 to 6). `cargo test -p pod-services -p pod-services-watch --all-features` passes. The hand-off of the next tag tells podssh that the id leaves its list (PodUtils/podssh@T-574).
 
