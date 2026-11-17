@@ -9763,7 +9763,7 @@ cargo test -p pod-egress --all-features
 **Milestone:** M2
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -9784,3 +9784,8 @@ cargo test -p pod-egress --all-features
 ```sh
 cargo test -p pod-relay --all-features
 ```
+
+## Done
+
+2026-11-17, 5384ec0: `pool::body_with` and `forward_layer::offer::over_with` take the `Extra` of the host and write it after `Accept`; `body_of` and `over` stay, with no header. `pool::refresh`, the fetch of a member (`pool::members`) and `forward_layer::offer::ask` give `Way::extra` of the host, as `health::fetch` does. A refusal of the document names only its status, so no value can show. Test: `the_fetches_of_the_relay_document_carry_the_headers` in `tests/caller_headers.rs` (both fetches, over an in-memory stream). Plant `relay-document-fetch-without-headers`, caught. The plants `relay-layer-road-forward-path`, `relay-t234-plain-any-host` and `ws-chosen-protocol-unchecked`, stale after T-847, are made again on its code and caught.
+

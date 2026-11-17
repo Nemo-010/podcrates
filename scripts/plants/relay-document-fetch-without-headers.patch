@@ -1,0 +1,26 @@
+diff --git a/crates/pod-relay/src/forward_layer/offer.rs b/crates/pod-relay/src/forward_layer/offer.rs
+index 5e4a71d..1753148 100644
+--- a/crates/pod-relay/src/forward_layer/offer.rs
++++ b/crates/pod-relay/src/forward_layer/offer.rs
+@@ -131,7 +131,7 @@ where
+     S: AsyncRead + AsyncWrite + Unpin,
+ {
+     let mut accept = vec![("Accept", "application/json")];
+-    accept.extend(extra.iter());
++    let _ = extra;
+     let max = crate::pool::MAX_BODY;
+     let response = http::exchange(stream, user_agent, "GET", host_header, "/relays.json", &accept, b"", max)
+         .await
+diff --git a/crates/pod-relay/src/pool.rs b/crates/pod-relay/src/pool.rs
+index 2a9161d..ee7dd09 100644
+--- a/crates/pod-relay/src/pool.rs
++++ b/crates/pod-relay/src/pool.rs
+@@ -264,7 +264,7 @@ where
+     S: AsyncRead + AsyncWrite + Unpin,
+ {
+     let mut accept = vec![("Accept", "application/json")];
+-    accept.extend(extra.iter());
++    let _ = extra;
+     let response = http::exchange(stream, user_agent, "GET", host_header, "/relays.json", &accept, b"", MAX_BODY)
+         .await
+         .map_err(|e| format!("the pool request failed: {e}"))?;

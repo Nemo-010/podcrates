@@ -1,0 +1,6 @@
+# The fetches of /relays.json carry the headers of the caller (T-848).
+ENTRY=T-848
+GROUP=relay
+EXPECT='the_fetches_of_the_relay_document_carry_the_headers'
+RUN='cargo test -p pod-relay --all-features --test caller_headers'
+LIMIT=1800
