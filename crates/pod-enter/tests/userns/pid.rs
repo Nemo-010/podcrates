@@ -164,9 +164,14 @@ pub fn keeps_no_descriptor(root: &Path) {
     let dir = RootDir::open(root.to_str().unwrap()).unwrap();
     let mut err = Vec::new();
     let (r, w) = std::io::pipe().unwrap();
-    let run = spawn_namespace(&dir, &with_pid("touch /tmp/up && exec sleep 60"), &mut err).unwrap();
+    let started = std::time::Instant::now();
+    let run = spawn_namespace(&dir, &with_pid("exec sleep 60"), &mut err).unwrap();
+    // The start returns at the exec of the payload: an init that held the
+    // readiness pipe would hold it until the end of the payload.
+    let start_waited = started.elapsed();
     drop(w);
     let ended = ends_soon(r);
+    let alive = running(run.pid);
     wait_for(&run, "sleep");
     let pidfd = sys::pidfd_open(run.pid).unwrap();
     let (r, w) = std::io::pipe().unwrap();
@@ -174,11 +179,28 @@ pub fn keeps_no_descriptor(root: &Path) {
     let exec = spawn_joined(&dir, &plan("exec sleep 60", None), pidfd, &mut joined).unwrap();
     drop(w);
     let join_ended = ends_soon(r);
+    let join_alive = running(exec.pid);
     let _ = sys::close(pidfd);
     let _ = sys::kill(exec.pid, 9);
     let _ = exec.wait();
     let _ = sys::kill(run.pid, 9);
     let _ = run.wait();
-    assert!(ended, "the init held a pipe of the caller: {}", String::from_utf8_lossy(&err));
-    assert!(join_ended, "the relay of the join held a pipe of the caller: {}", String::from_utf8_lossy(&joined));
+    let (err, joined) = (String::from_utf8_lossy(&err), String::from_utf8_lossy(&joined));
+    assert!(
+        start_waited < std::time::Duration::from_secs(20),
+        "the init held a pipe of the caller: the start waited {start_waited:?}"
+    );
+    assert!(ended && alive, "the init held a pipe of the caller: end of file {ended}, payload running {alive}: {err}");
+    assert!(!joined.contains("does not share the mounts"), "{joined}");
+    assert!(join_ended && join_alive, "the relay of the join held a pipe of the caller: {joined}");
+}
+
+/// Whether the process `pid`, a child of this one, still runs: its pidfd
+/// is not readable.
+fn running(pid: i64) -> bool {
+    let Ok(fd) = sys::pidfd_open(pid) else { return false };
+    let mut fds = [sys::PollFd { fd: fd as i32, events: sys::POLLIN, revents: 0 }];
+    let ended = !matches!(sys::ppoll(&mut fds, 0), Ok(0));
+    let _ = sys::close(fd);
+    !ended
 }
