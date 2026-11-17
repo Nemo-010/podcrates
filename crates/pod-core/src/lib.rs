@@ -11,8 +11,8 @@
 //! * [`files`]: the private files of a program and of a user, in the
 //!   places of its [`files::App`];
 //! * [`entropy`]: the random source, which a test can plant;
-//! * [`metered`], [`backoff`], [`clock`], [`text`], [`names`]: the small
-//!   helpers.
+//! * [`metered`], [`quota`], [`pick`], [`backoff`], [`clock`], [`text`],
+//!   [`names`]: the small helpers.
 //!
 //! The feature `async` (on by default) gives [`dial`], [`datagrams`] and
 //! [`metered`], which are on tokio. With no default feature, the other
@@ -32,6 +32,7 @@ pub mod files;
 pub mod metered;
 pub mod names;
 pub mod pick;
+pub mod quota;
 pub mod text;
 
 #[cfg(feature = "async")]
