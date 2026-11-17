@@ -2114,6 +2114,8 @@ cargo test -p pod-testkit -p pod-link -p pod-e2e --all-features
 
 2026-11-17, part 1 (VF-3, no blocking call), 0f28b93: `pod_testkit::switches::count(f)` gives the voluntary switches of context of this thread while `f` runs (`getrusage(RUSAGE_THREAD).ru_nvcsw`, Linux; `None` elsewhere). A switch that the scheduler forces does not count. Tests: `a_sleep_counts_and_a_computation_does_not` (the kit), and `a_seal_and_an_open_block_on_nothing` in `crates/pod-e2e/tests/allocations.rs` (1000 seals and opens, no voluntary switch; 5 runs of 5). The plant `testkit-switches-count-nothing` is caught.
 
-Open: the gate on one turn of the ARQ of `pod-link`; the step counter of a scope (VF-2), which needs a call in each loop of a hot path behind a feature that is off in a release, and a bound in the test: the turn of the ARQ and the parse of a frame of `pod-ws` and of `pod-e2e`.
+Part 2, 588312f: `a_turn_of_the_arq_blocks_on_nothing` in `crates/pod-link/tests/arq_machine.rs`: 1000 records of 5000 bytes across two `Arq`s with their acknowledgements, no voluntary switch (5 runs of 5).
+
+Open: the step counter of a scope (VF-2), which needs a call in each loop of a hot path behind a feature that is off in a release, and a bound in the test: the turn of the ARQ and the parse of a frame of `pod-ws` and of `pod-e2e`.
 
 
