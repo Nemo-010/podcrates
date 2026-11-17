@@ -13,7 +13,8 @@
   has COORD-125 (#215); `v0.64.0` (`6a965ef`) has COORD-124 (#214).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
-  - podssh: `v0.65.0` (`843e3c5`, PodUtils/podssh#289: `pod-tor` and
+  - podssh: `v0.66.0` (`ae9cf1b`, PodUtils/podssh#296: a bump of the tag;
+    `v0.65.0` in `843e3c5`, PodUtils/podssh#289: `pod-tor` and
     `pod-iroh` taken, their trials removed; next the layer on the HTTP road,
     its T-798, and its text, help and JSON on `pod-manual`, its T-790): it runs the one
     watcher and the sync of the issues; its lane passes in the ten labs
