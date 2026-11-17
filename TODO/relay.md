@@ -9675,7 +9675,7 @@ cargo test -p pod-relay --all-features --test routes_unix
 **Milestone:** M2
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -9700,3 +9700,9 @@ A relay that sleeps between frames (a Durable Object with WebSocket hibernation)
 cargo test -p pod-relay --all-features
 cargo test -p pod-session --all-features
 ```
+
+## Correction
+
+2026-11-17, items 1 and 2: `pod_relay::liveness` (also `reverse::liveness`): `pace(member)` and `pace_in(frame)` read the member by the rule (30 to 60 s taken, over 60 s held to 60 s, under 30 s and a member that is not `{"frame":"ws-ping","every_s":N}` not taken, no member: the end's own pace). The node (`reverse::serve`) starts its watch again at the pace of `hello`'s member (from `Hello.extra`, no new field); the operator (`reverse::operator`) at the pace of `ready`'s (from the JSON of the frame: `NodeOutbound::Ready` keeps its one field, which podssh builds). `forward_layer::offer::Offer` has `liveness` (`forward.liveness`); podssh builds `Offer` only with `..Offer::default()`, so no literal of it breaks. Tests: 3 unit tests of the rule, `the_offer_keeps_the_pace_of_liveness_of_the_host`, and `tests/liveness_offer.rs` (paused time: a node told 30 s sends its first Ping at 30 s, told 600 s at 60 s, with no offer or with 5 s at 10 s). 462 tests of `pod-relay` pass.
+
+Open: item 3 (the layer of `pod-session` sends no frame of its own on an idle link while the offer holds: its rule of a dead link, `DEAD_AFTER` of silence, must change with it, so it waits for podssh's reference) and item 4 (the vectors of `PodUtils/podssh:docs/relay.md`), both when podssh pushes its `liveness.rs` and its document. No test of the operator's side runs a whole session.

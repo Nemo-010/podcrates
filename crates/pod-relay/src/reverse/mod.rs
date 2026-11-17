@@ -20,6 +20,7 @@ pub mod fair;
 pub mod framing;
 pub mod layered;
 pub mod legs;
+pub use crate::liveness;
 pub mod local;
 pub mod node;
 pub mod operator;

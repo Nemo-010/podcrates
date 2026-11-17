@@ -37,6 +37,10 @@ pub struct Offer {
     /// The UDP port where the host serves podssh's QUIC (`forward.quic`,
     /// podssh T-667), which the race of QUIC takes for a host that the user named.
     pub quic: Option<u16>,
+    /// The pace of Ping that a host that sleeps between frames offers
+    /// (`forward.liveness`, by the rule of [`crate::liveness`]; podssh
+    /// T-712); `None`: the client keeps its own.
+    pub liveness: Option<std::time::Duration>,
 }
 
 impl Offer {
@@ -60,7 +64,8 @@ pub fn of(body: &[u8], asked: &Relay) -> Offer {
     // A port of UDP, 1 to 65535; anything else offers no QUIC.
     let quic = forward.and_then(|forward| forward.get("quic")).and_then(serde_json::Value::as_u64);
     let quic = quic.and_then(|port| u16::try_from(port).ok()).filter(|port| *port != 0);
-    let mut offer = Offer { layer, quic, ..Offer::default() };
+    let liveness = crate::liveness::pace(forward.and_then(|forward| forward.get(crate::liveness::MEMBER)));
+    let mut offer = Offer { layer, quic, liveness, ..Offer::default() };
     match forward.and_then(|forward| forward.get("host")) {
         None | Some(serde_json::Value::Null) => {}
         Some(serde_json::Value::String(name)) => match named(asked, name) {
@@ -126,6 +131,17 @@ mod tests {
 
     fn relay(host: &str, port: u16) -> Relay {
         Relay { host: host.into(), port }
+    }
+
+    /// `forward.liveness` by the rule of `crate::liveness` (T-845).
+    #[test]
+    fn the_offer_keeps_the_pace_of_liveness_of_the_host() {
+        let asked = relay("relay.test", 443);
+        let body = br#"{"forward":{"layer":true,"liveness":{"frame":"ws-ping","every_s":45}}}"#;
+        assert_eq!(of(body, &asked).liveness, Some(std::time::Duration::from_secs(45)));
+        let fast = br#"{"forward":{"layer":true,"liveness":{"frame":"ws-ping","every_s":5}}}"#;
+        assert_eq!(of(fast, &asked).liveness, None, "under 30 s is not taken");
+        assert_eq!(of(br#"{"forward":{"layer":true}}"#, &asked).liveness, None);
     }
 
     #[test]

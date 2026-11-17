@@ -78,6 +78,7 @@ pub mod h2_road;
 pub mod health;
 pub mod http_road;
 pub mod keyed;
+pub mod liveness;
 pub mod open;
 #[cfg(feature = "pair")]
 pub mod pair;

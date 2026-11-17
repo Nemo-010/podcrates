@@ -204,7 +204,14 @@ where
         tokio::select! {
             frame = frames.recv() => match frame {
                 Some(Ok(f)) if f.opcode == frame::OPCODE_TEXT => match control::parse_operator_control(&f.payload) {
-                    Ok(NodeOutbound::Ready { .. }) => break,
+                    Ok(NodeOutbound::Ready { .. }) => {
+                        // A relay that sleeps between frames names a slower
+                        // Ping in `ready` (podssh T-712).
+                        if let Some(every) = super::liveness::pace_in(&f.payload) {
+                            liveness.set(session.watch_liveness(every, limits.pings_allowed));
+                        }
+                        break;
+                    }
                     Ok(NodeOutbound::Reject { reason, .. }) => rejected = Some(reason),
                     Ok(NodeOutbound::Close { reason, .. }) => rejected = rejected.or(reason),
                     Err(_) => {}
