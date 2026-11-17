@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**666 entries: 141 open, 14 partial, 7 blocked, 504 done.**
+**666 entries: 140 open, 15 partial, 7 blocked, 504 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
-| P2 | 56 | 3 | 4 | 262 | 325 |
+| P2 | 55 | 4 | 4 | 262 | 325 |
 | P3 | 74 | 3 | 3 | 93 | 173 |
-| **All** | 141 | 14 | 7 | 504 | 666 |
+| **All** | 140 | 15 | 7 | 504 | 666 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -691,7 +691,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-809](roads.md) | P3 | M | M4 | feature | open | `pod-iroh`: the relay dial of iroh takes a proxy URL, not the caller's dialer (T-037) |
 | [T-810](roads.md) | P2 | M | M4 | chore | done | `pod-iroh`: the adoption trial of podssh (T-037) |
 | [T-811](podvm.md) | P1 | S | M6 | defect | done | `pod-enter`: the init of a PID namespace keeps the descriptors of the caller, so `run -d` never returns (PodUtils/podvm#460) |
-| [T-812](relay.md) | P2 | M | M2 | measurement | open | `pod-relay`: a measurement by hand of the throughput of the hosted relays (the default host and its seeds) |
+| [T-812](relay.md) | P2 | M | M2 | measurement | partial | `pod-relay`: a measurement by hand of the throughput of the hosted relays (the default host and its seeds) |
 | [T-813](relay.md) | P3 | S | M2 | research | open | `pod-ws`: the speed of a relay path in two modes (75 and 330 MiB/s) that the dig study saw |
 | [T-814](relay.md) | P3 | M | M2 | feature | open | `pod-relay`: the bytes and the time of each session for each host, and an order by measured rate in shadow |
 | [T-815](relay.md) | P3 | S | M2 | research | open | `pod-relay`: the budget of a session under a relay whose caps are larger than the default relay's |

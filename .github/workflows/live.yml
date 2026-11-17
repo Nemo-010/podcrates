@@ -48,6 +48,7 @@ on:
           - reverse_drops_live
           - blocking_live
           - grant_live
+          - live_measure
       until:
         description: "The end of reverse_drops_live, in Unix seconds (at most an hour ahead; empty: 15 minutes)"
         required: false
@@ -303,7 +304,7 @@ jobs:
           TEST: ${{ inputs.relay }}
         run: |
           case "$TEST" in
-            live|live_backpressure|pair_live|reverse_live|reverse_idle_live|reverse_drops_live|blocking_live|grant_live) ;;
+            live|live_backpressure|pair_live|reverse_live|reverse_idle_live|reverse_drops_live|blocking_live|grant_live|live_measure) ;;
             *) echo "not a live test of the list: $TEST" >&2; exit 2 ;;
           esac
           cargo test --locked -p pod-relay --all-features --test "$TEST" --no-run

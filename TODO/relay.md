@@ -9166,7 +9166,7 @@ pass as before. Plants `relay-lost-socket-held-to-rejoin` and
 **Milestone:** M2
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -9186,6 +9186,19 @@ An ignored test of `pod-relay` against a stand-in on the loopback, and an input 
 ```sh
 cargo test -p pod-relay --all-features --test measure -- --ignored --nocapture
 ```
+
+## Correction
+
+2026-11-17: the tool is in: `crates/pod-relay/tests/live_measure.rs`
+(ignored; the input `relay: live_measure` of `live.yml`) makes a pair at the
+default host and at each seed of `pool::seed()`, one at a time, runs a node
+that echoes on the runner, and opens one operator session through the
+relay: the time to the first echo, 100 round trips of 64 bytes (p50, p99),
+then 16 MiB each way at once; one `MEASURE scen=relay relay=HOST ...` line
+for each host, or its failure. Both ends are the test's, so each byte
+crosses the relay two times. Open: the first runs and their reading under
+docs/research; a stand-in run on the loopback is not taken (the rate of a
+stand-in says nothing of a hosted relay).
 
 # T-813: `pod-ws`: the speed of a relay path in two modes (75 and 330 MiB/s) that the dig study saw
 
