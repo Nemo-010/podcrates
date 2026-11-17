@@ -7310,3 +7310,142 @@ the first case; the screen test calls it. The test of the scratch directory
 (a program that does not exist) starts no server. Here: `cargo test -p
 pod-term --all-features --test calibration` passed five times in a row
 (3 tests each), and no tmux server stays after the runs.
+
+# T-822: `pod-identity`: a threshold CA of the grants, an authorization of enrollment, a refresh of the shares (PK-1 to PK-7 of the ingest study)
+
+**Source:** the ingest study of 2026-11-16 (an archive of the owner), PK-1 to PK-7.
+**Category:** feature
+**Milestone:** M1
+**Priority:** P3
+**Effort:** L
+**Status:** open
+
+## Problem
+
+One key signs each grant certificate (`pod-relay/src/grant/cert.rs`); an enrollment proves the possession of a key with no object that authorizes it; shares, where they exist, never change.
+
+## Premise
+
+- Read: PK-1 to PK-7 of the ingest study (FROST over Ed25519, a pool of commitments, a vault of nonces taken once in a boot epoch, a quorum with a check of each share).
+- Not read: a consumer that asks for a threshold CA.
+
+## Approach
+
+Wait for a consumer's ask. Then: the authorization of enrollment (a nonce of 300 s, a signature, a bootstrap token or a renewal certificate) first; the threshold CA as one unit (PK-1 to PK-4); the refresh by an operator's command.
+
+## Prove
+
+```sh
+cargo test -p pod-identity --all-features
+```
+
+# T-823: Routing: tokens in a proxy credential, sticky selection by HRW with tiers, a chain length, a quota that reserves before a write (RT-1 to RT-5 of the ingest study)
+
+**Source:** the ingest study of 2026-11-16 (an archive of the owner), RT-1 to RT-5.
+**Category:** feature
+**Milestone:** M1
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+Each pick of a route is random again; there is no tier; the user name of a proxy credential is a flag; `Metered` of `pod-core` signals and does not reserve.
+
+## Premise
+
+- Read: RT-1 to RT-5 of the ingest study; its measurement of sticky selection (HRW with BLAKE2b moves 1/(n+1) of the keys at an add, modulo 0.8 to 0.95, HRW with FNV 0.5 at n=4).
+- Read: the code of selection is mostly podnet's.
+
+## Approach
+
+Weighted HRW with BLAKE2b or SipHash (never FNV) and a field of priority, as a function of `pod-core` that podnet and the choice of a relay host can take; the reserve, commit and refund of a quota in `pod-core`; the grammar of tokens with podnet by a COORD issue.
+
+## Prove
+
+```sh
+cargo test -p pod-core --all-features
+```
+
+# T-825: `pod-proxy`: a plan of the dial by address family, with the families of both ends and a timeout for each attempt
+
+**Source:** the dig study of 2026-11-16 (an archive of the owner), report 07.
+**Category:** feature
+**Milestone:** M1
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+`race.rs` takes the first connection that opens, so a fast IPv4 path wins over a slower IPv6 path that works; there is no intersection of the families of both ends and no timeout for each attempt.
+
+## Premise
+
+- Read: report 07 of the dig study (a cached probe of the local families, an address set tagged by family, an IPv6 preference that waits rather than races, IPv4-mapped IPv6 as IPv4); `crates/pod-proxy/src/race.rs`.
+- Not measured: a dual-stack host.
+
+## Approach
+
+Behind a setting: the intersection, the hold for IPv6 with a timeout for each attempt, the mapped addresses as IPv4. Measure on a dual-stack host before it is the default.
+
+## Prove
+
+```sh
+cargo test -p pod-proxy --all-features race
+```
+
+# T-826: `pod-identity`: a rotation of the identity key with two slots and a retire step
+
+**Source:** the dig study of 2026-11-16 (an archive of the owner), report 08.
+**Category:** feature
+**Milestone:** M1
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+An identity key cannot change without a break of each pin of it.
+
+## Premise
+
+- Read: report 08 of the dig study (two slots on disk, a three-state local policy); T-192 (the durable write).
+
+## Approach
+
+Two slots, the next key published beside the current one, then a retire step; on the durable write of T-192.
+
+## Prove
+
+```sh
+cargo test -p pod-identity --all-features
+```
+
+# T-828: `pod-services`: the DIG relay, its measured limits and its framing, or a call that names it unfit
+
+**Source:** the dig study of 2026-11-16 (an archive of the owner), `poc/`.
+**Category:** research
+**Milestone:** M1
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The dig study measured the DIG relay 0.20.4 on the loopback: 1 MiB/s and 256 frames each second for each connection by default, a cap of 1 GiB in a lifetime, messages of 256 KiB, about 3.6 bytes on the wire for each byte of payload (a JSON array of decimal bytes), and a cut of a 16 MiB run after 89 ms. The record has nothing on it.
+
+## Premise
+
+- Read: `poc/` of the dig study; T-376 (relays as candidates with their measured limits).
+- Not measured: the hosted `relay.dig.net`.
+
+## Approach
+
+A service file with no rank and its facts, marked unfit for a bulk stream, or a call in `docs/decisions.md`.
+
+## Prove
+
+```sh
+cargo test -p pod-services
+```

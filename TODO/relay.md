@@ -9158,3 +9158,251 @@ answers `409`: the node ends at its hold of 2 s with one line, not at the
 10 minutes of `rejoin`. The four tests of `409` in `blocking_plain.rs`
 pass as before. Plants `relay-lost-socket-held-to-rejoin` and
 `relay-lost-socket-held-silent`.
+
+# T-812: `pod-relay`: a measurement by hand of the throughput of the hosted relays (the default host and its seeds)
+
+**Source:** the dig study of 2026-11-16 (an archive of the owner), `poc/`.
+**Category:** measurement
+**Milestone:** M2
+**Priority:** P2
+**Effort:** M
+**Status:** open
+
+## Problem
+
+Nothing in podcrates measures the bytes each second through a relay. The rank (`rank.rs`, `rank_auto.rs`) reads the share of failed probes and the time to open a session, never a rate. The default host `tcp.ssh.relay.ajam.dev` and its six seeds have no throughput number in the record. The dig study measured only relays on one machine over the loopback (a local `podssh relay serve`: 328.6 MiB/s at the median).
+
+## Premise
+
+- Read: `crates/pod-relay/src/rank.rs`, `rank_auto.rs`; `crates/pod-link/tests/measure.rs` (the `MEASURE` lines of T-777); `ajam-relay.toml` (the caps).
+- Not measured: the rate of any hosted relay, a rate limit of the hosted relays.
+
+## Approach
+
+An ignored test of `pod-relay` against a stand-in on the loopback, and an input `measure` of `live.yml` that runs against the default host and each seed, one connection at a time: 16 MiB each way (under the budget of 60 MiB), the MiB/s, the time to open, the round trip p50 and p99, in the `MEASURE` form of T-777. Keep each run as a dated reading under docs/research.
+
+## Prove
+
+```sh
+cargo test -p pod-relay --all-features --test measure -- --ignored --nocapture
+```
+
+# T-813: `pod-ws`: the speed of a relay path in two modes (75 and 330 MiB/s) that the dig study saw
+
+**Source:** the dig study of 2026-11-16 (an archive of the owner), `poc/results.jsonl`.
+**Category:** research
+**Milestone:** M2
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+Five runs of 16 MiB through a local `podssh relay serve` on the loopback gave 74.7 MiB/s in some runs and about 330 MiB/s in the others; the study gives no cause. If the relay and its client share the bridge of `pod-ws`, the cause can be here.
+
+## Premise
+
+- Read: `poc/RESULTS.md` and `results.jsonl` of the archive; `crates/pod-ws/tests/bridge.rs` (`throughput`, ignored).
+- Not read: whether `podssh relay serve` uses `pod_ws::bridge`.
+
+## Approach
+
+Run the ignored throughput test of `pod-ws` 20 times; where it is bimodal, find the cause (the size of a read, the scheduling of the two pumps) and fix it with a test; where it is not, ask podssh by a COORD issue.
+
+## Prove
+
+```sh
+cargo test -p pod-ws --all-features --test bridge throughput -- --ignored --nocapture
+```
+
+# T-814: `pod-relay`: the bytes and the time of each session for each host, and an order by measured rate in shadow
+
+**Source:** the dig study of 2026-11-16 (an archive of the owner), report 04.
+**Category:** feature
+**Milestone:** M2
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+The rank orders hosts by failed probes and the time to open; no session counts its bytes for its host (`stream.rs` gives `NoTally`), so a slow host with a fast open stays first. A failed check of identity counts as an ordinary failure, which decays.
+
+## Premise
+
+- Read: report 04 of the archive (an estimator whose smoothing follows volatility, a relayed-path penalty, an integrity tier that does not decay); `crates/pod-relay/src/rank_list.rs`, `failures.rs`, `stream.rs`.
+
+## Approach
+
+Tally the bytes and the time of each finished session for each host and egress (no new connection). Write the order by measured rate beside the current order, as a line, for one release before any change of the order. Keep a failed check of identity in a tier of its own that does not decay.
+
+## Prove
+
+```sh
+cargo test -p pod-relay --all-features rank
+```
+
+# T-815: `pod-relay`: the budget of a session under a relay whose caps are larger than the default relay's
+
+**Source:** the ingest study of 2026-11-16 (an archive of the owner), its gap list.
+**Category:** research
+**Milestone:** M2
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`byte_budget_under` lowers the budget of 60 MiB for a relay with smaller caps and never raises it (`relay.rs`); `MOVE_BYTES` of `pod-session` is 48 MiB. A relay that publishes a cap of 256 MiB still gets a new session each 48 MiB.
+
+## Premise
+
+- Read: `crates/pod-relay/src/relay.rs` (`byte_budget_under`), `crates/pod-session/src/resume.rs` (`MOVE_BYTES`, `MOVE_AGE`), the calls of PodUtils/podssh@T-342.
+- Not measured: the cost of a move of the session on a hosted relay.
+
+## Approach
+
+Decide whether the budget and `MOVE_BYTES` follow the cap in use with the same margins; record the call; where they do, a test with a cap of 256 MiB.
+
+## Prove
+
+```sh
+cargo test -p pod-relay --all-features budget
+```
+
+# T-818: `pod-link`: forward error correction and a NACK backstop (TR-1, TR-2 of the ingest study)
+
+**Source:** the ingest study of 2026-11-16 (an archive of the owner), TR-1, TR-2.
+**Category:** feature
+**Milestone:** M2
+**Priority:** P3
+**Effort:** L
+**Status:** open
+
+## Problem
+
+The ARQ is the only recovery of `pod-link`. On a lossy path each lost frame costs a round trip; the study's model gives 21.6 % residual loss of an object of 28 symbols with one repair at 3 % loss, 1.3 % with three.
+
+## Premise
+
+- Read: TR-1 and TR-2 of the ingest study (a systematic Reed-Solomon code over GF(2^8), a repair count for each class, a NACK with a grace of 5 ms and at most 64 missing counters).
+- Not measured: FEC on a real lossy path; the residual numbers are a binomial model.
+
+## Approach
+
+A module `fec` of `pod-link`, off by default: the code, the cap of an object checked before an allocation, a repair count for each class, then a NACK for the missing frames with a bounded retransmit buffer. Measure it under netem (T-777 form) before it is on.
+
+## Prove
+
+```sh
+cargo test -p pod-link --all-features fec
+```
+
+# T-819: `pod-netstack`: a ladder of the path MTU, a clamp of the MSS, and a class for each flow (TR-3, TR-4 of the ingest study)
+
+**Source:** the ingest study of 2026-11-16 (an archive of the owner), TR-3, TR-4.
+**Category:** feature
+**Milestone:** M2
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+The MTU of `pod-netstack` is fixed at 1280 and the size of a fragment is taken once; no flow has a class.
+
+## Premise
+
+- Read: TR-3 and TR-4 of the ingest study (a ladder of 1120, 1320, 1400 and 1500 with sealed probes; the clamp with the checksum update of RFC 1624; a table of 4096 flows with an idle eviction of 30 s).
+
+## Approach
+
+The ladder with sealed probes, the clamp of the MSS of a SYN, then the class of a flow (a policy, DSCP, then a heuristic). Each with a unit test of its bytes.
+
+## Prove
+
+```sh
+cargo test -p pod-netstack --all-features
+```
+
+# T-820: The datapath: GSO with a fate rule, rings for each worker, a pool of source ports, the offload of TUN, a table of MAC addresses in O(1) (DP-1 to DP-5 of the ingest study)
+
+**Source:** the ingest study of 2026-11-16 (an archive of the owner), DP-1 to DP-5.
+**Category:** feature
+**Milestone:** M2
+**Priority:** P3
+**Effort:** L
+**Status:** open
+
+## Problem
+
+`pod-core` emulates GSO by chunks with no rule for the fate of a batch; the queue of `pod-netstack` is one mutex; each endpoint has one socket; TUN has no offload; podnet's table of MAC addresses evicts in O(n).
+
+## Premise
+
+- Read: DP-1 to DP-5 of the ingest study; `crates/pod-netstack/src/device/queue.rs`.
+- Not measured: each gain; DP-2 waits for DP-1 and DP-3.
+
+## Approach
+
+In order, each measured before and after (T-777 form): GSO with `UDP_SEGMENT` and a capability probe; rings for each worker pair with `SO_REUSEPORT` and a keyed hash; a pool of up to 64 source sockets; then `IFF_VNET_HDR`. The table of MAC addresses goes to podnet by a COORD issue.
+
+## Prove
+
+```sh
+cargo test -p pod-netstack --all-features
+```
+
+# T-821: The wire: a keyed mask of the header of `pod-e2e`, cover traffic, a JA4 audit of the hello of `pod-tls`, an ML-KEM hybrid (WR-1 to WR-5 of the ingest study)
+
+**Source:** the ingest study of 2026-11-16 (an archive of the owner), WR-1 to WR-5.
+**Category:** feature
+**Milestone:** M2
+**Priority:** P3
+**Effort:** L
+**Status:** open
+
+## Problem
+
+The header of a record of `pod-e2e` goes in clear after a constant magic; an idle tunnel is silent; a bump of a dependency can change the fingerprint of the hello of `pod-tls` unseen; a recorded session of `pod-e2e` has no post-quantum secrecy. A camouflage front (WR-4) conflicts with the refusal of REALITY in `pod-egress`.
+
+## Premise
+
+- Read: WR-1 to WR-5 of the ingest study; T-490 (the browser-shaped hello); `crates/pod-e2e/src/lib.rs` (the pattern of Noise).
+
+## Approach
+
+First the JA4 pin test of the default hello of `pod-tls` (with T-490). Then the mask of the header with a key from the exporter for each direction and epoch (a bump of the version of the record). Then the hybrid of ML-KEM-768 in the handshake of `pod-e2e`. Cover traffic, off by default, last. WR-4 waits for a ruling of the owner: write the question.
+
+## Prove
+
+```sh
+cargo test -p pod-e2e -p pod-tls --all-features
+```
+
+# T-829: A COORD issue to podssh: the ideas of the dig study for the relay server (a ban after strikes, the PROXY header, a STUN responder, a sweep of liveness)
+
+**Source:** the dig study of 2026-11-16 (an archive of the owner), report 01.
+**Category:** chore
+**Milestone:** M2
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The relay server is podssh's until T-036; report 01 of the dig study has ideas for it (a ban after 20 strikes in 60 s for 300 s, trusted ranges of the PROXY protocol, a STUN responder with 5 each second for each source, deadlines of liveness of 30, 90, 120 and 10 s, a check of an advertised address against the observed source).
+
+## Premise
+
+- Read: report 01 of the dig study (checked against the code of PodUtils by its authors).
+
+## Approach
+
+Open a COORD issue `(to podssh)` with the ideas and their numbers; T-036 takes what podssh takes.
+
+## Prove
+
+```sh
+cargo todo check
+```

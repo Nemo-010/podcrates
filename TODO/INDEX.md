@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**644 entries: 122 open, 14 partial, 6 blocked, 502 done.**
+**666 entries: 142 open, 14 partial, 7 blocked, 503 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
-| P2 | 55 | 3 | 4 | 260 | 322 |
-| P3 | 56 | 3 | 2 | 93 | 154 |
-| **All** | 122 | 14 | 6 | 502 | 644 |
+| P2 | 57 | 3 | 4 | 261 | 325 |
+| P3 | 74 | 3 | 3 | 93 | 173 |
+| **All** | 142 | 14 | 7 | 503 | 666 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -691,3 +691,25 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-809](roads.md) | P3 | M | M4 | feature | open | `pod-iroh`: the relay dial of iroh takes a proxy URL, not the caller's dialer (T-037) |
 | [T-810](roads.md) | P2 | M | M4 | chore | done | `pod-iroh`: the adoption trial of podssh (T-037) |
 | [T-811](podvm.md) | P1 | S | M6 | defect | done | `pod-enter`: the init of a PID namespace keeps the descriptors of the caller, so `run -d` never returns (PodUtils/podvm#460) |
+| [T-812](relay.md) | P2 | M | M2 | measurement | open | `pod-relay`: a measurement by hand of the throughput of the hosted relays (the default host and its seeds) |
+| [T-813](relay.md) | P3 | S | M2 | research | open | `pod-ws`: the speed of a relay path in two modes (75 and 330 MiB/s) that the dig study saw |
+| [T-814](relay.md) | P3 | M | M2 | feature | open | `pod-relay`: the bytes and the time of each session for each host, and an order by measured rate in shadow |
+| [T-815](relay.md) | P3 | S | M2 | research | open | `pod-relay`: the budget of a session under a relay whose caps are larger than the default relay's |
+| [T-816](upkeep.md) | P2 | S | M5 | docs | open | The dig study and the ingest study of 2026-11-16 as research documents, with their corrections |
+| [T-817](upkeep.md) | P2 | S | M5 | chore | done | A call on references under GPL or AGPL: their designs, never their code |
+| [T-818](relay.md) | P3 | L | M2 | feature | open | `pod-link`: forward error correction and a NACK backstop (TR-1, TR-2 of the ingest study) |
+| [T-819](relay.md) | P3 | M | M2 | feature | open | `pod-netstack`: a ladder of the path MTU, a clamp of the MSS, and a class for each flow (TR-3, TR-4 of the ingest study) |
+| [T-820](relay.md) | P3 | L | M2 | feature | open | The datapath: GSO with a fate rule, rings for each worker, a pool of source ports, the offload of TUN, a table of MAC addresses in O(1) (DP-1 to DP-5 of the ingest study) |
+| [T-821](relay.md) | P3 | L | M2 | feature | open | The wire: a keyed mask of the header of `pod-e2e`, cover traffic, a JA4 audit of the hello of `pod-tls`, an ML-KEM hybrid (WR-1 to WR-5 of the ingest study) |
+| [T-822](transport.md) | P3 | L | M1 | feature | open | `pod-identity`: a threshold CA of the grants, an authorization of enrollment, a refresh of the shares (PK-1 to PK-7 of the ingest study) |
+| [T-823](transport.md) | P3 | M | M1 | feature | open | Routing: tokens in a proxy credential, sticky selection by HRW with tiers, a chain length, a quota that reserves before a write (RT-1 to RT-5 of the ingest study) |
+| [T-824](foundation.md) | P3 | M | M0 | chore | open | Verification gates: no allocation in `pod-e2e`, bounded steps, no blocking call, exhaustive checksum equivalence, a record of results, test runs with each feature (VF-1 to VF-5 of the ingest study) |
+| [T-825](transport.md) | P3 | M | M1 | feature | open | `pod-proxy`: a plan of the dial by address family, with the families of both ends and a timeout for each attempt |
+| [T-826](transport.md) | P3 | M | M1 | feature | open | `pod-identity`: a rotation of the identity key with two slots and a retire step |
+| [T-827](foundation.md) | P3 | S | M0 | feature | open | `pod-core`: a type for the text of a peer in a field of an error |
+| [T-828](transport.md) | P3 | S | M1 | research | open | `pod-services`: the DIG relay, its measured limits and its framing, or a call that names it unfit |
+| [T-829](relay.md) | P3 | S | M2 | chore | open | A COORD issue to podssh: the ideas of the dig study for the relay server (a ban after strikes, the PROXY header, a STUN responder, a sweep of liveness) |
+| [T-830](fleet.md) | P3 | M | M8 | feature | open | Updates: a gate of health with a rollback, a check of loadability, a store of logs, scheduled updates, a floor of rollback in the feed (report 15 of the dig study, with T-104) |
+| [T-831](foundation.md) | P3 | S | M0 | feature | open | `pod-core`: one table of the loopback addresses that a process takes, with a test that it can fail |
+| [T-832](fleet.md) | P3 | L | M8 | research | blocked | The intake of the dig study for podswarm: NAT traversal, a DHT, gossip, sealed messages, content addressing, storage, sealed secrets |
+| [T-833](fleet.md) | P3 | S | M8 | feature | open | `pod-control`: a test that the catalogue is the dispatch, tiers of surfaces, a budget of callbacks (reports 03, 11, 12 of the dig study, with T-103) |

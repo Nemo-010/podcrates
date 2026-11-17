@@ -5037,3 +5037,88 @@ Tests: `src/sections/tests.rs` (each form in the blocks, the text, the man
 page and the JSON, which reads back; each finding of the check). Plants
 `manual-empty-reason-dangles`, `manual-topic-inside-twice`,
 `manual-feature-unsaid`, `manual-exit-code-unchecked`.
+
+# T-830: Updates: a gate of health with a rollback, a check of loadability, a store of logs, scheduled updates, a floor of rollback in the feed (report 15 of the dig study, with T-104)
+
+**Source:** the dig study of 2026-11-16 (an archive of the owner), report 15.
+**Category:** feature
+**Milestone:** M8
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+T-104 plans the release index and its verifier; the dig study adds a floor of rollback in a signed feed, an unprivileged fetcher with a privileged installer, a gate of health with a rollback, a check that a binary loads with no run, and a store of logs of the machine.
+
+## Premise
+
+- Read: report 15 of the dig study (checked by its authors); T-104.
+
+## Approach
+
+Take the floor of rollback and the delegation into T-104; then the gate of health with the rollback, and the check of loadability, as entries of their own when a consumer asks.
+
+## Prove
+
+```sh
+cargo todo check
+```
+
+# T-832: The intake of the dig study for podswarm: NAT traversal, a DHT, gossip, sealed messages, content addressing, storage, sealed secrets
+
+**Source:** the dig study of 2026-11-16 (an archive of the owner), reports 02, 05, 09, 10, 13, 17, 18.
+**Category:** research
+**Milestone:** M8
+**Priority:** P3
+**Effort:** L
+**Status:** blocked
+
+## Problem
+
+Seven reports of the dig study design parts of a peer-to-peer system (a ladder of traversal, provider records, gossip with priority lanes, sealed messages, content addressing, storage, sealed secrets). They help podswarm alone.
+
+## Premise
+
+- Read: the seven reports (written from code reading; not compiled, not run); `INGEST.md` of the archive, which says not to ingest report 19 or ideas 3, 7 and 8 of report 17.
+
+## Approach
+
+When the session of podswarm starts: one entry for each report that it asks for, with its numbers; T-829 and T-825 keep their parts.
+
+## Prove
+
+```sh
+cargo todo check
+```
+
+## Blocker
+
+The ruling "podswarm" (`docs/decisions.md`): an ask that helps podswarm alone waits until its session starts.
+
+# T-833: `pod-control`: a test that the catalogue is the dispatch, tiers of surfaces, a budget of callbacks (reports 03, 11, 12 of the dig study, with T-103)
+
+**Source:** the dig study of 2026-11-16 (an archive of the owner), reports 03, 11, 12.
+**Category:** feature
+**Milestone:** M8
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+T-103 plans one JSON control API; the dig study adds a test in both directions that the catalogue of methods is the dispatch, tiers of the surfaces of a method, and a budget of the callbacks of a duplex call.
+
+## Premise
+
+- Read: reports 03, 11 and 12 of the dig study; T-103.
+
+## Approach
+
+Take the three into the scope of T-103 when it starts.
+
+## Prove
+
+```sh
+cargo todo check
+```

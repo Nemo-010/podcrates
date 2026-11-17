@@ -3035,3 +3035,61 @@ blobs `581b5b7` (`flags.rs`) and `31d7949` (`data.rs`); its comment names
 the frozen form (call C763). Before: 2 changes. After:
 `check-sources: pod-manual: PodUtils/podssh at 5340fbb: 10 files, 0
 changes`.
+
+# T-816: The dig study and the ingest study of 2026-11-16 as research documents, with their corrections
+
+**Source:** the dig study of 2026-11-16 (an archive of the owner); the ingest study of 2026-11-16 (an archive of the owner).
+**Category:** docs
+**Milestone:** M5
+**Priority:** P2
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The findings of the two studies are only in archives outside the repository. The ingest study has seven defects of its own (a count of keys that differs from its CSV, a trial count of 50,000 labelled 200,000, a table of residual loss that is a binomial model and not a run of the codec, a test run of `pod-link` with no `--all-features` in which 17 test binaries ran no test, stale claims about T-777 and T-778).
+
+## Premise
+
+- Read: both archives (the reports of two agents of this session); `docs/research/` and its rule (readings at a time).
+
+## Approach
+
+Write two documents under docs/research, one for each study: what each measured and how, the numbers with their corrections, the limits, and the entry of each finding (T-812 to T-832).
+
+## Prove
+
+```sh
+cargo todo check
+```
+
+# T-817: A call on references under GPL or AGPL: their designs, never their code
+
+**Source:** the ingest study of 2026-11-16 (an archive of the owner), section 9.
+**Category:** chore
+**Milestone:** M5
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+The ingest study reads a GPL-3.0 proxy router and an AGPL-3.0 mesh VPN; the project is 0BSD (`AGENTS.md`, section 6). No call says what an entry may take from such a reference.
+
+## Premise
+
+- Read: `AGENTS.md` section 6; section 9 of the ingest study.
+
+## Approach
+
+Record the call in `docs/decisions.md`.
+
+## Prove
+
+```sh
+cargo todo check
+```
+
+## Done
+
+2026-11-17. Call C772 of `docs/decisions.md`: from a reference under GPL or AGPL, an entry takes the design, the wire facts and the constants that a document of the reference states, never its code; the entry names the reference and says so.
