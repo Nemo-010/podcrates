@@ -7642,3 +7642,34 @@ At each release of iroh and of arti, look at `cargo tree -i chrono` and `cargo t
 ```sh
 cargo deny --locked check advisories
 ```
+
+# T-858: `pod-tls`: `Trust::Default` does not read the CA file of the settings (PodUtils/podnet#608)
+
+**Source:** PodUtils/podnet#608 (COORD-101 of podnet, podnet T-421).
+**Category:** defect
+**Milestone:** M1
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+`Context::roots_for(&Trust::Default)` gave the default roots, with no `Settings::ca_file`; `Context::roots()` and `client_config_with` read it. So each road of `pod-ws` and `pod-relay` that passes `Trust::Default` ignored the consumer's `--ca-file` or `SSL_CERT_FILE`: behind a proxy that signs TLS with its own CA (`podlab run --way-out ws-upgrade-refused`), `podnet relay connect` failed with `UnknownIssuer`, also with `--ca-file`.
+
+## Premise
+
+- Read: PodUtils/podnet#608; `crates/pod-tls/src/context.rs` (`roots_for`, `config_for`); `crates/pod-tls/src/roots.rs` (`load`, `Context::roots`).
+
+## Approach
+
+`roots_for(&Trust::Default)` takes `Context::roots()` (the CA file alone) where the settings name one; a CA file that cannot be used is an error, not a fall back. A test with a server that the test CA signs; a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-tls --all-features --test roots
+```
+
+## Done
+
+2026-11-17, baec52a99: `roots_for(&Trust::Default)` gives the roots of `Context::roots()` where `Settings::ca_file` is set (the CA file alone, as `load` reads it), else the default roots; `config_for(&Trust::Default)` follows, so each road of `pod-ws` and `pod-relay` trusts the CA of the consumer. An absent or unusable CA file is the error of the file. Test: `the_default_trust_takes_the_ca_file_of_the_settings` (with each provider: the roots are the file alone; a handshake with a server that the test CA signs passes through `config_for(&Trust::Default)`; with no CA file it fails with `UnknownIssuer`; an absent file is an error that names `--ca-file`). The tests of `pod-tls` pass. Plant `tls-default-trust-ignores-the-ca-file`, caught. podnet can drop its own `ws_trust()` (its T-421) after the take; podssh passes `Trust::Default` too.

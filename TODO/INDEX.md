@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**690 entries: 127 open, 22 partial, 7 blocked, 534 done.**
+**691 entries: 127 open, 22 partial, 7 blocked, 535 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 10 | 9 | 0 | 148 | 167 |
+| P1 | 10 | 9 | 0 | 149 | 168 |
 | P2 | 54 | 3 | 4 | 275 | 336 |
 | P3 | 63 | 10 | 3 | 109 | 185 |
-| **All** | 127 | 22 | 7 | 534 | 690 |
+| **All** | 127 | 22 | 7 | 535 | 691 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -737,3 +737,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-855](upkeep.md) | P3 | S | M1 | chore | done | `pod-services`: the node `node-trojan-167-88-61-175` fails the TLS handshake |
 | [T-856](relay.md) | P3 | S | M4 | feature | open | The wire vectors of `tokens.json` through the relay role's tokens |
 | [T-857](podvm.md) | P1 | S | M6 | defect | done | `pod-enter`: a copy of a tree refuses the device nodes of the fixups, so a run of root on `rundir` or `tmpfs` never stages (PodUtils/podvm#467) |
+| [T-858](transport.md) | P1 | S | M1 | defect | done | `pod-tls`: `Trust::Default` does not read the CA file of the settings (PodUtils/podnet#608) |

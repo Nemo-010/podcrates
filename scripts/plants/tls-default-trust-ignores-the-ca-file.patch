@@ -1,0 +1,12 @@
+diff --git a/crates/pod-tls/src/context.rs b/crates/pod-tls/src/context.rs
+--- a/crates/pod-tls/src/context.rs
++++ b/crates/pod-tls/src/context.rs
+@@ -135,7 +135,7 @@ impl Context {
+     pub fn roots_for(&self, trust: &Trust) -> Result<TlsRoots, Error> {
+         match trust {
+             Trust::File(path) => trust::roots_from_bundle(path),
+-            Trust::Default if self.settings.ca_file.is_some() => {
++            Trust::Default if false && self.settings.ca_file.is_some() => {
+                 let roots = self.roots()?;
+                 let store = (*roots.store).clone();
+                 Ok(TlsRoots { count: store.len(), roots: store, source: roots.sources.join(" + ") })

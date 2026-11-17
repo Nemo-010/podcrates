@@ -1,0 +1,6 @@
+# Trust::Default takes the CA file of the settings (T-858).
+ENTRY=T-858
+GROUP=tls
+EXPECT='the_default_trust_takes_the_ca_file_of_the_settings'
+RUN='cargo test -p pod-tls --all-features --test roots'
+LIMIT=1800
