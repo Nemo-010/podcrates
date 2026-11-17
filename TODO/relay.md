@@ -9725,7 +9725,7 @@ Item 3: the far end decides, as one side that leaves `heartbeat.v1` out ends the
 **Milestone:** M2
 **Priority:** P2
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -9750,4 +9750,37 @@ A relay behind Cloudflare Access refuses each socket that has no service-token h
 cargo test -p pod-ws --all-features
 cargo test -p pod-relay --all-features
 cargo test -p pod-egress --all-features
+```
+
+## Done
+
+2026-11-17, c71f14eb6 and cf9326c86: `pod_ws::Headers` (a function of the host that gives `(&'static str, Zeroizing<String>)`; `Headers::new`, `from_arc`, `in_cleartext`, `for_host`, `for_cleartext`) is the field `pod_ws::Way::headers` (`Way::with_headers`, `Way::extra`, `Way::extra_in_cleartext`; none by default, so no literal of a consumer breaks; call C775). `pod_ws::Extra` is the checked set of one host: a name that is no HTTP token, a name that a road writes itself or a name twice, and a value with a control character (CR, LF, NUL, another C0, DEL) are refused before any byte, by the name alone; `Extra::masked` replaces each value in the words of `Refused`, `Upgrade`, `Http` and `Config` (a quote cut in a value too) and keeps the status. New: `handshake::build_request_with`, `client::upgrade_carrying`, `plain::connect_loopback_carrying`, `url::asking_carrying`. The roads that write them after the token: `connect` (HTTP/1.1), `h2_road` (CONNECT of RFC 8441, never indexed by HPACK, and its fallback), QUIC (`quic_road::dial`), the plain wire (forward, `/v1/node/`, `/v1/connect/`), the HTTP road (the open, each request of a session after `X-Session-Key`, the one-POST form on HTTP/1.1 and HTTP/2), the URL road (the forwarder and Wisp of `pod-egress`), `https_post_json` and `https_with_token` (the mint, the pairing calls) and `/health`. A road in cleartext (`cleartext::connect`, its mint, `ws://`) writes them only with `Headers::in_cleartext(true)`: podssh sets it to send them there. Tests: `pod-ws` `headers::tests` (5), `handshake::tests::the_caller_s_headers_follow_the_token`, `tests/caller_headers.rs` (HTTP/1.1 and HTTP/2 over TLS, 401 and 403 masked with their status, cleartext and `ws://` opt-in, `wss://`, the POST, a control character before any connection, plain `ws://`); `pod-relay` `tests/caller_headers.rs` (the HTTP road, the cleartext road, the forward opener on the plain wire), `reverse::wire::tests`, `quic_road::dial::tests` (the upgrade on a stream), `http_road::one_h2::tests`; `pod-egress` `tests/forwarder.rs` `the_caller_s_headers_go_to_the_forwarder_where_allowed`. Plant `ws-caller-headers-not-sent`, caught. The fetches of `/relays.json` send none: T-848.
+
+# T-848: `pod-relay`: the headers of the caller on the fetches of `/relays.json`
+
+**Source:** T-847.
+**Category:** feature
+**Milestone:** M2
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`pool::body_of` (the pool) and `forward_layer::offer::over` (the offer of the layer) ask a relay host for `/relays.json` with no header of the caller (`pod_ws::Headers`). A relay behind Cloudflare Access refuses them, so the pool and the offer of such a host are empty.
+
+## Premise
+
+- Read: `crates/pod-relay/src/pool.rs` (`body_of`), `crates/pod-relay/src/forward_layer/offer.rs` (`over`), `crates/pod-relay/src/health.rs` (`fetch`, which sends them).
+
+## Approach
+
+1. Give each fetch the `Extra` of its host (`Way::extra`), as `health::fetch` does; the functions that take a stream take it as an argument.
+2. Mask each value in the words of a refusal.
+3. A test with a stand-in that reads the head of each fetch.
+
+## Prove
+
+```sh
+cargo test -p pod-relay --all-features
 ```
