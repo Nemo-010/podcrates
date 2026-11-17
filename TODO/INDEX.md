@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**671 entries: 129 open, 18 partial, 7 blocked, 517 done.**
+**672 entries: 129 open, 18 partial, 7 blocked, 518 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
-| P2 | 55 | 4 | 4 | 265 | 328 |
+| P2 | 55 | 4 | 4 | 266 | 329 |
 | P3 | 63 | 6 | 3 | 103 | 175 |
-| **All** | 129 | 18 | 7 | 517 | 671 |
+| **All** | 129 | 18 | 7 | 518 | 672 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -718,3 +718,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-836](relay.md) | P2 | S | M2 | feature | done | `pod-relay`: a route of a node to a Unix socket (PodUtils/podssh#295) |
 | [T-837](relay.md) | P2 | S | M2 | defect | done | `pod-relay`: a node ends a session whose local side still reads, at the first MiB that waits for it |
 | [T-838](foundation.md) | P3 | M | M0 | chore | open | Gates of a bounded step and of no blocking call in a hot path (VF-2, VF-3 of the ingest study) |
+| [T-839](transport.md) | P2 | S | M1 | defect | done | `pod-services`: localhost.run's remote forward takes port 80, not 0 (PodUtils/podnet#607) |

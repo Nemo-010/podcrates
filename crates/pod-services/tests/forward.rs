@@ -257,16 +257,18 @@ fn the_rule_of_each_relay_refuses_the_other_urls_of_the_service() {
 }
 
 /// The port of the remote forward: Sandhole's demo refuses port 0 and
-/// names 80 (T-373, GitHub #97); srv.us hashes the port into the name, and
+/// names 80 (T-373, GitHub #97), as localhost.run does (T-839,
+/// PodUtils/podnet#607); srv.us hashes the port into the name, and
 /// podssh's ends agree on 1 (T-552); a relay with no fact gives none.
 #[test]
 fn the_remote_port_is_the_relay_s_fact() {
     assert_eq!(relay("sandhole").remote_port(), Some(80));
+    assert_eq!(relay("localhost-run").remote_port(), Some(80));
     assert_eq!(relay("srv-us").remote_port(), Some(1));
     // Each forward-url watch of srv.us asks for that port.
     let watch = relay("srv-us").service().watches().iter().find(|w| w.kind() == "forward-url").unwrap();
     assert_eq!(watch.arg("port").and_then(Value::as_int), Some(1));
-    for id in ["pinggy", "serveo", "localhost-run", "tunnl-gg"] {
+    for id in ["pinggy", "serveo", "tunnl-gg"] {
         assert_eq!(relay(id).remote_port(), None, "{id}");
     }
 }

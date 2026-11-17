@@ -7467,3 +7467,34 @@ cargo todo check
 ## Done
 
 2026-11-17. The call C774 in `docs/decisions.md`: no service file and no rank for the DIG relay, unfit for a bulk stream, with the measured limits of the study (1 MiB/s, 256 frames each second and 1 GiB in a lifetime for each connection; a cut of a 16 MiB copy after 89 ms; messages of 256 KiB; about 3.6 bytes on the wire for each byte; 7.5 to 8.0 MiB/s with the caps off) and the condition to open it again (published caps above the budget of a session, and a binary frame). The Prove is the record: no code changed.
+
+# T-839: `pod-services`: localhost.run's remote forward takes port 80, not 0 (PodUtils/podnet#607)
+
+**Source:** PodUtils/podnet#607 (COORD-100 of podnet; its live run 44005215136).
+**Category:** defect
+**Milestone:** M1
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+`localhost-run.toml` has no fact `remote-port`, so `Relay::remote_port()` gives none and podnet asks for a remote forward of port 0. localhost.run refused each such forward for 60 s in podnet's live run.
+
+## Premise
+
+- Read: PodUtils/podnet#607; `https://localhost.run/docs/cli` and `/docs/faq` (`ssh -R 80:localhost:8080 localhost.run`); `sandhole.toml` (the same fact).
+
+## Approach
+
+The fact `remote-port` = 80 with the source of the CLI document.
+
+## Prove
+
+```sh
+cargo test -p pod-services --all-features --test forward
+```
+
+## Done
+
+2026-11-17. The fact `remote-port` = 80 in `crates/pod-services/services/localhost-run.toml`, with its source (the CLI document, read again today: `ssh -R 80:localhost:8080 localhost.run`). `the_remote_port_is_the_relay_s_fact` of `tests/forward.rs` holds it. The plant `services-localhost-run-port-zero` (the fact renamed) is caught. podnet takes it with `v0.67.0`; no code change in podnet.

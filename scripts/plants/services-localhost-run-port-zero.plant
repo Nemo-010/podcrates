@@ -1,0 +1,7 @@
+# localhost.run refuses a remote forward of port 0: its file names 80
+# (T-839, PodUtils/podnet#607).
+ENTRY=T-839
+GROUP=services
+EXPECT='the_remote_port_is_the_relay_s_fact'
+RUN='cargo test -p pod-services --all-features --test forward'
+LIMIT=1800

@@ -1,0 +1,11 @@
+--- a/crates/pod-services/services/localhost-run.toml
++++ b/crates/pod-services/services/localhost-run.toml
+@@ -25,7 +25,7 @@ source = { url = "https://localhost.run/docs/faq", read = 2026-11-11, note = "Fo
+ # (PodUtils/podnet#607: each forward refused for 60 s in podnet's live
+ # run 44005215136).
+ [[fact]]
+-name = "remote-port"
++name = "remote-port-unused"
+ value = 80
+ source = { url = "https://localhost.run/docs/cli", read = 2026-11-17, note = "ssh -R 80:localhost:8080 localhost.run; the FAQ gives the same port: ssh -R 80:localhost:8080 nokey@localhost.run" }
+ 

@@ -21,6 +21,14 @@ name = "user"
 value = "nokey"
 source = { url = "https://localhost.run/docs/faq", read = 2026-11-11, note = "For free tunnels, skip the key check with the nokey user: ssh -R 80:localhost:8080 nokey@localhost.run" }
 
+# The port of the remote forward: the service refuses port 0
+# (PodUtils/podnet#607: each forward refused for 60 s in podnet's live
+# run 44005215136).
+[[fact]]
+name = "remote-port"
+value = 80
+source = { url = "https://localhost.run/docs/cli", read = 2026-11-17, note = "ssh -R 80:localhost:8080 localhost.run; the FAQ gives the same port: ssh -R 80:localhost:8080 nokey@localhost.run" }
+
 # The facts of a forward relay (README, "SSH forward relays"). The banner
 # names the tunnel after a welcome that names other hosts of the service.
 [[fact]]
