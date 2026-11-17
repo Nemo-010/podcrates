@@ -24,7 +24,9 @@
     of 200 MiB), with the release asset of `podlab`; `pod-manual` is
     PodUtils/podssh@T-790; its installer on the core is
     PodUtils/podssh@T-793.
-  - podnet: `v0.66.0` (`060147b`, PodUtils/podnet#597; `v0.65.0` in
+  - podnet: `v0.67.0` (`71924ec`, PodUtils/podnet#597: no change of a
+    public API; next its six copies of a durable replace to `replace_private`;
+    `v0.66.0` in `060147b`; `v0.65.0` in
     `17fa8e6`: on `NameInUse` it takes the next stored pair (T-805); its help and
     manual come from `pod-manual` with no workaround of T-725; it runs the one
     watcher and the sync of the issues; its installer on
