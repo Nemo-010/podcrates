@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**667 entries: 137 open, 16 partial, 7 blocked, 507 done.**
+**668 entries: 137 open, 16 partial, 7 blocked, 508 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
 | P2 | 55 | 4 | 4 | 263 | 326 |
-| P3 | 71 | 4 | 3 | 95 | 173 |
-| **All** | 137 | 16 | 7 | 507 | 667 |
+| P3 | 71 | 4 | 3 | 96 | 174 |
+| **All** | 137 | 16 | 7 | 508 | 668 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -694,7 +694,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-812](relay.md) | P2 | M | M2 | measurement | partial | `pod-relay`: a measurement by hand of the throughput of the hosted relays (the default host and its seeds) |
 | [T-813](relay.md) | P3 | S | M2 | research | done | `pod-ws`: the speed of a relay path in two modes (75 and 330 MiB/s) that the dig study saw |
 | [T-814](relay.md) | P3 | M | M2 | feature | partial | `pod-relay`: the bytes and the time of each session for each host, and an order by measured rate in shadow |
-| [T-815](relay.md) | P3 | S | M2 | research | open | `pod-relay`: the budget of a session under a relay whose caps are larger than the default relay's |
+| [T-815](relay.md) | P3 | S | M2 | research | done | `pod-relay`: the budget of a session under a relay whose caps are larger than the default relay's |
 | [T-816](upkeep.md) | P2 | S | M5 | docs | done | The dig study and the ingest study of 2026-11-16 as research documents, with their corrections |
 | [T-817](upkeep.md) | P2 | S | M5 | chore | done | A call on references under GPL or AGPL: their designs, never their code |
 | [T-818](relay.md) | P3 | L | M2 | feature | open | `pod-link`: forward error correction and a NACK backstop (TR-1, TR-2 of the ingest study) |
@@ -714,3 +714,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-832](fleet.md) | P3 | L | M8 | research | blocked | The intake of the dig study for podswarm: NAT traversal, a DHT, gossip, sealed messages, content addressing, storage, sealed secrets |
 | [T-833](fleet.md) | P3 | S | M8 | feature | open | `pod-control`: a test that the catalogue is the dispatch, tiers of surfaces, a budget of callbacks (reports 03, 11, 12 of the dig study, with T-103) |
 | [T-834](relay.md) | P2 | S | M2 | defect | done | `pod-relay`: a renewal reads the default relay's `400` for an unknown reverse path as an error, not as no renewal (PodUtils/podssh#294) |
+| [T-835](relay.md) | P3 | S | M2 | measurement | open | `pod-relay`: the cost of a move of a session for a copy on the default relay |

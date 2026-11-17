@@ -9295,7 +9295,7 @@ shadow.
 **Milestone:** M2
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -9315,6 +9315,12 @@ Decide whether the budget and `MOVE_BYTES` follow the cap in use with the same m
 ```sh
 cargo test -p pod-relay --all-features budget
 ```
+
+## Done
+
+2026-11-17. Call C773: the budget does not follow a larger cap; a smaller
+one lowers it, as before. The finding of the measurement beside it (a move
+each 3.5 s of a copy at the measured rate) is T-835.
 
 # T-818: `pod-link`: forward error correction and a NACK backstop (TR-1, TR-2 of the ingest study)
 
@@ -9500,4 +9506,41 @@ the list of the reverse paths as `Renewed::NotServed`; another `400`, and
 a `403`, stay errors. The unit test
 `the_default_relay_s_400_with_the_reverse_paths_renews_no_pair` and the
 plant `relay-renew-400-is-error`.
+
+# T-835: `pod-relay`: the cost of a move of a session for a copy on the default relay
+
+**Source:** T-812 (the first reading of `docs/research/relay-rates.md`).
+**Category:** measurement
+**Milestone:** M2
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The default relay carried 17.33 MiB/s each way, and opened a session in
+294 ms. A copy that keeps the budget of 60 MiB then opens a new session
+about each 3.5 s of full use; if the copy waits for each open, the moves
+cost up to about 8 % of its time. No run measures what a move costs a copy.
+
+## Premise
+
+- Read: `docs/research/relay-rates.md`; `crates/pod-relay/src/budget.rs`
+  (the copy that opens a new session first); `MOVE_BYTES` of `pod-session`.
+- Not measured: the time that a copy loses at each new session.
+
+## Approach
+
+Extend `tests/live_measure.rs` with a copy of 256 MiB through the default
+relay with the budget of a session, and the same bytes in one session where
+the relay allows it (it does not: so against the rate of one session):
+the MiB/s of each, and the time of each move. Write the reading under
+docs/research; where a move costs more than a few percent, open the next
+session before the budget ends.
+
+## Prove
+
+```sh
+cargo test -p pod-relay --features pair --test live_measure -- --ignored --nocapture
+```
 
