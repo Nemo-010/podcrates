@@ -17,8 +17,10 @@
   COORD-124 (#214).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
-  - podssh: `v0.67.0` (`a4b1436`, PodUtils/podssh#298: 3573 tests; it
-    keeps its opener of a Unix route until T-844 is in a tag; `v0.66.0` in
+  - podssh: `v0.68.0` (`94c01b0`, PodUtils/podssh#303: 3619 tests; the
+    liveness offer and the headers of Access taken, its own opener of a
+    Unix route gone; `Headers::in_cleartext` and `--access-host` on more
+    commands are its T-718; `v0.67.0` in `a4b1436`; `v0.66.0` in
     `ae9cf1b`, PodUtils/podssh#296: a bump of the tag;
     `v0.65.0` in `843e3c5`, PodUtils/podssh#289: `pod-tor` and
     `pod-iroh` taken, their trials removed; next the layer on the HTTP road,
