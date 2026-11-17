@@ -13,7 +13,8 @@ repo PodUtils/podnet 600509df67db5e53be91bc66e42f7c29d65b7a7b
 # (crates/podnet-serve); the services of podnet go behind ServiceDispatch.
 # ws.rs: the edge side only (serve_websocket, forward_path, forward_url,
 # DEFAULT_PATH); the rest stays in podnet. fuzzing.rs: the targets of the
-# edge only. tools/: the oracle of the header encoding of cloudflared.
+# edge only. tools/: the oracle of the header encoding of cloudflared, and
+# the check of the pin of cloudflared (the paths of the crate).
 # origin.rs: the dial of a forward origin (crates/podnet-serve). metrics.rs:
 # the counters of a tunnel (crates/podnet-core). udp.rs: the UDP probe of the
 # edge and its choice (crates/podnet-core); the variables stay in podnet.
@@ -72,5 +73,6 @@ file 63c7b0a35ed37013a3de2d8d5c957aef452875b3 tests/standin/edge.rs -> crates/po
 file 6b95cb55b08bce3b99b76f0ec8f3735225c43108 tests/standin/front.rs -> crates/pod-cloudflare/src/standin/front.rs
 file a452cef64376339a36ab959079473be557e0e6a3 tests/standin/mod.rs -> crates/pod-cloudflare/src/standin.rs
 file 9fb1ffa897a3f949edb19ff8a787b13307526b6f tests/standin/proxy.rs -> crates/pod-cloudflare/src/standin/proxy.rs
+file e86cd81e0e8058b472db5963a0aa77dc617242d7 tools/check-upstream.py -> crates/pod-cloudflare/tools/check-upstream.py
 file 22aab50dcdff5d8e7952adcbdd7e5c80b3c41902 tools/check-header-oracle.sh -> crates/pod-cloudflare/tools/check-header-oracle.sh
 file 6ebf852fc9d6242ad6424b87ca1215c2cc027120 tools/header-oracle.txt -> crates/pod-cloudflare/tools/header-oracle.txt

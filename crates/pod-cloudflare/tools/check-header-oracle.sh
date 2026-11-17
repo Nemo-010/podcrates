@@ -1,10 +1,11 @@
 #!/bin/sh
-# Check podnet's header encoding against cloudflared's own Go implementation.
+# Check the header encoding of pod-cloudflare against cloudflared's own Go
+# implementation.
 #
 # The oracle is a verbatim copy of SerializeHeaders from
 # cloudflared's connection/header.go, using the same
 # `headerEncoding = base64.RawStdEncoding`. Running it is the only way to be
-# sure our encoder matches: reading the Go source is not the same as executing
+# sure the encoder matches: reading the Go source is not the same as executing
 # it, and the padding and separator rules are easy to get backwards.
 #
 # Two checks run:
@@ -26,7 +27,8 @@ set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 
-CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$root/target}
+# The target of the workspace, not a second one inside the crate.
+CARGO_TARGET_DIR=${CARGO_TARGET_DIR:-$root/../../target}
 export CARGO_TARGET_DIR
 mkdir -p "$CARGO_TARGET_DIR"
 
@@ -37,7 +39,7 @@ recorded_only=0
 scratch=""
 for candidate in "${CF_ORACLE_TMP:-}" "$CARGO_TARGET_DIR" "${TMPDIR:-}" /tmp; do
     [ -n "$candidate" ] || continue
-    probe="$candidate/.podnet-exec-probe.$$"
+    probe="$candidate/.pod-cloudflare-exec-probe.$$"
     # A noexec mount refuses execution whatever the file mode is. Thus run a
     # file to test the directory.
     printf '#!/bin/sh\nexit 0\n' >"$probe" 2>/dev/null && chmod +x "$probe" 2>/dev/null

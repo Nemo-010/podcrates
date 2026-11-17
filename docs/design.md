@@ -538,7 +538,7 @@ pushes. No worktree branch is pushed.
 | `plants.yml` | each push that changes a check, by hand | `scripts/plant-each.sh`, in six shards (`scripts/plant-shard.py`) |
 | `adoption.yml` | each push that changes a crate with a trial, by hand | section 8, step 7 |
 | `release.yml` | when a crate is done, by hand; then on the tag | section 10; a dry run with no input; the assets of `podlab` (static musl for x86_64 and aarch64, `podlab-install.sh` with its pins, the offline bundle, `SHA256SUMS`; `docs/install.md`), also in the dry run; with a version it makes the tag and starts itself on the tag, which signs `SHA256SUMS` (cosign, keyless) and makes the release |
-| `upstream.yml` | each day | `check-sources.py`; `check-zig-mirrors.py` |
+| `upstream.yml` | each day | `check-sources.py`; `check-zig-mirrors.py`; the job `cloudflared`: `crates/pod-cloudflare/tools/check-upstream.py` (the pin of cloudflared, with a planted sum) and `crates/pod-cloudflare/tools/check-header-oracle.sh` (the header encoding against cloudflared's Go code) |
 | `tor.yml` | each push of `crates/pod-tor`, each Tuesday, by hand | the road through Tor of `pod-tor` and an onion service against a private Tor network of C tor (chutney, `scripts/tor-net.sh`) on the runner |
 | `record-issues.yml` | each day | `TODO/github.txt` against GitHub |
 | `issue-sync.yml` | each push to `main`, each day, by hand (the input `dry_run`); each project calls it at a tag | `scripts/issue-sync.py`: the dry run, then the status block of each issue, its close and its open from the record |
