@@ -1,0 +1,7 @@
+# The key of a flow holds the ports: two flows of one host on two ports are
+# two flows (T-819; the planted defect of TR-4 of the ingest study).
+ENTRY=T-819
+GROUP=netstack
+EXPECT='both_directions_have_one_key_and_two_ports_of_one_host_two'
+RUN='cargo test -p pod-netstack --all-features --lib class'
+LIMIT=1800

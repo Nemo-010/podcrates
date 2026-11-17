@@ -1,0 +1,10 @@
+--- a/crates/pod-netstack/src/class.rs
++++ b/crates/pod-netstack/src/class.rs
+@@ -57,6 +57,7 @@ impl Key {
+         // The address and the port as one end: two flows of one host on two
+         // ports are two keys.
+         let (low, high) = if source <= destination { (source, destination) } else { (destination, source) };
++        let (low, high) = (End { port: 0, ..low }, End { port: 0, ..high });
+         Key { protocol, low, high }
+     }
+ }
