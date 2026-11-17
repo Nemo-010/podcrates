@@ -9652,3 +9652,34 @@ cargo test -p pod-enter --all-features --lib stage
 ## Done
 
 2026-11-17, 6e2d50166: `copy_tree` returns `Staged { entries, nodes_skipped }` (was the count alone). A character or block device is made again by `mknodat(2)` with its mode and `rdev`; where that fails it is skipped and counted, and the copy goes on. A fifo or a socket is refused, with the words "not a file, directory, symlink or device node". Tests: `a_device_node_is_made_again_where_mknod_passes` (a real `dev/null` 1:3; its mode and number in the staged tree) and `a_device_node_is_skipped_and_counted_where_mknod_fails` (a maker that fails); each skips with a line on a host where the fixture `mknod(2)` fails; both ran here as root. 237 tests of the library of `pod-enter` pass. Plant `enter-stage-refuses-a-device-node`, caught.
+
+# T-861: `pod-guest`: a mailbox run that times out before `WQREADY` tells nothing of the agent (PodUtils/podvm#468)
+
+**Source:** PodUtils/podvm#468 (COORD-175 of podvm, PodUtils/podvm@T-1933, P1).
+**Category:** defect
+**Milestone:** M7
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+On a hosted runner with 2 CPUs, a foreground run of a Windows image with the mailbox agent timed out at 600 s in 3 of 4 runs with "the agent did not write WQREADY.TXT". The agent writes its first line to `WQLOG.TXT` only after it finds the mailbox, so a timeout cannot tell whether the agent did not start, did not find the volume in its 600 probes, or wrote and the write did not reach the disk.
+
+## Premise
+
+- Read: PodUtils/podvm#468 (podvm runs 44050312708, 44077136976, 44088895746; 44082202946 passed); `crates/pod-guest/src/agent.rs` (`AGENT_CMD`); `crates/pod-guest/src/evidence.rs` (with `Settings::evidence`, a run that timed out keeps a screen taken before the stop, the serial log, the error stream of the emulator and the mailbox).
+
+## Approach
+
+The agent writes a line to `COM1`, the serial log of the plan, when it starts, when it finds the mailbox, and when it gives up; `crate::evidence` copies that log. The ask's second part, a screen at the bound, is `Settings::evidence` already.
+
+## Prove
+
+```sh
+cargo test -p pod-guest --all-features --lib agent
+```
+
+## Done
+
+2026-11-17, f431c8306: `AGENT_CMD` appends `TIME wqagent start` to `COM1` before its first probe, `TIME wqagent found D: after N tries` when it finds the mailbox, and `TIME wqagent no mailbox after 600 tries` when it gives up (the label `:lost`). QEMU's UART keeps CTS and DSR up, so a write to `COM1` does not wait. Tests: `the_agent_gives_up_after_600_tries_with_no_mailbox` holds the two lines of a run with no mailbox, and `the_serial_log_shows_the_start_and_the_find`; the walk of the tests reads each new line. The tests of `pod-guest` pass. Plant `guest-agent-silent-before-the-mailbox`, caught. For podvm: an image takes the new agent at its next provision (the installer copies `AGENT_CMD`), the fingerprint of a warm state changes with it, and `Settings::evidence` keeps the screen and the serial log of each timeout.

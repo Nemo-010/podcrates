@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**693 entries: 127 open, 22 partial, 7 blocked, 537 done.**
+**694 entries: 127 open, 22 partial, 7 blocked, 538 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
-| P1 | 10 | 9 | 0 | 149 | 168 |
+| P1 | 10 | 9 | 0 | 150 | 169 |
 | P2 | 54 | 3 | 4 | 277 | 338 |
 | P3 | 63 | 10 | 3 | 109 | 185 |
-| **All** | 127 | 22 | 7 | 537 | 693 |
+| **All** | 127 | 22 | 7 | 538 | 694 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -740,3 +740,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-858](transport.md) | P1 | S | M1 | defect | done | `pod-tls`: `Trust::Default` does not read the CA file of the settings (PodUtils/podnet#608) |
 | [T-859](fleet.md) | P2 | S | M5 | defect | done | `pod-actions-workflow`: the error of an unknown need gives the place of the job, not of the need (PodUtils/podrunner#214) |
 | [T-860](relay.md) | P2 | S | M2 | defect | done | `pod-piping`: the probe of a node's upgrade sends no header of the caller (PodUtils/podssh#306) |
+| [T-861](podvm.md) | P1 | S | M7 | defect | done | `pod-guest`: a mailbox run that times out before `WQREADY` tells nothing of the agent (PodUtils/podvm#468) |

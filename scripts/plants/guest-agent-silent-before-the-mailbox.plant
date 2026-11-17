@@ -1,0 +1,6 @@
+# The agent writes to the serial log before its first probe (T-861).
+ENTRY=T-861
+GROUP=guest
+EXPECT='the_serial_log_shows_the_start_and_the_find'
+RUN='cargo test -p pod-guest --all-features --lib agent'
+LIMIT=1800

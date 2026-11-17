@@ -1,0 +1,11 @@
+diff --git a/crates/pod-guest/src/agent.rs b/crates/pod-guest/src/agent.rs
+--- a/crates/pod-guest/src/agent.rs
++++ b/crates/pod-guest/src/agent.rs
+@@ -112,7 +112,6 @@ pub const AGENT_CMD: &str = r#"@echo off
+ if defined WQ_ACTIVE goto :eof
+ set WQ_ACTIVE=1
+ set WQTRIES=0
+->>COM1 echo %TIME% wqagent start
+ :probe
+ set WQ=
+ for %%d in (D E F G H I J K L M N O P Q R S T U V W X Y Z) do if not defined WQ if exist %%d:\WQMARK.TXT set WQ=%%d:
