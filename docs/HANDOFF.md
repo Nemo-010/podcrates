@@ -19,22 +19,18 @@ is done. Git and the record keep finished work.
    on COORD-125 (#215), and of `v0.66.0` on COORD-126 (#216): amend the body, and close it when each consumer took its
    part. `v0.65.0` holds T-806, T-805, T-801, T-797, T-807, T-808 and the
    trial of `pod-iroh` (T-810).
-3. `v0.67.0` is out at `1d7e983`; its hand-off is COORD-128 (#218).
-   Record each take on it. The next tag holds T-840 and T-841
-   (PodUtils/podssh#297: answer it on that hand-off), T-378, T-385, T-844
-   (PodUtils/podssh#298: a Unix route on Windows), T-845 (PodUtils/podssh#300, all four items:
-   the wire is `pingMs`, not the issue's `every_s`; on the forward road
-   podssh sets `Settings::quiet()` when `Offer.liveness` holds), T-819 (part 1), T-843. Its
-   hand-off says: take it with `cargo update -p webpki-roots` (podnet's
-   and podssh's tests hold their lock to `ROOTS_VERSION`), and with a russh
-   that takes rsa 0.10.0, not a release candidate (podssh: 0.65.2). The
-   `pod-warp` trials of both are removed: both took the crate long ago,
-   and their old commits could not resolve rsa 0.10.0 (adoption run
-   44023194891).
-4. T-029 (`pod-cloudflare`, P1, partial): the import and the adaptation of
-   step 3 are on `main`; the rest of its record (four lines to events, the
-   comments, the fuzz targets, the README and the adoption map, the trial)
-   comes next.
+3. `v0.68.0` is out at `4efa604`; its hand-off is COORD-129 (#219), and
+   `v0.67.0` (`1d7e983`) has COORD-128 (#218). Record each take on them.
+   #219 answers PodUtils/podssh#300 (T-845), PodUtils/podssh#302 (T-847,
+   T-848), PodUtils/podssh#298 (T-844), PodUtils/podssh#297 (T-840, T-841)
+   and PodUtils/podvm#463 (T-846). The next tag holds T-838 (part), the
+   trial of `pod-cloudflare` in podnet and its five changes of the API
+   (T-029): its hand-off tells podnet to take the crate, with
+   `cargo update -p webpki-roots`, and gives the three findings for podnet
+   that #219 lists.
+4. T-029 (`pod-cloudflare`, P1, partial): the trial of podnet is on
+   `main`; the `adoption` workflow must pass it. Then the comments in
+   ASD-STE100, T-849 (the watches that podnet ran) and T-850.
 5. Read the scheduled nightly: T-789 (armv7) and T-766 (riscv64) are the
    jobs that stayed red; a new red job needs an entry.
 6. T-767 (PodUtils/podssh#283, P1, partial): the seventh failure shows

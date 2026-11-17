@@ -223,5 +223,6 @@ kinds and the rules.
 | #216 | coord | COORD-126: v0.66.0: the init of a PID namespace keeps no descriptor of the caller (podvm#460), the writes of pod-devtunnel (to all) | open | T-811, T-378 |
 | #217 | coord | COORD-127: the dig study and the relay role: two speeds of `podssh relay serve`, and five ideas for the server (to podssh) | open | T-813, T-829 |
 | #218 | coord | COORD-128: v0.67.0: a route to a Unix socket (podssh#295), the renewal against the default relay (podssh#294), the remote port of localhost.run (podnet#607), a durable replace of a file (to all) | open | T-836, T-834, T-839, T-192, T-837 |
+| #219 | coord | COORD-129: v0.68.0: a relay's liveness offer (podssh#300), the headers of Cloudflare Access (podssh#302), a Unix route on Windows (podssh#298), new roots and one rsa (podssh#297), the source fixup reads no comment (podvm#463) (to all) | open | T-845, T-847, T-848, T-844, T-840, T-841, T-846 |
 
 #79 to #81 are pull requests.

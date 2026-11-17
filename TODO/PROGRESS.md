@@ -5,14 +5,16 @@
 ## State
 
 - `docs/HANDOFF.md` has what is in flight and what waits.
-- Last release: `v0.67.0` at `1d7e983` (`docs/releases/v0.67.0.md`; ci
-  44011997188, adoption 44011997197 and plants 44011997279 at `1d7e983`,
-  the release dry run 44021105436, the release 44022832313): T-834
-  (PodUtils/podssh#294), T-836 (PodUtils/podssh#295), T-839
-  (PodUtils/podnet#607), T-837, T-192, T-827, T-825 (part 1), T-826 (part
-  1), T-824, T-831, T-835. The hand-off is COORD-128 (#218). `v0.66.0`
-  (`b317117`) has COORD-126 (#216); `v0.65.0` (`4122f39`) has COORD-125
-  (#215); `v0.64.0` (`6a965ef`) has COORD-124 (#214).
+- Last release: `v0.68.0` at `4efa604` (`docs/releases/v0.68.0.md`; ci
+  44049442746, adoption 44049442885 and plants 44049442663 at `4efa604`,
+  the release dry run 44056193769, the release 44056852486): T-845
+  (PodUtils/podssh#300), T-847 and T-848 (PodUtils/podssh#302), T-844
+  (PodUtils/podssh#298), T-840 and T-841 (PodUtils/podssh#297), T-846
+  (PodUtils/podvm#463), T-385, T-378, T-819 (part), T-823 (part), T-843,
+  T-029 (part). The hand-off is COORD-129 (#219). `v0.67.0` (`1d7e983`)
+  has COORD-128 (#218); `v0.66.0` (`b317117`) has COORD-126 (#216);
+  `v0.65.0` (`4122f39`) has COORD-125 (#215); `v0.64.0` (`6a965ef`) has
+  COORD-124 (#214).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.67.0` (`a4b1436`, PodUtils/podssh#298: 3573 tests; it
