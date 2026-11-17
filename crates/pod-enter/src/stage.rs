@@ -87,7 +87,6 @@ fn mknod(path: &Path, mode: u32, dev: u64) -> bool {
 /// [`copy_contents`] with `make`, the maker of a device node, which a test
 /// can make fail as a host with no `mknod(2)` does.
 fn copy_with(src: &Path, dst: &Path, make: &dyn Fn(&Path, u32, u64) -> bool) -> Result<Staged, Refusal> {
-    use std::os::unix::fs::{FileTypeExt, MetadataExt};
     let mut staged = Staged::default();
     let mut dirs = vec![(src.to_path_buf(), dst.to_path_buf())];
     while let Some((sdir, ddir)) = dirs.pop() {
@@ -103,48 +102,57 @@ fn copy_with(src: &Path, dst: &Path, make: &dyn Fn(&Path, u32, u64) -> bool) -> 
             let kind = entry
                 .file_type()
                 .map_err(|e| Refusal { path: spath.clone(), why: format!("the file type could not be read: {e}") })?;
-            if kind.is_dir() {
-                std::fs::create_dir(&dpath).map_err(|e| Refusal {
-                    path: dpath.clone(),
-                    why: format!("the directory could not be created: {e}"),
-                })?;
-                staged.entries += 1;
+            if copy_entry(&spath, &dpath, kind, make, &mut staged)? {
                 dirs.push((spath, dpath));
-            } else if kind.is_file() {
-                std::fs::copy(&spath, &dpath)
-                    .map_err(|e| Refusal { path: dpath.clone(), why: format!("the file could not be copied: {e}") })?;
-                staged.entries += 1;
-            } else if kind.is_symlink() {
-                let target = std::fs::read_link(&spath).map_err(|e| Refusal {
-                    path: spath.clone(),
-                    why: format!("the link target could not be read: {e}"),
-                })?;
-                std::os::unix::fs::symlink(&target, &dpath).map_err(|e| Refusal {
-                    path: dpath.clone(),
-                    why: format!("the link could not be recreated: {e}"),
-                })?;
-                staged.entries += 1;
-            } else if kind.is_char_device() || kind.is_block_device() {
-                let meta = std::fs::symlink_metadata(&spath).map_err(|e| Refusal {
-                    path: spath.clone(),
-                    why: format!("the device node could not be read: {e}"),
-                })?;
-                if make(&dpath, meta.mode(), meta.rdev()) {
-                    staged.entries += 1;
-                } else {
-                    staged.nodes_skipped += 1;
-                }
-            } else {
-                return Err(Refusal {
-                    path: spath,
-                    why: "not a file, directory, symlink or device node: refusing rather than staging a tree that \
-                          is not the image's"
-                        .to_string(),
-                });
             }
         }
     }
     Ok(staged)
+}
+
+/// Copy one entry of the kind `kind` from `spath` to `dpath`, and count it
+/// in `staged`. `true` for a directory, whose entries come next.
+fn copy_entry(
+    spath: &Path,
+    dpath: &Path,
+    kind: std::fs::FileType,
+    make: &dyn Fn(&Path, u32, u64) -> bool,
+    staged: &mut Staged,
+) -> Result<bool, Refusal> {
+    use std::os::unix::fs::{FileTypeExt, MetadataExt};
+    let refused = |what: &str, e: std::io::Error| Refusal { path: dpath.to_path_buf(), why: format!("{what}: {e}") };
+    if kind.is_dir() {
+        std::fs::create_dir(dpath).map_err(|e| refused("the directory could not be created", e))?;
+        staged.entries += 1;
+        return Ok(true);
+    }
+    if kind.is_file() {
+        std::fs::copy(spath, dpath).map_err(|e| refused("the file could not be copied", e))?;
+    } else if kind.is_symlink() {
+        let target = std::fs::read_link(spath).map_err(|e| Refusal {
+            path: spath.to_path_buf(),
+            why: format!("the link target could not be read: {e}"),
+        })?;
+        std::os::unix::fs::symlink(&target, dpath).map_err(|e| refused("the link could not be recreated", e))?;
+    } else if kind.is_char_device() || kind.is_block_device() {
+        let meta = std::fs::symlink_metadata(spath).map_err(|e| Refusal {
+            path: spath.to_path_buf(),
+            why: format!("the device node could not be read: {e}"),
+        })?;
+        if !make(dpath, meta.mode(), meta.rdev()) {
+            staged.nodes_skipped += 1;
+            return Ok(false);
+        }
+    } else {
+        return Err(Refusal {
+            path: spath.to_path_buf(),
+            why: "not a file, directory, symlink or device node: refusing rather than staging a tree that is not the \
+                  image's"
+                .to_string(),
+        });
+    }
+    staged.entries += 1;
+    Ok(false)
 }
 
 /// Stage an ephemeral per-run root on a tmpfs mount under the store.

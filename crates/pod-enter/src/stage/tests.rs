@@ -216,3 +216,29 @@ fn a_device_node_is_skipped_and_counted_where_mknod_fails() {
     assert!(!d.join("dst/dev/null").exists());
     let _ = std::fs::remove_dir_all(&d);
 }
+
+/// The step of one entry, on a device node that each user can read
+/// (`/dev/null`), with makers that stand for a host with and with no
+/// `mknod(2)`: the node goes to the maker with its mode and number, and
+/// counts as an entry or as skipped. It needs no root, so each host runs it.
+#[test]
+fn a_device_entry_goes_to_the_maker_with_its_mode_and_number() {
+    use std::os::unix::fs::MetadataExt;
+    let null = Path::new("/dev/null");
+    let Ok(meta) = std::fs::symlink_metadata(null) else {
+        eprintln!("skipped: this host has no /dev/null");
+        return;
+    };
+    let asked = std::cell::RefCell::new(Vec::new());
+    let mut staged = Staged::default();
+    let made = |path: &Path, mode: u32, dev: u64| {
+        asked.borrow_mut().push((path.to_path_buf(), mode, dev));
+        true
+    };
+    let dst = Path::new("/nonexistent/null");
+    assert!(!copy_entry(null, dst, meta.file_type(), &made, &mut staged).unwrap(), "no directory to walk");
+    assert_eq!(*asked.borrow(), [(dst.to_path_buf(), meta.mode(), meta.rdev())]);
+    assert_eq!(staged, Staged { entries: 1, nodes_skipped: 0 });
+    copy_entry(null, dst, meta.file_type(), &|_, _, _| false, &mut staged).unwrap();
+    assert_eq!(staged, Staged { entries: 1, nodes_skipped: 1 });
+}
