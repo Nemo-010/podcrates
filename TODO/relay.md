@@ -9396,7 +9396,9 @@ cargo test -p pod-netstack --all-features
 
 2026-11-17, part 2 (the class of a flow, TR-4): `crates/pod-netstack/src/class.rs`. `Classes::class(key, dscp, len, now)` gives `Realtime`, `Bulk` or `Default`: a rule of the caller (a port) first, then the DSCP (46, 40, 48, 56 `Realtime`; 8, 10, 12, 14 `Bulk`), then the heuristic after 8 packets (more than half over 1000 bytes: `Bulk`; more than half under 256 bytes at 20 or more each second: `Realtime`). `Key::of` orders the two ends (address and port), so both directions have one key. The table holds at most 4096 flows: a new flow into a full table drops the flows idle for 30 s, and gets no history when each is live. Tests: 4 in `src/class_tests.rs`. The plant `netstack-flow-key-without-ports` (the study's planted defect) is caught.
 
-Open: the call of the clamp on the path of the stack and of a TUN (where a SYN goes out); the call of the class on the outbound path of the stack and the settings of a carrier for each class (`pod-link`'s ARQ); the ladder of the path MTU with sealed probes in `pod-link` (TR-3).
+The clamp has no call in a crate yet, by design: the stack's own TCP (smoltcp) takes its MSS from its MTU, and the TUN of `pod-warp` carries the host's own traffic, whose MSS the kernel takes from the MTU of the interface (1280). A caller that forwards the packets of other hosts through a smaller path calls `mss::clamp_mss`.
+
+Open: the call of the class on the outbound path of the stack and the settings of a carrier for each class (`pod-link`'s ARQ); the ladder of the path MTU with sealed probes in `pod-link` (TR-3).
 
 
 # T-820: The datapath: GSO with a fate rule, rings for each worker, a pool of source ports, the offload of TUN, a table of MAC addresses in O(1) (DP-1 to DP-5 of the ingest study)

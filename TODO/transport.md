@@ -7391,7 +7391,7 @@ cargo test -p pod-identity --all-features
 **Milestone:** M1
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -7411,6 +7411,13 @@ Weighted HRW with BLAKE2b or SipHash (never FNV) and a field of priority, as a f
 ```sh
 cargo test -p pod-core --all-features
 ```
+
+## Correction
+
+2026-11-17, part 1 (sticky selection, RT-2): `crates/pod-core/src/pick.rs`. `pick::rank(key, candidates)` and `pick::first` give the order of `Candidate { id, weight, tier }` for a key: each tier from the lowest, and in it the weighted score of HRW, `-weight / ln(u)` with `u` from SipHash-2-4 (fixed keys) of the key and the id; a weight that is not more than zero, or not finite, comes last. `pick::siphash24` holds the five vectors of the paper of SipHash. Tests: 5 in `src/pick_tests.rs` (the vectors; one order for one key; a fifth candidate takes 17 to 23 % of 10,000 keys, and no key moves between the four; a weight of 3 against 1 takes 72 to 78 %; the tiers and a bad weight). The plant `core-pick-without-weight` is caught.
+
+Open: a caller (the choice of a relay host of `pod-relay`, and podnet's selection, by a COORD issue); the reserve, the commit and the refund of a quota in `pod-core` (RT-5); the grammar of tokens in a proxy credential, with podnet (RT-1); the length of a chain.
+
 
 # T-825: `pod-proxy`: a plan of the dial by address family, with the families of both ends and a timeout for each attempt
 

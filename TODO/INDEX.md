@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**678 entries: 127 open, 20 partial, 7 blocked, 524 done.**
+**678 entries: 126 open, 21 partial, 7 blocked, 524 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 10 | 9 | 0 | 147 | 166 |
 | P2 | 55 | 4 | 4 | 269 | 332 |
-| P3 | 62 | 7 | 3 | 106 | 178 |
-| **All** | 127 | 20 | 7 | 524 | 678 |
+| P3 | 61 | 8 | 3 | 106 | 178 |
+| **All** | 126 | 21 | 7 | 524 | 678 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -702,7 +702,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-820](relay.md) | P3 | L | M2 | feature | open | The datapath: GSO with a fate rule, rings for each worker, a pool of source ports, the offload of TUN, a table of MAC addresses in O(1) (DP-1 to DP-5 of the ingest study) |
 | [T-821](relay.md) | P3 | L | M2 | feature | open | The wire: a keyed mask of the header of `pod-e2e`, cover traffic, a JA4 audit of the hello of `pod-tls`, an ML-KEM hybrid (WR-1 to WR-5 of the ingest study) |
 | [T-822](transport.md) | P3 | L | M1 | feature | open | `pod-identity`: a threshold CA of the grants, an authorization of enrollment, a refresh of the shares (PK-1 to PK-7 of the ingest study) |
-| [T-823](transport.md) | P3 | M | M1 | feature | open | Routing: tokens in a proxy credential, sticky selection by HRW with tiers, a chain length, a quota that reserves before a write (RT-1 to RT-5 of the ingest study) |
+| [T-823](transport.md) | P3 | M | M1 | feature | partial | Routing: tokens in a proxy credential, sticky selection by HRW with tiers, a chain length, a quota that reserves before a write (RT-1 to RT-5 of the ingest study) |
 | [T-824](foundation.md) | P3 | M | M0 | chore | done | Verification gates: no allocation in `pod-e2e`, bounded steps, no blocking call, exhaustive checksum equivalence, a record of results, test runs with each feature (VF-1 to VF-5 of the ingest study) |
 | [T-825](transport.md) | P3 | M | M1 | feature | partial | `pod-proxy`: a plan of the dial by address family, with the families of both ends and a timeout for each attempt |
 | [T-826](transport.md) | P3 | M | M1 | feature | partial | `pod-identity`: a rotation of the identity key with two slots and a retire step |
