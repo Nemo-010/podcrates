@@ -7,6 +7,8 @@
 //! * [`need_userns!`] and [`need_tool!`]: a test that needs a user and a
 //!   mount namespace, or a tool of the host, skips with a reason on a host
 //!   that has none.
+//! * [`alloc`] and [`switches`]: the allocations, and the voluntary
+//!   switches of context (a call that blocks), of a scope on one thread.
 //! * [`listener`]: a server child of a test on a port of the loopback that
 //!   it holds itself, with new ports where another process took one.
 //! * `nobody` (Linux only): a test as a caller with no capabilities; root
@@ -37,3 +39,4 @@ pub mod nobody;
 pub mod screen;
 #[cfg(feature = "stand")]
 pub mod stand;
+pub mod switches;
