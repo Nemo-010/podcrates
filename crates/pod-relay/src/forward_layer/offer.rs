@@ -137,9 +137,9 @@ mod tests {
     #[test]
     fn the_offer_keeps_the_pace_of_liveness_of_the_host() {
         let asked = relay("relay.test", 443);
-        let body = br#"{"forward":{"layer":true,"liveness":{"frame":"ws-ping","every_s":45}}}"#;
+        let body = br#"{"forward":{"layer":true,"liveness":{"frame":"ws-ping","pingMs":45000}}}"#;
         assert_eq!(of(body, &asked).liveness, Some(std::time::Duration::from_secs(45)));
-        let fast = br#"{"forward":{"layer":true,"liveness":{"frame":"ws-ping","every_s":5}}}"#;
+        let fast = br#"{"forward":{"layer":true,"liveness":{"frame":"ws-ping","pingMs":5000}}}"#;
         assert_eq!(of(fast, &asked).liveness, None, "under 30 s is not taken");
         assert_eq!(of(br#"{"forward":{"layer":true}}"#, &asked).liveness, None);
     }

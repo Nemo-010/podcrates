@@ -1,5 +1,5 @@
 //! A relay's offer of a pace of liveness (T-845, PodUtils/podssh#300): a
-//! node told `{"frame":"ws-ping","every_s":30}` in `hello` sends its first
+//! node told `{"frame":"ws-ping","pingMs":30000}` in `hello` sends its first
 //! Ping at 30 s, not at its own 10 s; with no offer, or with one under
 //! 30 s, it keeps 10 s. The relay is scripted over an in-memory stream, and
 //! the clock is the test's.
@@ -66,15 +66,15 @@ const PLAIN: &str = r#"{"type":"hello","version":1,"maxFrameBytes":65536,"maxSes
 
 #[tokio::test(start_paused = true)]
 async fn a_node_takes_the_slower_ping_of_the_relay_s_offer() {
-    let offered = r#"{"type":"hello","version":1,"liveness":{"frame":"ws-ping","every_s":30}}"#;
+    let offered = r#"{"type":"hello","version":1,"liveness":{"frame":"ws-ping","pingMs":30000}}"#;
     assert_eq!(first_ping_after(offered).await, 30);
-    let held = r#"{"type":"hello","version":1,"liveness":{"frame":"ws-ping","every_s":600}}"#;
+    let held = r#"{"type":"hello","version":1,"liveness":{"frame":"ws-ping","pingMs":600000}}"#;
     assert_eq!(first_ping_after(held).await, 60, "held to 60 s");
 }
 
 #[tokio::test(start_paused = true)]
 async fn with_no_offer_or_a_faster_one_the_node_keeps_its_own_pace() {
     assert_eq!(first_ping_after(PLAIN).await, 10);
-    let faster = r#"{"type":"hello","version":1,"liveness":{"frame":"ws-ping","every_s":5}}"#;
+    let faster = r#"{"type":"hello","version":1,"liveness":{"frame":"ws-ping","pingMs":5000}}"#;
     assert_eq!(first_ping_after(faster).await, 10, "under 30 s is not taken");
 }
