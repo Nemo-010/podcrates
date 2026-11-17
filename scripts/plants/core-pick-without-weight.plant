@@ -1,0 +1,6 @@
+# A candidate takes keys in proportion to its weight (T-823).
+ENTRY=T-823
+GROUP=files
+EXPECT='a_weight_takes_keys_in_proportion'
+RUN='cargo test -p pod-core --all-features --lib pick'
+LIMIT=1800
