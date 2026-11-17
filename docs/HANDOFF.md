@@ -19,14 +19,19 @@ is done. Git and the record keep finished work.
    on COORD-125 (#215), and of `v0.66.0` on COORD-126 (#216): amend the body, and close it when each consumer took its
    part. `v0.65.0` holds T-806, T-805, T-801, T-797, T-807, T-808 and the
    trial of `pod-iroh` (T-810).
-3. Read the scheduled nightly: T-789 (armv7) and T-766 (riscv64) are the
+3. The next tag (`v0.67.0`) holds T-834 (PodUtils/podssh#294), T-836
+   (PodUtils/podssh#295, a route to a Unix socket), T-825 (part 1, the
+   plan by family behind `Settings::families`), T-827 (`PeerText`), T-831
+   (`scripts/check-loopback.py`) and the live measurement of T-812, T-814
+   and T-835. Answer podssh#294 and podssh#295 on its hand-off.
+4. Read the scheduled nightly: T-789 (armv7) and T-766 (riscv64) are the
    jobs that stayed red; a new red job needs an entry.
-4. T-767 (PodUtils/podssh#283, P1, partial): the seventh failure shows
+5. T-767 (PodUtils/podssh#283, P1, partial): the seventh failure shows
    that the node's reader of the target stopped before the stall, with
    no byte in flight. Wait for podssh's next stall with the lines
    `session.resume` and `session.stall` (from `v0.64.0`), then find the
    cause; T-768 beside it.
-5. Then the work order of `TODO/PROGRESS.md`: T-378 (`pod-devtunnel`,
+6. Then the work order of `TODO/PROGRESS.md`: T-378 (`pod-devtunnel`,
    part 2), then the move of podssh (T-029, T-030, T-039, T-036), then
    T-526.
 
