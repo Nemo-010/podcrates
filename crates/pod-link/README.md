@@ -917,23 +917,9 @@ process from the start to the end of the run, both ends and the runtime,
 counted by the allocator of the test binary alone), `allocs_per_frame`,
 and `peak_live` (the peak of the live heap above its level at the start).
 
-The baseline: a cloud session of 4 threads (x86_64, Linux 6.18), 2026-11-16,
-the code of `996f55d`, release mode.
-
-| Carrier | bulk-1 GB/s | bulk-8 GB/s | allocs for each frame (1, 8) | alloc bytes for each frame | peak live (1, 8) | rtt-idle p50, p99 us | rtt-bulk p50, p99 us |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| memory | 2.29 (2.24 to 2.38) | 2.17 (2.17 to 2.22) | 2.58, 2.81 | 33 KiB | 4.5 MiB, 9.4 MiB | 36.5, 212.3 | 60.8, 463.7 |
-| tcp | 1.00 (0.97 to 1.07) | 1.19 (1.13 to 1.21) | 5.8, 6.2 | 71 KiB | 3.6 MiB, 6.5 MiB | 61.3, 111.1 | 232.0, 1148.0 |
-
-The wake latency of that host: p50 19.4 us, p99 59.5 us.
-
-After T-778 (the same host): memory 0.00 allocations and 516 bytes
-allocated for each frame on 1 stream, 0.01 on 8 streams; tcp 3.2
-allocations for each frame, in the TLS of the carrier (T-798). The bulk
-throughput of one code varies by 12 % between runs on that host, and the
-change of T-778 is under it. `tests/allocations.rs` holds the result: a
-bulk run of 64 MiB over the memory carrier makes at most 16 allocations
-after its first 1 MiB.
+The results, with the host, the commit and the spread of each: `RESULTS.md`.
+`tests/allocations.rs` holds the result of T-778: a bulk run of 64 MiB over
+the memory carrier makes at most 16 allocations after its first 1 MiB.
 
 ## The adoption map
 

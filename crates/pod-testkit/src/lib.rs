@@ -24,6 +24,7 @@
 //! A stand-in of this kit speaks bytes and HTTP only, and takes no type of
 //! a pod crate, so that each crate can dev-depend on the kit.
 
+pub mod alloc;
 #[cfg(target_os = "linux")]
 pub mod elf;
 pub mod host;

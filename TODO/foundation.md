@@ -1983,7 +1983,7 @@ cargo test -p pod-dns --all-features
 **Milestone:** M0
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2002,6 +2002,18 @@ A scoped counter of allocations in `pod-testkit`, applied to the seal and the op
 ```sh
 cargo test -p pod-testkit -p pod-e2e -p pod-link --all-features
 ```
+
+## Done
+
+2026-11-17. The four parts of the Approach:
+
+- `pod_testkit::alloc`: `Counting`, the system allocator with a count for each thread in a scope, and `count(f)`, the allocations of `f` on this thread (`None` where the binary did not set the allocator). `crates/pod-e2e/tests/allocations.rs` sets it: 1000 seals make 1000 allocations and 1000 opens 1000, with and without padding (the `Vec` of the record and of the payload, each one; nothing more for each record); a second test proves that another thread does not count.
+- `crates/pod-link/src/icmp/wire.rs`: `the_checksum_of_each_word_is_the_reference`: each of the 65,536 words, alone, after a block of 61 bytes and with an odd byte after it, against a second form of RFC 1071 (a ones-complement add of each word in turn), and each with its checksum in place sums to zero. There is no SIMD form of a checksum in the tree; the test holds the one form.
+- `crates/pod-link/RESULTS.md` (the baseline of T-777 and the result of T-778, moved from the README) and `crates/pod-ws/RESULTS.md` (T-813), one row for each result with its date, commit, host, kernel, rustc, input, runs, result with its spread and a note. `scripts/check-results.py` (CI and `scripts/agent/check.sh`, with a self-test of 8 cases) checks the columns, the date, the hash and a row at least, and a file for each crate of its list.
+- `crates/pod-link/tests/features_off.rs` fails and names each carrier whose feature is off, with its test files: a run of `cargo test -p pod-link` with no `--all-features` no longer passes on 15 empty binaries.
+
+`cargo test --all-features` of `pod-testkit`, `pod-e2e` and `pod-link` passed (327). The bounded steps and the check of a blocking call of the title (VF-2, VF-3) are T-838.
+
 
 # T-827: `pod-core`: a type for the text of a peer in a field of an error
 
@@ -2069,3 +2081,32 @@ No product code of podcrates binds a fixed port of the loopback: each bind takes
 ## Done
 
 2026-11-17, commit 12e2a77e. `scripts/check-loopback.py`, a step of `ci.yml`, and a section "Loopback ports" in `docs/development.md`. The scan reads each `.rs` file of `crates/*/src` but not the test files (`tests.rs`, `*_tests.rs`, `test_*.rs`, a directory `tests`) and not a `#[cfg(test)]` module, which it removes by brace matching over a view of the code with blank comments, strings and character literals. In each bind call it finds a loopback address with a fixed port: a string `"127.x.x.x:N"`, `"localhost:N"` or `"[::1]:N"`, a tuple of such a host or of `Ipv4Addr::LOCALHOST`, `Ipv6Addr::LOCALHOST`, `Ipv4Addr::new(127, ...)` or `[127, ...]` with a number or a constant. A dial, a comment and text out of a bind call do not count. `EXCEPTIONS` is empty. A scan of fewer than 200 files is a fault. The tree: 1101 files, no fault. `--self-test`: 14 cases (11 banned spellings, one of them over lines; product code after a test module; the control, with port 0, a port of the caller, a dial, a comment, a test module and braces in literals; an empty tree) agree.
+
+# T-838: Gates of a bounded step and of no blocking call in a hot path (VF-2, VF-3 of the ingest study)
+
+**Source:** the ingest study of 2026-11-16 (an archive of the owner), VF-2 and VF-3; T-824.
+**Category:** chore
+**Milestone:** M0
+**Priority:** P3
+**Effort:** M
+**Status:** open
+
+## Problem
+
+A state machine that loops until a condition holds can spin on a hostile input: `pod-link` bounds only the count of turns of its ARQ test (`tests/arq_machine.rs`), not the work of one turn. A blocking call in an async task (a file read in a handshake, a `getrandom` on a cold pool, a write to a full pipe) stalls the runtime and no test sees it.
+
+## Premise
+
+- Read: VF-2 and VF-3 of the ingest study; `crates/pod-link/tests/arq_machine.rs`; `pod_testkit::alloc` (T-824), the pattern of a scope.
+- Not measured: the steps of one turn of the ARQ, of a parse of a frame of `pod-ws` and of `pod-e2e`.
+
+## Approach
+
+A step counter for a scope in `pod-testkit` (a `step()` that a loop of a hot path calls under `cfg(test)` or a feature, and a bound in the test), applied to the turn of the ARQ and to the parse of a frame. A scope that reads `getrusage(RUSAGE_THREAD).ru_nvcsw` before and after (Linux), applied to the seal and the open of a record and to one turn of the ARQ: no voluntary switch of context in the scope.
+
+## Prove
+
+```sh
+cargo test -p pod-testkit -p pod-link -p pod-e2e --all-features
+```
+

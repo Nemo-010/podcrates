@@ -92,6 +92,40 @@ pub fn decode(bytes: &[u8]) -> Option<Echo> {
 mod tests {
     use super::*;
 
+    /// RFC 1071 as a fold of each word in turn: a ones-complement add, the
+    /// carry back at once, then the complement. A second form of the sum.
+    fn reference(bytes: &[u8]) -> u16 {
+        let add = |a: u16, b: u16| {
+            let (s, carry) = a.overflowing_add(b);
+            s + u16::from(carry)
+        };
+        let words = bytes.chunks(2).map(|w| u16::from_be_bytes([w[0], w.get(1).copied().unwrap_or(0)]));
+        !words.fold(0u16, add)
+    }
+
+    /// Each of the 65,536 words, alone, after a block, and with a byte
+    /// after it (an odd length), against the second form (T-824, VF-4); and
+    /// the message with its checksum in place sums to zero.
+    #[test]
+    fn the_checksum_of_each_word_is_the_reference() {
+        let block: Vec<u8> = (0..61u32).map(|i| (i * 37 + 11) as u8).collect();
+        let mut bytes = block.clone();
+        for w in 0..=u16::MAX {
+            let word = w.to_be_bytes();
+            assert_eq!(checksum(&word), reference(&word), "{w:#06x}");
+            bytes.truncate(block.len());
+            bytes.extend_from_slice(&word);
+            assert_eq!(checksum(&bytes), reference(&bytes), "{w:#06x} after the block");
+            bytes.push(word[0] ^ 0x5a);
+            assert_eq!(checksum(&bytes), reference(&bytes), "{w:#06x} and an odd byte");
+            let mut message = [0u8, 0, word[0], word[1]];
+            let sum = checksum(&message);
+            message[..2].copy_from_slice(&sum.to_be_bytes());
+            assert_eq!(checksum(&message), 0, "{w:#06x} with its checksum");
+        }
+        assert_eq!(checksum(&[]), reference(&[]));
+    }
+
     #[test]
     fn an_echo_round_trips_and_its_checksum_is_right() {
         let payload: Vec<u8> = (0..200u32).map(|i| i as u8).collect();

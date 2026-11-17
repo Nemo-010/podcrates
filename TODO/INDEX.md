@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**670 entries: 130 open, 18 partial, 7 blocked, 515 done.**
+**671 entries: 130 open, 18 partial, 7 blocked, 516 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
 | P2 | 55 | 4 | 4 | 265 | 328 |
-| P3 | 64 | 6 | 3 | 101 | 174 |
-| **All** | 130 | 18 | 7 | 515 | 670 |
+| P3 | 64 | 6 | 3 | 102 | 175 |
+| **All** | 130 | 18 | 7 | 516 | 671 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -703,7 +703,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-821](relay.md) | P3 | L | M2 | feature | open | The wire: a keyed mask of the header of `pod-e2e`, cover traffic, a JA4 audit of the hello of `pod-tls`, an ML-KEM hybrid (WR-1 to WR-5 of the ingest study) |
 | [T-822](transport.md) | P3 | L | M1 | feature | open | `pod-identity`: a threshold CA of the grants, an authorization of enrollment, a refresh of the shares (PK-1 to PK-7 of the ingest study) |
 | [T-823](transport.md) | P3 | M | M1 | feature | open | Routing: tokens in a proxy credential, sticky selection by HRW with tiers, a chain length, a quota that reserves before a write (RT-1 to RT-5 of the ingest study) |
-| [T-824](foundation.md) | P3 | M | M0 | chore | open | Verification gates: no allocation in `pod-e2e`, bounded steps, no blocking call, exhaustive checksum equivalence, a record of results, test runs with each feature (VF-1 to VF-5 of the ingest study) |
+| [T-824](foundation.md) | P3 | M | M0 | chore | done | Verification gates: no allocation in `pod-e2e`, bounded steps, no blocking call, exhaustive checksum equivalence, a record of results, test runs with each feature (VF-1 to VF-5 of the ingest study) |
 | [T-825](transport.md) | P3 | M | M1 | feature | partial | `pod-proxy`: a plan of the dial by address family, with the families of both ends and a timeout for each attempt |
 | [T-826](transport.md) | P3 | M | M1 | feature | partial | `pod-identity`: a rotation of the identity key with two slots and a retire step |
 | [T-827](foundation.md) | P3 | S | M0 | feature | done | `pod-core`: a type for the text of a peer in a field of an error |
@@ -717,3 +717,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-835](relay.md) | P3 | S | M2 | measurement | open | `pod-relay`: the cost of a move of a session for a copy on the default relay |
 | [T-836](relay.md) | P2 | S | M2 | feature | done | `pod-relay`: a route of a node to a Unix socket (PodUtils/podssh#295) |
 | [T-837](relay.md) | P2 | S | M2 | defect | done | `pod-relay`: a node ends a session whose local side still reads, at the first MiB that waits for it |
+| [T-838](foundation.md) | P3 | M | M0 | chore | open | Gates of a bounded step and of no blocking call in a hot path (VF-2, VF-3 of the ingest study) |

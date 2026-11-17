@@ -98,6 +98,10 @@ jobs:
         run: |
           python3 -I scripts/check-private-replace.py
           python3 -I scripts/check-private-replace.py --self-test
+      - name: The measured results of each crate
+        run: |
+          python3 -I scripts/check-results.py
+          python3 -I scripts/check-results.py --self-test
       - name: The rules of check-strings.py
         run: python3 -I scripts/check-strings.py --self-test
       - name: The rules of the workflows
