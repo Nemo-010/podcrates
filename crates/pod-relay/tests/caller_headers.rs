@@ -265,3 +265,35 @@ async fn the_forward_opener_on_the_plain_wire_carries_the_headers() {
         }
     }
 }
+
+/// The two fetches of `/relays.json` (the pool, and the offer of the layer)
+/// carry the headers after `Accept` (T-848): a gate in front of the relay
+/// refuses the document without them, and the pool and the offer of its
+/// host are then empty.
+#[tokio::test]
+async fn the_fetches_of_the_relay_document_carry_the_headers() {
+    let extra = Headers::new(access).for_host("relay.test").expect("the headers are good");
+    let relay = Relay { host: "relay.test".into(), port: 443 };
+    for offer in [false, true] {
+        let (mut ours, mut theirs) = tokio::io::duplex(64 * 1024);
+        let server = tokio::spawn(async move {
+            let (head, _) = pod_proxy::http::request::read_request(&mut theirs, Vec::new()).await.expect("a head");
+            let body = br#"{"forward":{"layer":true}}"#;
+            let answer = format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len());
+            theirs.write_all(&[answer.into_bytes(), body.to_vec()].concat()).await.unwrap();
+            (head.target, head.headers)
+        });
+        if offer {
+            let got = pod_relay::forward_layer::offer::over_with(&mut ours, "ua", "relay.test", &relay, &extra);
+            assert!(got.await.expect("the offer").layer);
+        } else {
+            let got = pod_relay::pool::body_with(&mut ours, "ua", "relay.test", &extra).await.expect("the body");
+            assert!(!got.is_empty());
+        }
+        let (target, headers) = server.await.unwrap();
+        assert_eq!(target, "/relays.json");
+        let named = |name: &str| headers.iter().find(|(n, _)| n.eq_ignore_ascii_case(name)).map(|(_, v)| v.clone());
+        assert_eq!(named("cf-access-client-id").as_deref(), Some(ID), "offer: {offer}");
+        assert_eq!(named("cf-access-client-secret").as_deref(), Some(SECRET), "offer: {offer}");
+    }
+}

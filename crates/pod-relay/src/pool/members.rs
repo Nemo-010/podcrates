@@ -137,9 +137,10 @@ pub fn take_from(dirs: Dirs<'_>, member: &Member, body: &[u8], keys: &Keys, now_
 async fn fetch(ctx: &Context, host: Relay, trust: &Trust, step: Duration) -> Result<Vec<u8>, String> {
     let header = super::host_header(&host);
     let asked = async {
+        let extra = ctx.way.extra(&host.host).map_err(|e| e.to_string())?;
         let (mut tls, _) =
             ctx.way.open_tls(&host.host, host.port, &host.host, trust, step, &[]).await.map_err(|e| e.to_string())?;
-        super::body_of(&mut tls, &ctx.way.user_agent, &header).await
+        super::body_with(&mut tls, &ctx.way.user_agent, &header, &extra).await
     };
     match tokio::time::timeout(step, asked).await {
         Ok(done) => done,

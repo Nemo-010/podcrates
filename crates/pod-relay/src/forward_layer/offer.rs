@@ -99,10 +99,11 @@ pub async fn ask(ctx: &Context, relay: &Relay, trust: &Trust, timeout: Duration)
         let names = &ctx.settings.names;
         return Err(format!("{} is set, so {} does not connect anywhere", names.offline, names.app));
     }
+    let extra = ctx.way.extra(&relay.host).map_err(|e| e.to_string())?;
     let (mut tls, _) =
         ctx.way.open_tls(&relay.host, relay.port, &relay.host, trust, timeout, &[]).await.map_err(|e| e.to_string())?;
     let host_header = crate::pool::host_header(relay);
-    tokio::time::timeout(timeout, over(&mut tls, &ctx.way.user_agent, &host_header, relay))
+    tokio::time::timeout(timeout, over_with(&mut tls, &ctx.way.user_agent, &host_header, relay, &extra))
         .await
         .map_err(|_| format!("/relays.json took more than {} s", timeout.as_secs()))?
 }
@@ -114,7 +115,23 @@ pub async fn over<S>(stream: &mut S, user_agent: &str, host_header: &str, asked:
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let accept = [("Accept", "application/json")];
+    over_with(stream, user_agent, host_header, asked, &pod_ws::Extra::default()).await
+}
+
+/// [`over`], with the headers of the caller for the host (`extra`): a gate
+/// in front of the relay refuses the document without them.
+pub async fn over_with<S>(
+    stream: &mut S,
+    user_agent: &str,
+    host_header: &str,
+    asked: &Relay,
+    extra: &pod_ws::Extra,
+) -> Result<Offer, String>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let mut accept = vec![("Accept", "application/json")];
+    accept.extend(extra.iter());
     let max = crate::pool::MAX_BODY;
     let response = http::exchange(stream, user_agent, "GET", host_header, "/relays.json", &accept, b"", max)
         .await

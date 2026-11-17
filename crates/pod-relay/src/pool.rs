@@ -185,11 +185,14 @@ pub async fn refresh(
     trust: &Trust,
     timeout: Duration,
 ) -> Result<usize, String> {
+    // A gate in front of the relay refuses `/relays.json` too without the
+    // headers of the caller.
+    let extra = ctx.way.extra(&relay.host).map_err(|e| e.to_string())?;
     let (mut tls, _) =
         ctx.way.open_tls(&relay.host, relay.port, &relay.host, trust, timeout, &[]).await.map_err(|e| e.to_string())?;
     let host_header = host_header(relay);
     let user_agent = ctx.way.user_agent.clone();
-    let body = tokio::time::timeout(timeout, body_of(&mut tls, &user_agent, &host_header))
+    let body = tokio::time::timeout(timeout, body_with(&mut tls, &user_agent, &host_header, &extra))
         .await
         .map_err(|_| format!("the pool request took more than {} s", timeout.as_secs()))??;
     // The signed list holds by its key, whichever host served it, also one
@@ -247,7 +250,21 @@ pub async fn body_of<S>(stream: &mut S, user_agent: &str, host_header: &str) -> 
 where
     S: AsyncRead + AsyncWrite + Unpin,
 {
-    let accept = [("Accept", "application/json")];
+    body_with(stream, user_agent, host_header, &pod_ws::Extra::default()).await
+}
+
+/// [`body_of`], with the headers of the caller for the host (`extra`).
+pub async fn body_with<S>(
+    stream: &mut S,
+    user_agent: &str,
+    host_header: &str,
+    extra: &pod_ws::Extra,
+) -> Result<Vec<u8>, String>
+where
+    S: AsyncRead + AsyncWrite + Unpin,
+{
+    let mut accept = vec![("Accept", "application/json")];
+    accept.extend(extra.iter());
     let response = http::exchange(stream, user_agent, "GET", host_header, "/relays.json", &accept, b"", MAX_BODY)
         .await
         .map_err(|e| format!("the pool request failed: {e}"))?;
