@@ -9566,3 +9566,54 @@ number up to 65536, `crates/pod-hostprobe/src/sys/raw.rs`). Test:
 with close-on-exec comes within 5 s while the payload of the run and the
 exec of a join run, as root and as uid 65534. Plant
 `enter-pid-init-keeps-fds`.
+
+# T-846: `pod-rootfs`: the source fixup reads the URLs of comment lines, so it probes `help.ubuntu.com` (PodUtils/podvm#463)
+
+**Source:** PodUtils/podvm#463 (COORD-170 of podvm, PodUtils/podvm@T-1931, PodUtils/podrunner#202).
+**Category:** defect
+**Milestone:** M6
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+`pod_rootfs::sources::rewrite` finds each `http://` in the whole text of a
+source file, comment lines too. Line 2 of the `ubuntu.sources` of
+`ubuntu:24.04` is a comment with `http://help.ubuntu.com/...`, so the fixup
+asks the probe about `help.ubuntu.com`: a request that the payload never
+makes, through the caller's proxy. The rewrite also changes the URL of
+the comment.
+
+## Premise
+
+- Read: PodUtils/podvm#463 (measured: three `CONNECT`s through
+  `HTTPS_PROXY`, `help.ubuntu.com` the first); `crates/pod-rootfs/src/sources.rs`.
+- Read: deb822 (`sources.list(5)`): a field that continues starts with a
+  blank; a stanza ends at an empty line; `#` starts a comment line.
+
+## Approach
+
+The fixup reads a URL only on a line that the package manager reads: not
+on a line whose first character that is not blank is `#`, and in a
+`*.sources` file only in the field `URIs` (its first line or a line that
+continues it). A test with the `ubuntu.sources` text of 24.04; a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-rootfs --all-features
+```
+
+## Done
+
+2026-11-17, 1e42a7c: `sources::rewrite` takes `deb822` (the path ends with
+`.sources`) and reads each line by `read`: a line whose first character
+that is not blank is `#` is not read; in deb822, only the field `URIs`,
+its first line or a line that continues it (a stanza ends at an empty
+line). Test: `a_comment_and_a_field_that_is_not_uris_are_not_read`, with
+the `ubuntu.sources` of 24.04 (the probe asks about `archive.ubuntu.com`
+and `security.ubuntu.com` alone, and the comment stays as it was) and a
+one-line file with a comment line after blanks. Plant
+`rootfs-source-comment-read`, caught. The 85 unit tests of `pod-rootfs`
+pass.

@@ -1,0 +1,6 @@
+# The source fixup reads no comment line and, in deb822, only URIs (T-846).
+ENTRY=T-846
+GROUP=rootfs
+EXPECT='a_comment_and_a_field_that_is_not_uris_are_not_read'
+RUN='cargo test -p pod-rootfs --all-features --lib sources'
+LIMIT=1800

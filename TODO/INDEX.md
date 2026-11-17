@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**678 entries: 126 open, 20 partial, 7 blocked, 525 done.**
+**679 entries: 126 open, 20 partial, 7 blocked, 526 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 10 | 9 | 0 | 147 | 166 |
-| P2 | 55 | 3 | 4 | 270 | 332 |
+| P2 | 55 | 3 | 4 | 271 | 333 |
 | P3 | 61 | 8 | 3 | 106 | 178 |
-| **All** | 126 | 20 | 7 | 525 | 678 |
+| **All** | 126 | 20 | 7 | 526 | 679 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -725,3 +725,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-843](adapters.md) | P3 | S | M0 | chore | done | `static-probe`: its `main.rs` is at the limit of 500 lines |
 | [T-844](relay.md) | P2 | S | M2 | feature | done | `pod-relay`: a route to a Unix socket on Windows (PodUtils/podssh#298) |
 | [T-845](relay.md) | P2 | M | M2 | feature | done | `pod-relay` and `pod-session`: a relay's liveness offer, so a relay that sleeps between frames can sleep (PodUtils/podssh#300) |
+| [T-846](podvm.md) | P2 | S | M6 | defect | done | `pod-rootfs`: the source fixup reads the URLs of comment lines, so it probes `help.ubuntu.com` (PodUtils/podvm#463) |

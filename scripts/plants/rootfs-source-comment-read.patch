@@ -1,0 +1,16 @@
+diff --git a/crates/pod-rootfs/src/sources.rs b/crates/pod-rootfs/src/sources.rs
+index 9dab60d..6748708 100644
+--- a/crates/pod-rootfs/src/sources.rs
++++ b/crates/pod-rootfs/src/sources.rs
+@@ -193,10 +193,7 @@ pub(crate) fn rewrite(text: &str, deb822: bool, prober: &mut Prober<'_>) -> (Str
+ /// line that continues it). `field` is the field of the line before.
+ fn read(line: &str, deb822: bool, field: &mut String) -> bool {
+     let body = line.trim_start();
+-    if body.starts_with('#') {
+-        return false;
+-    }
+-    if !deb822 {
++    if body.starts_with('#') || !deb822 || body.is_empty() || true {
+         return true;
+     }
+     if body.is_empty() {
