@@ -32,7 +32,7 @@ pure = [
 ]
 # RSA signatures in the pure provider: PKCS #1 v1.5 and PSS, verify only.
 # RUSTSEC-2023-0071 concerns the operations with the private key of rsa 0.9.
-rsa = ["pure", "dep:rsa", "dep:sha2-rsa"]
+rsa = ["pure", "dep:rsa"]
 # Encrypted Client Hello. The HPKE of the sealed hello is the one of the
 # pure provider: rustls has HPKE only from aws-lc.
 ech = ["pure", "async"]
@@ -65,7 +65,6 @@ p384 = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }
 zeroize = { workspace = true, optional = true }
 rsa = { workspace = true, optional = true }
-sha2-rsa = { workspace = true, optional = true }
 
 # The stores of trust that are not files: crypt32 on Windows and the
 # Security framework on macOS. Each links a library of the system.

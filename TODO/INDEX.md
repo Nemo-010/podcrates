@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**674 entries: 128 open, 18 partial, 7 blocked, 521 done.**
+**674 entries: 127 open, 18 partial, 7 blocked, 522 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 10 | 9 | 0 | 147 | 166 |
 | P2 | 55 | 3 | 4 | 268 | 330 |
-| P3 | 63 | 6 | 3 | 104 | 176 |
-| **All** | 128 | 18 | 7 | 521 | 674 |
+| P3 | 62 | 6 | 3 | 105 | 176 |
+| **All** | 127 | 18 | 7 | 522 | 674 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -720,4 +720,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-838](foundation.md) | P3 | M | M0 | chore | open | Gates of a bounded step and of no blocking call in a hot path (VF-2, VF-3 of the ingest study) |
 | [T-839](transport.md) | P2 | S | M1 | defect | done | `pod-services`: localhost.run's remote forward takes port 80, not 0 (PodUtils/podnet#607) |
 | [T-840](transport.md) | P2 | S | M1 | chore | done | `pod-tls`: webpki-roots 1.0.12 and its date (PodUtils/podssh#297) |
-| [T-841](transport.md) | P3 | S | M1 | chore | open | `pod-tls`: rsa 0.10, so that a consumer has one version of rsa (PodUtils/podssh#297) |
+| [T-841](transport.md) | P3 | S | M1 | chore | done | `pod-tls`: rsa 0.10, so that a consumer has one version of rsa (PodUtils/podssh#297) |

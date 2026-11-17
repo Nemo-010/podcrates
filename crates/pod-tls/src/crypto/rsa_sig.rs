@@ -9,11 +9,9 @@
 
 use rsa::pkcs1::DecodeRsaPublicKey;
 use rsa::traits::PublicKeyParts;
-use rsa::{Pkcs1v15Sign, Pss, RsaPublicKey};
+use rsa::{Pkcs1v15Sign, Pss, PublicKey};
 use rustls_pki_types::{AlgorithmIdentifier, InvalidSignature, SignatureVerificationAlgorithm, alg_id};
-// rsa 0.9 takes a hash of the digest 0.10 line, so SHA-2 comes from that
-// line here (`sha2-rsa`); the rest of the provider is on digest 0.11.
-use sha2_rsa::{Digest, Sha256, Sha384, Sha512};
+use sha2::{Digest, Sha256, Sha384, Sha512};
 
 #[derive(Debug, Clone, Copy)]
 enum Hash {
@@ -49,12 +47,12 @@ pub static RSA_PSS_SHA512: &dyn SignatureVerificationAlgorithm =
     &RsaVerify { hash: Hash::Sha512, padding: Padding::Pss };
 
 /// The smallest key accepted, as webpki's own backends require.
-const MIN_BITS: usize = 2048;
+const MIN_BITS: u32 = 2048;
 
-fn public_key(der: &[u8]) -> Result<RsaPublicKey, InvalidSignature> {
+fn public_key(der: &[u8]) -> Result<PublicKey, InvalidSignature> {
     // `from_pkcs1_der` also refuses keys over 4096 bits.
-    let key = RsaPublicKey::from_pkcs1_der(der).map_err(|_| InvalidSignature)?;
-    if key.n().bits() < MIN_BITS {
+    let key = PublicKey::from_pkcs1_der(der).map_err(|_| InvalidSignature)?;
+    if key.n().bit_width() < MIN_BITS {
         return Err(InvalidSignature);
     }
     Ok(key)
@@ -79,9 +77,9 @@ impl SignatureVerificationAlgorithm for RsaVerify {
                 key.verify(Pkcs1v15Sign::new::<Sha512>(), &Sha512::digest(message), signature)
             }
             // Salt length = digest length, as TLS 1.3 and X.509 require.
-            (Hash::Sha256, Padding::Pss) => key.verify(Pss::new::<Sha256>(), &Sha256::digest(message), signature),
-            (Hash::Sha384, Padding::Pss) => key.verify(Pss::new::<Sha384>(), &Sha384::digest(message), signature),
-            (Hash::Sha512, Padding::Pss) => key.verify(Pss::new::<Sha512>(), &Sha512::digest(message), signature),
+            (Hash::Sha256, Padding::Pss) => key.verify(Pss::<Sha256>::new(), &Sha256::digest(message), signature),
+            (Hash::Sha384, Padding::Pss) => key.verify(Pss::<Sha384>::new(), &Sha384::digest(message), signature),
+            (Hash::Sha512, Padding::Pss) => key.verify(Pss::<Sha512>::new(), &Sha512::digest(message), signature),
         };
         result.map_err(|_| InvalidSignature)
     }

@@ -193,8 +193,7 @@ p256 = { version = "0.14", default-features = false, features = ["ecdsa", "arith
 p384 = { version = "0.14", default-features = false, features = ["ecdsa", "arithmetic"] }
 # The RSA verifier of pod-tls (feature rsa): public keys only. rsa 0.9 takes
 # SHA-2 of the digest 0.10 line, under a name of its own.
-rsa = { version = "0.9", default-features = false, features = ["std"] }
-sha2-rsa = { package = "sha2", version = "0.10", default-features = false, features = ["oid"] }
+rsa = { version = "0.10", default-features = false, features = ["std", "encoding", "pkcs1v15"] }
 base64 = { version = "0.23", default-features = false, features = ["std"] }
 # KCP of the udp carrier of pod-link: pure Rust, no feature (call C271).
 kcp = { version = "0.6", default-features = false }

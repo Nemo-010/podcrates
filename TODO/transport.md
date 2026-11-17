@@ -7582,7 +7582,7 @@ cargo test -p pod-tls --all-features --test roots_version
 **Milestone:** M1
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -7602,3 +7602,7 @@ Move the workspace to rsa 0.10 with the sha2 that it takes; adapt the signing an
 ```sh
 cargo test -p pod-tls --all-features
 ```
+
+## Done
+
+2026-11-17. The workspace takes `rsa` 0.10.0 (features `std`, `encoding`, `pkcs1v15`; crates.io 2026-11-08) with sha2 0.11, the one of the rest of the provider, so the second copy `sha2-rsa` (sha2 0.10) is gone. `crates/pod-tls/src/crypto/rsa_sig.rs`: `PublicKey` (the new name), `Pss::<D>::new()` (the hash is a type of the padding; its salt is the length of the hash, as TLS asks), `bit_width` for the bound of 2048 bits. The tests of `pod-tls` (175, the RSA vectors and the TLS 1.2 tests among them) and of the crates that take the feature `rsa` (`pod-lab`, `pod-services-watch`, `pod-acme`: 180) pass; the clippy of the workspace and `cargo deny` pass. The lock still holds rsa 0.9.10 through arti (`ssh-key-fork-arti`, which `pod-tor` takes): podssh, which takes `pod-tor`, keeps that copy until arti moves.
