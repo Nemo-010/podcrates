@@ -1,0 +1,32 @@
+diff --git a/crates/pod-core/src/quota.rs b/crates/pod-core/src/quota.rs
+index 19ea648..10d7f4e 100644
+--- a/crates/pod-core/src/quota.rs
++++ b/crates/pod-core/src/quota.rs
+@@ -43,7 +43,7 @@ impl Quota {
+         self.left
+             .try_update(Ordering::AcqRel, Ordering::Acquire, |left| {
+                 got = want(left)?;
+-                Some(left - got)
++                Some(left)
+             })
+             .ok()?;
+         Some(Reservation { left: self.left.clone(), held: got })
+@@ -67,15 +67,14 @@ impl Reservation {
+ 
+     /// Keep `used` bytes (at most those held) and give the rest back.
+     pub fn commit(mut self, used: u64) {
+-        self.held -= used.min(self.held);
++        self.left.fetch_sub(used.min(self.held), Ordering::AcqRel);
++        self.held = 0;
+     }
+ }
+ 
+ impl Drop for Reservation {
+     fn drop(&mut self) {
+-        if self.held > 0 {
+-            self.left.fetch_add(self.held, Ordering::AcqRel);
+-        }
++        let _ = self.held;
+     }
+ }
+ 

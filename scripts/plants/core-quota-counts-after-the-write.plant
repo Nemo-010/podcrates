@@ -1,0 +1,6 @@
+# A quota takes the bytes before the write, not after it (T-823).
+ENTRY=T-823
+GROUP=core
+EXPECT='a_reservation_takes_first_and_a_commit_gives_back_the_rest'
+RUN='cargo test -p pod-core --all-features --lib quota'
+LIMIT=1800
