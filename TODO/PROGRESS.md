@@ -14,7 +14,8 @@
   COORD-129 (#219); `v0.67.0` (`1d7e983`) has COORD-128 (#218).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
-  - podssh: `v0.68.0` (`94c01b0`, PodUtils/podssh#303: 3619 tests; the
+  - podssh: `v0.69.0` (`d32954d`, PodUtils/podssh#305: 3657 tests; its
+    own chrono moved to jiff; `v0.68.0` in `94c01b0`, PodUtils/podssh#303: 3619 tests; the
     liveness offer and the headers of Access taken, its own opener of a
     Unix route gone; `Headers::in_cleartext` and `--access-host` on more
     commands are its T-718; `v0.67.0` in `a4b1436`; `v0.66.0` in
