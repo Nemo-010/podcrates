@@ -9236,6 +9236,19 @@ Run the ignored throughput test of `pod-ws` 20 times; where it is bimodal, find 
 cargo test -p pod-ws --all-features --test bridge throughput -- --ignored --nocapture
 ```
 
+## Correction
+
+2026-11-17: podssh measured the study's shape against its relay role
+(PodUtils/podssh#299, its T-803; `relay_serve_rate.rs`, plain `ws://`, 16
+MiB in frames of 49,152 bytes, a new session for each of 20 runs): with 4
+worker threads, 11 runs near 240 MiB/s and 9 near 650; with 2 the same two
+modes; with one thread (`current_thread`) one mode, 381 to 430 (median
+406.5). The role carries a session in one task with no queue between its
+legs, so the two speeds are the placement of the tasks of each socket by
+the multi-thread runtime of tokio, not the role and not the bridge of
+`pod-ws`. podssh makes no change: the slow mode is far above each link that
+the role serves.
+
 ## Done
 
 2026-11-17. Measured: the bridge of `pod-ws` on both ends (`bridge::bridge`,
@@ -9614,3 +9627,36 @@ cargo test -p pod-relay --all-features --test reverse_node
 
 2026-11-17. `crates/pod-relay/src/reverse/route.rs`: each route keeps when its copy to the local side last moved (a write ended, or it waited for bytes: `Moved`, milliseconds since the route was made). `offer` ends a session past `queue_bytes` only when the copy did not move for `STALL_GRACE` (2 s), or when the bytes that wait pass `HARD_LIMIT` (4) times `queue_bytes`; a local side that reads gets the bursts of the relay. The memory of a stuck session stays at most 4 MiB for a handler with no layer. Tests: `a_local_side_that_reads_slower_than_a_burst_keeps_its_session` (a queue of 256 KiB, a burst of 768 KiB, a reader of 16 KiB each 5 ms: each byte comes, no close of a stall), and the flood of `a_local_side_that_does_not_read_ends_its_session_and_not_the_others` now passes the hard bound (5 MiB). `cargo test --all-features` of `pod-relay` passed. The plant `relay-stall-at-first-mib` (the old rule) is caught by the new test. The live copy gives its echo a queue of 64 MiB still, so that it measures the relay alone.
 
+
+# T-844: `pod-relay`: a route to a Unix socket on Windows (PodUtils/podssh#298)
+
+**Source:** PodUtils/podssh#298 (COORD-102 of podssh).
+**Category:** feature
+**Milestone:** M2
+**Priority:** P2
+**Effort:** S
+**Status:** done
+
+## Problem
+
+`reverse::unix_target::connect` had no form for Windows ("this system has no Unix socket for a route"), so podssh keeps its own opener of a Unix route, which reaches an AF_UNIX socket on Windows through WinSock.
+
+## Premise
+
+- Read: PodUtils/podssh#298; `PodUtils/podssh:crates/podssh-cli/src/pipe/unix.rs` at `a4b1436` (`af_unix`, `sockaddr`, `wsa_start`; 0BSD).
+- Not measured: a run on Windows here; the Windows tests of podssh run it when it takes the tag.
+
+## Approach
+
+On Windows, a socket of the family AF_UNIX by WinSock (Windows 10 1803 and later), connected to the path, handed on as a `TcpStream` of the same socket, as on Unix.
+
+## Prove
+
+```sh
+cargo clippy -p pod-relay --lib --all-features --target x86_64-pc-windows-gnu -- -D warnings
+cargo test -p pod-relay --all-features --test routes_unix
+```
+
+## Done
+
+2026-11-17. `crates/pod-relay/src/reverse/unix_target.rs`: one `connect` for Unix and Windows over a blocking `open_std` that gives a std `TcpStream`: on Unix the `UnixStream` (with the abstract name of Linux) by its descriptor; on Windows a WinSock socket of AF_UNIX (`WSAStartup`, `socket`, `connect` to a `SOCKADDR_UN`, `closesocket` on a failure, `from_raw_socket`), with a refusal of a path that does not fit `sun_path` with its NUL. `pod-relay` takes `windows-sys` 0.61 (`Win32_Networking_WinSock`) on Windows. The clippy of `pod-relay` for `x86_64-pc-windows-gnu` and for Linux passes; `tests/routes_unix.rs` (6) passes on Linux. It ran on no Windows host here: podssh's Windows tests of its route run it.

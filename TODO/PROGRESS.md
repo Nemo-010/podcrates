@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 676 entries: 128 open, 18 partial, 7 blocked, 523 done.
+`TODO/INDEX.md` holds 677 entries: 128 open, 18 partial, 7 blocked, 524 done.
 
 ## State
 
@@ -15,7 +15,9 @@
   (#215); `v0.64.0` (`6a965ef`) has COORD-124 (#214).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
-  - podssh: `v0.66.0` (`ae9cf1b`, PodUtils/podssh#296: a bump of the tag;
+  - podssh: `v0.67.0` (`a4b1436`, PodUtils/podssh#298: 3573 tests; it
+    keeps its opener of a Unix route until T-844 is in a tag; `v0.66.0` in
+    `ae9cf1b`, PodUtils/podssh#296: a bump of the tag;
     `v0.65.0` in `843e3c5`, PodUtils/podssh#289: `pod-tor` and
     `pod-iroh` taken, their trials removed; next the layer on the HTTP road,
     its T-798, and its text, help and JSON on `pod-manual`, its T-790): it runs the one

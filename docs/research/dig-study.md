@@ -27,7 +27,10 @@ went from 1.18 to 2.00 during the runs.
 | DIG relay, TCP bridge | 7.96 / 8.37 / 8.64 | 211 µs | 1.92 ms |
 
 - The rate of the podssh relay is in two modes, near 75 MiB/s and near
-  330 MiB/s; the archive names no cause (T-813).
+  330 MiB/s; the archive names no cause (T-813). The bridge of `pod-ws`
+  has one mode (521 to 1165 MiB/s). podssh found the cause
+  (PodUtils/podssh#299): the multi-thread runtime of tokio places the
+  tasks of each socket; with one thread the role has one mode.
 - The DIG relay writes each payload as a JSON array of decimal bytes:
   about 3.6 bytes on the wire for each byte of payload. Its default limits
   are 1 MiB/s and 256 frames each second for each connection, 1 GiB in a
