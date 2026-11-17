@@ -33,6 +33,7 @@
 //! smoltcp: a UDP datagram to IPv4 then holds up to 65507 bytes over each
 //! MTU ([`IPV4_FRAGMENTATION`], [`StackConfig::max_datagram`]).
 
+pub mod class;
 pub mod device;
 pub mod hooks;
 #[cfg(test)]
