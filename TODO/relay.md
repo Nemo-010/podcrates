@@ -9717,3 +9717,37 @@ Item 3: the far end decides, as one side that leaves `heartbeat.v1` out ends the
 ## Done
 
 2026-11-17, b06f11d: `pod_session::Settings.heartbeat` (default `true`), `Settings::quiet()`, `Settings::names()` and `pod_session::HEARTBEAT`; `once::asked`, `deadline::offered` and the resume's `OPEN` take `names()`. `pod_relay::reverse::Handler::liveness` (default: nothing), forwarded by `E2e`; `serve` calls it at each `hello`. Tests: `a_quiet_far_end_ends_the_heartbeat_of_both_sides` (200 s idle, no `PING` either way, the session goes on) and `the_handler_hears_the_pace_taken_at_each_hello`. Plants: `session-quiet-still-names-the-heartbeat` and `relay-node-keeps-the-heartbeat-under-an-offer`, each caught. The tests of `pod-session` and `pod-relay` pass. No test of the operator's side runs a whole session.
+
+# T-847: `pod-ws`, `pod-relay` and `pod-egress`: headers of the caller for a host on each WebSocket road, for Cloudflare Access (PodUtils/podssh#302)
+
+**Source:** PodUtils/podssh#302 (COORD-105 of podssh, podssh T-718, cfb's ask A-C-04).
+**Category:** feature
+**Milestone:** M2
+**Priority:** P2
+**Effort:** M
+**Status:** open
+
+## Problem
+
+A relay behind Cloudflare Access refuses each socket that has no service-token headers (`CF-Access-Client-Id`, `CF-Access-Client-Secret`). No road of `pod-relay` and no forwarder of `pod-egress` takes a header of the caller.
+
+## Premise
+
+- Read: PodUtils/podssh#302. podssh reads the credentials from files, keeps them in `Zeroizing`, and sends them only to a host that the user named.
+- Read: `crates/pod-ws/src/handshake.rs` (`build_request`), `crates/pod-ws/src/client.rs` (`WsClientConfig`, `ConnectError::Refused`), the roads of `pod-relay` (forward, `/v1/node/`, `/v1/connect/`; HTTP/1.1, HTTP/2, cleartext, QUIC) and the forwarder of `pod-egress`.
+
+## Approach
+
+1. A set of extra headers for a host, given by the caller (a function of the host, values in `Zeroizing`), in `WsClientConfig` and in the settings of each road of `pod-relay` and of the forwarder of `pod-egress`.
+2. `build_request` and the request of each other road write them after `X-Relay-Token`.
+3. A name or a value with a control character is refused; the refusal names the header, never its value.
+4. A value of a header is masked in the body of `ConnectError::Refused`; a refusal of 401 or 403 keeps its status.
+5. Tests of each road, with a server that reads the headers; a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-ws --all-features
+cargo test -p pod-relay --all-features
+cargo test -p pod-egress --all-features
+```
