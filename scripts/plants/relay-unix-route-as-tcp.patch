@@ -1,0 +1,11 @@
+--- a/crates/pod-relay/src/reverse/tcp.rs
++++ b/crates/pod-relay/src/reverse/tcp.rs
+@@ -47,7 +47,7 @@ pub async fn dial_target(
+     timeout: Duration,
+     sshd: bool,
+ ) -> Result<TcpStream, String> {
+-    let unix = super::unix_target::unix_path(host);
++    let unix: Option<&str> = None;
+     let stream = match unix {
+         Some(path) => super::unix_target::connect(path, timeout).await?,
+         None => dialer.tcp(host, port, timeout).await.map_err(|e| e.to_string())?,

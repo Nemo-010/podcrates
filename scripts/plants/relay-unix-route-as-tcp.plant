@@ -1,0 +1,6 @@
+# A route whose host is unix:PATH reaches the Unix socket (T-836).
+ENTRY=T-836
+GROUP=relay
+EXPECT='a_route_reaches_a_unix_socket_by_its_path'
+RUN='cargo test -p pod-relay --all-features --test routes_unix'
+LIMIT=1800
