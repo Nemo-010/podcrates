@@ -222,5 +222,6 @@ kinds and the rules.
 | #215 | coord | COORD-125: v0.65.0: the PID namespace of pod-enter (podvm#457), a node on a held lost socket (podnet#604), the layer on the HTTP road (podssh#287), four forms of pod-manual (podssh#288), the roots of a way out (podvm#455) (to all) | open | T-806, T-805, T-801, T-797, T-807, T-808, T-810 |
 | #216 | coord | COORD-126: v0.66.0: the init of a PID namespace keeps no descriptor of the caller (podvm#460), the writes of pod-devtunnel (to all) | open | T-811, T-378 |
 | #217 | coord | COORD-127: the dig study and the relay role: two speeds of `podssh relay serve`, and five ideas for the server (to podssh) | open | T-813, T-829 |
+| #218 | coord | COORD-128: v0.67.0: a route to a Unix socket (podssh#295), the renewal against the default relay (podssh#294), the remote port of localhost.run (podnet#607), a durable replace of a file (to all) | open | T-836, T-834, T-839, T-192, T-837 |
 
 #79 to #81 are pull requests.

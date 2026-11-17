@@ -5,12 +5,14 @@
 ## State
 
 - `docs/HANDOFF.md` has what is in flight and what waits.
-- Last release: `v0.66.0` at `b317117` (`docs/releases/v0.66.0.md`; ci
-  43993202260 and adoption 43993202624 at `b317117`, plants 43988558976 at
-  `9ce6a53`, the release dry run 43999193913, the release 43999673798):
-  T-811 (PodUtils/podvm#460), T-378 (partial: the writes of
-  `pod-devtunnel`). The hand-off is COORD-126 (#216). `v0.65.0` (`4122f39`)
-  has COORD-125 (#215); `v0.64.0` (`6a965ef`) has COORD-124 (#214).
+- Last release: `v0.67.0` at `1d7e983` (`docs/releases/v0.67.0.md`; ci
+  44011997188, adoption 44011997197 and plants 44011997279 at `1d7e983`,
+  the release dry run 44021105436, the release 44022832313): T-834
+  (PodUtils/podssh#294), T-836 (PodUtils/podssh#295), T-839
+  (PodUtils/podnet#607), T-837, T-192, T-827, T-825 (part 1), T-826 (part
+  1), T-824, T-831, T-835. The hand-off is COORD-128 (#218). `v0.66.0`
+  (`b317117`) has COORD-126 (#216); `v0.65.0` (`4122f39`) has COORD-125
+  (#215); `v0.64.0` (`6a965ef`) has COORD-124 (#214).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.66.0` (`ae9cf1b`, PodUtils/podssh#296: a bump of the tag;

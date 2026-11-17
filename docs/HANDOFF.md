@@ -19,19 +19,13 @@ is done. Git and the record keep finished work.
    on COORD-125 (#215), and of `v0.66.0` on COORD-126 (#216): amend the body, and close it when each consumer took its
    part. `v0.65.0` holds T-806, T-805, T-801, T-797, T-807, T-808 and the
    trial of `pod-iroh` (T-810).
-3. The release `v0.67.0`: its head is `1d7e983` (pushed; the full local
-   check passed, 4924 tests). When `ci`, `adoption` and `plants` are green
-   at that head, run `release.yml` (dry, then `version=0.67.0`), then open
-   the hand-off `(to all)` from the draft
-   `scratchpad/coord128.md` of the session (it answers podssh#294,
-   podssh#295 and podnet#607; write it again from
-   `docs/releases/v0.67.0.md` when the draft is gone). The local commits
-   after the head (T-378 steps 2 and 3, T-385) wait for the tag: a push
-   cancels the runs of the head.
-4. T-029 (`pod-cloudflare`, P1): an agent imports podnet's tunnel in the
-   local worktree `.claude/worktrees/t029` (branch `t029-cloudflare`, not
-   pushed): the import, the edition, a crate that builds. Merge its
-   commits into `main` after its report, then the adaptation.
+3. `v0.67.0` is out at `1d7e983`; its hand-off is COORD-128 (#218).
+   Record each take on it. The next tag holds T-840 and T-841
+   (PodUtils/podssh#297: answer it on that hand-off), T-378, T-385.
+4. T-029 (`pod-cloudflare`, P1, partial): the import and the adaptation of
+   step 3 are on `main`; the rest of its record (four lines to events, the
+   comments, the fuzz targets, the README and the adoption map, the trial)
+   comes next.
 5. Read the scheduled nightly: T-789 (armv7) and T-766 (riscv64) are the
    jobs that stayed red; a new red job needs an entry.
 6. T-767 (PodUtils/podssh#283, P1, partial): the seventh failure shows
