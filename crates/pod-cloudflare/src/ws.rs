@@ -58,18 +58,6 @@ pub fn forward_url(url: &str, path: &str) -> Option<String> {
 /// Compute `Sec-WebSocket-Accept` for a client's `Sec-WebSocket-Key`.
 pub use pod_ws::handshake::accept_key;
 
-/// The byte counts of a bridge, in the counters of the tunnel.
-struct Counted<'a>(&'a Metrics);
-
-impl pod_ws::Tally for Counted<'_> {
-    fn add_in(&self, bytes: u64) {
-        self.0.add_in(bytes);
-    }
-    fn add_out(&self, bytes: u64) {
-        self.0.add_out(bytes);
-    }
-}
-
 /// Serve one inbound WebSocket upgrade from the edge, bridging it to `target`.
 pub async fn serve_websocket(
     origins: &Origins,
@@ -114,7 +102,7 @@ pub async fn serve_websocket(
     // futures-io wrappers used by the request framing.
     let socket = tokio::io::join(reader.compat(), writer.compat_write());
     let session = pod_ws::server::session(socket, Vec::new(), None).with_limits(Limits::TUNGSTENITE);
-    pod_ws::bridge(session, io, &Counted(metrics)).await.context("the bridge of the forward WebSocket")
+    pod_ws::bridge(session, io, metrics).await.context("the bridge of the forward WebSocket")
 }
 
 fn plain(message: &str) -> Vec<(String, String)> {

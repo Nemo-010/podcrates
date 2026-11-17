@@ -128,6 +128,17 @@ impl Metrics {
     }
 }
 
+/// The byte counts of a WebSocket bridge (a forward, or a bridge of the
+/// consumer) go to the counters.
+impl pod_ws::Tally for Metrics {
+    fn add_in(&self, bytes: u64) {
+        Metrics::add_in(self, bytes);
+    }
+    fn add_out(&self, bytes: u64) {
+        Metrics::add_out(self, bytes);
+    }
+}
+
 impl Default for Metrics {
     fn default() -> Self {
         Self::new()
@@ -164,5 +175,15 @@ mod tests {
         assert!(text.contains("podnet_streams_total 1"));
         assert!(text.ends_with("podnet_decisions_total 3\n"), "{text}");
         assert!(!text.contains("second"));
+    }
+
+    #[test]
+    fn a_bridge_counts_into_the_counters() {
+        let metrics = Metrics::new();
+        let tally: &dyn pod_ws::Tally = &metrics;
+        tally.add_in(3);
+        tally.add_out(4);
+        let snap = metrics.snapshot();
+        assert_eq!((snap.bytes_in, snap.bytes_out), (3, 4));
     }
 }
