@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**688 entries: 128 open, 22 partial, 7 blocked, 531 done.**
+**688 entries: 127 open, 22 partial, 7 blocked, 532 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 10 | 9 | 0 | 147 | 166 |
 | P2 | 55 | 3 | 4 | 274 | 336 |
-| P3 | 63 | 10 | 3 | 108 | 184 |
-| **All** | 128 | 22 | 7 | 531 | 688 |
+| P3 | 62 | 10 | 3 | 109 | 184 |
+| **All** | 127 | 22 | 7 | 532 | 688 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -734,4 +734,4 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-852](transport.md) | P3 | S | M1 | chore | open | The ignores of the unmaintained chrono and humantime (RUSTSEC-2026-0543, RUSTSEC-2026-0542) |
 | [T-853](adapters.md) | P3 | S | M3 | chore | open | `pod-cloudflare`: two `Protocol` types, one of them with no user in the crate |
 | [T-854](upkeep.md) | P2 | S | M1 | chore | done | `pod-services`: GitHub Actions has two more hosts (the watch of 2026-11-17) |
-| [T-855](upkeep.md) | P3 | S | M1 | chore | open | `pod-services`: the node `node-trojan-167-88-61-175` fails the TLS handshake |
+| [T-855](upkeep.md) | P3 | S | M1 | chore | done | `pod-services`: the node `node-trojan-167-88-61-175` fails the TLS handshake |
