@@ -9398,7 +9398,9 @@ cargo test -p pod-netstack --all-features
 
 The clamp has no call in a crate yet, by design: the stack's own TCP (smoltcp) takes its MSS from its MTU, and the TUN of `pod-warp` carries the host's own traffic, whose MSS the kernel takes from the MTU of the interface (1280). A caller that forwards the packets of other hosts through a smaller path calls `mss::clamp_mss`.
 
-Open: the call of the class on the outbound path of the stack and the settings of a carrier for each class (`pod-link`'s ARQ); the ladder of the path MTU with sealed probes in `pod-link` (TR-3).
+2026-11-17, part 3 (the ladder of the path MTU, TR-3), 011ce65: `crates/pod-netstack/src/pmtu.rs`, sans-IO in the manner of RFC 8899. `Ladder` takes the first rung of `RUNGS` (1120, 1320, 1400, 1500) to work; `poll(now)` gives a `Probe { id, size }` of the next rung, again after `PROBE_WAIT` (5 s) with no answer, and after `MOST_PROBES` (3) unanswered probes rests below that rung; `acked(id, now)` confirms the rung of the probe that is out (an old or unknown id changes nothing); a settled search tries the next rung again after `RAISE_AFTER` (600 s); `black_hole()` goes back to the first rung and searches again. Tests: 5 in `src/pmtu_tests.rs`. The plant `netstack-pmtu-probes-for-ever` is caught.
+
+Open: the call of the class on the outbound path of the stack and the settings of a carrier for each class (`pod-link`'s ARQ); the carrier of `pod-link` sends each probe of the ladder as a padded packet, sealed as data, and tells the ladder of its answers and of a black hole (TR-3).
 
 
 # T-820: The datapath: GSO with a fate rule, rings for each worker, a pool of source ports, the offload of TUN, a table of MAC addresses in O(1) (DP-1 to DP-5 of the ingest study)

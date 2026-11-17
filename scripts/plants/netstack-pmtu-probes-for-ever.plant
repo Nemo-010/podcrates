@@ -1,0 +1,6 @@
+# A rung with no answer ends the search below it after three probes (T-819).
+ENTRY=T-819
+GROUP=netstack
+EXPECT='a_rung_with_no_answer_ends_the_search_below_it_after_three_probes'
+RUN='cargo test -p pod-netstack --all-features --lib pmtu'
+LIMIT=1800

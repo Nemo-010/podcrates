@@ -1,0 +1,13 @@
+diff --git a/crates/pod-netstack/src/pmtu.rs b/crates/pod-netstack/src/pmtu.rs
+index 8c44c8e..208237c 100644
+--- a/crates/pod-netstack/src/pmtu.rs
++++ b/crates/pod-netstack/src/pmtu.rs
+@@ -78,7 +78,7 @@ impl Ladder {
+         {
+             return None;
+         }
+-        if sent >= MOST_PROBES {
++        if sent >= MOST_PROBES && false {
+             // Each probe of this rung went unanswered: the path stops below.
+             self.state = State::Settled { until: now + RAISE_AFTER };
+             return None;
