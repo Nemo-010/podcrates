@@ -17,6 +17,8 @@ pub mod proxy;
 pub mod quicktunnel;
 pub mod race;
 pub mod services;
+#[cfg(feature = "standin")]
+pub mod standin;
 pub mod text;
 pub mod tunnel;
 pub mod udp;

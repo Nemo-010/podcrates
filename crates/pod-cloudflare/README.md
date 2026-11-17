@@ -75,11 +75,13 @@ Each variable of a consumer is a field (`docs/design.md`, section 1, rule
 
 * The unit tests of podnet's files moved with them, each with its name
   (`src/**/tests.rs`).
-* `tests/quick_tunnel_standin.rs` and `tests/standin/`: podnet's quick
-  tunnel against a stand-in of the API and of the edge (HTTP/2 leg), over
-  the library in place of podnet's binary: the visitor, the 429, the
-  budget, the 403, the credential, a CONNECT proxy, an exec proxy, a
-  refused registration, the fall back to HTTP/2, the CA of the edge.
+* `tests/quick_tunnel_standin.rs`: podnet's quick tunnel against the
+  stand-in of the API and of the edge (HTTP/2 leg), over the library in
+  place of podnet's binary: the visitor, the 429, the budget, the 403, the
+  credential, a CONNECT proxy, an exec proxy, a refused registration, the
+  fall back to HTTP/2, the CA of the edge, the counters of the consumer.
+  The feature `standin` (`src/standin.rs`) gives the stand-in to the tests
+  of a consumer; a consumer runs its binary against it.
 * The plants of the group `cloudflare` (`scripts/plants/cloudflare-*`):
   the bound check of a list of Cap'n Proto, `noTLSVerify` with no
   configuration, the relay on a leg other than `http2+relay`.

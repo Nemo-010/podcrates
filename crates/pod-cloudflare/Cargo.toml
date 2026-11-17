@@ -10,6 +10,9 @@ repository.workspace = true
 [features]
 # The entry points of the fuzz targets (fuzz/).
 fuzzing = []
+# The stand-in of the quick-tunnel service and of the edge (src/standin.rs),
+# for the tests of the crate and of a consumer. No binary needs it.
+standin = ["dep:rcgen", "dep:tempfile", "uuid/v4", "rustls/ring", "tokio/rt-multi-thread"]
 
 [dependencies]
 # The dial, the failure, the observer, the meter, the clock, the text of a
@@ -48,6 +51,9 @@ uuid = { version = "1", default-features = false, features = ["std"] }
 # The path of a rule of the ingress: a regular expression, as in cloudflared.
 regex = { version = "1", default-features = false, features = ["std", "unicode-perl"] }
 httparse = "1"
+# The CA and the directory of the stand-in (feature `standin`).
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "pem"], optional = true }
+tempfile = { version = "3", optional = true }
 
 [dev-dependencies]
 pod-testkit = { workspace = true }
@@ -58,3 +64,7 @@ rcgen = { version = "0.14", default-features = false, features = ["crypto", "rin
 # Random tunnel ids in the tests.
 uuid = { version = "1", default-features = false, features = ["std", "v4"] }
 tempfile = "3"
+
+[[test]]
+name = "quick_tunnel_standin"
+required-features = ["standin"]

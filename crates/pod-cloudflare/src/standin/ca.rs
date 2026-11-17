@@ -44,3 +44,9 @@ impl Ca {
         Arc::new(config)
     }
 }
+
+impl Default for Ca {
+    fn default() -> Self {
+        Self::new()
+    }
+}

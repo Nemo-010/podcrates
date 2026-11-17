@@ -12,11 +12,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use crate::cloudflare::capnp::{Builder, Message};
+use crate::cloudflare::http2::{CONTROL_STREAM_HEADER, decode_origin_response};
+use crate::cloudflare::schema::{METHOD_UNREGISTER_CONNECTION, REGISTRATION_SERVER_ID};
+use crate::edge_h2::{body_reader, body_writer};
 use bytes::Bytes;
-use pod_cloudflare::cloudflare::capnp::{Builder, Message};
-use pod_cloudflare::cloudflare::http2::{CONTROL_STREAM_HEADER, decode_origin_response};
-use pod_cloudflare::cloudflare::schema::{METHOD_UNREGISTER_CONNECTION, REGISTRATION_SERVER_ID};
-use pod_cloudflare::edge_h2::{body_reader, body_writer};
 use tokio::io::AsyncWriteExt;
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
@@ -285,7 +285,7 @@ enum ReplyBody {
 
 fn register(
     edge: &Edge,
-    params: &pod_cloudflare::cloudflare::capnp::StructReader<'_>,
+    params: &crate::cloudflare::capnp::StructReader<'_>,
     sender: &Sender,
     conn_id: usize,
     hostname: &mut Option<String>,

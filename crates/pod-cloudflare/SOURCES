@@ -27,14 +27,15 @@ repo PodUtils/podnet 600509df67db5e53be91bc66e42f7c29d65b7a7b
 # class of a failure, Refused; now on pod_core::Failure) in fail.rs; crates/podnet-core/src/services.rs
 # (the facts of the edge) in services.rs.
 # tests/: the quick tunnel against the stand-in of the service and of the
-# edge, over the library in place of the binary of podnet; the tests of the
+# edge (src/standin.rs, feature standin), over the library in place of the
+# binary of podnet; the tests of the
 # command line (prints_json_lines, stops_clean_on_sigterm_after_ready,
 # detach_ps_logs_and_stop) stay in podnet.
 dir src/cloudflare
 dir src/tunnel
 dir src/quicktunnel
 dir src/config
-dir tests/standin
+dir src/standin
 file cc5246f415e83bd60cce3b2cf07b93587b375151 crates/podnet-core/src/metrics.rs -> crates/pod-cloudflare/src/metrics.rs
 file 782e76cd20557f481a6471c90981b2a4069e8004 crates/podnet-core/src/race.rs -> crates/pod-cloudflare/src/race.rs
 file 4f0cdae369c8ea04690ccf743b1ca0d926b7c4ed crates/podnet-core/src/udp.rs -> crates/pod-cloudflare/src/udp.rs
@@ -65,11 +66,11 @@ file ea4897288dafa4bffe5b385f87440fd8beb86211 src/tunnel/verify.rs -> crates/pod
 file 6011b6abfa11546a493dfb5717122602ff0c9d2e src/tunnel/warp_targets.rs -> crates/pod-cloudflare/src/tunnel/warp_targets.rs
 file 8ea0bb64683029ba26d89abe6743aabdc8ccde51 src/ws.rs -> crates/pod-cloudflare/src/ws.rs
 file 6a736ac35d3f8d9ade4cb304cb05fa526385d835 tests/quick_tunnel_standin.rs -> crates/pod-cloudflare/tests/quick_tunnel_standin.rs
-file 36cff7d8557c518f061ec6f40240cad0178a6ead tests/standin/api.rs -> crates/pod-cloudflare/tests/standin/api.rs
-file b18650945ab3547096566fb56e85e34f1005179c tests/standin/ca.rs -> crates/pod-cloudflare/tests/standin/ca.rs
-file 63c7b0a35ed37013a3de2d8d5c957aef452875b3 tests/standin/edge.rs -> crates/pod-cloudflare/tests/standin/edge.rs
-file 6b95cb55b08bce3b99b76f0ec8f3735225c43108 tests/standin/front.rs -> crates/pod-cloudflare/tests/standin/front.rs
-file a452cef64376339a36ab959079473be557e0e6a3 tests/standin/mod.rs -> crates/pod-cloudflare/tests/standin/mod.rs
-file 9fb1ffa897a3f949edb19ff8a787b13307526b6f tests/standin/proxy.rs -> crates/pod-cloudflare/tests/standin/proxy.rs
+file 36cff7d8557c518f061ec6f40240cad0178a6ead tests/standin/api.rs -> crates/pod-cloudflare/src/standin/api.rs
+file b18650945ab3547096566fb56e85e34f1005179c tests/standin/ca.rs -> crates/pod-cloudflare/src/standin/ca.rs
+file 63c7b0a35ed37013a3de2d8d5c957aef452875b3 tests/standin/edge.rs -> crates/pod-cloudflare/src/standin/edge.rs
+file 6b95cb55b08bce3b99b76f0ec8f3735225c43108 tests/standin/front.rs -> crates/pod-cloudflare/src/standin/front.rs
+file a452cef64376339a36ab959079473be557e0e6a3 tests/standin/mod.rs -> crates/pod-cloudflare/src/standin.rs
+file 9fb1ffa897a3f949edb19ff8a787b13307526b6f tests/standin/proxy.rs -> crates/pod-cloudflare/src/standin/proxy.rs
 file 22aab50dcdff5d8e7952adcbdd7e5c80b3c41902 tools/check-header-oracle.sh -> crates/pod-cloudflare/tools/check-header-oracle.sh
 file 6ebf852fc9d6242ad6424b87ca1215c2cc027120 tools/header-oracle.txt -> crates/pod-cloudflare/tools/header-oracle.txt

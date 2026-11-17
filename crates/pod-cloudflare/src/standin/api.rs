@@ -174,7 +174,7 @@ fn response(status: u16, extra: &str, body: &str) -> String {
 
 /// The body of the real service: the fields at the top and in `result`.
 fn tunnel_body(t: &Issued) -> String {
-    let secret = pod_cloudflare::cloudflare::http2::base64_encode(&t.secret);
+    let secret = crate::cloudflare::http2::base64_encode(&t.secret);
     let fields = serde_json::json!({
         "id": t.id.to_string(),
         "name": t.hostname.trim_end_matches(".trycloudflare.com"),

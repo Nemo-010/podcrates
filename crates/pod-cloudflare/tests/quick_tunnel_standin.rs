@@ -1,16 +1,14 @@
 //! The quick tunnel of the crate against a stand-in of the service and of
-//! the edge: no call to Cloudflare. `tests/standin/` has the stand-in. The
+//! the edge: no call to Cloudflare. `src/standin.rs` has the stand-in. The
 //! tests of podnet's command line on the same stand-in (its JSON lines, its
 //! signals, its detached instances) stay in podnet.
-
-mod standin;
 
 use std::time::{Duration, Instant};
 
 use pod_cloudflare::config::Protocol;
 use pod_cloudflare::ingress::Service;
+use pod_cloudflare::standin::{self, Answer, Reply, Standin, said};
 use pod_core::Class;
-use standin::{Answer, Reply, Standin, said};
 
 fn hostname_of(url: Option<&str>) -> String {
     let url = url.expect("a url");

@@ -1,6 +1,8 @@
-//! Test support: a stand-in of the quick-tunnel service and of the
-//! Cloudflare edge, so that a test runs the quick tunnel of the crate with
-//! no call to Cloudflare.
+//! Test support (feature `standin`): a stand-in of the quick-tunnel service
+//! and of the Cloudflare edge, so that a test runs a quick tunnel with no
+//! call to Cloudflare. A consumer runs its binary against it: the binary
+//! takes the stand-in API as its service URL, the edge address in place of
+//! the discovery and the CA file of the stand-in as its roots.
 //!
 //! * [`api`]: `POST /tunnel` on the loopback, with a 429 mode.
 //! * [`edge`]: TLS on TCP, HTTP/2, `registerConnection`, visitor streams.
@@ -14,10 +16,7 @@
 //! it. It does not show that the real edge accepts a change. It has no QUIC
 //! leg yet.
 //!
-//! Include it in a test file with `mod standin;`. Each test that uses it
-//! starts with `pod_testkit::need_loopback!()`.
-
-#![allow(dead_code, unused_imports)]
+//! Each test that uses it starts with `pod_testkit::need_loopback!()`.
 
 pub mod api;
 pub mod ca;
@@ -31,10 +30,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
-use pod_cloudflare::Host;
-use pod_cloudflare::config::{Config, Protocol, Transport};
-use pod_cloudflare::ingress::{Ingress, Service};
-use pod_cloudflare::tunnel::{TunnelBuilder, TunnelHandle};
+use crate::Host;
+use crate::config::{Config, Protocol, Transport};
+use crate::ingress::{Ingress, Service};
+use crate::tunnel::{TunnelBuilder, TunnelHandle};
 
 pub use api::Answer;
 pub use edge::Reply;
@@ -67,7 +66,7 @@ impl Standin {
         let (api_addr, edge_addr, front_addr) = runtime.block_on(async {
             let api_addr = api::serve(api.clone()).await;
             let (listener, edge_addr) = edge::listen().await;
-            let names = [pod_cloudflare::cloudflare::h2_sni(), pod_cloudflare::cloudflare::quic_sni()];
+            let names = [crate::cloudflare::h2_sni(), crate::cloudflare::quic_sni()];
             edge::serve(edge.clone(), listener, ca.server_config(&names));
             let front_addr = front::serve(edge.clone()).await;
             (api_addr, edge_addr, front_addr)
@@ -109,7 +108,7 @@ impl Standin {
         let dial = dial.unwrap_or_else(|| proxied(pod_proxy::ProxyChoice::Direct));
         let mut host = Host::new(tls, dial);
         host.settings.edge = Some(vec![self.edge_addr]);
-        host.settings.udp = pod_cloudflare::udp::Choice::Off;
+        host.settings.udp = crate::udp::Choice::Off;
         let events: Events = Arc::default();
         let kept = events.clone();
         let sink = move |event: pod_core::Event| kept.lock().unwrap().push(event);
