@@ -14,13 +14,19 @@ repo PodUtils/podnet 600509df67db5e53be91bc66e42f7c29d65b7a7b
 # ws.rs: the edge side only (serve_websocket, forward_path, forward_url,
 # DEFAULT_PATH); the rest stays in podnet. fuzzing.rs: the targets of the
 # edge only. tools/: the oracle of the header encoding of cloudflared.
+# origin.rs: the dial of a forward origin (crates/podnet-serve). metrics.rs:
+# the counters of a tunnel (crates/podnet-core). udp.rs: the UDP probe of the
+# edge and its choice (crates/podnet-core); the variables stay in podnet.
 dir src/cloudflare
 dir src/tunnel
 dir src/quicktunnel
 dir src/config
+file cc5246f415e83bd60cce3b2cf07b93587b375151 crates/podnet-core/src/metrics.rs -> crates/pod-cloudflare/src/metrics.rs
 file 782e76cd20557f481a6471c90981b2a4069e8004 crates/podnet-core/src/race.rs -> crates/pod-cloudflare/src/race.rs
+file 4f0cdae369c8ea04690ccf743b1ca0d926b7c4ed crates/podnet-core/src/udp.rs -> crates/pod-cloudflare/src/udp.rs
 file 12bbf08e3e059921b3ededf3d935511ab8b678eb crates/podnet-core/src/yaml.rs -> crates/pod-cloudflare/src/yaml.rs
 file b7fe5675c2bdcdb076696cc27f625aa41c6daa44 crates/podnet-serve/src/ingress.rs -> crates/pod-cloudflare/src/ingress.rs
+file fe842a0071bb1a06a3f80c031e839e6f4a2a82e5 crates/podnet-serve/src/origin/dial.rs -> crates/pod-cloudflare/src/origin.rs
 file f533a5dae61852e28fcf7551d478b8351de64cf7 src/cloudflare/capnp.rs -> crates/pod-cloudflare/src/cloudflare/capnp.rs
 file c9c4819f7635a24f60c6b142f817e14ca3b2080e src/cloudflare/cf-edge-roots.pem -> crates/pod-cloudflare/src/cloudflare/cf-edge-roots.pem
 file 0adf018ec9a2630f8fdee9b7b4c416d1ac15c7e4 src/cloudflare/cloudflared-pin.txt -> crates/pod-cloudflare/src/cloudflare/cloudflared-pin.txt
