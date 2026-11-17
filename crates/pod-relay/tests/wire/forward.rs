@@ -1,7 +1,7 @@
 //! `forward.json`: the WebSocket frames that carry the forward road, as
 //! `pod-ws`'s framing writes and reads them (RFC 6455).
 
-use podssh_ws::frame::{self, Frame, Role};
+use pod_ws::frame::{self, Frame, Role};
 use serde_json::Value;
 
 use crate::common::{array, bytes, hex, name, of_kind, small, text};

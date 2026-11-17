@@ -1,8 +1,8 @@
 //! `reverse.json`: the frames of the reverse road's two legs and the node's
 //! control messages (`pod-relay`'s `reverse::framing` and `reverse::control`).
 
-use podssh_relay::reverse::control::{self, NodeInbound, NodeOutbound};
-use podssh_relay::reverse::framing::{legs, CodecError, SessionId};
+use pod_relay::reverse::control::{self, NodeInbound, NodeOutbound};
+use pod_relay::reverse::framing::{CodecError, SessionId, legs};
 use serde_json::Value;
 
 use crate::common::{bytes, hex, name, number, of_kind, text};

@@ -1,5 +1,5 @@
 """The layer, the grants and the versions of scripts/check-wire-vectors.py
-(T-723), from docs/wire.md alone: sections 5, 6 and 8 of that page."""
+(T-120), from docs/wire.md alone: sections 5, 6 and 8 of that page."""
 
 from __future__ import annotations
 

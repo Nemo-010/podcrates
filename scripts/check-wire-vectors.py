@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""The second reader of podssh's wire vectors (T-723).
+"""The second reader of the wire vectors of PodUtils (T-120).
 
-Written from docs/wire.md alone, with no code of podssh's codecs: it reads
-each vector of crates/podssh-relay/tests/vectors/, decodes its bytes and
-compares the fields, encodes its fields and compares the bytes, and checks
-that the vectors' digest is the one of the page's newest version. The test
-crates/podssh-relay/tests/wire_vectors.rs is the first reader, through the
-codecs; a vector that both readers take is the page's, not one codec's.
+Written from docs/wire.md alone, with no code of the codecs of pod-session,
+pod-relay and pod-ws: it reads each vector of crates/pod-relay/tests/vectors/,
+decodes its bytes and compares the fields, encodes its fields and compares
+the bytes, and checks that the vectors' digest is the one of the page's
+newest version. The test crates/pod-relay/tests/wire_vectors.rs is the first
+reader, through the codecs; a vector that both readers take is the page's,
+not one codec's. This reader also reads the vectors of tokens.json, which
+the test skips (T-856).
 
 Exit codes:
 
@@ -39,7 +41,7 @@ from wire_check_parts import check_grants, check_layer, digest_of, page_versions
 
 ROOT = Path(__file__).resolve().parent.parent
 PAGE = ROOT / "docs" / "wire.md"
-VECTORS = ROOT / "crates" / "podssh-relay" / "tests" / "vectors"
+VECTORS = ROOT / "crates" / "pod-relay" / "tests" / "vectors"
 PARTS = ("closes", "forward", "grants", "layer", "reverse", "tokens")
 
 

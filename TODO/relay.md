@@ -9789,3 +9789,46 @@ cargo test -p pod-relay --all-features
 
 2026-11-17, 5384ec0: `pool::body_with` and `forward_layer::offer::over_with` take the `Extra` of the host and write it after `Accept`; `body_of` and `over` stay, with no header. `pool::refresh`, the fetch of a member (`pool::members`) and `forward_layer::offer::ask` give `Way::extra` of the host, as `health::fetch` does. A refusal of the document names only its status, so no value can show. Test: `the_fetches_of_the_relay_document_carry_the_headers` in `tests/caller_headers.rs` (both fetches, over an in-memory stream). Plant `relay-document-fetch-without-headers`, caught. The plants `relay-layer-road-forward-path`, `relay-t234-plain-any-host` and `ws-chosen-protocol-unchecked`, stale after T-847, are made again on its code and caught.
 
+# T-856: The wire vectors of `tokens.json` through the relay role's tokens
+
+**Source:** T-120 (the import of the wire page and its vectors of PodUtils/podssh#304)
+**Category:** feature
+**Milestone:** M4
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+`crates/pod-relay/tests/wire_vectors.rs` reads 109 of the 117 vectors of
+`docs/wire.md` through `pod-session`, `pod-relay` and `pod-ws`. It skips the
+8 vectors of `crates/pod-relay/tests/vectors/tokens.json` (3 `mint`, 5
+`check`): the relay role mints and checks a forward token
+(`PodUtils/podssh:crates/podssh-relay/src/serve/tokens.rs`), and podcrates
+has no relay role. Only `scripts/check-wire-vectors.py` reads them here.
+
+## Premise
+
+- Read: `PodUtils/podssh:crates/podssh-relay/tests/wire/tokens.rs` at `04f141b`
+  (it calls `serve::tokens::Tokens::new`, `mint` and `check`); no crate of
+  podcrates holds `Tokens` or the MAC of `ephm1.` tokens.
+- Measured: `cargo test -p pod-relay --all-features --test wire_vectors --
+  --nocapture` prints `117 in all, 109 run, 8 skipped`.
+
+## Approach
+
+At the import of the relay role (T-036), port podssh's
+`tests/wire/tokens.rs` (its blob is in `crates/pod-relay/SOURCES`): read
+each `mint` and `check` vector through the role's `Tokens`. Set the kinds
+`mint` and `check` of `crates/pod-relay/tests/wire/kinds.rs` to run, and
+remove the skip.
+
+## Prove
+
+```sh
+cargo test -p pod-relay --all-features --test wire_vectors -- --nocapture
+```
+
+## Start condition
+
+T-036 is done.

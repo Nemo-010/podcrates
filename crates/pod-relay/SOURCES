@@ -192,3 +192,30 @@ taken 0872c2c61df2eb7f948bf4c8ba2755aae86f440b
 # T-736), which are no code of this crate. The block reads the parent of
 # the take.
 file fc7269d157f2d8af4116ea03f268d3735438a57d crates/podssh-relay/src/lib.rs -> crates/pod-relay/src/lib.rs
+
+# T-120: the wire page of the relay, its vectors and its two readers.
+# podssh keeps them and its own test of them: the block reads the
+# default branch. A changed vector needs a new version of the page
+# (docs/wire.md, section 8). tests/wire/kinds.rs is new here: it skips
+# the kinds of tokens.json, which need the relay role (T-856).
+repo PodUtils/podssh 04f141b99ea74c1576c07878e267c794e9347fe4
+dir crates/podssh-relay/tests/vectors
+dir crates/podssh-relay/tests/wire
+file 419835b4c11f8ec5f51e415fb333408b537ade6b crates/podssh-relay/tests/vectors/closes.json -> crates/pod-relay/tests/vectors/closes.json
+file c9afd259c51b4d526922e017d8672496b5304e34 crates/podssh-relay/tests/vectors/forward.json -> crates/pod-relay/tests/vectors/forward.json
+file 1c244be070019de54282027d234a4d13ae7a965a crates/podssh-relay/tests/vectors/grants.json -> crates/pod-relay/tests/vectors/grants.json
+file ea1f65510c752df0366c7ee593ec6f583329ddcc crates/podssh-relay/tests/vectors/layer.json -> crates/pod-relay/tests/vectors/layer.json
+file 9134bea784419ed06fc1a30201e130d8614f109a crates/podssh-relay/tests/vectors/reverse.json -> crates/pod-relay/tests/vectors/reverse.json
+file 700cae95a934ec07fed83e0dc1a605f79b81a4ec crates/podssh-relay/tests/vectors/tokens.json -> crates/pod-relay/tests/vectors/tokens.json
+file 055efe0345b6094c57c4d321c5a8eccbae4cde75 crates/podssh-relay/tests/wire/closes.rs -> crates/pod-relay/tests/wire/closes.rs
+file a18b887a25dbf843efca56224b9450ad35f84827 crates/podssh-relay/tests/wire/common.rs -> crates/pod-relay/tests/wire/common.rs
+file 9672064d4f55c9ce518cea378c8b0cf8be03bca9 crates/podssh-relay/tests/wire/forward.rs -> crates/pod-relay/tests/wire/forward.rs
+file d4d5ca1bf7f16c1edf0e74da841241b21ae6a98e crates/podssh-relay/tests/wire/grants.rs -> crates/pod-relay/tests/wire/grants.rs
+file 86453939f37556e6b6a05b26c32b17844cc34479 crates/podssh-relay/tests/wire/layer.rs -> crates/pod-relay/tests/wire/layer.rs
+file 6d2005536f4f032bdd81afd256f4135b994d84ed crates/podssh-relay/tests/wire/reverse.rs -> crates/pod-relay/tests/wire/reverse.rs
+file a367a79524d70353b872bcd152a6cdb4e1e95b39 crates/podssh-relay/tests/wire/tokens.rs -> crates/pod-relay/tests/wire/tokens.rs
+file 0265d22d71faed34dc0d3bf85e21b62987ed0080 crates/podssh-relay/tests/wire_vectors.rs -> crates/pod-relay/tests/wire_vectors.rs
+file 08f287a5961d2aa6da85592bd3c93c68767d056e docs/wire.md -> docs/wire.md
+file 2ed93134edff2d1805004cf81118f64209abcdfd scripts/check-wire-vectors.py -> scripts/check-wire-vectors.py
+file 39f4bb306fe823cfea021735f1f0432a933604e5 scripts/wire_check_parts.py -> scripts/wire_check_parts.py
+file 5b0e42c31bf585b26655b5dee36dadd2f38d87ef scripts/wire_ed25519.py -> scripts/wire_ed25519.py

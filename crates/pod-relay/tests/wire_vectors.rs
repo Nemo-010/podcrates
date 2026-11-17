@@ -1,11 +1,12 @@
-//! The wire vectors of `docs/wire.md` through podssh's codecs (T-723): each
-//! vector's fields encode to its bytes, and its bytes decode to its fields,
-//! in the codecs of `pod-session`, `pod-relay` and `pod-ws` that podssh-relay
-//! and podssh-ws re-export, and in the relay role's tokens. The second
-//! reader, `scripts/check-wire-vectors.py`, shares no code with these; a
-//! vector that both take is the page's. A changed vector needs a new version
-//! of the page, which that script holds by the vectors' digest.
-#![cfg(all(feature = "pair", feature = "serve"))]
+//! The wire vectors of `docs/wire.md` through the codecs of PodUtils (T-120):
+//! each vector's fields encode to its bytes, and its bytes decode to its
+//! fields, in the codecs of `pod-session`, `pod-relay` and `pod-ws`. The
+//! second reader, `scripts/check-wire-vectors.py`, shares no code with these;
+//! a vector that both take is the page's. A changed vector needs a new version
+//! of the page, which that script holds by the vectors' digest. The vectors
+//! of a code that podcrates does not hold are skipped by kind, with the
+//! reason (`wire/kinds.rs`), and counted.
+#![cfg(feature = "pair")]
 
 #[path = "wire/closes.rs"]
 mod closes;
@@ -16,6 +17,8 @@ mod forward;
 #[cfg(feature = "grant")]
 #[path = "wire/grants.rs"]
 mod grants;
+#[path = "wire/kinds.rs"]
+mod kinds;
 #[path = "wire/layer.rs"]
 mod layer;
 #[path = "wire/reverse.rs"]

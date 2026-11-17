@@ -1,0 +1,7 @@
+# The PONG record of pod-session writes its offset before its value,
+# against docs/wire.md, section 5: the vector "pong" of
+# crates/pod-relay/tests/vectors/layer.json must fail the test of the records.
+ENTRY=T-120
+GROUP=session
+EXPECT='test layer::each_record_encodes_to_its_bytes_and_decodes_to_its_fields \.\.\. FAILED'
+RUN='cargo test -p pod-relay --all-features --test wire_vectors -- layer::each_record_encodes_to_its_bytes_and_decodes_to_its_fields --exact'

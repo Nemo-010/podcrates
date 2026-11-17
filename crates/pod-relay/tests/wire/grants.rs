@@ -3,8 +3,8 @@
 //! them. Ed25519 signs deterministically, so a seed and the fields give the
 //! bytes.
 
-use podssh_relay::grant::{self, Cert, Mint, USER};
-use podssh_relay::identity::Identity;
+use pod_identity::Identity;
+use pod_relay::grant::{self, Cert, Mint, USER};
 
 use crate::common::{array, bytes, hex, name, number, of_kind, strings, text, unhex};
 

@@ -1,8 +1,8 @@
 //! `closes.json`: each close of the reverse road, its payload as `pod-ws`
 //! writes and reads it, and what `pod-relay`'s table makes of it.
 
-use podssh_relay::reverse::closes::{classify, resumes, RelayClose, Retry};
-use podssh_ws::session::{close_code_and_reason, close_payload};
+use pod_relay::reverse::closes::{RelayClose, Retry, classify, resumes};
+use pod_ws::session::{close_code_and_reason, close_payload};
 
 use crate::common::{bytes, hex, name, number, of_kind, text};
 

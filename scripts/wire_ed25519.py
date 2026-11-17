@@ -1,7 +1,7 @@
-"""Ed25519 of RFC 8032, for scripts/check-wire-vectors.py (T-723).
+"""Ed25519 of RFC 8032, for scripts/check-wire-vectors.py (T-120).
 
 The standard library has no Ed25519, and the check must share no code
-with podssh's codecs, so the curve is written here from the RFC: the public
+with the codecs of PodUtils, so the curve is written here from the RFC: the public
 key of a seed, a signature, and its verification. Slow, and for test
 vectors alone: no secret of a user ever passes through it.
 """

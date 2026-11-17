@@ -1,19 +1,22 @@
-# The wire of podssh
+# The wire of the relay of PodUtils
 
 Wire version: 1
 
-This page gives the bytes of podssh's roads in one place, with a version.
-It is for another implementation: podnet, a Worker, a relay of another
-language. Each rule is one short sentence. The prose and the reasons are in
-[relay.md](relay.md), [reverse.md](reverse.md) and [design.md](design.md)
-(section 5). The default relay's own contract is pinned at
-`crates/podssh-probe/tests/spec/relay-spec-2026-10-03-r2.txt`; where this
+This page gives the bytes of the relay's roads of PodUtils in one place, with
+a version. It is for another implementation: podnet, a Worker, a relay of
+another language. Each rule is one short sentence. The prose and the reasons
+are in `PodUtils/podssh:docs/relay.md`, `PodUtils/podssh:docs/reverse.md`
+and `PodUtils/podssh:docs/design.md` (section 5). The default relay's own contract is pinned at
+`crates/pod-relay/tests/spec/relay-spec-2026-10-03-r2.txt`; where this
 page and that copy differ, the copy is what the default relay does.
 
-Test vectors are in `crates/podssh-relay/tests/vectors/`. Two readers check
-them: the test `crates/podssh-relay/tests/wire_vectors.rs`, through
-podssh's codecs, and `scripts/check-wire-vectors.py`, written from this page
-alone. Section 7 gives the form of the vectors, and section 8 the versions.
+Test vectors are in `crates/pod-relay/tests/vectors/`. Two readers check
+them: the test `crates/pod-relay/tests/wire_vectors.rs`, through the codecs
+of `pod-session`, `pod-relay` and `pod-ws`, and `scripts/check-wire-vectors.py`,
+written from this page alone. The test skips the vectors of `tokens.json`:
+the relay role makes and takes these tokens, and podcrates has no relay role
+yet (T-036, T-856). The script reads each vector. Section 7 gives the form of
+the vectors, and section 8 the versions.
 
 ## 1. Conventions
 
@@ -41,7 +44,7 @@ alone. Section 7 gives the form of the vectors, and section 8 the versions.
 - A zero-length binary frame is a keepalive; the receiver skips it.
 - The relay's largest frame is 262144 bytes; podssh sends 32 KiB at most in one.
 - A Close payload is a u16 code, then a reason of 123 bytes at most.
-- A normal end is `1000`; the other forward codes are in [relay.md](relay.md), "Errors and close codes".
+- A normal end is `1000`; the other forward codes are in `PodUtils/podssh:docs/relay.md`, "Errors and close codes".
 - The relay role also serves `/v1/layer/<host>/<port>`: the same upgrade, and each link carries the layer of section 5.
 
 ## 3. Tokens: `/v1/mint`
@@ -243,7 +246,7 @@ alone. Section 7 gives the form of the vectors, and section 8 the versions.
 
 ## 7. The vectors
 
-Each file of `crates/podssh-relay/tests/vectors/` is JSON: `wire` (this page's version), `part`, `about`, and `vectors`.
+Each file of `crates/pod-relay/tests/vectors/` is JSON: `wire` (this page's version), `part`, `about`, and `vectors`.
 Each vector has a `name` and a `kind`. Integers in the vectors are under 2^53.
 
 ### `forward.json`

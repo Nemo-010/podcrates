@@ -1,9 +1,9 @@
 //! `layer.json`: the records of the resumable layer, its decoder's
 //! refusals, and the secret and proofs of its handshake (`pod-session`).
 
-use podssh_relay::session::decode::{DecodeError, Decoder};
-use podssh_relay::session::record::{Acceptance, Hello, Opening, Record, RefuseCode, Role};
-use podssh_relay::session::secret::{self, Claim, Exchange, Nonce, Proof, Prover, SessionId};
+use pod_session::decode::{DecodeError, Decoder};
+use pod_session::record::{Acceptance, Hello, Opening, Record, RefuseCode, Role};
+use pod_session::secret::{self, Claim, Exchange, Nonce, Proof, Prover, SessionId};
 use serde_json::Value;
 
 use crate::common::{array, bytes, hex, name, number, of_kind, small, strings, text, unhex};

@@ -1,0 +1,13 @@
+diff --git a/crates/pod-session/src/record.rs b/crates/pod-session/src/record.rs
+--- a/crates/pod-session/src/record.rs
++++ b/crates/pod-session/src/record.rs
+@@ -339,8 +339,8 @@ impl Record {
+                 Ok(())
+             }
+             Record::Pong { value, offset } => {
+-                out.extend_from_slice(&value.to_be_bytes());
+                 out.extend_from_slice(&offset.to_be_bytes());
++                out.extend_from_slice(&value.to_be_bytes());
+                 Ok(())
+             }
+             Record::Close { reason } => text(out, reason),
