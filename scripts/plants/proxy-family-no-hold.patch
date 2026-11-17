@@ -1,0 +1,13 @@
+--- a/crates/pod-proxy/src/family.rs
++++ b/crates/pod-proxy/src/family.rs
+@@ -138,9 +138,7 @@ where
+     let (mut cut, mut kind) = (None, None);
+     let timeout = plan.attempt_timeout;
+     loop {
+-        if let Some((p, ..)) = &held
+-            && live.iter().all(|(_, i)| i > p)
+-        {
++        if let Some((_p, ..)) = &held {
+             let (_, value, addr) = held.take().expect("held");
+             return Ok((value, addr));
+         }

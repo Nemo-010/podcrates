@@ -27,6 +27,8 @@ pub(crate) struct Leg<'a> {
     /// that proxy.
     pub proxy_resolve: &'a dyn Resolve,
     pub attempt_delay: Duration,
+    /// The plan by family, when the settings ask for it.
+    pub families: Option<crate::FamilyPlan>,
     pub deadline: Instant,
     /// The whole bound, for the words of a timeout.
     pub budget: Duration,
@@ -105,6 +107,13 @@ pub(crate) async fn race(
     until: Instant,
     ask: &Option<Result<(), String>>,
 ) -> Result<(TcpStream, Multipath, SocketAddr), DialError> {
+    if let Some(plan) = leg.families {
+        let order = crate::family::plan(&addrs, crate::family::Local::cached());
+        let each = |addr| attempt(addr, ask.clone());
+        let held =
+            crate::family::race_held(order, plan, leg.attempt_delay, target, until, leg.deadline, leg.budget, each);
+        return held.await.map(|((stream, how), addr)| (stream, how, addr));
+    }
     let mut waiting = interleave(addrs).into_iter();
     // Dropped at the return: each attempt that still runs stops.
     let mut running = tokio::task::JoinSet::new();
@@ -208,6 +217,7 @@ pub async fn dial_addrs(addrs: &[SocketAddr], timeout: Duration) -> Result<(usiz
         resolve: &system,
         proxy_resolve: &system,
         attempt_delay: crate::ATTEMPT_DELAY,
+        families: None,
         deadline,
         budget: timeout,
     };

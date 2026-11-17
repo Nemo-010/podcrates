@@ -7374,7 +7374,7 @@ cargo test -p pod-core --all-features
 **Milestone:** M1
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** partial
 
 ## Problem
 
@@ -7392,8 +7392,15 @@ Behind a setting: the intersection, the hold for IPv6 with a timeout for each at
 ## Prove
 
 ```sh
-cargo test -p pod-proxy --all-features race
+cargo test -p pod-proxy --all-features --lib family
+cargo test -p pod-proxy --all-features --test dial_race
 ```
+
+## Done
+
+2026-11-17, part 1 (the code, behind a setting). `crates/pod-proxy/src/family.rs`: `Settings::families` (`Option<FamilyPlan>`, `None` by `Settings::new`, so the race of RFC 8305 stays the default). `Local::probe` connects a UDP socket of each family to a documentation address (nothing is sent) and counts only a success; `Local::cached` keeps it for 300 s. `plan` takes each address once with a mapped IPv6 address as IPv4, puts IPv6 first and keeps the peer's order in each family, drops a family that the host lacks while another meets, reads no probe as both, and falls open (each address) when no family meets. `race_held` starts the attempts of the plan `attempt_delay` apart, or at once after a failure; each has its own timeout (`ATTEMPT_TIMEOUT`, 10 s); a success returns when no more preferred attempt runs, else it is held and no new attempt starts; at the source wait or the deadline a held success returns. Tests: 9 in `src/family_tests.rs` (the plan, the mapped address, the fall open; with paused time, a slower IPv6 success wins over a faster IPv4 one, a held IPv4 wins after an IPv6 failure and after the timeout of the attempt, a failure starts the next at once, each failure is named) and `the_plan_by_family_dials_a_mapped_address_as_ipv4` in `tests/dial_race.rs` through `Dialer`. The plant `proxy-family-no-hold` (the hold removed) is caught by `a_fast_ipv4_success_waits_for_a_slower_ipv6_that_works`. podssh builds its settings with `Settings::new`, so the new field breaks no literal.
+
+Part 2, open: measure the plan on a dual-stack host (a lab of `pod-lab` with IPv6, or a runner) against the race, then make it the default. A cap of the hold (a count or a time) comes with the measurement.
 
 # T-826: `pod-identity`: a rotation of the identity key with two slots and a retire step
 

@@ -73,12 +73,15 @@ pub struct Settings {
     pub write_limit: Option<Duration>,
     /// The attempt delay of the race of addresses.
     pub attempt_delay: Duration,
+    /// The plan of the dial by address family ([`crate::family`]); `None`:
+    /// the race of RFC 8305 with the families taking turns.
+    pub families: Option<crate::FamilyPlan>,
 }
 
 impl Settings {
     /// The settings of `app` with `proxy`: no user agent, no Multipath TCP,
     /// [`crate::lowat::LOWAT`] unsent bytes, no write limit, and
-    /// [`ATTEMPT_DELAY`].
+    /// [`ATTEMPT_DELAY`], and no plan by family.
     pub fn new(app: impl Into<String>, proxy: ProxyChoice) -> Settings {
         Settings {
             app: app.into(),
@@ -88,6 +91,7 @@ impl Settings {
             lowat: Some(crate::lowat::LOWAT),
             write_limit: None,
             attempt_delay: ATTEMPT_DELAY,
+            families: None,
         }
     }
 }
@@ -213,7 +217,14 @@ impl Dialer {
 
     fn leg(&self, deadline: Instant, budget: Duration) -> Leg<'_> {
         let proxy_resolve = self.proxy_resolve.as_deref().unwrap_or(&*self.resolve);
-        Leg { resolve: &*self.resolve, proxy_resolve, attempt_delay: self.settings.attempt_delay, deadline, budget }
+        Leg {
+            resolve: &*self.resolve,
+            proxy_resolve,
+            attempt_delay: self.settings.attempt_delay,
+            families: self.settings.families,
+            deadline,
+            budget,
+        }
     }
 
     fn ask(&self) -> Option<Result<(), String>> {

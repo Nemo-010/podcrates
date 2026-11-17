@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**668 entries: 133 open, 16 partial, 7 blocked, 512 done.**
+**668 entries: 132 open, 17 partial, 7 blocked, 512 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
 | P2 | 55 | 4 | 4 | 263 | 326 |
-| P3 | 67 | 4 | 3 | 100 | 174 |
-| **All** | 133 | 16 | 7 | 512 | 668 |
+| P3 | 66 | 5 | 3 | 100 | 174 |
+| **All** | 132 | 17 | 7 | 512 | 668 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -704,7 +704,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-822](transport.md) | P3 | L | M1 | feature | open | `pod-identity`: a threshold CA of the grants, an authorization of enrollment, a refresh of the shares (PK-1 to PK-7 of the ingest study) |
 | [T-823](transport.md) | P3 | M | M1 | feature | open | Routing: tokens in a proxy credential, sticky selection by HRW with tiers, a chain length, a quota that reserves before a write (RT-1 to RT-5 of the ingest study) |
 | [T-824](foundation.md) | P3 | M | M0 | chore | open | Verification gates: no allocation in `pod-e2e`, bounded steps, no blocking call, exhaustive checksum equivalence, a record of results, test runs with each feature (VF-1 to VF-5 of the ingest study) |
-| [T-825](transport.md) | P3 | M | M1 | feature | open | `pod-proxy`: a plan of the dial by address family, with the families of both ends and a timeout for each attempt |
+| [T-825](transport.md) | P3 | M | M1 | feature | partial | `pod-proxy`: a plan of the dial by address family, with the families of both ends and a timeout for each attempt |
 | [T-826](transport.md) | P3 | M | M1 | feature | open | `pod-identity`: a rotation of the identity key with two slots and a retire step |
 | [T-827](foundation.md) | P3 | S | M0 | feature | done | `pod-core`: a type for the text of a peer in a field of an error |
 | [T-828](transport.md) | P3 | S | M1 | research | done | `pod-services`: the DIG relay, its measured limits and its framing, or a call that names it unfit |

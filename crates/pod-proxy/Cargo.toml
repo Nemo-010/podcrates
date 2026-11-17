@@ -48,7 +48,7 @@ libc = "0.2"
 
 [dev-dependencies]
 pod-testkit = { workspace = true }
-tokio = { workspace = true, features = ["io-util", "net", "time", "sync", "rt", "rt-multi-thread", "macros"] }
+tokio = { workspace = true, features = ["io-util", "net", "time", "sync", "rt", "rt-multi-thread", "macros", "test-util"] }
 # The tests of TLS run on ring.
 rustls = { workspace = true, features = ["ring"] }
 # The certificates of the tests of pod-tls (tests/get.rs), minted in pure

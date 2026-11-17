@@ -125,3 +125,22 @@ async fn a_source_whose_addresses_do_not_connect_hands_the_dial_to_the_next() {
         "{err:?}"
     );
 }
+
+/// With the plan by family (T-825), a mapped IPv6 address is dialled as the
+/// IPv4 address that it maps; without it, as IPv6.
+#[tokio::test]
+async fn the_plan_by_family_dials_a_mapped_address_as_ipv4() {
+    pod_testkit::need_loopback!();
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let mapped = "::ffff:127.0.0.1".parse().unwrap();
+    let pins = || System::with_pins(vec![("mapped.test".into(), mapped)]);
+    let mut settings = Settings::new("podssh", ProxyChoice::Direct);
+    settings.families = Some(pod_proxy::FamilyPlan::default());
+    let stream = Dialer::new(settings, Arc::new(pins())).tcp("mapped.test", port, Duration::from_secs(10)).await;
+    let peer = stream.expect("the plan connects").peer_addr().unwrap();
+    assert!(peer.is_ipv4(), "{peer}");
+    if let Ok(plain) = dial(pins(), "mapped.test", port, Duration::from_secs(10)).await {
+        assert!(plain.peer_addr().unwrap().is_ipv6(), "the race keeps the address as it came");
+    }
+}

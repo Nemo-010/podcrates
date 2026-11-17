@@ -1,0 +1,7 @@
+# The plan by family holds a less preferred success until each more
+# preferred attempt ends (T-825).
+ENTRY=T-825
+GROUP=proxy
+EXPECT='a_fast_ipv4_success_waits_for_a_slower_ipv6_that_works'
+RUN='cargo test -p pod-proxy --all-features --lib family'
+LIMIT=1800

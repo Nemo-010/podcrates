@@ -45,6 +45,7 @@ pub mod dial;
 pub mod digest;
 pub mod env;
 mod error;
+pub mod family;
 pub mod hint;
 pub mod host;
 pub mod http;
@@ -70,6 +71,7 @@ pub use env::{
     NO_PROXY_VARS_UPPER_FIRST, NoProxy, Origin, PROXY_VARS, PROXY_VARS_UPPER_FIRST, Rules, Scheme,
 };
 pub use error::DialError;
+pub use family::FamilyPlan;
 pub use host::authority;
 pub use mptcp::Multipath;
 pub use proxy::{Carrier, HttpProxy, Proxy, ProxyKind};
