@@ -1,24 +1,46 @@
 //! The dial of a forward origin: TCP, TLS, unix sockets, and TLS over
-//! unix.
+//! unix. An origin is a service on this host or its network: its name does
+//! not go to DNS over HTTPS, and its connection does not go through the
+//! proxy.
 
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
+use pod_core::{BoxedIo, Stage};
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::net::TcpStream;
 #[cfg(unix)]
 use tokio::net::UnixStream;
-use tokio_rustls::rustls::client::danger::{
-    HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier,
-};
+use tokio_rustls::TlsConnector;
+use tokio_rustls::rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
 use tokio_rustls::rustls::pki_types::{CertificateDer, ServerName, UnixTime};
 use tokio_rustls::rustls::{ClientConfig, DigitallySignedStruct, SignatureScheme};
-use tokio_rustls::TlsConnector;
 
 use crate::ingress::{OriginOptions, Service};
-use podnet_core::net::{connect_origin, init_crypto, parse_http_url, split_host_port, BoxedIo};
+
+/// The dial of the origins of one tunnel: the TLS of the binary, its
+/// connectors made once, and the origins whose certificate is not checked
+/// that a warning named.
+pub struct Origins {
+    tls: Arc<pod_tls::Context>,
+    verified: OnceLock<TlsConnector>,
+    unverified: OnceLock<TlsConnector>,
+    seen: Mutex<Vec<String>>,
+}
+
+impl Origins {
+    pub fn new(tls: Arc<pod_tls::Context>) -> Origins {
+        Origins { tls, verified: OnceLock::new(), unverified: OnceLock::new(), seen: Mutex::new(Vec::new()) }
+    }
+
+    /// Dial the origin for a forward service.
+    pub async fn dial(&self, service: &Service, options: &OriginOptions) -> Result<BoxedIo> {
+        dial(self, service, options).await
+    }
+}
 
 /// Dial the origin for a forward service.
-pub async fn dial(service: &Service, options: &OriginOptions) -> Result<BoxedIo> {
+async fn dial(origins: &Origins, service: &Service, options: &OriginOptions) -> Result<BoxedIo> {
     let timeout = options.connect_timeout;
     let connect = async {
         match service {
@@ -27,18 +49,17 @@ pub async fn dial(service: &Service, options: &OriginOptions) -> Result<BoxedIo>
                 let tcp = connect_origin(&host, port).await?;
                 if tls {
                     if options.no_tls_verify {
-                        note_unverified(url);
+                        origins.note_unverified(url);
                     }
-                    tls_wrap(tcp, &host, options.no_tls_verify).await
+                    origins.tls_wrap(tcp, &host, options.no_tls_verify).await
                 } else {
                     Ok(Box::new(tcp) as BoxedIo)
                 }
             }
-            Service::Unix(path) => dial_unix(path, false, options).await,
-            Service::UnixTls(path) => dial_unix(path, true, options).await,
+            Service::Unix(path) => dial_unix(origins, path, false, options).await,
+            Service::UnixTls(path) => dial_unix(origins, path, true, options).await,
             Service::Tcp(addr) => {
-                let (host, port) =
-                    split_host_port(addr).with_context(|| format!("{addr} is not HOST:PORT"))?;
+                let (host, port) = split_host_port(addr).with_context(|| format!("{addr} is not HOST:PORT"))?;
                 let s = connect_origin(host, port).await?;
                 let _ = s.set_nodelay(true);
                 Ok(Box::new(s) as BoxedIo)
@@ -56,15 +77,13 @@ pub async fn dial(service: &Service, options: &OriginOptions) -> Result<BoxedIo>
 
 /// Dial a filesystem socket, optionally wrapping it in TLS.
 #[cfg(unix)]
-async fn dial_unix(path: &std::path::Path, tls: bool, options: &OriginOptions) -> Result<BoxedIo> {
-    let stream = UnixStream::connect(path)
-        .await
-        .with_context(|| format!("connecting to unix:{}", path.display()))?;
+async fn dial_unix(origins: &Origins, path: &std::path::Path, tls: bool, options: &OriginOptions) -> Result<BoxedIo> {
+    let stream = UnixStream::connect(path).await.with_context(|| format!("connecting to unix:{}", path.display()))?;
     if tls {
         if options.no_tls_verify {
-            note_unverified(&format!("unix+tls:{}", path.display()));
+            origins.note_unverified(&format!("unix+tls:{}", path.display()));
         }
-        tls_wrap(stream, "localhost", options.no_tls_verify).await
+        origins.tls_wrap(stream, "localhost", options.no_tls_verify).await
     } else {
         Ok(Box::new(stream) as BoxedIo)
     }
@@ -72,85 +91,77 @@ async fn dial_unix(path: &std::path::Path, tls: bool, options: &OriginOptions) -
 
 #[cfg(not(unix))]
 async fn dial_unix(
+    _origins: &Origins,
     path: &std::path::Path,
     _tls: bool,
     _options: &OriginOptions,
 ) -> Result<BoxedIo> {
-    bail!(
-        "unix sockets are not supported on this platform: {}",
-        path.display()
-    )
+    bail!("unix sockets are not supported on this platform: {}", path.display())
 }
 
-/// One warning for each origin whose TLS certificate is not checked
-/// (noTLSVerify, #248): the first dial of it says so; the later dials do
-/// not (a warning for each request would fill the log). Gives true for
-/// the first call of `origin`.
-pub(crate) fn note_unverified(origin: &str) -> bool {
-    static SEEN: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
-    let mut seen = SEEN.lock().unwrap_or_else(|e| e.into_inner());
-    if seen.iter().any(|o| o == origin) {
-        return false;
+impl Origins {
+    /// One warning for each origin whose TLS certificate is not checked
+    /// (noTLSVerify): the first dial of it says so; the later dials do not
+    /// (a warning for each request would fill the log). Gives true for the
+    /// first call of `origin`. At most 256 origins are kept.
+    pub(crate) fn note_unverified(&self, origin: &str) -> bool {
+        let mut seen = self.seen.lock().unwrap_or_else(|e| e.into_inner());
+        if seen.iter().any(|o| o == origin) {
+            return false;
+        }
+        if seen.len() < 256 {
+            seen.push(origin.to_string());
+        }
+        tracing::warn!(%origin, "noTLSVerify: the TLS certificate of this origin is not checked");
+        true
     }
-    if seen.len() < 256 {
-        seen.push(origin.to_string());
+
+    async fn tls_wrap<S>(&self, stream: S, server_name: &str, no_verify: bool) -> Result<BoxedIo>
+    where
+        S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    {
+        let connector = if no_verify { self.no_verify_connector() } else { self.verified_connector() };
+        let name = ServerName::try_from(server_name.to_string())
+            .map_err(|_| anyhow::anyhow!("invalid TLS server name {server_name:?}"))?;
+        let tls = connector.connect(name, stream).await.with_context(|| format!("TLS handshake with {server_name}"))?;
+        Ok(Box::new(tls))
     }
-    tracing::warn!(%origin, "noTLSVerify: podnet does not check the TLS certificate of this origin");
-    true
-}
 
-async fn tls_wrap<S>(stream: S, server_name: &str, no_verify: bool) -> Result<BoxedIo>
-where
-    S: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-{
-    let connector = if no_verify {
-        no_verify_connector()
-    } else {
-        verified_connector()
-    };
-    let name = ServerName::try_from(server_name.to_string())
-        .map_err(|_| anyhow::anyhow!("invalid TLS server name {server_name:?}"))?;
-    let tls = connector
-        .connect(name, stream)
-        .await
-        .with_context(|| format!("TLS handshake with {server_name}"))?;
-    Ok(Box::new(tls))
-}
-
-fn verified_connector() -> TlsConnector {
-    static ONCE: OnceLock<TlsConnector> = OnceLock::new();
-    ONCE.get_or_init(|| {
-        init_crypto();
-        let context = podnet_core::trust::context();
-        let config = context
-            .client_config_with(&[], &[])
-            .map(Arc::new)
-            .or_else(|err| {
-                tracing::warn!("{err:#}; using the compiled-in roots only");
-                pod_tls::client_config(
-                    &pod_tls::roots_from_compiled_set(),
-                    context.provider().clone(),
-                    context.groups().clone(),
-                )
+    fn verified_connector(&self) -> TlsConnector {
+        self.verified
+            .get_or_init(|| {
+                let context = &self.tls;
+                let config = context
+                    .client_config_with(&[], &[])
+                    .map(Arc::new)
+                    .or_else(|err| {
+                        tracing::warn!("{err:#}; the compiled-in roots alone are used");
+                        pod_tls::client_config(
+                            &pod_tls::roots_from_compiled_set(),
+                            context.provider().clone(),
+                            context.groups().clone(),
+                        )
+                    })
+                    .expect("a configuration over the compiled-in roots");
+                TlsConnector::from(config)
             })
-            .expect("a configuration over the compiled-in roots");
-        TlsConnector::from(config)
-    })
-    .clone()
-}
+            .clone()
+    }
 
-fn no_verify_connector() -> TlsConnector {
-    static ONCE: OnceLock<TlsConnector> = OnceLock::new();
-    ONCE.get_or_init(|| {
-        init_crypto();
-        let provider = Arc::new(tokio_rustls::rustls::crypto::ring::default_provider());
-        let config = ClientConfig::builder()
-            .dangerous()
-            .with_custom_certificate_verifier(Arc::new(NoVerify(provider)))
-            .with_no_client_auth();
-        TlsConnector::from(Arc::new(config))
-    })
-    .clone()
+    fn no_verify_connector(&self) -> TlsConnector {
+        self.unverified
+            .get_or_init(|| {
+                let provider = self.tls.provider().clone();
+                let config = ClientConfig::builder_with_provider(provider.clone())
+                    .with_safe_default_protocol_versions()
+                    .expect("the protocol versions of the provider")
+                    .dangerous()
+                    .with_custom_certificate_verifier(Arc::new(NoVerify(provider)))
+                    .with_no_client_auth();
+                TlsConnector::from(Arc::new(config))
+            })
+            .clone()
+    }
 }
 
 #[derive(Debug)]
@@ -200,14 +211,135 @@ pub fn origin_label(service: &Service) -> String {
     }
 }
 
+/// The addresses of a name of RFC 6761 for this host: `localhost` and
+/// `*.localhost` (issue 119: a static build on a host with no /etc/hosts
+/// did not resolve `localhost`).
+pub fn local_name(host: &str) -> Option<Vec<std::net::IpAddr>> {
+    let name = host.trim_end_matches('.').to_ascii_lowercase();
+    (name == "localhost" || name.ends_with(".localhost"))
+        .then(|| vec![std::net::IpAddr::from([127, 0, 0, 1]), std::net::IpAddr::from(std::net::Ipv6Addr::LOCALHOST)])
+}
+
+/// `HOST:PORT` or `[V6]:PORT`.
+pub fn split_host_port(addr: &str) -> Option<(&str, u16)> {
+    let (host, port) = addr.rsplit_once(':')?;
+    let host = host.trim_start_matches('[').trim_end_matches(']');
+    Some((host, port.parse().ok()?))
+}
+
+/// Connect to an origin. `localhost` needs no resolver. The error says if
+/// the name or the connection failed (issue 119: both were "connecting to
+/// HOST:PORT"). An origin name does not go to DNS over HTTPS.
+pub async fn connect_origin(host: &str, port: u16) -> Result<TcpStream> {
+    let addrs: Vec<std::net::SocketAddr> = match host.parse::<std::net::IpAddr>() {
+        Ok(ip) => vec![(ip, port).into()],
+        Err(_) => match local_name(host) {
+            Some(ips) => ips.into_iter().map(|ip| (ip, port).into()).collect(),
+            None => tokio::net::lookup_host((host, port))
+                .await
+                .map_err(|e| crate::fail::at(Stage::Dns, anyhow::anyhow!("resolving the origin {host}: {e}")))?
+                .collect(),
+        },
+    };
+    let mut last = None;
+    for addr in &addrs {
+        match TcpStream::connect(addr).await {
+            Ok(tcp) => return Ok(tcp),
+            Err(e) => last = Some(anyhow::anyhow!("connecting to {addr}: {e}")),
+        }
+    }
+    Err(last.unwrap_or_else(|| anyhow::anyhow!("the origin {host} has no address")))
+}
+
+/// Parse `http(s)://host[:port]` into `(host, port, tls)`.
+pub fn parse_http_url(url: &str) -> Result<(String, u16, bool)> {
+    let (scheme, rest) = url.split_once("://").context("origin URL is missing a scheme")?;
+    let tls = match scheme {
+        "http" => false,
+        "https" => true,
+        other => bail!("unsupported origin scheme {other:?}"),
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    if authority.is_empty() {
+        bail!("origin URL has no host");
+    }
+    let (host, port) = if let Some(rest) = authority.strip_prefix('[') {
+        let (host, rest) = rest.split_once(']').context("origin URL has an unclosed IPv6 address")?;
+        let port = match rest.strip_prefix(':') {
+            Some(port) => port.parse().context("origin URL port is invalid")?,
+            None if rest.is_empty() => {
+                if tls {
+                    443
+                } else {
+                    80
+                }
+            }
+            None => bail!("origin URL has trailing characters after the IPv6 address"),
+        };
+        (host.to_string(), port)
+    } else {
+        match authority.rsplit_once(':') {
+            Some((host, port)) if !port.contains(']') => {
+                let port: u16 = port.parse().context("origin URL port is invalid")?;
+                (host.to_string(), port)
+            }
+            _ => (authority.to_string(), if tls { 443 } else { 80 }),
+        }
+    };
+    if host.is_empty() {
+        bail!("origin URL has no host");
+    }
+    Ok((host, port, tls))
+}
+
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     /// #248: the first dial of an origin with noTLSVerify warns; the next
     /// dials of it do not.
     #[test]
     fn an_unverified_origin_is_named_one_time() {
-        assert!(super::note_unverified("https://a.test.invalid:8443"));
-        assert!(!super::note_unverified("https://a.test.invalid:8443"));
-        assert!(super::note_unverified("https://b.test.invalid:8443"));
+        let origins = Origins::new(crate::testing::tls());
+        let note_unverified = |origin: &str| origins.note_unverified(origin);
+        assert!(note_unverified("https://a.test.invalid:8443"));
+        assert!(!note_unverified("https://a.test.invalid:8443"));
+        assert!(note_unverified("https://b.test.invalid:8443"));
+    }
+
+    // Issue 119: localhost needs no resolver (a host with no /etc/hosts).
+    #[test]
+    fn localhost_is_a_local_name() {
+        for name in ["localhost", "LOCALHOST.", "app.localhost"] {
+            let ips = local_name(name).unwrap();
+            assert_eq!(ips[0], std::net::IpAddr::from([127, 0, 0, 1]), "{name}");
+        }
+        assert!(local_name("example.com").is_none());
+        assert!(local_name("localhost.example.com").is_none());
+    }
+
+    #[tokio::test]
+    async fn an_origin_on_localhost_connects_and_a_refusal_names_the_address() {
+        pod_testkit::need_loopback!();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        assert!(connect_origin("localhost", port).await.is_ok());
+        drop(listener);
+        let err = connect_origin("localhost", port).await.unwrap_err();
+        assert!(format!("{err}").contains("connecting to "), "{err}");
+        assert!(!format!("{err}").contains("resolving"), "{err}");
+        let err = connect_origin("no-such-name.invalid", 80).await.unwrap_err();
+        assert!(format!("{err}").contains("resolving the origin"), "{err}");
+        assert_eq!(split_host_port("[::1]:8080"), Some(("::1", 8080)));
+    }
+
+    #[test]
+    fn parses_urls() {
+        assert_eq!(parse_http_url("http://127.0.0.1:8080").unwrap(), ("127.0.0.1".into(), 8080, false));
+        assert_eq!(parse_http_url("https://example.com").unwrap(), ("example.com".into(), 443, true));
+        assert_eq!(parse_http_url("http://example.com/x").unwrap(), ("example.com".into(), 80, false));
+        assert_eq!(parse_http_url("https://[::1]:8443").unwrap(), ("::1".into(), 8443, true));
+        assert!(parse_http_url("ftp://x").is_err());
+        assert!(parse_http_url("http://").is_err());
     }
 }

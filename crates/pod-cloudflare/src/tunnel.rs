@@ -1,66 +1,59 @@
 //! The tunnel engine: credentials, edge registration, HA reactors, reconnect
 //! and dispatch to the service runtime.
 
+mod handle;
+mod plan;
+mod reactor;
+pub use handle::*;
+pub use plan::*;
+use reactor::*;
+
 use std::sync::Arc;
 use std::time::Duration;
 
 use crate::cloudflare as edge;
-use crate::cloudflare::{quic as quic_dial, rpc, IpVersionFilter};
-use anyhow::{bail, Context, Result};
+use crate::cloudflare::{IpVersionFilter, quic as quic_dial, rpc};
+use anyhow::{Context, Result, bail};
+use pod_core::Class;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::config::{
-    parse_credentials_file, parse_token, Config, Credentials, Protocol, ReconnectPolicy, Transport,
-};
+use crate::Host;
+use crate::config::{Config, Credentials, Protocol, ReconnectPolicy, Transport, parse_credentials_file, parse_token};
 use crate::ingress::{Ingress, Service};
 use crate::metrics::Metrics;
 use crate::proxy;
-use crate::service::ServiceRuntime;
-use crate::share::ShareControl;
-use crate::util::validate_quick_hostname;
-use crate::warp::WarpClient;
+use crate::proxy::Runtime;
+use crate::quicktunnel::validate_quick_hostname;
 
-pub const CLIENT_VERSION: &str = concat!("podnet/", env!("CARGO_PKG_VERSION"));
 const REGISTER_TIMEOUT: Duration = Duration::from_secs(30);
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(5);
 
 mod verify;
 mod warp_targets;
 pub use verify::Verified;
-use verify::{verify_fetch, VERIFY_BUDGET, VERIFY_INTERVAL};
-use warp_targets::{warp_targets, EndpointSource, WarpLink};
+use verify::{VERIFY_BUDGET, VERIFY_INTERVAL, verify_fetch};
+use warp_targets::{EndpointSource, WarpLink, warp_targets};
 
-/// Fluent builder for a [`Tunnel`].
+/// Fluent builder for a [`Tunnel`] over the [`Host`] of the consumer.
 pub struct TunnelBuilder {
     config: Config,
+    host: Arc<Host>,
 }
 
 impl TunnelBuilder {
-    pub fn quick() -> Self {
-        Self {
-            config: Config::default(),
-        }
+    pub fn quick(host: Arc<Host>) -> Self {
+        Self { config: Config::default(), host }
     }
 
-    pub fn token(token: impl Into<String>) -> Result<Self> {
-        Ok(Self {
-            config: Config {
-                credentials: parse_token(&token.into())?,
-                ..Config::default()
-            },
-        })
+    pub fn token(host: Arc<Host>, token: impl Into<String>) -> Result<Self> {
+        Ok(Self { config: Config { credentials: parse_token(&token.into())?, ..Config::default() }, host })
     }
 
-    pub fn credentials_file(path: impl Into<std::path::PathBuf>) -> Result<Self> {
-        Ok(Self {
-            config: Config {
-                credentials: parse_credentials_file(&path.into())?,
-                ..Config::default()
-            },
-        })
+    pub fn credentials_file(host: Arc<Host>, path: impl Into<std::path::PathBuf>) -> Result<Self> {
+        Ok(Self { config: Config { credentials: parse_credentials_file(&path.into())?, ..Config::default() }, host })
     }
 
     pub fn credentials(mut self, credentials: Credentials) -> Self {
@@ -124,9 +117,7 @@ impl TunnelBuilder {
         if self.config.ingress.is_empty() {
             bail!(NO_INGRESS);
         }
-        Ok(Tunnel {
-            config: self.config,
-        })
+        Ok(Tunnel { config: self.config, host: self.host })
     }
 }
 
@@ -136,63 +127,56 @@ pub const NO_INGRESS: &str =
 
 pub struct Tunnel {
     config: Config,
+    host: Arc<Host>,
 }
 
 impl Tunnel {
-    pub fn builder() -> TunnelBuilder {
-        TunnelBuilder::quick()
+    pub fn builder(host: Arc<Host>) -> TunnelBuilder {
+        TunnelBuilder::quick(host)
     }
 
-    pub fn quick() -> TunnelBuilder {
-        TunnelBuilder::quick()
+    pub fn quick(host: Arc<Host>) -> TunnelBuilder {
+        TunnelBuilder::quick(host)
     }
 
-    pub fn token(token: impl Into<String>) -> Result<TunnelBuilder> {
-        TunnelBuilder::token(token)
+    pub fn token(host: Arc<Host>, token: impl Into<String>) -> Result<TunnelBuilder> {
+        TunnelBuilder::token(host, token)
     }
 
     /// Provision/load credentials, register with the edge and start serving.
     pub async fn start(self) -> Result<TunnelHandle> {
-        crate::init_crypto();
+        let host = self.host;
         let Config {
             service_url,
             user_agent,
             credentials,
             protocol,
             transport,
-            warp_identity,
-            masque_endpoint,
             ha_connections,
             reconnect,
             ingress,
             verify,
             failover,
+            secrets: _,
         } = self.config;
-
-        // A bad PODNET_EDGE is a configuration error: check it before the
-        // quick tunnel is provisioned.
-        edge_override()?;
 
         // Build the services before the quick tunnel is provisioned: a bad
         // --dir, a --spa with no index.html or a missing --file stops here.
         let metrics = Metrics::new();
-        let runtime = Arc::new(ServiceRuntime::build(&ingress, metrics.clone())?);
+        let runtime = Arc::new(Runtime::build(host.clone(), &ingress, metrics.clone())?);
         let forward_path = crate::ws::forward_path(&ingress);
 
-        // PODNET_UDP: the UDP probe runs while the quick tunnel is provisioned.
-        let udp = crate::udp::Choice::from_env()?;
+        // The UDP probe runs while the quick tunnel is provisioned.
+        let udp = host.settings.udp;
         let udp_probe = (udp == crate::udp::Choice::Probe
             && protocol == Protocol::Auto
             && leg_plan(protocol, transport).is_ok_and(|p| p.contains(&LegKind::QuicDirect)))
         .then(|| {
-            let target = crate::udp::probe_target();
-            tokio::task::spawn_blocking(move || {
-                crate::udp::probe(target, crate::udp::START_DEADLINE)
-            })
+            let target = probe_target(&host.settings);
+            tokio::task::spawn_blocking(move || crate::udp::probe(target, crate::udp::START_DEADLINE))
         });
 
-        let (auth, tunnel_id, public_url) =
-            resolve_credentials(&credentials, &service_url, &user_agent).await?;
+        let (auth, tunnel_id, public_url) = resolve_credentials(&host, &credentials, &service_url, &user_agent).await?;
         let account_tag = auth.account_tag.clone();
         let ingress = Arc::new(ingress);
 
@@ -206,8 +190,8 @@ impl Tunnel {
         // before has not registered in 2 s, or at once when it fails; the
         // first leg that registers stays.
         let plan = leg_plan(protocol, transport)?;
-        let proxy = crate::egress::proxy_for(edge_region_name(), 7844);
-        let (plan, note) = plan_with_proxy(plan, protocol, proxy.as_ref());
+        let proxy = host.proxy_for(edge_region_name(), crate::services::edge_port());
+        let (plan, note) = plan_with_proxy(plan, protocol, proxy.as_deref());
         if let Some(note) = note {
             if matches!(protocol, Protocol::Auto) {
                 info!("{note}");
@@ -234,44 +218,32 @@ impl Tunnel {
             let auth = &auth;
             let runtime = runtime.clone();
             let ingress = ingress.clone();
-            let warp_identity = warp_identity.clone();
+            let host = host.clone();
             let attempt: futures::future::BoxFuture<'_, Result<(First, Kept)>> = match kind {
                 LegKind::QuicDirect => Box::pin(bounded(limit(*kind), async move {
-                    let edges = direct_targets().await?;
-                    let endpoint = quic_dial::build_endpoint()?;
-                    let (conn, control, location) = register_retrying(|| {
-                        connect_once(&endpoint, auth, tunnel_id, 0, false, &edges)
-                    })
-                    .await?;
+                    let edges = direct_targets(&host).await?;
+                    let endpoint = quic_dial::build_endpoint(&host.tls)?;
+                    let version = &host.settings.client_version;
+                    let (conn, control, location) =
+                        register_retrying(|| connect_once(&endpoint, auth, tunnel_id, 0, false, &edges, version))
+                            .await?;
                     Ok((First::Quic(edges, endpoint, conn, control, location), None))
                 })),
-                LegKind::H2Direct | LegKind::H2Relay => {
-                    Box::pin(bounded(limit(*kind), async move {
-                        let edges = direct_targets().await?;
-                        let options =
-                            rpc::ConnectionOptions::default_for_quick_tunnel(CLIENT_VERSION);
-                        let leg = register_retrying(|| {
-                            crate::edge_h2::connect(
-                                &edges,
-                                auth,
-                                tunnel_id,
-                                0,
-                                &options,
-                                runtime.clone(),
-                                ingress.clone(),
-                            )
-                        })
-                        .await?;
-                        Ok((First::H2(edges, leg), None))
-                    }))
-                }
-                LegKind::QuicWarp => Box::pin(async move {
-                    let (edges, link, endpoint) =
-                        warp_targets(warp_identity.as_deref(), masque_endpoint).await?;
-                    let (conn, control, location) = register_retrying(|| {
-                        connect_once(&endpoint, auth, tunnel_id, 0, false, &edges)
+                LegKind::H2Direct | LegKind::H2Relay => Box::pin(bounded(limit(*kind), async move {
+                    let edges = direct_targets(&host).await?;
+                    let options = rpc::ConnectionOptions::default_for_quick_tunnel(&host.settings.client_version);
+                    let leg = register_retrying(|| {
+                        crate::edge_h2::connect(&edges, auth, tunnel_id, 0, &options, runtime.clone(), ingress.clone())
                     })
                     .await?;
+                    Ok((First::H2(edges, leg), None))
+                })),
+                LegKind::QuicWarp => Box::pin(async move {
+                    let (edges, link, endpoint) = warp_targets(&host).await?;
+                    let version = &host.settings.client_version;
+                    let (conn, control, location) =
+                        register_retrying(|| connect_once(&endpoint, auth, tunnel_id, 0, false, &edges, version))
+                            .await?;
                     let kept = Some(link);
                     Ok((First::Quic(edges, endpoint, conn, control, location), kept))
                 }),
@@ -279,9 +251,7 @@ impl Tunnel {
             attempts.push(attempt);
         }
         // A loser that also registered: unregister it, then close it.
-        let close = |index: usize,
-                     (first, _kept): (First, Kept)|
-         -> futures::future::BoxFuture<'static, ()> {
+        let close = |index: usize, (first, _kept): (First, Kept)| -> futures::future::BoxFuture<'static, ()> {
             Box::pin(async move {
                 info!(attempt = index, "closing a second registered leg");
                 match first {
@@ -299,12 +269,9 @@ impl Tunnel {
         let won = match crate::race::race(attempts, failover, close).await {
             Ok(won) => won,
             Err(failed) => {
-                let text: Vec<String> = failed
-                    .iter()
-                    .map(|(i, err)| format!("{}: {err:#}", plan[*i]))
-                    .collect();
-                return Err(crate::exit::fault(
-                    crate::exit::Fault::Unavailable,
+                let text: Vec<String> = failed.iter().map(|(i, err)| format!("{}: {err:#}", plan[*i])).collect();
+                return Err(crate::fail::fault(
+                    Class::Unavailable,
                     anyhow::anyhow!("no edge leg worked: {}", text.join("; ")),
                 ));
             }
@@ -314,7 +281,7 @@ impl Tunnel {
         }
         let kind = plan[won.index];
         info!(leg = %kind, after = ?won.after, "the leg won the race");
-        crate::decisions::count("leg", &kind.to_string());
+        host.observer.decision("leg", &kind.to_string());
         let (first, warp_keepalive) = won.value;
         metrics.connection_opened();
 
@@ -361,8 +328,8 @@ impl Tunnel {
                                 return None;
                             }
                         };
-                        match connect_once(&endpoint, &auth, tunnel_id, index, false, &edges).await
-                        {
+                        let version = &runtime.host().settings.client_version;
+                        match connect_once(&endpoint, &auth, tunnel_id, index, false, &edges, version).await {
                             Ok((conn, control, location)) => {
                                 metrics.connection_opened();
                                 info!(conn_index = index, %location, "HA leg registered");
@@ -410,7 +377,7 @@ impl Tunnel {
                             Some(leg) => Some(leg),
                             None => {
                                 let options = rpc::ConnectionOptions::default_for_quick_tunnel(
-                                    CLIENT_VERSION,
+                                    &runtime.host().settings.client_version,
                                 );
                                 match crate::edge_h2::connect(
                                     &edges,
@@ -474,849 +441,5 @@ impl Tunnel {
     }
 }
 
-async fn resolve_credentials(
-    credentials: &Credentials,
-    service_url: &str,
-    user_agent: &str,
-) -> Result<(rpc::TunnelAuth, Uuid, Option<String>)> {
-    match credentials {
-        Credentials::Quick => {
-            let tunnel = crate::quicktunnel::provision(
-                service_url,
-                crate::quicktunnel::AuthMode::Public,
-                user_agent,
-                Duration::from_secs(30),
-                crate::detach::provision_budget(crate::quicktunnel::PROVISION_BUDGET),
-            )
-            .await
-            .context("provisioning quick tunnel")
-            .map_err(|e| {
-                // Issue 210: a 429 is a refusal for now (75), with the wait
-                // in the error report.
-                let class = match crate::quicktunnel::retry_of(&e) {
-                    Some(r) if r.status == 429 => crate::exit::Fault::TempFail,
-                    _ => crate::exit::Fault::Unavailable,
-                };
-                crate::exit::fault(class, e)
-            })?;
-            let secret = tunnel
-                .secret_bytes()
-                .map_err(|e| anyhow::anyhow!(e))
-                .context("the quick tunnel secret")?;
-            let url = validate_quick_hostname(&tunnel.hostname)?;
-            let tunnel_id = Uuid::parse_str(&tunnel.id).context("quick tunnel id is not a UUID")?;
-            Ok((
-                rpc::TunnelAuth {
-                    account_tag: tunnel.account_tag,
-                    tunnel_secret: secret,
-                },
-                tunnel_id,
-                Some(url),
-            ))
-        }
-        Credentials::Token(token) => {
-            let (auth, tunnel_id) = split_explicit(parse_token(token)?)?;
-            Ok((auth, tunnel_id, None))
-        }
-        Credentials::File(path) => {
-            let (auth, tunnel_id) = split_explicit(parse_credentials_file(path)?)?;
-            Ok((auth, tunnel_id, None))
-        }
-        Credentials::Explicit {
-            account_tag,
-            tunnel_id,
-            secret,
-        } => Ok((
-            rpc::TunnelAuth {
-                account_tag: account_tag.clone(),
-                tunnel_secret: secret.clone(),
-            },
-            *tunnel_id,
-            None,
-        )),
-    }
-}
-
-fn split_explicit(credentials: Credentials) -> Result<(rpc::TunnelAuth, Uuid)> {
-    match credentials {
-        Credentials::Explicit {
-            account_tag,
-            tunnel_id,
-            secret,
-        } => Ok((
-            rpc::TunnelAuth {
-                account_tag,
-                tunnel_secret: secret,
-            },
-            tunnel_id,
-        )),
-        _ => bail!("expected explicit credentials"),
-    }
-}
-
-/// Edge addresses for a direct dial on port 7844.
-///
-/// `PODNET_EDGE` overrides discovery with a comma-separated `host:port` list, the
-/// way `cloudflared --edge` does. It exists for a self-hosted or pinned edge,
-/// and it is also the only way to test the `auto` fallback deliberately: point
-/// it at an address nothing answers on and direct must fail where discovery
-/// would have succeeded.
-/// One way to reach the edge.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LegKind {
-    /// QUIC on UDP 7844.
-    QuicDirect,
-    /// HTTP/2 on TCP 7844.
-    H2Direct,
-    /// QUIC inside a WARP MASQUE tunnel on TCP 443.
-    QuicWarp,
-    /// HTTP/2 to TCP 7844 in a WebSocket to a relay on TCP 443.
-    H2Relay,
-}
-
-impl std::fmt::Display for LegKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(match self {
-            LegKind::QuicDirect => "quic",
-            LegKind::H2Direct => "http2",
-            LegKind::QuicWarp => "quic+warp",
-            LegKind::H2Relay => "http2+relay",
-        })
-    }
-}
-
-/// The edge legs to try, in order, for a protocol and a transport.
-pub fn leg_plan(protocol: Protocol, transport: Transport) -> Result<Vec<LegKind>> {
-    use LegKind::*;
-    Ok(match (transport, protocol) {
-        (Transport::Direct, Protocol::Quic) => vec![QuicDirect],
-        (Transport::Direct, Protocol::Http2) => vec![H2Direct],
-        (Transport::Direct, Protocol::Auto) => vec![QuicDirect, H2Direct],
-        (Transport::Warp, Protocol::Http2) => {
-            bail!("the WARP transport carries QUIC only; use --protocol quic or auto")
-        }
-        (Transport::Warp, _) => vec![QuicWarp],
-        (Transport::Auto, Protocol::Quic) => vec![QuicDirect, QuicWarp],
-        (Transport::Auto, Protocol::Http2) => vec![H2Direct],
-        (Transport::Auto, Protocol::Auto) => vec![QuicDirect, H2Direct, QuicWarp],
-        (Transport::Relay, Protocol::Quic) => {
-            bail!("the relay carries TCP only; use --protocol http2 or auto")
-        }
-        (Transport::Relay, _) => vec![H2Relay],
-    })
-}
-
-pub(crate) use crate::services::edge_region_name;
-
-/// With a proxy, `--protocol auto` does not try QUIC on UDP 7844: no proxy
-/// carries UDP, so the packets go around the proxy or are lost. QUIC inside
-/// WARP stays, because MASQUE runs on TCP 443 through the proxy. Gives the
-/// plan and the line that says why.
-pub fn plan_with_proxy(
-    plan: Vec<LegKind>,
-    protocol: Protocol,
-    proxy: Option<&crate::egress::Proxy>,
-) -> (Vec<LegKind>, Option<String>) {
-    let Some(proxy) = proxy.map(|p| p.label()) else {
-        return (plan, None);
-    };
-    if !plan.contains(&LegKind::QuicDirect) {
-        return (plan, None);
-    }
-    // Issue 182: an explicit --protocol quic keeps the leg, with a word
-    // that it does not use the proxy.
-    if !matches!(protocol, Protocol::Auto) {
-        return (
-            plan,
-            Some(format!(
-                "a proxy is set ({proxy}); QUIC uses UDP 7844 and goes around the proxy, so it can fail here (--protocol http2 goes through the proxy)"
-            )),
-        );
-    }
-    let kept: Vec<LegKind> = plan
-        .into_iter()
-        .filter(|k| *k != LegKind::QuicDirect)
-        .collect();
-    (
-        kept,
-        Some(format!(
-            "a proxy is set ({proxy}); no proxy carries UDP, so podnet does not try QUIC on UDP 7844"
-        )),
-    )
-}
-
-/// Apply `PODNET_UDP` and the result of the UDP probe to the plan. `off`
-/// removes QUIC on UDP 7844. With `probe`, a refused probe removes it; an
-/// unknown or answered probe keeps the order. The probe runs only for
-/// `--protocol auto`, so `egress` is `None` for an explicit protocol.
-pub fn plan_with_udp(
-    plan: Vec<LegKind>,
-    udp: crate::udp::Choice,
-    egress: Option<&crate::udp::Egress>,
-) -> Result<(Vec<LegKind>, Option<String>)> {
-    use crate::udp::{Choice, Egress};
-    if !plan.contains(&LegKind::QuicDirect) {
-        return Ok((plan, None));
-    }
-    let why = match (udp, egress) {
-        (Choice::Off, _) => "PODNET_UDP=off".to_string(),
-        (Choice::Probe, Some(Egress::Refused(detail))) => {
-            format!("the UDP probe was refused ({detail})")
-        }
-        (Choice::Probe, Some(other)) => {
-            tracing::debug!(result = other.name(), detail = other.detail(), "UDP probe");
-            return Ok((plan, None));
-        }
-        _ => return Ok((plan, None)),
-    };
-    let kept: Vec<LegKind> = plan
-        .into_iter()
-        .filter(|k| *k != LegKind::QuicDirect)
-        .collect();
-    if kept.is_empty() {
-        return Err(crate::exit::fault(
-            crate::exit::Fault::Config,
-            anyhow::anyhow!(
-                "{why}, and the only leg is QUIC on UDP 7844: use --protocol auto or http2"
-            ),
-        ));
-    }
-    Ok((
-        kept,
-        Some(format!("{why}: podnet does not try QUIC on UDP 7844")),
-    ))
-}
-
-/// The first registered leg.
-enum First {
-    Quic(
-        Vec<edge::EdgeAddr>,
-        noq::Endpoint,
-        noq::Connection,
-        rpc::ControlSession,
-        String,
-    ),
-    H2(Vec<edge::EdgeAddr>, crate::edge_h2::H2Leg),
-}
-
-/// The tries of the first registration of a leg.
-const REGISTER_TRIES: u32 = 3;
-/// The shortest and the longest wait between two tries of a registration.
-const REGISTER_WAIT_MIN: Duration = Duration::from_secs(1);
-const REGISTER_WAIT_MAX: Duration = Duration::from_secs(5);
-
-/// The budget of a leg whose one try has the budget `one_try`:
-/// [`REGISTER_TRIES`] tries and the longest wait between two tries.
-const fn leg_budget(one_try: Duration) -> Duration {
-    one_try
-        .saturating_mul(REGISTER_TRIES)
-        .saturating_add(REGISTER_WAIT_MAX.saturating_mul(REGISTER_TRIES - 1))
-}
-
-/// The budget of one try of the QUIC leg on one edge address: the QUIC
-/// handshake and the registration.
-const QUIC_TRY_BUDGET: Duration = quic_dial::HANDSHAKE_TIMEOUT.saturating_add(REGISTER_TIMEOUT);
-
-/// The time limit of a leg attempt with `--leg-failover serial` when
-/// another leg can follow (issue 273): the budget of the leg, from the
-/// limits of its steps. A slow edge in these limits is not stopped. A try
-/// over more than one edge address can take longer; the limit then stops
-/// it, and the next leg starts. The WARP leg has no limit.
-fn attempt_limit(kind: LegKind) -> Option<Duration> {
-    match kind {
-        LegKind::QuicDirect => Some(leg_budget(QUIC_TRY_BUDGET)),
-        LegKind::H2Direct | LegKind::H2Relay => Some(leg_budget(crate::edge_h2::TRY_BUDGET)),
-        LegKind::QuicWarp => None,
-    }
-}
-
-/// Run `attempt` again when the edge refuses the registration and asks for
-/// a retry (`retry: yes`), at most [`REGISTER_TRIES`] times, after the wait
-/// that it asks for (1 s to 5 s). A new quick tunnel can be "not found" at
-/// the edge for a moment after its provision; before, the first refusal
-/// ended the leg, and with one leg the start exited 69.
-async fn register_retrying<T, F, Fut>(mut attempt: F) -> Result<T>
-where
-    F: FnMut() -> Fut,
-    Fut: std::future::Future<Output = Result<T>>,
-{
-    let mut tries = 1;
-    loop {
-        let err = match attempt().await {
-            Ok(value) => return Ok(value),
-            Err(err) => err,
-        };
-        let refused = err
-            .chain()
-            .find_map(|e| e.downcast_ref::<rpc::Refused>())
-            .filter(|r| r.should_retry)
-            .cloned();
-        match refused {
-            Some(refused) if tries < REGISTER_TRIES => {
-                let wait = refused
-                    .retry_after
-                    .clamp(REGISTER_WAIT_MIN, REGISTER_WAIT_MAX);
-                info!(
-                    cause = %refused.cause,
-                    try_ = tries,
-                    wait_s = wait.as_secs(),
-                    "the edge refused the registration and asks for a retry; podnet tries again"
-                );
-                tokio::time::sleep(wait).await;
-                tries += 1;
-            }
-            _ => return Err(err),
-        }
-    }
-}
-
-/// Give `attempt` the time limit `limit` (see [`attempt_limit`]). A
-/// filtered port does not answer, so the next leg does not wait for the
-/// end of each timeout of the transport.
-async fn bounded<T>(
-    limit: Option<Duration>,
-    attempt: impl std::future::Future<Output = Result<T>>,
-) -> Result<T> {
-    let Some(limit) = limit else {
-        return attempt.await;
-    };
-    match tokio::time::timeout(limit, attempt).await {
-        Ok(result) => result,
-        Err(_) => bail!("the attempt did not complete in {}s", limit.as_secs()),
-    }
-}
-
-/// Read `PODNET_EDGE`, a comma-separated `host:port` list that replaces edge
-/// discovery (as `cloudflared --edge` does).
-pub(crate) fn edge_override() -> Result<Option<Vec<edge::EdgeAddr>>> {
-    let Ok(list) = std::env::var("PODNET_EDGE") else {
-        return Ok(None);
-    };
-    let mut overridden = Vec::new();
-    for item in list.split(',').map(str::trim).filter(|i| !i.is_empty()) {
-        let socket: std::net::SocketAddr = item
-            .parse()
-            .with_context(|| format!("PODNET_EDGE entry {item:?} is not host:port"))
-            .map_err(|e| crate::exit::fault(crate::exit::Fault::Config, e))?;
-        overridden.push(edge::EdgeAddr::new(socket));
-    }
-    Ok((!overridden.is_empty()).then_some(overridden))
-}
-
-async fn direct_targets() -> Result<Vec<edge::EdgeAddr>> {
-    if let Some(list) = edge_override()? {
-        return Ok(list);
-    }
-    let discovered = crate::edge_discovery::discover(IpVersionFilter::Auto)
-        .await
-        .context("edge discovery")?;
-    if discovered.is_empty() {
-        bail!("edge discovery returned no addresses");
-    }
-    Ok(discovered)
-}
-
-async fn connect_once(
-    endpoint: &noq::Endpoint,
-    auth: &rpc::TunnelAuth,
-    tunnel_id: Uuid,
-    conn_index: u8,
-    replace_existing: bool,
-    edges: &[edge::EdgeAddr],
-) -> Result<(noq::Connection, rpc::ControlSession, String)> {
-    if edges.is_empty() {
-        bail!("no edge addresses to dial");
-    }
-    let edges = edge::for_connection(edges, conn_index);
-    let candidates = edges.len().min(5);
-    let conn = quic_dial::dial_any(endpoint, &edges[..candidates])
-        .await
-        .context("QUIC handshake with the Cloudflare edge")?;
-
-    let mut options = rpc::ConnectionOptions::default_for_quick_tunnel(CLIENT_VERSION);
-    options.replace_existing = replace_existing;
-
-    let (details, control) = tokio::time::timeout(
-        REGISTER_TIMEOUT,
-        rpc::register_connection(&conn, auth, tunnel_id, conn_index, &options),
-    )
-    .await
-    .map_err(|_| anyhow::anyhow!("register_connection timed out"))??;
-    Ok((conn, control, details.location))
-}
-
-#[allow(clippy::too_many_arguments)]
-async fn reactor(
-    runtime: Arc<ServiceRuntime>,
-    ingress: Arc<Ingress>,
-    auth: rpc::TunnelAuth,
-    tunnel_id: Uuid,
-    source: EndpointSource,
-    mut conn: noq::Connection,
-    mut control: rpc::ControlSession,
-    metrics: Metrics,
-    mut shutdown: watch::Receiver<bool>,
-    policy: ReconnectPolicy,
-    conn_index: u8,
-    edges: Arc<Vec<edge::EdgeAddr>>,
-) -> Option<String> {
-    use crate::config::Next;
-    let mut attempt = 0u32;
-    let mut started = std::time::Instant::now();
-    loop {
-        if *shutdown.borrow() {
-            control.shutdown_graceful(SHUTDOWN_GRACE).await;
-            return None;
-        }
-        let lost = tokio::select! {
-            biased;
-            _ = shutdown.changed() => {
-                control.shutdown_graceful(SHUTDOWN_GRACE).await;
-                return None;
-            }
-            // T-402: a closed WARP session stops the timers of the QUIC
-            // connection in it, so the loss is seen here, not by accept_bi.
-            _ = source.closed() => {
-                warn!(conn_index, "the WARP session of the edge leg closed; a reconnect follows");
-                true
-            }
-            accepted = conn.accept_bi() => {
-                match accepted {
-                    Ok((send, recv)) => {
-                        let runtime = runtime.clone();
-                        let ingress = ingress.clone();
-                        tokio::spawn(async move {
-                            proxy::serve_stream(runtime, ingress, send, recv).await;
-                        });
-                        false
-                    }
-                    Err(err) => {
-                        // The reason (who closed it, and why) and the path
-                        // state help to find an edge limit (issue 92).
-                        let stats = conn.stats();
-                        warn!(
-                            conn_index,
-                            error = %err,
-                            rtt_ms = conn.rtt(noq::PathId::ZERO).unwrap_or_default().as_millis() as u64,
-                            received = stats.udp_rx.bytes,
-                            sent = stats.udp_tx.bytes,
-                            lost_packets = stats.lost_packets,
-                            "edge closed the connection; a reconnect follows"
-                        );
-                        true
-                    }
-                }
-            }
-        };
-        if !lost {
-            continue;
-        }
-
-        drop(control);
-        if started.elapsed() >= policy.stable {
-            attempt = 0;
-        }
-        // The first attempt goes at once: the edge may only have moved the
-        // connection.
-        let mut delay = Duration::ZERO;
-        loop {
-            if !delay.is_zero() {
-                let mut wait = shutdown.clone();
-                tokio::select! {
-                    biased;
-                    _ = wait.changed() => return None,
-                    _ = tokio::time::sleep(delay) => {}
-                }
-            }
-            attempt += 1;
-            let result = async {
-                let endpoint = source.endpoint(attempt).await?;
-                connect_once(&endpoint, &auth, tunnel_id, conn_index, true, &edges).await
-            }
-            .await;
-            match result {
-                Ok((new_conn, new_control, location)) => {
-                    info!(conn_index, attempt, %location, "reconnected");
-                    metrics.reconnect();
-                    metrics.connection_opened();
-                    conn = new_conn;
-                    control = new_control;
-                    started = std::time::Instant::now();
-                    break;
-                }
-                Err(err) => {
-                    metrics.error();
-                    match policy.next(attempt, &err) {
-                        Next::Retry(wait) => {
-                            warn!(conn_index, attempt, error = %format!("{err:#}"), retry_in = ?wait, "reconnect failed");
-                            delay = wait;
-                        }
-                        Next::Stop(reason) => {
-                            tracing::error!(conn_index, %reason, "the QUIC leg stops");
-                            return Some(reason);
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/// The legs that run. When the last one stops for a cause (not a
-/// shutdown), [`TunnelHandle::stopped`] gives the cause.
-#[derive(Clone)]
-struct Legs(Arc<LegsInner>);
-
-struct LegsInner {
-    live: std::sync::atomic::AtomicUsize,
-    last: std::sync::Mutex<Option<String>>,
-    tx: watch::Sender<Option<String>>,
-}
-
-impl Legs {
-    fn new() -> (Self, watch::Receiver<Option<String>>) {
-        let (tx, rx) = watch::channel(None);
-        (
-            Self(Arc::new(LegsInner {
-                live: Default::default(),
-                last: Default::default(),
-                tx,
-            })),
-            rx,
-        )
-    }
-}
-
-/// Run one leg as a task. Its result is the reason that it stopped, or
-/// `None` for a shutdown.
-fn spawn_leg(
-    legs: &Legs,
-    leg: impl std::future::Future<Output = Option<String>> + Send + 'static,
-) -> JoinHandle<()> {
-    use std::sync::atomic::Ordering;
-    let legs = legs.clone();
-    legs.0.live.fetch_add(1, Ordering::SeqCst);
-    tokio::spawn(async move {
-        let reason = leg.await;
-        if let Some(reason) = reason {
-            *legs.0.last.lock().unwrap() = Some(reason);
-        }
-        if legs.0.live.fetch_sub(1, Ordering::SeqCst) == 1 {
-            if let Some(reason) = legs.0.last.lock().unwrap().clone() {
-                let _ = legs.0.tx.send(Some(reason));
-            }
-        }
-    })
-}
-
-/// A running tunnel.
-pub struct TunnelHandle {
-    /// The path of the `--forward` WebSocket endpoint (issue 203).
-    forward_path: Option<String>,
-    url: Option<String>,
-    tunnel_id: Uuid,
-    account_tag: String,
-    locations: Vec<String>,
-    /// The edge leg that won the race: quic, http2, quic+warp or
-    /// http2+relay (issue 95).
-    leg: String,
-    metrics: Metrics,
-    runtime: Arc<ServiceRuntime>,
-    shutdown: watch::Sender<bool>,
-    tasks: Vec<JoinHandle<()>>,
-    stopped: watch::Receiver<Option<String>>,
-    verify: bool,
-    /// Kept alive for the tunnel's lifetime: dropping either tears down the
-    /// WARP session and the QUIC endpoint the edge connection rides on.
-    _warp: Option<Arc<WarpLink>>,
-}
-
-impl TunnelHandle {
-    /// Ready when each leg has stopped for a cause, for example a refusal of
-    /// the edge with no retry. Gives the cause. It is not ready after a
-    /// shutdown.
-    pub async fn stopped(&self) -> String {
-        let mut rx = self.stopped.clone();
-        loop {
-            if let Some(reason) = rx.borrow().clone() {
-                return reason;
-            }
-            if rx.changed().await.is_err() {
-                std::future::pending::<()>().await;
-            }
-        }
-    }
-
-    /// The wss:// endpoint of `--forward` for `podnet connect` (issue 203):
-    /// with a public URL. A named tunnel gives the path only
-    /// ([`TunnelHandle::forward_path`]).
-    pub fn forward(&self) -> Option<String> {
-        crate::ws::forward_url(self.url.as_deref()?, self.forward_path.as_deref()?)
-    }
-
-    /// The path of the `--forward` endpoint.
-    pub fn forward_path(&self) -> Option<&str> {
-        self.forward_path.as_deref()
-    }
-
-    /// Public URL for a quick tunnel; `None` for a named tunnel (the hostname
-    /// is configured in the Cloudflare dashboard).
-    pub fn url(&self) -> Option<&str> {
-        self.url.as_deref()
-    }
-
-    pub fn tunnel_id(&self) -> Uuid {
-        self.tunnel_id
-    }
-
-    pub fn account_tag(&self) -> &str {
-        &self.account_tag
-    }
-
-    pub fn locations(&self) -> &[String] {
-        &self.locations
-    }
-
-    /// The edge leg that carries the tunnel: `quic`, `http2`, `quic+warp`
-    /// or `http2+relay`.
-    pub fn leg(&self) -> &str {
-        &self.leg
-    }
-
-    pub fn metrics(&self) -> Metrics {
-        self.metrics.clone()
-    }
-
-    pub fn share_controls(&self) -> Vec<Arc<ShareControl>> {
-        self.runtime.share_controls()
-    }
-
-    /// Fetch the public URL and confirm the tunnel is reachable. For quick
-    /// tunnels the expected token may be checked against the body.
-    pub async fn verify(&self, expected: Option<&str>) -> Result<Option<Verified>> {
-        let Some(url) = self.url.as_deref() else {
-            return Ok(None);
-        };
-        self.verify_url(url, expected).await.map(Some)
-    }
-
-    /// Like [`verify`](Self::verify) but for a specific path on the public
-    /// URL (a share session lives under `/s/<token>/`, not at the root).
-    ///
-    /// With no `expected` text, an answer of the origin that is not 2xx (for
-    /// example 401 or 404 of an app behind a login) is a warning: the
-    /// request crossed the tunnel. Only 530 (the edge has no connection of
-    /// the tunnel) and transport errors are fatal after the last attempt.
-    pub async fn verify_url(&self, url: &str, expected: Option<&str>) -> Result<Verified> {
-        self.verify_accepting(url, expected, &[]).await
-    }
-
-    /// Like [`verify_url`](Self::verify_url). A status of `accepted` is the
-    /// normal answer of the origin (issue 119: `serve` of a directory with
-    /// no `index.html` answers 404 for `/`): it is logged at info, not as a
-    /// warning.
-    ///
-    /// The retries go on for `VERIFY_BUDGET` (issue 119: a new name can
-    /// need more than a minute in public DNS). A failure exits 69.
-    pub async fn verify_accepting(
-        &self,
-        url: &str,
-        expected: Option<&str>,
-        accepted: &[u16],
-    ) -> Result<Verified> {
-        verify_fetch(
-            url,
-            expected,
-            accepted,
-            VERIFY_BUDGET,
-            VERIFY_INTERVAL,
-            verify::strict(),
-        )
-        .await
-    }
-
-    pub fn wants_verify(&self) -> bool {
-        self.verify
-    }
-
-    /// Signal every reactor and wait for them to drain.
-    pub async fn shutdown(mut self) {
-        let _ = self.shutdown.send(true);
-        let tasks = std::mem::take(&mut self.tasks);
-        for task in tasks {
-            let _ = tokio::time::timeout(SHUTDOWN_GRACE + Duration::from_secs(2), task).await;
-        }
-    }
-}
-
-impl Drop for TunnelHandle {
-    fn drop(&mut self) {
-        let _ = self.shutdown.send(true);
-    }
-}
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    // A refusal with retry: yes in the first registration is tried again
-    // (live run 41743390095: "Tunnel not found" for a new quick tunnel); a
-    // refusal with retry: no ends the leg at once.
-    #[tokio::test(start_paused = true)]
-    async fn a_retryable_refusal_of_the_first_registration_is_tried_again() {
-        let refused = |retry: bool| {
-            anyhow::Error::new(rpc::Refused {
-                cause: "Unauthorized: Tunnel not found".into(),
-                should_retry: retry,
-                retry_after: Duration::from_secs(1),
-            })
-        };
-        let mut calls = 0;
-        let got = register_retrying(|| {
-            calls += 1;
-            let n = calls;
-            async move {
-                if n < 3 {
-                    Err(refused(true))
-                } else {
-                    Ok(n)
-                }
-            }
-        })
-        .await
-        .unwrap();
-        assert_eq!(got, 3);
-        let mut calls = 0;
-        let err = register_retrying(|| {
-            calls += 1;
-            async { Err::<(), _>(refused(false)) }
-        })
-        .await
-        .unwrap_err();
-        assert_eq!(calls, 1);
-        assert!(format!("{err:#}").contains("retry: no"));
-        let mut calls = 0;
-        let _ = register_retrying(|| {
-            calls += 1;
-            async { Err::<(), _>(refused(true)) }
-        })
-        .await;
-        assert_eq!(calls, REGISTER_TRIES);
-    }
-
-    // Issue 273: the limit of a serial leg attempt is at least the sum of
-    // the budgets of the steps of the leg, with the tries of the
-    // registration and the waits between them. It was 8 s for each leg.
-    #[test]
-    fn the_serial_limit_covers_the_budgets_of_each_leg() {
-        let waits = REGISTER_WAIT_MAX * (REGISTER_TRIES - 1);
-        let quic = (quic_dial::HANDSHAKE_TIMEOUT + REGISTER_TIMEOUT) * REGISTER_TRIES + waits;
-        let h2 = (crate::edge_h2::DIAL_TIMEOUT * 3 + crate::edge_h2::REGISTER_TIMEOUT * 2)
-            * REGISTER_TRIES
-            + waits;
-        let limit = |kind| attempt_limit(kind).expect("a limit");
-        assert!(limit(LegKind::QuicDirect) >= quic, "quic");
-        assert!(limit(LegKind::H2Direct) >= h2, "http2");
-        assert!(limit(LegKind::H2Relay) >= h2, "http2+relay");
-        assert_eq!(attempt_limit(LegKind::QuicWarp), None);
-        // docs/tunnels.md and docs/protocol.md section 3.3 give these values.
-        assert_eq!(limit(LegKind::QuicDirect).as_secs(), 130);
-        assert_eq!(limit(LegKind::H2Direct).as_secs(), 280);
-    }
-
-    // Issue 273: a registration that the edge refuses twice with retry: yes
-    // and a wait of 5 s completes in the serial limit.
-    #[tokio::test(start_paused = true)]
-    async fn a_slow_registration_completes_in_the_serial_limit() {
-        let mut calls = 0;
-        let got = bounded(
-            attempt_limit(LegKind::QuicDirect),
-            register_retrying(|| {
-                calls += 1;
-                let n = calls;
-                async move {
-                    tokio::time::sleep(quic_dial::HANDSHAKE_TIMEOUT / 2).await;
-                    if n < REGISTER_TRIES {
-                        Err(anyhow::Error::new(rpc::Refused {
-                            cause: "Unauthorized: Tunnel not found".into(),
-                            should_retry: true,
-                            retry_after: REGISTER_WAIT_MAX,
-                        }))
-                    } else {
-                        Ok(n)
-                    }
-                }
-            }),
-        )
-        .await
-        .unwrap();
-        assert_eq!(got, REGISTER_TRIES);
-    }
-
-    #[test]
-    fn podnet_udp_and_the_probe_shape_the_plan() {
-        use crate::udp::{Choice, Egress};
-        use LegKind::*;
-        let all = || vec![QuicDirect, H2Direct, QuicWarp];
-        let plan = |udp, egress: Option<Egress>| plan_with_udp(all(), udp, egress.as_ref());
-        assert_eq!(plan(Choice::Off, None).unwrap().0, vec![H2Direct, QuicWarp]);
-        assert_eq!(plan(Choice::On, None).unwrap().0, all());
-        let refused = Egress::Refused("EPERM".into());
-        let (kept, note) = plan(Choice::Probe, Some(refused.clone())).unwrap();
-        assert_eq!(kept, vec![H2Direct, QuicWarp]);
-        assert!(note.unwrap().contains("refused"));
-        // No answer, or an answer, keeps the order.
-        for egress in [Egress::Unknown("x".into()), Egress::Answered("x".into())] {
-            assert_eq!(plan(Choice::Probe, Some(egress)).unwrap().0, all());
-        }
-        // PODNET_UDP=off with QUIC on UDP 7844 as the only leg is an error.
-        let err = plan_with_udp(vec![QuicDirect], Choice::Off, None).unwrap_err();
-        assert_eq!(crate::exit::code_of(&err), crate::exit::CONFIG);
-        assert_eq!(
-            plan_with_udp(vec![H2Direct], Choice::Off, None).unwrap().0,
-            vec![H2Direct]
-        );
-        let _ = refused;
-    }
-
-    // Issue 182: with a proxy, auto drops QUIC on UDP 7844; an explicit
-    // quic keeps it, with a note.
-    #[test]
-    fn a_proxy_and_the_quic_leg() {
-        let proxy = crate::egress::Proxy::parse_trusted("http://127.0.0.1:3128").unwrap();
-        let auto = leg_plan(Protocol::Auto, Transport::Auto).unwrap();
-        let (plan, note) = plan_with_proxy(auto, Protocol::Auto, Some(&proxy));
-        assert!(!plan.contains(&LegKind::QuicDirect));
-        assert!(note.unwrap().contains("does not try QUIC"));
-        let quic = leg_plan(Protocol::Quic, Transport::Direct).unwrap();
-        let (plan, note) = plan_with_proxy(quic, Protocol::Quic, Some(&proxy));
-        assert_eq!(plan, vec![LegKind::QuicDirect]);
-        assert!(note.unwrap().contains("goes around the proxy"));
-        let quic = leg_plan(Protocol::Quic, Transport::Direct).unwrap();
-        assert_eq!(plan_with_proxy(quic, Protocol::Quic, None).1, None);
-    }
-
-    #[test]
-    fn the_leg_plan_tries_quic_then_http2_then_warp() {
-        use LegKind::*;
-        let plan = |p, t| leg_plan(p, t).unwrap();
-        assert_eq!(
-            plan(Protocol::Auto, Transport::Auto),
-            vec![QuicDirect, H2Direct, QuicWarp]
-        );
-        assert_eq!(
-            plan(Protocol::Quic, Transport::Auto),
-            vec![QuicDirect, QuicWarp]
-        );
-        assert_eq!(plan(Protocol::Http2, Transport::Auto), vec![H2Direct]);
-        assert_eq!(
-            plan(Protocol::Auto, Transport::Direct),
-            vec![QuicDirect, H2Direct]
-        );
-        assert_eq!(plan(Protocol::Quic, Transport::Warp), vec![QuicWarp]);
-        assert!(leg_plan(Protocol::Http2, Transport::Warp).is_err());
-        assert_eq!(plan(Protocol::Auto, Transport::Relay), vec![H2Relay]);
-        assert_eq!(plan(Protocol::Http2, Transport::Relay), vec![H2Relay]);
-        assert!(leg_plan(Protocol::Quic, Transport::Relay).is_err());
-    }
-}
+mod tests;

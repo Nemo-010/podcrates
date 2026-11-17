@@ -1,5 +1,5 @@
 //! Entry points for the fuzz targets of `fuzz/` (cargo-fuzz). Each function
-//! takes untrusted bytes, runs one parser of podnet on them, and must not
+//! takes untrusted bytes, runs one parser of the crate on them, and must not
 //! panic, hang or allocate much more than the input. The functions give no
 //! result: a parse error is a correct answer to bad bytes.
 //!
@@ -10,15 +10,6 @@
 
 use crate::cloudflare::capnp::{Message, StructReader};
 
-mod peers;
-pub use peers::{
-    mesh_announce, mesh_table, network_spec, router_config, transfer_message, transfer_zip,
-    transit_record, wg_quick,
-};
-
-/// The targets of the seccomp handlers of the pod (`podnet_netns::fuzzing`).
-pub use podnet_netns::fuzzing::{seccomp_sendmsg, seccomp_sendto, seccomp_sockopt};
-
 /// One fuzz target: it takes untrusted bytes.
 pub type Target = fn(&[u8]);
 
@@ -28,28 +19,11 @@ pub const TARGETS: &[(&str, Target)] = &[
     ("rpc_message", rpc_message),
     ("register_response", register_response),
     ("connect_request", connect_request),
-    ("capsule", capsule),
-    ("proxy_url", proxy_url),
-    ("no_proxy", no_proxy),
-    ("connect_response_head", connect_response_head),
     ("srv_record", srv_record),
-    ("acl_rule", acl_rule),
     ("ingress_rule", ingress_rule),
     ("config_yaml", config_yaml),
     ("h2_header_block", h2_header_block),
-    ("vnet_frame", vnet_frame),
     ("request_head", request_head),
-    ("seccomp_sendto", seccomp_sendto),
-    ("seccomp_sendmsg", seccomp_sendmsg),
-    ("seccomp_sockopt", seccomp_sockopt),
-    ("wg_quick", wg_quick),
-    ("network_spec", network_spec),
-    ("router_config", router_config),
-    ("transfer_message", transfer_message),
-    ("transfer_zip", transfer_zip),
-    ("transit_record", transit_record),
-    ("mesh_announce", mesh_announce),
-    ("mesh_table", mesh_table),
 ];
 
 /// Visit each pointer of a struct, to the depth `depth`.
@@ -99,76 +73,25 @@ pub fn rpc_message(data: &[u8]) {
 
 /// The results of `registerConnection`.
 pub fn register_response(data: &[u8]) {
-    if let Ok(Some((message, _))) = Message::parse(data) {
-        if let Ok(root) = message.root() {
-            let _ = crate::cloudflare::schema::read_register_results(&root);
-        }
+    if let Ok(Some((message, _))) = Message::parse(data)
+        && let Ok(root) = message.root()
+    {
+        let _ = crate::cloudflare::schema::read_register_results(&root);
     }
 }
 
 /// The `ConnectRequest` and `ConnectResponse` of a visitor stream.
 pub fn connect_request(data: &[u8]) {
-    if let Ok(Some((message, _))) = Message::parse(data) {
-        if let Ok(root) = message.root() {
-            let _ = crate::cloudflare::schema::decode_connect_request(&root);
-            let _ = crate::cloudflare::schema::decode_connect_response(&root);
-        }
+    if let Ok(Some((message, _))) = Message::parse(data)
+        && let Ok(root) = message.root()
+    {
+        let _ = crate::cloudflare::schema::decode_connect_request(&root);
+        let _ = crate::cloudflare::schema::decode_connect_response(&root);
     }
-}
-
-/// MASQUE capsules, in two chunks.
-pub fn capsule(data: &[u8]) {
-    let mut decoder = crate::warp::capsule::CapsuleDecoder::new();
-    let half = data.len() / 2;
-    decoder.push(&data[..half]);
-    while decoder.next_packet().is_some() {}
-    decoder.push(&data[half..]);
-    let mut total = 0;
-    while let Some(packet) = decoder.next_packet() {
-        total += packet.len();
-    }
-    assert!(total <= data.len());
 }
 
 fn text(data: &[u8]) -> Option<&str> {
     std::str::from_utf8(data).ok()
-}
-
-/// A proxy URL (`--proxy`, `HTTPS_PROXY`) by podnet's parse (T-349: with the
-/// check of a Unix path). A parsed proxy prints with no password.
-pub fn proxy_url(data: &[u8]) {
-    let Some(spec) = text(data) else { return };
-    if let Ok(proxy) = crate::egress::parse(spec) {
-        let shown = proxy.label();
-        assert!(!shown.contains('@'), "{shown}");
-    }
-    // The same text as a network spec (T-059): the parse and the label
-    // never panic, and an error is one line. A `wg:` spec reads a file: the
-    // target opens no file of the input.
-    if spec.contains("wg:") {
-        return;
-    }
-    match crate::networks::parse(spec) {
-        Ok(network) => {
-            let _ = network.label();
-            let _ = crate::network::Network::checks(&network);
-        }
-        Err(e) => assert!(!e.text().contains('\n') || spec.contains('\n'), "{e}"),
-    }
-}
-
-/// A `NO_PROXY` list.
-pub fn no_proxy(data: &[u8]) {
-    let Some(list) = text(data) else { return };
-    let rules = crate::egress::NoProxy::parse(list);
-    let _ = rules.matches("api.trycloudflare.com", 443);
-    let _ = rules.matches("198.41.192.167", 7844);
-    let _ = rules.matches("::1", 80);
-}
-
-/// The status line of a proxy answer to `CONNECT`.
-pub fn connect_response_head(data: &[u8]) {
-    let _ = crate::egress::parse_status(data);
 }
 
 /// The `data` field of an SRV record of DoH.
@@ -178,19 +101,11 @@ pub fn srv_record(data: &[u8]) {
     }
 }
 
-/// An ACL rule of `podnet net`.
-pub fn acl_rule(data: &[u8]) {
-    if let Some(line) = text(data) {
-        let _ = crate::vnet::policy::AclRule::parse(line);
-    }
-}
-
 /// An ingress service and a forward target.
 pub fn ingress_rule(data: &[u8]) {
     if let Some(value) = text(data) {
         let _ = crate::ingress::Service::parse(value);
         let _ = crate::ingress::ForwardTarget::parse(value);
-        let _ = crate::ws::LocalSpec::parse(value);
     }
 }
 
@@ -216,15 +131,9 @@ pub fn h2_header_block(data: &[u8]) {
 /// with CR LF.
 pub fn request_head(data: &[u8]) {
     use crate::cloudflare::stream::{HTTP_HEADER_KEY, HTTP_HOST_KEY, HTTP_METHOD_KEY};
-    let fields: Vec<String> = data
-        .split(|b| *b == 0)
-        .map(|f| String::from_utf8_lossy(f).into_owned())
-        .collect();
+    let fields: Vec<String> = data.split(|b| *b == 0).map(|f| String::from_utf8_lossy(f).into_owned()).collect();
     let field = |i: usize| fields.get(i).cloned().unwrap_or_default();
-    let mut metadata = vec![
-        (HTTP_METHOD_KEY.to_string(), field(0)),
-        (HTTP_HOST_KEY.to_string(), field(2)),
-    ];
+    let mut metadata = vec![(HTTP_METHOD_KEY.to_string(), field(0)), (HTTP_HOST_KEY.to_string(), field(2))];
     for pair in fields.get(3..).unwrap_or_default().chunks(2) {
         let value = pair.get(1).cloned().unwrap_or_default();
         metadata.push((format!("{HTTP_HEADER_KEY}:{}", pair[0]), value));
@@ -253,9 +162,7 @@ pub fn request_head(data: &[u8]) {
             for line in head.trim_end().split("\r\n").skip(1) {
                 assert!(
                     pairs.iter().any(|p| p == line)
-                        || ["Host: ", "Connection: ", "Upgrade: "]
-                            .iter()
-                            .any(|own| line.starts_with(own)),
+                        || ["Host: ", "Connection: ", "Upgrade: "].iter().any(|own| line.starts_with(own)),
                     "{line:?} in {head:?}"
                 );
             }
@@ -263,26 +170,9 @@ pub fn request_head(data: &[u8]) {
     }
 }
 
-/// A frame of the virtual network.
-pub fn vnet_frame(data: &[u8]) {
-    let mut reader = data;
-    let mut packet = Vec::new();
-    for _ in 0..64 {
-        match futures::executor::block_on(crate::vnet::framing::read_frame(
-            &mut reader,
-            &mut packet,
-        )) {
-            Ok(Some(n)) => assert!(n <= data.len()),
-            _ => break,
-        }
-    }
-}
-
 /// The seed inputs of `target`.
 pub fn seeds(target: &str) -> Vec<Vec<u8>> {
-    use crate::cloudflare::schema::{
-        encode_connect_request, encode_connect_response, ConnectRequest, ConnectionType,
-    };
+    use crate::cloudflare::schema::{ConnectRequest, ConnectionType, encode_connect_request, encode_connect_response};
     let s = |items: &[&str]| items.iter().map(|i| i.as_bytes().to_vec()).collect();
     match target {
         "capnp_message" | "rpc_message" | "register_response" | "connect_request" => vec![
@@ -295,41 +185,20 @@ pub fn seeds(target: &str) -> Vec<Vec<u8>> {
             crate::cloudflare::rpc::our_bootstrap_return(1).to_bytes(),
             crate::cloudflare::rpc::exception_return(2, "refused").to_bytes(),
         ],
-        "capsule" => vec![vec![0x00, 0x04, 0x45, 0x00, 0x00, 0x04], vec![0x01, 0x01, 0x00]],
-        "proxy_url" => s(&[
-            "http://127.0.0.1:3128",
-            "http://user:pass@proxy:8080",
-            "socks5h://[::1]:1080",
-            "https://p",
-        ]),
-        "no_proxy" => s(&["localhost,.example.com,10.0.0.0/8", "*", "[::1]:80,api.x"]),
-        "connect_response_head" => s(&[
-            "HTTP/1.1 200 Connection established\r\n\r\n",
-            "HTTP/1.0 407 Proxy Authentication Required\r\n",
-        ]),
         "srv_record" => s(&["1 1 7844 region1.v2.argotunnel.com."]),
-        "acl_rule" => s(&["allow 10.66.0.0/24:80-90", "deny *", "deny [fd00::1]:22"]),
-        "ingress_rule" => s(&[
-            "http://127.0.0.1:8080",
-            "unix:/run/app.sock",
-            "tcp://host:22",
-            "http_status:404",
-            "spa:./site",
-        ]),
+        "ingress_rule" => {
+            s(&["http://127.0.0.1:8080", "unix:/run/app.sock", "tcp://host:22", "http_status:404", "spa:./site"])
+        }
         "config_yaml" => s(&[
             "tunnel: x\ncredentials-file: /c.json\ningress:\n  - hostname: a.example.com\n    service: http://localhost:1\n  - service: http_status:404\n",
         ]),
         "h2_header_block" => s(&["Q29udGVudC1UeXBl:dGV4dC9wbGFpbg;WC1B:Yg"]),
-        "vnet_frame" => vec![vec![0x00, 0x03, 1, 2, 3], vec![0x80, 0x01, 9]],
         "request_head" => s(&[
             "GET\0https://x.example/a?b=1\0x.example\0Accept\0*/*\0Cookie\0a=b",
             "POST\0https://x/u\0x\0Transfer-Encoding\0chunked\0Connection\0close, X-Hop\0X-Hop\0one",
             "GET\0https://x/ws\0x\0Upgrade\0websocket\0X-A\0a\r\nInjected: 1",
         ]),
-        "seccomp_sendto" | "seccomp_sendmsg" | "seccomp_sockopt" => {
-            podnet_netns::fuzzing::seeds(target)
-        }
-        _ => peers::seeds(target),
+        _ => Vec::new(),
     }
 }
 
@@ -337,8 +206,8 @@ pub fn seeds(target: &str) -> Vec<Vec<u8>> {
 mod tests {
     use super::*;
 
-    /// T-348: the crash input of `capnp_message` of the fuzz run 43590953876, and the same
-    /// shape by hand: a double-far pointer to a list in segment 10 of a message of 1 segment.
+    /// The crash input of `capnp_message` of podnet's fuzz run 43590953876
+    /// (PodUtils/podnet#555), and the same shape by hand: a double-far pointer to a list in segment 10 of a message of 1 segment.
     /// Each reader of a list gives an error, and nothing panics.
     #[test]
     fn fuzz_a_list_in_a_missing_segment_is_an_error() {
@@ -352,12 +221,7 @@ mod tests {
             bytes.extend_from_slice(&4u32.to_le_bytes());
             // The root struct (0 data, 1 pointer) at word 1; its pointer is a double far
             // pointer to the pad at word 2: a far pointer to segment 10, then the list tag.
-            let words = [
-                1u64 << 48,
-                2 | 4 | (2 << 3),
-                2 | (10 << 32),
-                1 | (elem << 32) | (count << 35),
-            ];
+            let words = [1u64 << 48, 2 | 4 | (2 << 3), 2 | (10 << 32), 1 | (elem << 32) | (count << 35)];
             for w in words {
                 bytes.extend_from_slice(&w.to_le_bytes());
             }
@@ -366,24 +230,13 @@ mod tests {
             assert!(root.get_data(0).is_err(), "data {elem} {count}");
             assert!(root.get_text(0).is_err(), "text {elem} {count}");
             assert!(root.get_text_list(0).is_err(), "text list {elem} {count}");
-            assert!(
-                root.get_struct_list(0).is_err(),
-                "struct list {elem} {count}"
-            );
+            assert!(root.get_struct_list(0).is_err(), "struct list {elem} {count}");
             assert!(root.get_struct(0).is_err(), "struct {elem} {count}");
         }
     }
 
-    /// T-349: the crash input of `proxy_url` of the fuzz run 43590953876: the
-    /// unix path held the user info, and the label showed it.
-    #[test]
-    fn fuzz_a_unix_proxy_label_holds_no_user_info() {
-        proxy_url(b"socks5+unix://ss@proxy:2]:/");
-        proxy_url(b"socks5h+unix://user:hunter2@x");
-    }
-
-    /// Each target on its seeds and on 2000 mutations of them (100 for
-    /// mesh_announce; a fixed xorshift sequence): no panic. This is the stable part of `fuzz/`.
+    /// Each target on its seeds and on 2000 mutations of them (a fixed
+    /// xorshift sequence): no panic. This is the stable part of `fuzz/`.
     #[test]
     fn each_target_survives_mutations() {
         let mut state = 0x9e37_79b9_7f4a_7c15u64;
@@ -399,9 +252,7 @@ mod tests {
             for seed in &seeds {
                 target(seed);
             }
-            // Each input of mesh_announce that parses signs and verifies
-            // three times: a debug build does that slowly.
-            let rounds = if *name == "mesh_announce" { 100 } else { 2000 };
+            let rounds = 2000;
             for _ in 0..rounds {
                 let mut input = seeds[(next() % seeds.len() as u64) as usize].clone();
                 for _ in 0..(1 + next() % 4) {

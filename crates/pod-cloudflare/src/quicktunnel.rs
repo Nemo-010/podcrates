@@ -19,17 +19,21 @@
 //!
 //! # What this does NOT do
 //!
-//! It does not open the tunnel edge connection. See [`crate::tunnel`] and
-//! `docs/protocol.md`.
+//! It does not open the tunnel edge connection. See [`crate::tunnel`].
 
+use std::sync::Arc;
+
+use pod_core::{Dial, Stage};
 use serde::{Deserialize, Serialize};
+
+use crate::Host;
 
 mod retry;
 pub use retry::parse_retry_after;
 
 pub use crate::services::default_quick_service;
 
-/// The anonymous provisioning response. Only the fields podnet uses are modelled;
+/// The anonymous provisioning response. Only the fields the crate uses are modelled;
 /// cloudflared's `QuickTunnel` also carries `name`, which is unused here.
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
 pub struct QuickTunnel {
@@ -55,12 +59,8 @@ impl QuickTunnel {
     /// This is the value cloudflared puts on the wire as `TunnelAuth.tunnelSecret`
     /// without any hashing step, so a reimplementation must not transform it.
     pub fn secret_bytes(&self) -> Result<Vec<u8>, String> {
-        decode_base64(&self.secret).ok_or_else(|| {
-            format!(
-                "tunnel secret is not valid base64 ({} bytes of text)",
-                self.secret.len()
-            )
-        })
+        decode_base64(&self.secret)
+            .ok_or_else(|| format!("tunnel secret is not valid base64 ({} bytes of text)", self.secret.len()))
     }
 }
 
@@ -133,11 +133,7 @@ impl std::fmt::Display for ProvisionError {
         match self {
             ProvisionError::BadEndpoint(e) => write!(f, "invalid quick-service endpoint: {e}"),
             ProvisionError::Http(_) => write!(f, "request to the quick-tunnel service failed"),
-            ProvisionError::Status {
-                code,
-                body,
-                retry_after,
-            } => {
+            ProvisionError::Status { code, body, retry_after } => {
                 write!(f, "quick-tunnel service returned HTTP {code}")?;
                 if let Some(wait) = retry_after {
                     write!(f, " (Retry-After: {} s)", wait.as_secs())?;
@@ -146,10 +142,7 @@ impl std::fmt::Display for ProvisionError {
                     write!(f, ": {body}")?;
                 }
                 if *code == 405 {
-                    write!(
-                        f,
-                        "; a proxy that answers 405 refuses the request form: use a CONNECT proxy"
-                    )?;
+                    write!(f, "; a proxy that answers 405 refuses the request form: use a CONNECT proxy")?;
                 }
                 Ok(())
             }
@@ -157,51 +150,46 @@ impl std::fmt::Display for ProvisionError {
                 write!(f, "could not decode the quick-tunnel response: {e}")
             }
             ProvisionError::Service(errs) => {
-                let joined: Vec<String> = errs
-                    .iter()
-                    .map(|e| format!("{}: {}", e.code, e.message))
-                    .collect();
-                write!(
-                    f,
-                    "quick-tunnel service reported failure: {}",
-                    joined.join("; ")
-                )
+                let joined: Vec<String> = errs.iter().map(|e| format!("{}: {}", e.code, e.message)).collect();
+                write!(f, "quick-tunnel service reported failure: {}", joined.join("; "))
             }
             ProvisionError::MissingResult => {
-                write!(
-                    f,
-                    "quick-tunnel service returned success with no result object"
-                )
+                write!(f, "quick-tunnel service returned success with no result object")
             }
         }
     }
 }
 
-/// The cause of a failed request comes through `source`, so that its hop
-/// and its text stay in the chain.
-pub use crate::report::Refusal;
+/// The refusal of a provision, as the fields that a supervisor needs, not
+/// as text.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Refusal {
+    /// The HTTP status.
+    pub status: u16,
+    /// The Cloudflare error code of the body (`error code: 1015`).
+    pub code: Option<u32>,
+    /// The `Retry-After` of the answer, in seconds.
+    pub retry_after_s: Option<u64>,
+    /// True for 429 and 5xx: a later try can work.
+    pub retryable: bool,
+}
 
 /// The [`Refusal`] in the chain of `err`, when there is one.
 pub fn retry_of(err: &anyhow::Error) -> Option<Refusal> {
-    err.chain()
-        .find_map(|e| match e.downcast_ref::<ProvisionError>()? {
-            ProvisionError::Status {
-                code,
-                body,
-                retry_after,
-            } => Some(Refusal {
-                status: *code,
-                code: body
-                    .to_ascii_lowercase()
-                    .split("error code:")
-                    .nth(1)
-                    .and_then(|r| r.trim().split(|c: char| !c.is_ascii_digit()).next())
-                    .and_then(|n| n.parse().ok()),
-                retry_after_s: retry_after.map(|d| d.as_secs()),
-                retryable: *code == 429 || (500..600).contains(code),
-            }),
-            _ => None,
-        })
+    err.chain().find_map(|e| match e.downcast_ref::<ProvisionError>()? {
+        ProvisionError::Status { code, body, retry_after } => Some(Refusal {
+            status: *code,
+            code: body
+                .to_ascii_lowercase()
+                .split("error code:")
+                .nth(1)
+                .and_then(|r| r.trim().split(|c: char| !c.is_ascii_digit()).next())
+                .and_then(|n| n.parse().ok()),
+            retry_after_s: retry_after.map(|d| d.as_secs()),
+            retryable: *code == 429 || (500..600).contains(code),
+        }),
+        _ => None,
+    })
 }
 
 impl std::error::Error for ProvisionError {
@@ -213,43 +201,36 @@ impl std::error::Error for ProvisionError {
     }
 }
 
-/// The user agent cloudflared-style clients send. Kept simple and honest.
-pub fn user_agent() -> String {
-    format!("podnet/{} (rust)", env!("CARGO_PKG_VERSION"))
-}
-
-/// Provision a quick tunnel: `POST <endpoint>/tunnel`.
+/// Provision a quick tunnel: `POST <endpoint>/tunnel`, with the client of
+/// `host`.
 ///
-/// `proxy` is a proxy for this request only. With `None`, the request takes
-/// the proxy choice of the process (`crate::egress::proxy_for`).
+/// `via` is a way out for this request only. With `None`, the request
+/// takes the way out of `host`.
 pub async fn request_quick_tunnel(
+    host: &Host,
     endpoint: &str,
     auth_mode: AuthMode,
     user_agent: &str,
     timeout: std::time::Duration,
-    proxy: Option<&crate::egress::Proxy>,
+    via: Option<Arc<dyn Dial>>,
 ) -> Result<QuickTunnel, ProvisionError> {
     let url = format!("{}/tunnel", endpoint.trim_end_matches('/'));
     if !(url.starts_with("http://") || url.starts_with("https://")) {
         return Err(ProvisionError::BadEndpoint(url));
     }
-    let mut request = crate::fetch::Request::new("POST", url)
+    let mut request = pod_proxy::client::Request::new("POST", url)
         .header("Content-Type", "application/json")
         .header("User-Agent", user_agent)
         .timeout(timeout)
-        .via(crate::egress::via(proxy));
+        .via(via);
     request.body = auth_mode.request_body().map(Into::into);
-    let response = crate::fetch::send(request).await;
+    let response = host.send(request).await;
     let response = response.map_err(ProvisionError::Http)?;
     let status = response.status;
     let text = response.text();
     let retry_after = response.header("retry-after").and_then(parse_retry_after);
     match parse_quick_tunnel_response(status, &text) {
-        Err(ProvisionError::Status { code, body, .. }) => Err(ProvisionError::Status {
-            code,
-            body,
-            retry_after,
-        }),
+        Err(ProvisionError::Status { code, body, .. }) => Err(ProvisionError::Status { code, body, retry_after }),
         other => other,
     }
 }
@@ -265,6 +246,7 @@ pub const PROVISION_ATTEMPTS: u32 = 5;
 /// Another 4xx fails at once. A `Retry-After` that is longer than the time
 /// left fails with the wait in the error.
 pub async fn provision(
+    host: &Host,
     endpoint: &str,
     auth_mode: AuthMode,
     user_agent: &str,
@@ -281,30 +263,25 @@ pub async fn provision(
     let mut dns = retry::Dns::default();
     loop {
         attempt += 1;
-        let err = match request_quick_tunnel(endpoint, auth_mode, user_agent, timeout, None).await {
+        let err = match request_quick_tunnel(host, endpoint, auth_mode, user_agent, timeout, None).await {
             Ok(tunnel) => return Ok(tunnel),
             Err(err) => err,
         };
         let wait = match &err {
-            ProvisionError::Status {
-                code, retry_after, ..
-            } if *code == 429 || (500..600).contains(code) => {
+            ProvisionError::Status { code, retry_after, .. } if *code == 429 || (500..600).contains(code) => {
                 retry_after.unwrap_or_else(|| policy.backoff_with_jitter(attempt))
             }
             // A refusal of the proxy and a TLS failure do not change on a
             // retry.
             ProvisionError::Http(inner)
-                if matches!(
-                    crate::hop::of(inner),
-                    Some(crate::hop::Hop::Proxy | crate::hop::Hop::Tls | crate::hop::Hop::Network)
-                ) =>
+                if matches!(crate::fail::stage_of(inner), Some(Stage::Proxy | Stage::Tls | Stage::Network)) =>
             {
-                return Err(err)
+                return Err(err);
             }
             // A name that does not resolve: one retry, then only when the
             // answering step changed (T-170).
             ProvisionError::Http(inner) if retry::is_dns(inner) => {
-                if !dns.again(endpoint).await {
+                if !dns.again(host, endpoint).await {
                     return Err(err);
                 }
                 policy.backoff_with_jitter(attempt)
@@ -328,6 +305,36 @@ pub async fn provision(
     }
 }
 
+/// The public host of a quick-tunnel URL, validated against the
+/// `*.trycloudflare.com` allowlist so a hostile API response cannot point the
+/// tool at another host.
+pub fn validate_quick_hostname(raw: &str) -> anyhow::Result<String> {
+    let host = raw
+        .trim()
+        .trim_end_matches('/')
+        .strip_prefix("https://")
+        .unwrap_or(raw.trim().trim_end_matches('/'))
+        .to_ascii_lowercase();
+    let bad = host.is_empty() || host.contains(['/', '\\', '@', '?', '#', ':', '[', ']', ' ']);
+    if bad {
+        anyhow::bail!("quick tunnel returned a malformed hostname: {raw:?}");
+    }
+    let zone = crate::services::text(crate::services::QUICK, "tunnel-zone");
+    let Some(sub) = host.strip_suffix(&format!(".{zone}")) else {
+        anyhow::bail!("quick tunnel hostname is not under {zone}: {host}");
+    };
+    if sub.is_empty()
+        || sub.contains('.')
+        || sub.starts_with('-')
+        || sub.ends_with('-')
+        || sub.len() > 63
+        || !sub.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    {
+        anyhow::bail!("quick tunnel hostname label is invalid: {host}");
+    }
+    Ok(format!("https://{host}"))
+}
+
 /// Parse and validate a provisioning response body.
 ///
 /// Split out from [`request_quick_tunnel`] so it can be tested against captured
@@ -336,7 +343,7 @@ pub fn parse_quick_tunnel_response(status: u16, body: &str) -> Result<QuickTunne
     if !(200..300).contains(&status) {
         // The body of an error, for a terminal: 1 KiB at most, with no
         // control characters.
-        let mut clipped = crate::report::clean(body.trim());
+        let mut clipped = crate::text::clean(body.trim());
         if clipped.len() > 1024 {
             let mut cut = 1024;
             while !clipped.is_char_boundary(cut) {
@@ -344,11 +351,7 @@ pub fn parse_quick_tunnel_response(status: u16, body: &str) -> Result<QuickTunne
             }
             clipped.truncate(cut);
         }
-        return Err(ProvisionError::Status {
-            code: status,
-            body: clipped,
-            retry_after: None,
-        });
+        return Err(ProvisionError::Status { code: status, body: clipped, retry_after: None });
     }
 
     // The provisioning body carries the tunnel's `secret`, `account_tag` and `id`,
@@ -356,8 +359,8 @@ pub fn parse_quick_tunnel_response(status: u16, body: &str) -> Result<QuickTunne
     // failure therefore has a body that is mostly credentials, and this error
     // reaches the operator's stderr and any CI log. Redact before including any
     // of it.
-    let parsed: QuickTunnelResponse = serde_json::from_str(body)
-        .map_err(|e| ProvisionError::Decode(format!("{e}; body was: {}", redact(body))))?;
+    let parsed: QuickTunnelResponse =
+        serde_json::from_str(body).map_err(|e| ProvisionError::Decode(format!("{e}; body was: {}", redact(body))))?;
 
     if !parsed.success {
         return Err(ProvisionError::Service(parsed.errors));
@@ -467,384 +470,8 @@ fn decode_base64(input: &str) -> Option<Vec<u8>> {
         }
     }
 
-    if out.is_empty() {
-        None
-    } else {
-        Some(out)
-    }
+    if out.is_empty() { None } else { Some(out) }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::redact;
-
-    /// A body shaped like the real provisioning response, with values that are
-    /// recognisable so a leak in a log is visible.
-    const REAL_BODY: &str = r#"{"success":true,"result":{"id":"2983af16-7c68-4ef0-9590-e05f35a0cd7b","name":"qt-x","hostname":"foo.trycloudflare.com","account_tag":"5ab4e9dfbd435d24068829fda0077963","secret":"GlUwcZAOuFFaHRtTTFqbk1WVmpWMHFzOGdSSUthbG1K"}}"#;
-
-    #[test]
-    fn redaction_removes_every_credential_from_the_error_text() {
-        let redacted = redact(REAL_BODY);
-        assert!(
-            !redacted.contains("GlUwcZAOuFFaHRtTTFqbk1WVmpWMHFzOGdSSUthbG1K"),
-            "the tunnel secret must not survive redaction: {redacted}"
-        );
-        assert!(
-            !redacted.contains("5ab4e9dfbd435d24068829fda0077963"),
-            "the account tag must not survive redaction: {redacted}"
-        );
-        assert!(
-            !redacted.contains("2983af16-7c68-4ef0-9590-e05f35a0cd7b"),
-            "the tunnel id must not survive redaction: {redacted}"
-        );
-        assert!(
-            redacted.contains("<redacted>"),
-            "the redaction marker should be visible: {redacted}"
-        );
-    }
-
-    #[test]
-    fn redaction_keeps_the_fields_a_human_needs() {
-        let redacted = redact(REAL_BODY);
-        assert!(
-            redacted.contains("foo.trycloudflare.com"),
-            "the hostname is the part that identifies which tunnel this was: {redacted}"
-        );
-        assert!(
-            redacted.contains(r#""secret""#),
-            "the key should remain: {redacted}"
-        );
-    }
-
-    #[test]
-    fn redaction_survives_a_body_that_is_not_json() {
-        // A hostile or intercepted endpoint can return anything. The error path
-        // must not panic on it.
-        for body in [
-            "",
-            "{",
-            "not json at all",
-            "{\"secret\":",
-            "{\"secret\":\"unterminated",
-            r#"{"secret":"a","secret":"b"}"#,
-            r#"{"nested":{"account_tag":"x"},"id":"y"}"#,
-        ] {
-            let out = redact(body);
-            assert!(
-                !out.contains("unterminated") || body.len() < 40,
-                "{body:?} -> {out:?}"
-            );
-        }
-    }
-
-    #[test]
-    fn truncation_lands_on_a_character_boundary() {
-        // The original clipped at a raw byte offset, which panics when the cut
-        // lands inside a multi-byte character.
-        let text = "é".repeat(400);
-        let out = super::truncate(&text, 200);
-        assert!(out.ends_with("..."));
-        assert!(out.is_char_boundary(out.len() - 3));
-        assert!(std::str::from_utf8(out.as_bytes()).is_ok());
-    }
-
-    use super::*;
-
-    const OK_BODY: &str = r#"{"success":true,"result":{"id":"6ff42ae2-765d-4adf-8112-31c55c1551ef","hostname":"t.trycloudflare.com","account_tag":"0123456789abcdef","secret":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}}"#;
-
-    /// A local endpoint that gives `answers` in order, one per connection.
-    /// Gives its URL and the count of requests.
-    fn scripted(
-        answers: Vec<(u16, &'static str, &'static str)>,
-    ) -> (String, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
-        use std::io::{Read, Write};
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let url = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
-        let hits = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let count = hits.clone();
-        std::thread::spawn(move || {
-            let mut answers = answers.into_iter();
-            for mut s in listener.incoming().flatten() {
-                count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                let mut buf = [0u8; 4096];
-                let _ = s.read(&mut buf);
-                let Some((code, extra, body)) = answers.next() else {
-                    break;
-                };
-                let _ = write!(
-                    s,
-                    "HTTP/1.1 {code} X\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n{body}",
-                    body.len()
-                );
-            }
-        });
-        (url, hits)
-    }
-
-    fn hits(h: &std::sync::atomic::AtomicUsize) -> usize {
-        h.load(std::sync::atomic::Ordering::SeqCst)
-    }
-
-    const BUDGET: std::time::Duration = std::time::Duration::from_secs(60);
-    const TO: std::time::Duration = std::time::Duration::from_secs(5);
-
-    /// Issue 210: the refusal of a provision as fields.
-    #[test]
-    fn the_refusal_in_an_error_chain() {
-        let err = anyhow::Error::new(ProvisionError::Status {
-            code: 429,
-            body: "error code: 1015".into(),
-            retry_after: Some(std::time::Duration::from_secs(1379)),
-        })
-        .context("provisioning quick tunnel");
-        let r = retry_of(&err).unwrap();
-        assert_eq!(
-            r,
-            Refusal {
-                status: 429,
-                code: Some(1015),
-                retry_after_s: Some(1379),
-                retryable: true
-            }
-        );
-        let other = anyhow::Error::new(ProvisionError::Status {
-            code: 404,
-            body: String::new(),
-            retry_after: None,
-        });
-        assert!(!retry_of(&other).unwrap().retryable);
-        assert!(retry_of(&anyhow::anyhow!("other")).is_none());
-        // The error report has the fields.
-        crate::report::read_refusals_with(retry_of);
-        let doc = crate::report::document(Some("tunnel"), 75, Some(&err));
-        assert_eq!(doc["retry_after_s"], 1379);
-        assert_eq!(doc["code"], 1015);
-        assert_eq!(doc["status"], 429);
-        assert_eq!(doc["retryable"], true);
-    }
-
-    #[tokio::test]
-    async fn a_429_waits_for_retry_after() {
-        crate::test_host::need_loopback!();
-        let (url, count) = scripted(vec![
-            (429, "Retry-After: 1\r\n", "slow down"),
-            (200, "", OK_BODY),
-        ]);
-        let start = std::time::Instant::now();
-        let tunnel = provision(&url, AuthMode::Public, "t", TO, BUDGET)
-            .await
-            .unwrap();
-        assert_eq!(tunnel.hostname, "t.trycloudflare.com");
-        assert!(start.elapsed() >= std::time::Duration::from_secs(1));
-        assert_eq!(hits(&count), 2);
-    }
-
-    #[tokio::test]
-    async fn a_long_retry_after_fails_with_the_wait() {
-        crate::test_host::need_loopback!();
-        let (url, count) = scripted(vec![(429, "Retry-After: 9999\r\n", "error code: 1015")]);
-        let err = provision(&url, AuthMode::Public, "t", TO, BUDGET)
-            .await
-            .unwrap_err();
-        let text = err.to_string();
-        assert!(
-            text.contains("HTTP 429 (Retry-After: 9999 s): error code: 1015"),
-            "{text}"
-        );
-        assert_eq!(hits(&count), 1);
-    }
-
-    #[tokio::test]
-    async fn a_5xx_is_retried_and_a_403_is_not() {
-        crate::test_host::need_loopback!();
-        let (url, count) = scripted(vec![
-            (500, "Retry-After: 0\r\n", ""),
-            (502, "Retry-After: 0\r\n", ""),
-            (503, "Retry-After: 0\r\n", ""),
-            (200, "", OK_BODY),
-        ]);
-        provision(&url, AuthMode::Public, "t", TO, BUDGET)
-            .await
-            .unwrap();
-        assert_eq!(hits(&count), 4);
-
-        let (url, count) = scripted(vec![(403, "", "forbidden\u{1b}[2J\u{7}\rnow")]);
-        let err = provision(&url, AuthMode::Public, "t", TO, BUDGET)
-            .await
-            .unwrap_err();
-        assert_eq!(hits(&count), 1);
-        let text = err.to_string();
-        assert!(text.ends_with("HTTP 403: forbiddennow"), "{text:?}");
-    }
-
-    #[test]
-    fn retry_after_values() {
-        let secs = std::time::Duration::from_secs;
-        assert_eq!(parse_retry_after("120"), Some(secs(120)));
-        assert_eq!(
-            parse_retry_after("Sun, 06 Nov 1994 08:49:37 GMT"),
-            Some(std::time::Duration::ZERO)
-        );
-        let later = crate::trust::unix_secs(std::time::SystemTime::now()) + 3600;
-        let wait = parse_retry_after(&pod_core::clock::http_date(later)).unwrap();
-        assert!(wait.as_secs() > 3590 && wait.as_secs() <= 3600, "{wait:?}");
-        assert_eq!(parse_retry_after("soon"), None);
-    }
-
-    /// A response captured from a real `POST https://api.trycloudflare.com/tunnel`
-    /// run against the live service on 2026-10-09. The values are real but the
-    /// tunnel is long dead; only the shape matters to these tests.
-    const REAL_RESPONSE: &str = r#"{
-  "id": "c1267064-5604-4d16-9a83-66b7ed37f182",
-  "name": "operator-icon-sheffield-compression",
-  "hostname": "operator-icon-sheffield-compression.trycloudflare.com",
-  "account_tag": "5ab4e9dfbd435d24068829fda0077963",
-  "secret": "GlUwcZAOuFFaHRtTTFqbk1WVmpWMHFzOGdSSUthbG1K",
-  "success": true,
-  "result": {
-    "id": "c1267064-5604-4d16-9a83-66b7ed37f182",
-    "name": "operator-icon-sheffield-compression",
-    "hostname": "operator-icon-sheffield-compression.trycloudflare.com",
-    "account_tag": "5ab4e9dfbd435d24068829fda0077963",
-    "secret": "GlUwcZAOuFFaHRtTTFqbk1WVmpWMHFzOGdSSUthbG1K"
-  },
-  "errors": [],
-  "messages": []
-}"#;
-
-    #[test]
-    fn parses_a_real_provisioning_response() {
-        let tunnel = parse_quick_tunnel_response(200, REAL_RESPONSE).expect("should parse");
-        assert_eq!(
-            tunnel.hostname,
-            "operator-icon-sheffield-compression.trycloudflare.com"
-        );
-        assert_eq!(
-            tunnel.url(),
-            "https://operator-icon-sheffield-compression.trycloudflare.com"
-        );
-        assert_eq!(tunnel.id, "c1267064-5604-4d16-9a83-66b7ed37f182");
-        assert_eq!(
-            tunnel.account_tag.len(),
-            32,
-            "account tag is a 32-char hex string"
-        );
-    }
-
-    #[test]
-    fn secret_decodes_to_the_documented_32_bytes() {
-        let tunnel = parse_quick_tunnel_response(200, REAL_RESPONSE).expect("should parse");
-        let bytes = tunnel.secret_bytes().expect("secret should be base64");
-        // cloudflared treats this as TunnelSecret and puts it on the wire raw.
-        assert_eq!(bytes.len(), 32, "tunnel secret must be 32 raw bytes");
-    }
-
-    #[test]
-    fn hostname_is_a_trycloudflare_subdomain() {
-        let tunnel = parse_quick_tunnel_response(200, REAL_RESPONSE).expect("should parse");
-        assert!(
-            tunnel.hostname.ends_with(".trycloudflare.com"),
-            "quick tunnel hostnames are under trycloudflare.com: {}",
-            tunnel.hostname
-        );
-        let label = tunnel
-            .hostname
-            .strip_suffix(".trycloudflare.com")
-            .expect("suffix checked above");
-        assert!(!label.is_empty(), "there must be a leading label");
-        assert!(
-            label.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'),
-            "the label must be ascii alphanumerics and hyphens: {label}"
-        );
-        assert!(
-            !tunnel.hostname.contains('/'),
-            "hostname must not carry a scheme or path"
-        );
-    }
-
-    #[test]
-    fn rejects_a_success_false_envelope() {
-        let body = r#"{"success":false,"result":null,"errors":[{"code":1001,"message":"nope"}]}"#;
-        match parse_quick_tunnel_response(200, body) {
-            Err(ProvisionError::Service(errs)) => {
-                assert_eq!(errs.len(), 1);
-                assert_eq!(errs[0].code, 1001);
-                assert_eq!(errs[0].message, "nope");
-            }
-            other => panic!("expected Service error, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn rejects_success_with_no_result() {
-        let body = r#"{"success":true,"errors":[]}"#;
-        match parse_quick_tunnel_response(200, body) {
-            Err(ProvisionError::MissingResult) => {}
-            other => panic!("expected MissingResult, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn rejects_a_non_2xx_status() {
-        match parse_quick_tunnel_response(403, "forbidden") {
-            Err(ProvisionError::Status { code, .. }) => assert_eq!(code, 403),
-            other => panic!("expected Status error, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn rejects_malformed_json() {
-        match parse_quick_tunnel_response(200, "not json at all") {
-            Err(ProvisionError::Decode(_)) => {}
-            other => panic!("expected Decode error, got {other:?}"),
-        }
-    }
-
-    #[test]
-    fn public_mode_sends_an_empty_body_and_otp_sends_the_auth_mode() {
-        assert_eq!(AuthMode::Public.request_body(), None);
-        assert_eq!(AuthMode::Otp.request_body(), Some(r#"{"auth_mode":"otp"}"#));
-    }
-
-    const T: std::time::Duration = std::time::Duration::from_secs(5);
-
-    #[tokio::test]
-    async fn endpoint_must_be_an_absolute_http_url() {
-        let err = request_quick_tunnel("ftp://example.com", AuthMode::Public, "t", T, None)
-            .await
-            .unwrap_err();
-        assert!(matches!(err, ProvisionError::BadEndpoint(_)), "got {err:?}");
-    }
-
-    #[tokio::test]
-    async fn trailing_slash_on_the_endpoint_is_not_doubled() {
-        let err = request_quick_tunnel("not-a-url/", AuthMode::Public, "t", T, None)
-            .await
-            .unwrap_err();
-        match err {
-            ProvisionError::BadEndpoint(url) => {
-                assert!(url.ends_with("/tunnel"), "unexpected url {url}");
-                assert!(!url.contains("//tunnel"), "double slash in {url}");
-            }
-            other => panic!("expected BadEndpoint, got {other:?}"),
-        }
-    }
-
-    #[tokio::test]
-    async fn a_closed_proxy_is_a_transport_failure() {
-        let proxy = crate::egress::Proxy::parse("127.0.0.1:1").unwrap();
-        let err = request_quick_tunnel(
-            "https://api.trycloudflare.com",
-            AuthMode::Public,
-            "t",
-            T,
-            Some(&proxy),
-        )
-        .await
-        .unwrap_err();
-        assert!(
-            matches!(err, ProvisionError::Http(_) | ProvisionError::Status { .. }),
-            "expected a transport failure, got {err:?}"
-        );
-    }
-}
+mod tests;

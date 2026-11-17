@@ -39,24 +39,18 @@ pub mod stream;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
-#[allow(unused_imports)]
-use std::time::Duration;
 
 /// The edge's endpoint of the transport `role` (`quic`, `h2`): the first of
 /// the role of `cloudflare-tunnel-edge` (`pod-services`).
 fn edge_endpoint(role: &str) -> &'static crate::services::Endpoint {
     let endpoints = crate::services::endpoints_of(crate::services::EDGE, role);
-    endpoints
-        .first()
-        .copied()
-        .unwrap_or_else(|| panic!("the edge of pod-services has no role {role}"))
+    endpoints.first().copied().unwrap_or_else(|| panic!("the edge of pod-services has no role {role}"))
 }
 
 /// ALPN for the QUIC transport: the ALPN of the role `quic`.
 pub fn quic_alpn() -> &'static [u8] {
     let alpn = edge_endpoint("quic").alpn();
-    alpn.first()
-        .map_or(b"argotunnel".as_slice(), |a| a.as_bytes())
+    alpn.first().map_or(b"argotunnel".as_slice(), |a| a.as_bytes())
 }
 
 /// SNI for the QUIC transport. Deliberately not the same as [`quic_alpn`].
@@ -118,9 +112,7 @@ impl Protocol {
             "auto" | "" => Ok(Protocol::Auto),
             "quic" => Ok(Protocol::Quic),
             "http2" | "h2" => Ok(Protocol::Http2),
-            other => Err(format!(
-                "unknown protocol {other:?}; expected auto, quic or http2"
-            )),
+            other => Err(format!("unknown protocol {other:?}; expected auto, quic or http2")),
         }
     }
 
@@ -188,11 +180,7 @@ impl EdgeAddr {
         Self {
             ip: socket.ip(),
             port: socket.port(),
-            version: if socket.is_ipv4() {
-                EdgeIpVersion::V4
-            } else {
-                EdgeIpVersion::V6
-            },
+            version: if socket.is_ipv4() { EdgeIpVersion::V4 } else { EdgeIpVersion::V6 },
             region: 0,
         }
     }
@@ -259,8 +247,7 @@ fn parse_uuid(s: &str) -> Result<[u8; 16], String> {
     }
     let mut out = [0u8; 16];
     for i in 0..16 {
-        out[i] = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16)
-            .map_err(|e| format!("bad hex in uuid {s:?}: {e}"))?;
+        out[i] = u8::from_str_radix(&hex[i * 2..i * 2 + 2], 16).map_err(|e| format!("bad hex in uuid {s:?}: {e}"))?;
     }
     Ok(out)
 }
@@ -291,19 +278,17 @@ impl std::fmt::Display for EdgeError {
 
 impl std::error::Error for EdgeError {}
 
-/// Build a rustls client config for the edge.
+/// Build a rustls client config for the edge, over the roots and the
+/// provider of `tls`.
 ///
 /// The embedded Cloudflare roots are added alongside the platform's, because
 /// the edge presents a certificate that chains to internal CAs. `alpn` is
 /// empty for the HTTP/2 transport, which cloudflared relies on: the edge
 /// initiates every stream, so negotiating `h2` changes the handshake shape and
 /// breaks it.
-pub fn edge_tls_config(alpn: &[u8]) -> Result<Arc<rustls::ClientConfig>, String> {
+pub fn edge_tls_config(tls: &pod_tls::Context, alpn: &[u8]) -> Result<Arc<rustls::ClientConfig>, String> {
     let alpns: &[&[u8]] = if alpn.is_empty() { &[] } else { &[alpn] };
-    crate::trust::context()
-        .client_config_with(&[edge_roots_pem()], alpns)
-        .map(Arc::new)
-        .map_err(|e| format!("{e:#}"))
+    tls.client_config_with(&[edge_roots_pem()], alpns).map(Arc::new).map_err(|e| format!("{e:#}"))
 }
 
 #[cfg(test)]
@@ -323,33 +308,15 @@ mod tests {
             at("[2606:4700:a0::1]:7844", 0),
             at("[2606:4700:a8::1]:7844", 1),
         ];
-        let ips = |index: u8| -> Vec<String> {
-            for_connection(&edges, index)
-                .iter()
-                .map(|e| e.ip.to_string())
-                .collect()
-        };
+        let ips =
+            |index: u8| -> Vec<String> { for_connection(&edges, index).iter().map(|e| e.ip.to_string()).collect() };
         assert_eq!(
             ips(0),
-            [
-                "198.41.192.1",
-                "198.41.192.2",
-                "198.41.200.1",
-                "198.41.200.2",
-                "2606:4700:a0::1",
-                "2606:4700:a8::1"
-            ]
+            ["198.41.192.1", "198.41.192.2", "198.41.200.1", "198.41.200.2", "2606:4700:a0::1", "2606:4700:a8::1"]
         );
         assert_eq!(
             ips(1),
-            [
-                "198.41.200.1",
-                "198.41.200.2",
-                "198.41.192.1",
-                "198.41.192.2",
-                "2606:4700:a8::1",
-                "2606:4700:a0::1"
-            ]
+            ["198.41.200.1", "198.41.200.2", "198.41.192.1", "198.41.192.2", "2606:4700:a8::1", "2606:4700:a0::1"]
         );
         assert_eq!(ips(2), ips(0));
         assert_eq!(ips(3), ips(1));
@@ -385,10 +352,7 @@ mod tests {
     fn auto_tries_quic_first_then_falls_back_to_http2() {
         // QUIC first because it is faster where it works; HTTP/2 second because
         // it is the only option when UDP is blocked.
-        assert_eq!(
-            Protocol::Auto.candidates(),
-            vec![Protocol::Quic, Protocol::Http2]
-        );
+        assert_eq!(Protocol::Auto.candidates(), vec![Protocol::Quic, Protocol::Http2]);
         assert_eq!(Protocol::Quic.candidates(), vec![Protocol::Quic]);
         assert_eq!(Protocol::Http2.candidates(), vec![Protocol::Http2]);
     }
@@ -420,15 +384,11 @@ mod tests {
 
     #[test]
     fn an_edge_tls_config_builds_for_both_transports() {
-        assert!(
-            edge_tls_config(quic_alpn()).is_ok(),
-            "QUIC config should build with the argotunnel ALPN"
-        );
+        let tls = crate::testing::tls();
+        let edge_tls_config = |alpn: &[u8]| edge_tls_config(&tls, alpn);
+        assert!(edge_tls_config(quic_alpn()).is_ok(), "QUIC config should build with the argotunnel ALPN");
         let h2 = edge_tls_config(&[]).expect("h2 config");
-        assert!(
-            h2.alpn_protocols.is_empty(),
-            "the HTTP/2 transport must send no ALPN"
-        );
+        assert!(h2.alpn_protocols.is_empty(), "the HTTP/2 transport must send no ALPN");
         let quic = edge_tls_config(quic_alpn()).expect("quic config");
         assert_eq!(quic.alpn_protocols, vec![b"argotunnel".to_vec()]);
     }

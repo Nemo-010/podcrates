@@ -13,9 +13,7 @@ pub fn parse_retry_after(value: &str) -> Option<std::time::Duration> {
         return None;
     }
     let day: i64 = parts[1].parse().ok()?;
-    const MONTHS: [&str; 12] = [
-        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-    ];
+    const MONTHS: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
     let month = MONTHS.iter().position(|m| *m == parts[2])? as i64 + 1;
     let year: i64 = parts[3].parse().ok()?;
     let hms: Vec<i64> = parts[4].split(':').filter_map(|p| p.parse().ok()).collect();
@@ -23,27 +21,20 @@ pub fn parse_retry_after(value: &str) -> Option<std::time::Duration> {
         return None;
     }
     // Days from 1970-01-01 (the algorithm of H. Hinnant).
-    let (y, m) = if month <= 2 {
-        (year - 1, month + 9)
-    } else {
-        (year, month - 3)
-    };
+    let (y, m) = if month <= 2 { (year - 1, month + 9) } else { (year, month - 3) };
     let era = y.div_euclid(400);
     let yoe = y - era * 400;
     let doy = (153 * m + 2) / 5 + day - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
     let days = era * 146_097 + doe - 719_468;
     let at = days * 86_400 + hms[0] * 3600 + hms[1] * 60 + hms[2];
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .ok()?
-        .as_secs() as i64;
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_secs() as i64;
     Some(std::time::Duration::from_secs((at - now).max(0) as u64))
 }
 
 /// True for a transport error at the hop `dns`.
 pub(super) fn is_dns(err: &anyhow::Error) -> bool {
-    crate::hop::of(err) == Some(crate::hop::Hop::Dns)
+    crate::fail::stage_of(err) == Some(pod_core::Stage::Dns)
 }
 
 /// The state of the retries of a failure at name resolution.
@@ -57,15 +48,9 @@ impl Dns {
     /// True when a retry can help: the first failure is tried once more;
     /// after it, only a change of the step of the resolver chain that
     /// answers for the host of `endpoint` gives a new try.
-    pub(super) async fn again(&mut self, endpoint: &str) -> bool {
-        let host = endpoint
-            .split("://")
-            .nth(1)
-            .unwrap_or(endpoint)
-            .split(['/', ':'])
-            .next()
-            .unwrap_or("");
-        let step = crate::resolve::answering_step(host).await;
+    pub(super) async fn again(&mut self, host: &crate::Host, endpoint: &str) -> bool {
+        let name = endpoint.split("://").nth(1).unwrap_or(endpoint).split(['/', ':']).next().unwrap_or("");
+        let step = host.answering_step(name).await;
         self.decide(step)
     }
 

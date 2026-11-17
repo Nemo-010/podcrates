@@ -6,12 +6,24 @@ pub mod cloudflare;
 pub mod config;
 pub mod edge_discovery;
 pub mod edge_h2;
-#[cfg(feature = "fuzzing")]
+pub mod fail;
+#[cfg(any(test, feature = "fuzzing"))]
 pub mod fuzzing;
+pub mod host;
 pub mod ingress;
+pub mod metrics;
+pub mod origin;
 pub mod proxy;
 pub mod quicktunnel;
 pub mod race;
+pub mod services;
+pub mod text;
 pub mod tunnel;
+pub mod udp;
 pub mod ws;
 pub mod yaml;
+
+pub use host::{Host, ServiceDispatch, Settings};
+
+#[cfg(test)]
+mod testing;

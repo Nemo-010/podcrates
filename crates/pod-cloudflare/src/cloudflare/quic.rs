@@ -46,9 +46,8 @@ pub use super::MAX_EDGE_STREAMS;
 /// the first UDP payload size.
 pub fn transport_config(initial_mtu: u16) -> TransportConfig {
     let mut transport = TransportConfig::default();
-    transport.max_idle_timeout(Some(
-        noq::IdleTimeout::try_from(MAX_IDLE_TIMEOUT).expect("30 s is a valid idle timeout"),
-    ));
+    transport
+        .max_idle_timeout(Some(noq::IdleTimeout::try_from(MAX_IDLE_TIMEOUT).expect("30 s is a valid idle timeout")));
     transport.keep_alive_interval(Some(KEEP_ALIVE_INTERVAL));
     transport.initial_mtu(initial_mtu);
     transport.max_concurrent_bidi_streams(MAX_EDGE_STREAMS.into());
@@ -60,13 +59,13 @@ pub fn transport_config(initial_mtu: u16) -> TransportConfig {
 /// Split out from [`client_config`] so the ALPN and the trust roots can be
 /// asserted on directly: noq's own config has no getters, so a test that
 /// reads back a noq config would prove nothing.
-pub fn tls_config() -> Result<Arc<rustls::ClientConfig>, EdgeError> {
-    super::edge_tls_config(super::quic_alpn()).map_err(EdgeError::Connect)
+pub fn tls_config(tls: &pod_tls::Context) -> Result<Arc<rustls::ClientConfig>, EdgeError> {
+    super::edge_tls_config(tls, super::quic_alpn()).map_err(EdgeError::Connect)
 }
 
 /// Build a noq client config for the edge.
-pub fn client_config() -> Result<ClientConfig, EdgeError> {
-    let tls = tls_config()?;
+pub fn client_config(tls: &pod_tls::Context) -> Result<ClientConfig, EdgeError> {
+    let tls = tls_config(tls)?;
 
     let quic_tls = noq::crypto::rustls::QuicClientConfig::try_from(tls)
         .map_err(|e| EdgeError::Connect(format!("quic tls config: {e}")))?;
@@ -82,22 +81,20 @@ pub fn client_config() -> Result<ClientConfig, EdgeError> {
 }
 
 /// Make a client endpoint on an ephemeral UDP port, with the edge client
-/// configuration.
-pub fn build_endpoint() -> anyhow::Result<Endpoint> {
+/// configuration over the roots and the provider of `tls`.
+pub fn build_endpoint(tls: &pod_tls::Context) -> anyhow::Result<Endpoint> {
     let bind: std::net::SocketAddr = "[::]:0".parse().expect("a valid address");
     let endpoint = match pod_quic::endpoint::bind(bind) {
         Ok(endpoint) => endpoint,
         // A host without IPv6 refuses `[::]`; use IPv4 only.
-        Err(_) => pod_quic::endpoint::bind("0.0.0.0:0".parse().expect("a valid address")).map_err(
-            |e| {
-                anyhow::anyhow!(
-                    "could not open a local UDP socket: {e}. QUIC needs UDP; \
+        Err(_) => pod_quic::endpoint::bind("0.0.0.0:0".parse().expect("a valid address")).map_err(|e| {
+            anyhow::anyhow!(
+                "could not open a local UDP socket: {e}. QUIC needs UDP; \
                  where it is blocked, use --protocol http2"
-                )
-            },
-        )?,
+            )
+        })?,
     };
-    endpoint.set_default_client_config(client_config().map_err(|e| anyhow::anyhow!("{e}"))?);
+    endpoint.set_default_client_config(client_config(tls).map_err(|e| anyhow::anyhow!("{e}"))?);
     Ok(endpoint)
 }
 
@@ -148,12 +145,8 @@ pub(crate) mod testing {
     }
 
     pub async fn local_pair() -> Pair {
-        crate::init_crypto();
         let key = rcgen::KeyPair::generate().unwrap();
-        let cert = rcgen::CertificateParams::new(vec!["edge.test".to_string()])
-            .unwrap()
-            .self_signed(&key)
-            .unwrap();
+        let cert = rcgen::CertificateParams::new(vec!["edge.test".to_string()]).unwrap().self_signed(&key).unwrap();
         let key_der = rustls::pki_types::PrivateKeyDer::Pkcs8(key.serialize_der().into());
         let mut server_tls = rustls::ServerConfig::builder()
             .with_no_client_auth()
@@ -167,23 +160,15 @@ pub(crate) mod testing {
         )
         .unwrap();
         let addr = server.local_addr().unwrap();
-        let tls = crate::trust::context()
-            .client_config_with(&[cert.pem().as_bytes()], &[b"podnet-test"])
-            .unwrap();
+        let tls = crate::testing::tls().client_config_with(&[cert.pem().as_bytes()], &[b"podnet-test"]).unwrap();
         let crypto = noq::crypto::rustls::QuicClientConfig::try_from(tls).unwrap();
         let mut config = ClientConfig::new(Arc::new(crypto));
         config.transport_config(Arc::new(transport_config(1252)));
         let client = pod_quic::endpoint::bind("127.0.0.1:0".parse().unwrap()).unwrap();
         let connecting = client.connect_with(config, addr, "edge.test").unwrap();
-        let (edge, client_conn) = tokio::join!(
-            async { server.accept().await.unwrap().await.unwrap() },
-            async { connecting.await.unwrap() }
-        );
-        Pair {
-            edge,
-            client: client_conn,
-            _endpoints: (server, client),
-        }
+        let (edge, client_conn) =
+            tokio::join!(async { server.accept().await.unwrap().await.unwrap() }, async { connecting.await.unwrap() });
+        Pair { edge, client: client_conn, _endpoints: (server, client) }
     }
 }
 
@@ -196,7 +181,7 @@ mod tests {
     /// default of noq (100), the stream after the 100th waits.
     #[tokio::test]
     async fn the_edge_can_open_200_streams_at_the_same_time() {
-        crate::test_host::need_loopback!();
+        pod_testkit::need_loopback!();
         let pair = testing::local_pair().await;
         let edge = pair.edge.clone();
         let opener = tokio::spawn(async move {
@@ -229,15 +214,12 @@ mod tests {
     fn alpn_and_sni_are_distinct() {
         assert_eq!(super::super::quic_alpn(), b"argotunnel");
         assert_eq!(super::super::quic_sni(), "quic.cftunnel.com");
-        assert_ne!(
-            super::super::quic_sni().as_bytes(),
-            super::super::quic_alpn()
-        );
+        assert_ne!(super::super::quic_sni().as_bytes(), super::super::quic_alpn());
     }
 
     #[test]
     fn the_quic_tls_config_offers_exactly_the_argotunnel_alpn() {
-        let tls = tls_config().expect("quic tls config");
+        let tls = tls_config(&crate::testing::tls()).expect("quic tls config");
         assert_eq!(
             tls.alpn_protocols,
             vec![b"argotunnel".to_vec()],
@@ -250,6 +232,6 @@ mod tests {
         // The failure this catches is real: rustls 0.23 and noq disagree
         // about crypto provider versions, and noq's try_from is where that
         // surfaces, with an error that reads as a TLS problem at handshake.
-        client_config().expect("noq accepts the edge tls config");
+        client_config(&crate::testing::tls()).expect("noq accepts the edge tls config");
     }
 }

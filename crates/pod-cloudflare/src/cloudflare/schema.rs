@@ -3,7 +3,7 @@
 //! Proto layout rules. Offsets are in elements of the field type: a `u8` at
 //! index 1 is byte 1, a `u16` at index 1 is bytes 2 and 3.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use uuid::Uuid;
 
 use super::capnp::{Builder, StructReader};
@@ -58,11 +58,20 @@ pub struct ConnectionOptions {
     pub num_previous_attempts: u8,
 }
 
+/// A random version 4 UUID for the client. The id only names the client to
+/// the edge; a failure of the system source keeps zero bytes in the random
+/// part.
+fn client_id() -> Uuid {
+    let mut bytes = [0u8; 16];
+    let _ = pod_core::entropy::Entropy::fill(&mut pod_core::entropy::OsEntropy, &mut bytes);
+    uuid::Builder::from_random_bytes(bytes).into_uuid()
+}
+
 impl ConnectionOptions {
     /// The options of a new connection. The features are [`FEATURES`].
     pub fn default_for_quick_tunnel(version: &str) -> Self {
         Self {
-            client_id: *Uuid::new_v4().as_bytes(),
+            client_id: *client_id().as_bytes(),
             features: FEATURES.map(String::from).to_vec(),
             version: version.to_string(),
             arch: format!("{}-{}", std::env::consts::OS, std::env::consts::ARCH),
@@ -128,13 +137,9 @@ pub fn write_register_params(
 pub fn read_register_results(
     results: &StructReader<'_>,
 ) -> Result<std::result::Result<RegistrationDetails, ConnectionError>> {
-    let response = results
-        .get_struct(0)?
-        .context("registerConnection returned no result")?;
+    let response = results.get_struct(0)?.context("registerConnection returned no result")?;
     // ConnectionResponse: 1 data word, 1 pointer; union tag u16 at index 0.
-    let body = response
-        .get_struct(0)?
-        .context("the ConnectionResponse is empty")?;
+    let body = response.get_struct(0)?.context("the ConnectionResponse is empty")?;
     match response.get_u16(0) {
         0 => Ok(Err(ConnectionError {
             cause: body.get_text(0)?,
@@ -197,19 +202,11 @@ pub struct ConnectRequest {
 impl ConnectRequest {
     /// The value of the first metadata entry with this key.
     pub fn meta(&self, key: &str) -> Option<&str> {
-        self.metadata
-            .iter()
-            .find(|(k, _)| k == key)
-            .map(|(_, v)| v.as_str())
+        self.metadata.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
     }
 }
 
-fn write_metadata(
-    b: &mut Builder,
-    parent: super::capnp::StructRef,
-    index: u16,
-    items: &[(String, String)],
-) {
+fn write_metadata(b: &mut Builder, parent: super::capnp::StructRef, index: u16, items: &[(String, String)]) {
     // Metadata: 0 data words, 2 pointers (key, val).
     let list = b.init_struct_list(parent, index, items.len(), 0, 2);
     for (entry, (key, val)) in list.into_iter().zip(items) {
@@ -219,11 +216,7 @@ fn write_metadata(
 }
 
 fn read_metadata(parent: &StructReader<'_>, index: u16) -> Result<Vec<(String, String)>> {
-    parent
-        .get_struct_list(index)?
-        .iter()
-        .map(|entry| Ok((entry.get_text(0)?, entry.get_text(1)?)))
-        .collect()
+    parent.get_struct_list(index)?.iter().map(|entry| Ok((entry.get_text(0)?, entry.get_text(1)?))).collect()
 }
 
 /// Encode a `ConnectRequest` message.
@@ -270,17 +263,11 @@ mod tests {
         let request = ConnectRequest {
             dest: "https://x.trycloudflare.com/a?b=c".into(),
             conn_type: ConnectionType::Websocket,
-            metadata: vec![
-                ("HttpMethod".into(), "GET".into()),
-                ("HttpHeader:Host".into(), "x".into()),
-            ],
+            metadata: vec![("HttpMethod".into(), "GET".into()), ("HttpHeader:Host".into(), "x".into())],
         };
         let bytes = encode_connect_request(&request);
         let (msg, _) = Message::parse(&bytes).unwrap().unwrap();
-        assert_eq!(
-            decode_connect_request(&msg.root().unwrap()).unwrap(),
-            request
-        );
+        assert_eq!(decode_connect_request(&msg.root().unwrap()).unwrap(), request);
     }
 
     #[test]
@@ -296,9 +283,7 @@ mod tests {
         b.set_text(details, 1, "bom12");
         b.set_bool(details, 0, true);
         let (msg, _) = Message::parse(&b.to_bytes()).unwrap().unwrap();
-        let got = read_register_results(&msg.root().unwrap())
-            .unwrap()
-            .unwrap();
+        let got = read_register_results(&msg.root().unwrap()).unwrap().unwrap();
         assert_eq!(got.uuid, uuid);
         assert_eq!(got.location, "bom12");
         assert!(got.tunnel_is_remotely_managed);
@@ -313,9 +298,7 @@ mod tests {
         b.set_u64(error, 0, 5_000_000_000);
         b.set_bool(error, 64, true);
         let (msg, _) = Message::parse(&b.to_bytes()).unwrap().unwrap();
-        let got = read_register_results(&msg.root().unwrap())
-            .unwrap()
-            .unwrap_err();
+        let got = read_register_results(&msg.root().unwrap()).unwrap().unwrap_err();
         assert_eq!(got.cause, "duplicate");
         assert_eq!(got.retry_after, 5_000_000_000);
         assert!(got.should_retry);
@@ -323,15 +306,9 @@ mod tests {
 
     #[test]
     fn register_params_have_the_schema_layout() {
-        let auth = TunnelAuth {
-            account_tag: "acct".into(),
-            tunnel_secret: vec![9; 32],
-        };
+        let auth = TunnelAuth { account_tag: "acct".into(), tunnel_secret: vec![9; 32] };
         let options = ConnectionOptions::default_for_quick_tunnel("podnet/test");
-        assert!(options
-            .features
-            .iter()
-            .all(|f| !DEPRECATED_FEATURES.contains(&f.as_str())));
+        assert!(options.features.iter().all(|f| !DEPRECATED_FEATURES.contains(&f.as_str())));
         let tunnel = Uuid::new_v4();
         let mut b = Builder::new();
         let holder = b.init_root(0, 1);

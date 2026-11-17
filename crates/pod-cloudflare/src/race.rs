@@ -11,9 +11,9 @@ use std::time::Duration;
 use tokio::time::Instant;
 
 use anyhow::Error;
+use futures::FutureExt;
 use futures::future::BoxFuture;
 use futures::stream::{FuturesUnordered, StreamExt};
-use futures::FutureExt;
 
 /// The way to start the next attempt.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -130,12 +130,7 @@ pub async fn race<'a, 'c, T: Send + 'a>(
                     close(i, loser).await;
                 }
                 failures.sort_by_key(|(i, _)| *i);
-                return Ok(Won {
-                    index,
-                    value,
-                    after: start.elapsed(),
-                    failures,
-                });
+                return Ok(Won { index, value, after: start.elapsed(), failures });
             }
         }
     }
@@ -144,8 +139,8 @@ pub async fn race<'a, 'c, T: Send + 'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     fn never() -> BoxFuture<'static, anyhow::Result<u32>> {
         futures::future::pending().boxed()
@@ -173,24 +168,17 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn a_silent_attempt_costs_one_stagger() {
-        let won = race(
-            vec![never(), after(100, 2)],
-            Failover::Staggered(Duration::from_secs(2)),
-            no_close,
-        )
-        .await
-        .ok()
-        .unwrap();
+        let won = race(vec![never(), after(100, 2)], Failover::Staggered(Duration::from_secs(2)), no_close)
+            .await
+            .ok()
+            .unwrap();
         assert_eq!((won.index, won.value), (1, 2));
         assert_eq!(won.after, Duration::from_millis(2100));
     }
 
     #[tokio::test(start_paused = true)]
     async fn serial_waits_for_the_failure() {
-        let won = race(vec![fail(8000), after(100, 2)], Failover::Serial, no_close)
-            .await
-            .ok()
-            .unwrap();
+        let won = race(vec![fail(8000), after(100, 2)], Failover::Serial, no_close).await.ok().unwrap();
         assert_eq!(won.index, 1);
         assert_eq!(won.after, Duration::from_millis(8100));
         assert_eq!(won.failures.len(), 1);
@@ -198,14 +186,10 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn a_failure_starts_the_next_attempt_at_once() {
-        let won = race(
-            vec![fail(300), after(100, 2)],
-            Failover::Staggered(Duration::from_secs(2)),
-            no_close,
-        )
-        .await
-        .ok()
-        .unwrap();
+        let won = race(vec![fail(300), after(100, 2)], Failover::Staggered(Duration::from_secs(2)), no_close)
+            .await
+            .ok()
+            .unwrap();
         assert_eq!(won.after, Duration::from_millis(400));
     }
 
@@ -216,42 +200,32 @@ mod tests {
         let closed = Arc::new(AtomicUsize::new(0));
         let seen = closed.clone();
         // Attempt 1 starts at 1 s and ends at 3 s; attempt 0 ends at 3 s.
-        let won = race(
-            vec![after(3000, 10), after(2000, 11)],
-            Failover::Staggered(Duration::from_secs(1)),
-            move |i, v| {
+        let won =
+            race(vec![after(3000, 10), after(2000, 11)], Failover::Staggered(Duration::from_secs(1)), move |i, v| {
                 assert_eq!((i, v), (1, 11));
                 seen.fetch_add(1, Ordering::SeqCst);
                 async {}.boxed()
-            },
-        )
-        .await
-        .ok()
-        .unwrap();
+            })
+            .await
+            .ok()
+            .unwrap();
         assert_eq!((won.index, won.value), (0, 10));
         assert_eq!(closed.load(Ordering::SeqCst), 1, "the loser was not closed");
     }
 
     #[tokio::test(start_paused = true)]
     async fn all_failures_are_given_in_order() {
-        let failures = race(
-            vec![fail(500), fail(100)],
-            Failover::Staggered(Duration::from_millis(50)),
-            no_close,
-        )
-        .await
-        .err()
-        .unwrap();
+        let failures = race(vec![fail(500), fail(100)], Failover::Staggered(Duration::from_millis(50)), no_close)
+            .await
+            .err()
+            .unwrap();
         assert_eq!(failures.iter().map(|(i, _)| *i).collect::<Vec<_>>(), [0, 1]);
     }
 
     #[test]
     fn parse() {
         assert_eq!(Failover::parse("serial").unwrap(), Failover::Serial);
-        assert_eq!(
-            Failover::parse("Staggered").unwrap(),
-            Failover::Staggered(LEG_STAGGER)
-        );
+        assert_eq!(Failover::parse("Staggered").unwrap(), Failover::Staggered(LEG_STAGGER));
         assert!(Failover::parse("parallel").is_err());
     }
 }

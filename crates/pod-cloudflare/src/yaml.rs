@@ -19,7 +19,7 @@
 //! A document that nests deeper than [`MAX_DEPTH`] levels is an error: the
 //! reader is recursive, and a deep file must not overflow the stack.
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use serde_json::{Map, Number, Value};
 
 /// The most levels of nested mappings and sequences (issue 231). A
@@ -55,11 +55,7 @@ pub fn parse(text: &str) -> Result<Value> {
         if lead.is_empty() && (trimmed == "---" || trimmed == "...") {
             continue;
         }
-        lines.push(Line {
-            number,
-            indent: lead.len(),
-            text: trimmed,
-        });
+        lines.push(Line { number, indent: lead.len(), text: trimmed });
     }
     if lines.is_empty() {
         return Ok(Value::Null);
@@ -166,10 +162,10 @@ fn node(lines: &[Line], pos: &mut usize, indent: usize, depth: usize) -> Result<
     } else {
         *pos += 1;
         let value = scalar(line.text, line.number)?;
-        if let Some(next) = lines.get(*pos) {
-            if next.indent > indent {
-                bail!("line {}: a scalar has no children", next.number);
-            }
+        if let Some(next) = lines.get(*pos)
+            && next.indent > indent
+        {
+            bail!("line {}: a scalar has no children", next.number);
         }
         Ok(value)
     }
@@ -204,13 +200,7 @@ fn sequence(lines: &[Line], pos: &mut usize, indent: usize, depth: usize) -> Res
             bail!("line {}: a nested sequence on one line", line.number);
         }
         if let Some((key, value)) = split_key(rest, line.number)? {
-            items.push(mapping(
-                lines,
-                pos,
-                column,
-                Some((key, value, line.number)),
-                depth + 1,
-            )?);
+            items.push(mapping(lines, pos, column, Some((key, value, line.number)), depth + 1)?);
         } else {
             *pos += 1;
             items.push(scalar(rest, line.number)?);
@@ -237,13 +227,7 @@ fn mapping(
     first: Option<(String, &str, usize)>,
     depth: usize,
 ) -> Result<Value> {
-    check_depth(
-        depth,
-        first
-            .as_ref()
-            .map(|f| f.2)
-            .unwrap_or_else(|| lines[*pos].number),
-    )?;
+    check_depth(depth, first.as_ref().map(|f| f.2).unwrap_or_else(|| lines[*pos].number))?;
     let mut map = Map::new();
     let mut pending = first;
     loop {
@@ -269,17 +253,15 @@ fn mapping(
             match lines.get(*pos) {
                 Some(next) if next.indent > indent => node(lines, pos, next.indent, depth + 1)?,
                 // A sequence may have the indentation of its key.
-                Some(next) if next.indent == indent && is_item(next.text) => {
-                    sequence(lines, pos, indent, depth + 1)?
-                }
+                Some(next) if next.indent == indent && is_item(next.text) => sequence(lines, pos, indent, depth + 1)?,
                 _ => Value::Null,
             }
         } else {
             let v = scalar(value, number)?;
-            if let Some(next) = lines.get(*pos) {
-                if next.indent > indent {
-                    bail!("line {}: a scalar has no children", next.number);
-                }
+            if let Some(next) = lines.get(*pos)
+                && next.indent > indent
+            {
+                bail!("line {}: a scalar has no children", next.number);
             }
             v
         };
@@ -301,9 +283,7 @@ fn split_key(text: &str, number: usize) -> Result<Option<(String, &str)>> {
         if !(after.is_empty() || after.starts_with(' ')) {
             return Ok(None);
         }
-        let Value::String(key) = scalar(&text[..end], number)? else {
-            unreachable!("a quoted scalar is a string")
-        };
+        let Value::String(key) = scalar(&text[..end], number)? else { unreachable!("a quoted scalar is a string") };
         return Ok(Some((key, after.trim_start())));
     }
     let bytes = text.as_bytes();
@@ -345,10 +325,7 @@ fn check_plain(text: &str, number: usize) -> Result<()> {
             bail!("line {number}: flow collections are not supported (only [] and {{}})")
         }
         Some('@') | Some('`') | Some('%') => {
-            bail!(
-                "line {number}: a plain scalar cannot start with {:?}",
-                &text[..1]
-            )
+            bail!("line {number}: a plain scalar cannot start with {:?}", &text[..1])
         }
         _ => Ok(()),
     }
@@ -376,9 +353,7 @@ fn scalar(text: &str, number: usize) -> Result<Value> {
         "~" | "null" | "Null" | "NULL" => Value::Null,
         "true" | "True" | "TRUE" => Value::Bool(true),
         "false" | "False" | "FALSE" => Value::Bool(false),
-        _ => number_of(text)
-            .map(Value::Number)
-            .unwrap_or_else(|| Value::String(text.to_string())),
+        _ => number_of(text).map(Value::Number).unwrap_or_else(|| Value::String(text.to_string())),
     })
 }
 
@@ -393,9 +368,7 @@ fn number_of(text: &str) -> Option<Number> {
         }
         return text.parse::<u64>().ok().map(Into::into);
     }
-    let valid = digits
-        .chars()
-        .all(|c| c.is_ascii_digit() || matches!(c, '.' | 'e' | 'E' | '-' | '+'));
+    let valid = digits.chars().all(|c| c.is_ascii_digit() || matches!(c, '.' | 'e' | 'E' | '-' | '+'));
     if valid && digits.matches('.').count() <= 1 {
         return text.parse::<f64>().ok().and_then(Number::from_f64);
     }
@@ -421,157 +394,17 @@ fn unescape(inner: &str, number: usize) -> Result<String> {
             Some(' ') => out.push(' '),
             Some('u') => {
                 let hex: String = chars.by_ref().take(4).collect();
-                let code = u32::from_str_radix(&hex, 16)
-                    .ok()
-                    .filter(|_| hex.len() == 4)
-                    .and_then(char::from_u32);
+                let code = u32::from_str_radix(&hex, 16).ok().filter(|_| hex.len() == 4).and_then(char::from_u32);
                 match code {
                     Some(c) => out.push(c),
                     None => bail!("line {number}: a bad \\u escape"),
                 }
             }
-            other => bail!(
-                "line {number}: the escape \\{} is not supported",
-                other.unwrap_or(' ')
-            ),
+            other => bail!("line {number}: the escape \\{} is not supported", other.unwrap_or(' ')),
         }
     }
     Ok(out)
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    /// `levels` nested mappings, one key on each line.
-    fn nested(levels: usize) -> String {
-        (0..levels)
-            .map(|i| format!("{}a:\n", " ".repeat(i)))
-            .collect()
-    }
-
-    // Issue 231: a deep document is an error with a line number, not a
-    // stack overflow.
-    #[test]
-    fn a_deep_document_is_an_error() {
-        assert!(parse(&nested(MAX_DEPTH)).is_ok());
-        let err = format!("{:#}", parse(&nested(200)).unwrap_err());
-        assert!(err.contains("nests deeper than 64 levels"), "{err}");
-        assert!(err.contains("line 66"), "{err}");
-        let items: String = (0..200)
-            .map(|i| format!("{}- a:\n", "  ".repeat(i)))
-            .collect();
-        let err = format!("{:#}", parse(&items).unwrap_err());
-        assert!(err.contains("nests deeper"), "{err}");
-        // A small stack: the cap stops the recursion before an overflow.
-        let text = nested(3000);
-        let result = std::thread::Builder::new()
-            .stack_size(256 * 1024)
-            .spawn(move || parse(&text).map(|_| ()).map_err(|e| e.to_string()))
-            .unwrap()
-            .join()
-            .unwrap();
-        assert!(result.unwrap_err().contains("nests deeper"));
-    }
-
-    #[test]
-    fn a_cloudflared_config() {
-        let text = r#"
-# A named tunnel.
-tunnel: 6ff42ae2-765d-4adf-8112-31c55c1551ef
-credentials-file: /root/.cloudflared/6ff42ae2.json   # the credentials
-protocol: http2
-ha-connections: 4
-warp-routing:
-  enabled: true
-ingress:
-  - hostname: app.example.com
-    service: http://localhost:8000
-    originRequest:
-      noTLSVerify: true
-      connectTimeout: 30s
-  - hostname: "*.example.com"
-    path: ^/api/.*$
-    service: 'http://localhost:9000'
-  - service: http_status:404
-"#;
-        let value = parse(text).unwrap();
-        assert_eq!(
-            value,
-            json!({
-                "tunnel": "6ff42ae2-765d-4adf-8112-31c55c1551ef",
-                "credentials-file": "/root/.cloudflared/6ff42ae2.json",
-                "protocol": "http2",
-                "ha-connections": 4,
-                "warp-routing": {"enabled": true},
-                "ingress": [
-                    {
-                        "hostname": "app.example.com",
-                        "service": "http://localhost:8000",
-                        "originRequest": {"noTLSVerify": true, "connectTimeout": "30s"}
-                    },
-                    {"hostname": "*.example.com", "path": "^/api/.*$", "service": "http://localhost:9000"},
-                    {"service": "http_status:404"}
-                ]
-            })
-        );
-    }
-
-    #[test]
-    fn a_sequence_at_the_indentation_of_its_key() {
-        let value = parse("ingress:\n- service: a\n- service: b\nprotocol: quic\n").unwrap();
-        assert_eq!(
-            value,
-            json!({"ingress": [{"service": "a"}, {"service": "b"}], "protocol": "quic"})
-        );
-    }
-
-    #[test]
-    fn scalars() {
-        let value = parse(
-            "a: ~\nb:\nc: -3\nd: 1.5\ne: 'it''s'\nf: \"x\\ty \\u00e9\"\ng: a#b\nh: []\ni: {}\nj: 10.0.0.1\n",
-        )
-        .unwrap();
-        assert_eq!(
-            value,
-            json!({"a": null, "b": null, "c": -3, "d": 1.5, "e": "it's", "f": "x\ty \u{e9}",
-                   "g": "a#b", "h": [], "i": {}, "j": "10.0.0.1"})
-        );
-        assert_eq!(
-            parse("- a\n- 2\n-\n  - b\n").unwrap(),
-            json!(["a", 2, ["b"]])
-        );
-        assert_eq!(parse("# only a comment\n").unwrap(), Value::Null);
-        assert_eq!(parse("---\nk: v\n").unwrap(), json!({"k": "v"}));
-    }
-
-    #[test]
-    fn the_unsupported_parts_are_refused_with_the_line() {
-        for (text, want) in [
-            ("a: 1\na: 2\n", "line 2: the key \"a\" is given two times"),
-            ("a:\n\tb: 1\n", "line 2: a tab"),
-            ("a: &x 1\n", "line 1: anchors"),
-            ("a: *x\n", "line 1: anchors"),
-            ("a: !!str 1\n", "line 1: tags"),
-            ("a: |\n  text\n", "line 1: block scalars"),
-            ("a: [1, 2]\n", "line 1: flow collections"),
-            ("a: \"open\n", "line 1: a quoted scalar has no end"),
-            ("a: 1\n  b: 2\n", "line 2: a scalar has no children"),
-            ("a:\n  b: 1\n c: 2\n", "line 3: unexpected indentation"),
-            ("a: 1\njust text\n", "line 2: expected `key: value`"),
-        ] {
-            let err = parse(text).unwrap_err().to_string();
-            assert!(err.starts_with(want), "{text:?}: {err}");
-        }
-    }
-
-    #[test]
-    fn the_line_of_each_ingress_rule() {
-        let text = "tunnel: x\n# a comment\ningress:\n  - hostname: a\n    service: http://a\n\n  - service: http_status:404\nwarp-routing: {}\n";
-        assert_eq!(item_lines(text, "ingress"), [4, 7]);
-        let flat = "ingress:\n- service: a\n- service: b\n";
-        assert_eq!(item_lines(flat, "ingress"), [2, 3]);
-        assert!(item_lines(text, "none").is_empty());
-    }
-}
+mod tests;

@@ -4,7 +4,7 @@
 //! capnp `ConnectRequest`. The answer has the same preamble and a capnp
 //! `ConnectResponse`. After that, the stream is a byte pipe.
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use futures::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use super::capnp::Message;
@@ -22,18 +22,12 @@ where
     R: AsyncRead + Unpin,
 {
     let mut signature = [0u8; 6];
-    reader
-        .read_exact(&mut signature)
-        .await
-        .context("reading the stream signature")?;
+    reader.read_exact(&mut signature).await.context("reading the stream signature")?;
     if signature != DATA_STREAM_SIGNATURE {
         bail!("unexpected stream signature {signature:02x?}");
     }
     let mut version = [0u8; 2];
-    reader
-        .read_exact(&mut version)
-        .await
-        .context("reading the stream version")?;
+    reader.read_exact(&mut version).await.context("reading the stream version")?;
     if version != DATA_STREAM_VERSION {
         tracing::debug!(version = ?version, "unknown stream version");
     }
@@ -69,18 +63,11 @@ where
 }
 
 /// Write the `ConnectResponse` of a visitor stream.
-pub async fn write_connect_response<W>(
-    writer: &mut W,
-    error: &str,
-    metadata: &[(&str, &str)],
-) -> Result<()>
+pub async fn write_connect_response<W>(writer: &mut W, error: &str, metadata: &[(&str, &str)]) -> Result<()>
 where
     W: AsyncWrite + Unpin,
 {
-    let owned: Vec<(String, String)> = metadata
-        .iter()
-        .map(|(k, v)| (k.to_string(), v.to_string()))
-        .collect();
+    let owned: Vec<(String, String)> = metadata.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
     let mut out = preamble();
     out.extend_from_slice(&super::schema::encode_connect_response(error, &owned));
     writer.write_all(&out).await?;
@@ -112,26 +99,16 @@ mod tests {
             metadata: vec![(HTTP_METHOD_KEY.into(), "POST".into())],
         };
         let mut buf = Vec::new();
-        write_connect_request(&mut Cursor::new(&mut buf), &request)
-            .await
-            .unwrap();
+        write_connect_request(&mut Cursor::new(&mut buf), &request).await.unwrap();
         let mut response = Vec::new();
-        write_connect_response(
-            &mut Cursor::new(&mut response),
-            "",
-            &[(HTTP_STATUS_KEY, "204")],
-        )
-        .await
-        .unwrap();
+        write_connect_response(&mut Cursor::new(&mut response), "", &[(HTTP_STATUS_KEY, "204")]).await.unwrap();
         buf.extend_from_slice(b"BODY");
         let mut reader = Cursor::new(buf);
         assert_eq!(read_connect_request(&mut reader).await.unwrap(), request);
         let mut rest = Vec::new();
         reader.read_to_end(&mut rest).await.unwrap();
         assert_eq!(rest, b"BODY");
-        let (error, meta) = read_connect_response(&mut Cursor::new(response))
-            .await
-            .unwrap();
+        let (error, meta) = read_connect_response(&mut Cursor::new(response)).await.unwrap();
         assert_eq!(error, "");
         assert_eq!(meta, vec![("HttpStatus".to_string(), "204".to_string())]);
     }

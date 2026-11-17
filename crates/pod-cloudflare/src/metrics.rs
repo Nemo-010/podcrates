@@ -1,7 +1,8 @@
-//! Tunnel metrics with a Prometheus text renderer.
+//! The counters of a tunnel, and their Prometheus text. The counters of
+//! the decisions of the consumer are not here: the consumer adds them.
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Clone, Default)]
 pub struct Metrics {
@@ -101,14 +102,8 @@ impl Metrics {
              # HELP podnet_errors_total Stream or connection errors.\n\
              # TYPE podnet_errors_total counter\n\
              podnet_errors_total {}\n",
-            m.streams_total,
-            m.active_streams,
-            m.bytes_in,
-            m.bytes_out,
-            m.reconnects,
-            m.connections,
-            m.errors
-        ) + &crate::decisions::prometheus()
+            m.streams_total, m.active_streams, m.bytes_in, m.bytes_out, m.reconnects, m.connections, m.errors
+        )
     }
 }
 

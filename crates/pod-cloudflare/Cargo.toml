@@ -12,16 +12,26 @@ repository.workspace = true
 fuzzing = []
 
 [dependencies]
+# The dial, the failure, the observer, the meter, the clock, the text of a
+# peer.
 pod-core = { workspace = true, features = ["async"] }
+# The HTTP client of the API of the quick tunnels and of the check of the
+# public URL; the credentials in front of the tunnel.
 pod-proxy = { workspace = true }
+# The roots, the client configurations and the edge roots as extra roots.
 pod-tls = { workspace = true }
+# The SRV record of the edge by DNS over HTTPS, and its JSON form.
 pod-dns = { workspace = true }
+# The WebSocket of a forward: the dial of the far end and the server side.
 pod-ws = { workspace = true }
+# The QUIC endpoint of the edge leg.
 pod-quic = { workspace = true }
+# The run of the relay, for the budget of the leg http2+relay.
 pod-relay = { workspace = true }
-pod-warp = { workspace = true }
+# The facts of the edge and of the quick tunnels.
 pod-services = { workspace = true }
 tokio = { workspace = true, features = ["net", "time", "sync", "rt", "io-util", "macros"] }
+tokio-util = { version = "0.7", default-features = false, features = ["compat", "io"] }
 rustls = { workspace = true }
 tokio-rustls = { workspace = true }
 rustls-pki-types = { workspace = true }
@@ -33,8 +43,19 @@ base64 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
+futures = { version = "0.3", default-features = false, features = ["std", "async-await", "executor"] }
+anyhow = "1"
+uuid = { version = "1", default-features = false, features = ["std"] }
+# The path of a rule of the ingress: a regular expression, as in cloudflared.
+regex = { version = "1", default-features = false, features = ["std", "unicode-perl"] }
+httparse = "1"
 
 [dev-dependencies]
 pod-testkit = { workspace = true }
 tokio = { workspace = true, features = ["net", "time", "sync", "rt", "rt-multi-thread", "io-util", "macros", "test-util"] }
+# The tests run TLS on ring (docs/design.md, section 1, rule 4).
 rustls = { workspace = true, features = ["ring"] }
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring", "pem"] }
+# Random tunnel ids in the tests.
+uuid = { version = "1", default-features = false, features = ["std", "v4"] }
+tempfile = "3"
