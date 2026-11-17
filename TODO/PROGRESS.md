@@ -5,14 +5,12 @@
 ## State
 
 - `docs/HANDOFF.md` has what is in flight and what waits.
-- Last release: `v0.65.0` at `4122f39` (`docs/releases/v0.65.0.md`; ci
-  43977037117 at `4122f39`, adoption 43976753148 and plants 43976753201 at
-  `f2a73ff`, the release dry run 43983471493, the release 43984191834):
-  T-806, T-805, T-801, T-797, T-807, T-808, T-810. The hand-off is
-  COORD-125 (#215). `v0.64.0` (`6a965ef`) has the hand-off COORD-124 (#214).
-- In release: `v0.66.0` (`docs/releases/v0.66.0.md`): T-811 (the init of a
-  PID namespace keeps no descriptor of the caller, PodUtils/podvm#460),
-  T-378 (partial: the writes of the management API of `pod-devtunnel`).
+- Last release: `v0.66.0` at `b317117` (`docs/releases/v0.66.0.md`; ci
+  43993202260 and adoption 43993202624 at `b317117`, plants 43988558976 at
+  `9ce6a53`, the release dry run 43999193913, the release 43999673798):
+  T-811 (PodUtils/podvm#460), T-378 (partial: the writes of
+  `pod-devtunnel`). The hand-off is COORD-126 (#216). `v0.65.0` (`4122f39`)
+  has COORD-125 (#215); `v0.64.0` (`6a965ef`) has COORD-124 (#214).
 - The consumers and their tags (the details of each take are on its
   hand-off issue):
   - podssh: `v0.65.0` (`843e3c5`, PodUtils/podssh#289: `pod-tor` and
