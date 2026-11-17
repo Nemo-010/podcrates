@@ -41,8 +41,16 @@ const BULK: usize = 16 * MIB;
 const ROUNDS: usize = 100;
 const SMALL: usize = 64;
 
-/// Each session echoes its bytes.
+/// A session whose first byte is [`SINK`] takes its bytes and sends none
+/// back (a copy); each other session echoes its bytes.
 struct Echo;
+
+/// The first byte of a session of a copy.
+const SINK: u8 = b'S';
+/// The copy of T-835: sessions of this many bytes, one way, under the cap
+/// of 64 MiB of a session of the default relay.
+const COPY_SESSION: usize = 56 * MIB;
+const COPY_SESSIONS: usize = 5;
 
 impl Handler for Echo {
     type Stream = DuplexStream;
@@ -52,7 +60,17 @@ impl Handler for Echo {
             let (node_end, echo_end) = tokio::io::duplex(1024 * 1024);
             tokio::spawn(async move {
                 let (mut r, mut w) = tokio::io::split(echo_end);
-                let _ = tokio::io::copy(&mut r, &mut w).await;
+                let mut first = [0u8; 1];
+                if r.read_exact(&mut first).await.is_err() {
+                    return;
+                }
+                if first[0] == SINK {
+                    let _ = tokio::io::copy(&mut r, &mut tokio::io::sink()).await;
+                    return;
+                }
+                if w.write_all(&first).await.is_ok() {
+                    let _ = tokio::io::copy(&mut r, &mut w).await;
+                }
             });
             Ok(node_end)
         })
@@ -163,6 +181,50 @@ async fn measure_session(pair: &Pair) -> Result<Figures, String> {
     })
 }
 
+/// A copy of [`COPY_SESSIONS`] sessions of [`COPY_SESSION`] bytes each,
+/// one way, one after another, as a copy that keeps the budget of a session
+/// opens the next one (T-835): the seconds of each session and of the whole.
+async fn measure_copy(pair: &Pair) -> Result<(Vec<f64>, f64), String> {
+    let chunk = vec![5u8; 64 * 1024];
+    let started = Instant::now();
+    let mut each = Vec::new();
+    for _ in 0..COPY_SESSIONS {
+        let at = Instant::now();
+        let (io, mut user) = tokio::io::duplex(4 * MIB);
+        let relay = pair.relay.clone();
+        let (name, token) = (pair.name.clone(), pair.connect_token().to_string());
+        let session = tokio::spawn(async move {
+            let config = OperatorConfig {
+                relay: &relay,
+                name: &name,
+                connect_token: &token,
+                trust: &Trust::Default,
+                ctx: support::live(),
+                timeout: LIMIT,
+                limits: OperatorLimits::default(),
+                wire: Wire::Tls,
+            };
+            operator::run(&config, io).await.map_err(|e| e.to_string())
+        });
+        user.write_all(&[SINK]).await.map_err(|e| e.to_string())?;
+        for _ in 0..COPY_SESSION / chunk.len() {
+            user.write_all(&chunk).await.map_err(|e| e.to_string())?;
+        }
+        user.shutdown().await.map_err(|e| e.to_string())?;
+        let mut rest = Vec::new();
+        let _ = tokio::time::timeout(Duration::from_secs(600), user.read_to_end(&mut rest)).await;
+        let outcome = tokio::time::timeout(Duration::from_secs(600), session)
+            .await
+            .map_err(|_| "no end of a session of the copy in 600 s".to_string())?
+            .map_err(|e| e.to_string())??;
+        if !outcome.is_success() {
+            return Err(format!("a session of the copy ended {outcome:?}"));
+        }
+        each.push(at.elapsed().as_secs_f64());
+    }
+    Ok((each, started.elapsed().as_secs_f64()))
+}
+
 /// A pair at `host`, a node of it, one session, then the stop of both.
 async fn measure_host(host: &str) -> Result<Figures, String> {
     let relay = Relay { host: host.to_string(), port: 443 };
@@ -187,6 +249,20 @@ async fn measure_host(host: &str) -> Result<Figures, String> {
     });
     tokio::time::sleep(Duration::from_secs(2)).await;
     let figures = measure_session(&copy).await;
+    if host == default_relay_host() && figures.is_ok() {
+        match measure_copy(&copy).await {
+            Ok((each, secs)) => {
+                let shown: Vec<String> = each.iter().map(|s| format!("{s:.2}")).collect();
+                let mib = COPY_SESSIONS * COPY_SESSION / MIB;
+                println!(
+                    "MEASURE scen=copy relay={host} sessions={COPY_SESSIONS} mib={mib} secs={secs:.2} mib_s={:.2} session_secs={}",
+                    mib as f64 / secs,
+                    shown.join(",")
+                );
+            }
+            Err(why) => println!("MEASURE scen=copy relay={host} failed={}", why.replace(' ', "_")),
+        }
+    }
     stop.notify_one();
     let exit = tokio::time::timeout(LIMIT, node).await;
     if !matches!(exit, Ok(Ok(Exit::Stopped))) {
