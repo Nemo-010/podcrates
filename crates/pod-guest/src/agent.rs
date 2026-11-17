@@ -101,19 +101,31 @@ pub enum Mode {
 /// and the count of tries when it finds the mailbox, the exit code, and the
 /// code of each `shutdown`. The host reads it after a run that timed out
 /// ([`crate::evidence`]).
+///
+/// The agent also writes a line to `COM1`, the serial log of the run
+/// ([`crate::Plan::serial`]), when it starts, when it finds the mailbox,
+/// and when it stops with none: the log of the mailbox comes only after
+/// the find, so a run that timed out with no `WQREADY.TXT` tells from the
+/// serial log whether the agent ran and whether it gave up
+/// (PodUtils/podvm#468).
 pub const AGENT_CMD: &str = r#"@echo off
 if defined WQ_ACTIVE goto :eof
 set WQ_ACTIVE=1
 set WQTRIES=0
+>>COM1 echo %TIME% wqagent start
 :probe
 set WQ=
 for %%d in (D E F G H I J K L M N O P Q R S T U V W X Y Z) do if not defined WQ if exist %%d:\WQMARK.TXT set WQ=%%d:
 if defined WQ goto found
 set /a WQTRIES+=1
-if %WQTRIES% GEQ 600 goto :eof
+if %WQTRIES% GEQ 600 goto lost
 call :nap
 goto probe
+:lost
+>>COM1 echo %TIME% wqagent no mailbox after %WQTRIES% tries
+goto :eof
 :found
+>>COM1 echo %TIME% wqagent found %WQ% after %WQTRIES% tries
 >>%WQ%\WQLOG.TXT echo %TIME% found %WQ% after %WQTRIES% tries
 >%WQ%\WQREADY.TXT echo WQREADY
 :next

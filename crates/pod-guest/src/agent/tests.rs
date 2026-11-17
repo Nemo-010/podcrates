@@ -341,6 +341,22 @@ fn the_agent_gives_up_after_600_tries_with_no_mailbox() {
     g.walk(|_, _| seen += 1);
     assert_eq!(seen, 599, "one wait between two of the 600 tries");
     assert!(g.events.is_empty(), "{:?}", g.events);
+    // The serial log says that the agent ran, and that it gave up.
+    let serial: Vec<&str> = g.files["COM1"].lines().collect();
+    assert_eq!(serial.len(), 2, "{serial:?}");
+    assert!(serial[0].ends_with(" wqagent start"), "{serial:?}");
+    assert!(serial[1].ends_with(" wqagent no mailbox after 600 tries"), "{serial:?}");
+}
+
+/// The serial log says that the agent ran before its first probe, and where
+/// it found the mailbox (PodUtils/podvm#468).
+#[test]
+fn the_serial_log_shows_the_start_and_the_find() {
+    let mut g = Guest::with(&[(MARKER, "m"), (GO, "tok")]);
+    g.walk(|_, _| {});
+    let serial: Vec<&str> = g.files["COM1"].lines().collect();
+    assert!(serial[0].ends_with(" wqagent start"), "{serial:?}");
+    assert!(serial[1].ends_with(" wqagent found D: after 0 tries"), "{serial:?}");
 }
 
 /// PodUtils/podvm#380: a `ping` that does not wait made the 600 tries of
