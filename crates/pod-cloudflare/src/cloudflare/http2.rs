@@ -183,7 +183,7 @@ pub fn decode_headers(encoded: &str) -> Vec<(String, String)> {
 pub enum StreamKind {
     /// The registration and configuration stream.
     Control,
-    /// A visitor's request to the origin.
+    /// A request of a visitor to the origin.
     Visitor { address: String, port: u32 },
     /// A configuration push from the edge.
     Configuration,
@@ -195,7 +195,7 @@ pub enum StreamKind {
 ///
 /// The order is important. The check of a configuration push comes before the
 /// visitor case. An update-configuration request can also have a proxy-source
-/// header, and the visitor case would then send it to an origin.
+/// header, and the visitor case then sends it to an origin.
 pub fn classify_stream(headers: &[(String, String)]) -> StreamKind {
     let get = |name: &str| headers.iter().find(|(k, _)| k.eq_ignore_ascii_case(name)).map(|(_, v)| v.clone());
 

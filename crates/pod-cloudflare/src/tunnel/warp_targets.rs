@@ -38,7 +38,7 @@ pub(crate) struct WarpLink {
 }
 
 /// A new session at most this often for failed reconnects (an HA leg must
-/// not replace the session that another leg just opened).
+/// not replace the session that another leg opened a short time before).
 const WARP_REBUILD_GAP: Duration = Duration::from_secs(10);
 
 impl WarpLink {

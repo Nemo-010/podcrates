@@ -3,14 +3,15 @@
 
 use super::*;
 
-/// A validation failure detected before any network call is made.
+/// The failure of a provision. Only `BadEndpoint` comes before a network
+/// call.
 #[derive(Debug)]
 pub enum ProvisionError {
-    /// The provisioning endpoint was not a valid absolute URL.
+    /// The provisioning endpoint is not a valid absolute URL.
     BadEndpoint(String),
-    /// The HTTP request itself failed.
+    /// The HTTP request failed.
     Http(Failure),
-    /// A non-2xx HTTP status.
+    /// An HTTP status that is not 2xx.
     Status {
         code: u16,
         body: String,
@@ -19,9 +20,9 @@ pub enum ProvisionError {
     },
     /// A 2xx response that is not valid JSON, or not a `QuickTunnelResponse`.
     Decode(String),
-    /// The service returned `"success": false`.
+    /// The service gave `"success": false`.
     Service(Vec<QuickTunnelError>),
-    /// `success: true` but no `result` object.
+    /// `success: true`, but no `result` object.
     MissingResult,
 }
 
@@ -91,8 +92,8 @@ pub fn retry_of(err: &Failure) -> Option<Refusal> {
 
 impl From<ProvisionError> for Failure {
     /// The stage of a provision is the registration with the edge. A 429 is
-    /// for now, a 5xx is the service, another 4xx is a refusal, and an answer
-    /// that does not decode is the protocol.
+    /// temporary, a 5xx is the service, and another 4xx is a refusal. An
+    /// answer that does not decode is the protocol.
     fn from(err: ProvisionError) -> Failure {
         let (stage, class) = match &err {
             ProvisionError::BadEndpoint(_) => (Stage::Host, Class::Config),

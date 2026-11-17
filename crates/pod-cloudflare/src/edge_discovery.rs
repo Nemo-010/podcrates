@@ -142,7 +142,7 @@ pub async fn discover(host: &Host, filter: IpVersionFilter) -> Result<Vec<EdgeAd
 }
 
 /// Resolve the SRV record with the system resolver of the consumer, and its
-/// targets with the system's lookup of addresses.
+/// targets with the lookup of addresses of the system.
 pub async fn discover_system(host: &Host, filter: IpVersionFilter) -> Result<Vec<EdgeAddr>> {
     let Some(system) = &host.system_srv else {
         bail!(Stage::Dns, Class::Unsupported, "the consumer gives no system resolver of SRV records");

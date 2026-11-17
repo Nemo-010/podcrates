@@ -387,8 +387,8 @@ fn an_unknown_transport_names_the_alternatives() {
 
 #[test]
 fn the_default_transport_is_auto() {
-    // The point of the default is that a quick tunnel works on a host whose
-    // egress permits only 443 without the caller passing a flag.
+    // With this default, a quick tunnel works on a host whose egress permits
+    // only 443, and the caller gives no flag.
     assert_eq!(Transport::default(), Transport::Auto);
     assert_eq!(Transport::default().to_string(), "auto");
 }

@@ -169,7 +169,7 @@ async fn dial_unix(
 impl Origins {
     /// One warning for each origin whose TLS certificate is not checked
     /// (noTLSVerify): the first dial of it says so; the later dials do not
-    /// (a warning for each request would fill the log). Gives true for the
+    /// (a warning for each request fills the log). Gives true for the
     /// first call of `origin`. At most 256 origins are kept.
     pub(crate) fn note_unverified(&self, origin: &str) -> bool {
         let mut seen = self.seen.lock().unwrap_or_else(|e| e.into_inner());

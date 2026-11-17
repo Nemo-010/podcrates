@@ -20,8 +20,8 @@ pub struct TunnelHandle {
     pub(super) tasks: Vec<JoinHandle<()>>,
     pub(super) stopped: watch::Receiver<Option<String>>,
     pub(super) verify: bool,
-    /// Kept alive for the tunnel's lifetime: dropping either tears down the
-    /// WARP session and the QUIC endpoint the edge connection rides on.
+    /// Kept for the life of the tunnel. A drop of it closes the WARP session
+    /// and the QUIC endpoint that carry the edge connection.
     pub(super) _warp: Option<Arc<WarpLink>>,
 }
 
@@ -53,8 +53,8 @@ impl TunnelHandle {
         self.forward_path.as_deref()
     }
 
-    /// Public URL for a quick tunnel; `None` for a named tunnel (the hostname
-    /// is configured in the Cloudflare dashboard).
+    /// The public URL of a quick tunnel; `None` for a named tunnel (the
+    /// Cloudflare dashboard has the configuration of its hostname).
     pub fn url(&self) -> Option<&str> {
         self.url.as_deref()
     }
@@ -81,8 +81,8 @@ impl TunnelHandle {
         self.metrics.clone()
     }
 
-    /// Fetch the public URL and confirm the tunnel is reachable. For quick
-    /// tunnels the expected token may be checked against the body.
+    /// Fetch the public URL, and confirm that the tunnel answers. For a quick
+    /// tunnel, the check can compare the expected token with the body.
     pub async fn verify(&self, expected: Option<&str>) -> Result<Option<Verified>> {
         let Some(url) = self.url.as_deref() else {
             return Ok(None);
@@ -90,8 +90,8 @@ impl TunnelHandle {
         self.verify_url(url, expected).await.map(Some)
     }
 
-    /// Like [`verify`](Self::verify) but for a specific path on the public
-    /// URL (a share session lives under `/s/<token>/`, not at the root).
+    /// As [`verify`](Self::verify), but for a specific path on the public
+    /// URL (a share session is under `/s/<token>/`, not at the root).
     ///
     /// With no `expected` text, an answer of the origin that is not 2xx (for
     /// example 401 or 404 of an app behind a login) is a warning: the
@@ -101,7 +101,7 @@ impl TunnelHandle {
         self.verify_accepting(url, expected, &[]).await
     }
 
-    /// Like [`verify_url`](Self::verify_url). A status of `accepted` is the
+    /// As [`verify_url`](Self::verify_url). A status of `accepted` is the
     /// normal answer of the origin (`serve` of a directory with
     /// no `index.html` answers 404 for `/`): it is logged at info, not as a
     /// warning.
@@ -117,7 +117,7 @@ impl TunnelHandle {
         self.verify
     }
 
-    /// Signal every reactor and wait for them to drain.
+    /// Signal each reactor, and wait until each one drains.
     pub async fn shutdown(mut self) {
         let _ = self.shutdown.send(true);
         let tasks = std::mem::take(&mut self.tasks);

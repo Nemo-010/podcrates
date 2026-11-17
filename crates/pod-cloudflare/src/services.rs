@@ -29,7 +29,7 @@ pub fn text(id: &str, name: &str) -> &'static str {
     get(id).text(name).unwrap_or_else(|| panic!("{id} of pod-services holds no text {name}"))
 }
 
-/// The port of the edge's endpoints of the role `h2` (7844).
+/// The port of the endpoints of the edge for the role `h2` (7844).
 pub fn edge_port() -> u16 {
     endpoints_of(EDGE, "h2").first().map_or(7844, |e| e.port())
 }

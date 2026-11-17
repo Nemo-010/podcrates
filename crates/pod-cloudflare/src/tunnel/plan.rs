@@ -23,8 +23,8 @@ pub(super) async fn resolve_credentials(
             )
             .await
             .map_err(|e| {
-                // A 429 is a refusal for now (exit 75), with the wait in the
-                // refusal; each other failure leaves the service unavailable.
+                // A 429 is a temporary refusal (exit 75), with the wait in the
+                // refusal. Each other failure makes the service unavailable.
                 let class = match crate::quicktunnel::retry_of(&e) {
                     Some(r) if r.status == 429 => Class::TempFail,
                     _ => Class::Unavailable,
@@ -65,13 +65,6 @@ pub(super) fn split_explicit(credentials: Credentials) -> Result<(rpc::TunnelAut
     }
 }
 
-/// Edge addresses for a direct dial on port 7844.
-///
-/// `PODNET_EDGE` overrides discovery with a comma-separated `host:port` list, the
-/// way `cloudflared --edge` does. It exists for a self-hosted or pinned edge,
-/// and it is also the only way to test the `auto` fallback deliberately: point
-/// it at an address nothing answers on and direct must fail where discovery
-/// would have succeeded.
 /// One way to reach the edge.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LegKind {
@@ -224,8 +217,8 @@ pub(super) fn attempt_limit(kind: LegKind) -> Option<Duration> {
 /// Run `attempt` again when the edge refuses the registration and asks for
 /// a retry (`retry: yes`), at most [`REGISTER_TRIES`] times, after the wait
 /// that it asks for (1 s to 5 s). A new quick tunnel can be "not found" at
-/// the edge for a moment after its provision; before, the first refusal
-/// ended the leg, and with one leg the start exited 69.
+/// the edge for a short time after its provision. With no retry, the first
+/// refusal ends the leg, and with one leg the start exits 69.
 #[cfg(test)]
 pub(super) async fn register_retrying<T, F, Fut>(attempt: F) -> Result<T>
 where
@@ -284,6 +277,11 @@ pub(super) async fn bounded<T>(
 
 /// The edge list of the settings, which replaces edge discovery (as
 /// `cloudflared --edge` does); `None` when it is not set or empty.
+///
+/// The edge list (podnet's `PODNET_EDGE`, a comma-separated `host:port`
+/// list) is for a self-hosted or pinned edge. It is also the only way to
+/// test the `auto` fallback on purpose. Set it to an address where nothing
+/// answers: the direct dial then fails where discovery succeeds.
 pub(crate) fn edge_override(settings: &crate::Settings) -> Option<Vec<edge::EdgeAddr>> {
     let list = settings.edge.as_ref()?;
     (!list.is_empty()).then(|| list.iter().map(|socket| edge::EdgeAddr::new(*socket)).collect())

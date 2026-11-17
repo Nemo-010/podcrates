@@ -1,7 +1,7 @@
 use super::*;
 
-// A refusal with retry: yes in the first registration is tried again (the
-// edge can answer "Tunnel not found" for a new quick tunnel); a refusal with
+// A refusal with retry: yes in the first registration gets a new try (the
+// edge can answer "Tunnel not found" for a new quick tunnel). A refusal with
 // retry: no ends the leg at once.
 #[tokio::test(start_paused = true)]
 async fn a_retryable_refusal_of_the_first_registration_is_tried_again() {
@@ -42,7 +42,7 @@ async fn a_retryable_refusal_of_the_first_registration_is_tried_again() {
 
 // The limit of a serial leg attempt is at least the sum of
 // the budgets of the steps of the leg, with the tries of the
-// registration and the waits between them. It was 8 s for each leg.
+// registration and the waits between them.
 #[test]
 fn the_serial_limit_covers_the_budgets_of_each_leg() {
     let waits = REGISTER_WAIT_MAX * (REGISTER_TRIES - 1);

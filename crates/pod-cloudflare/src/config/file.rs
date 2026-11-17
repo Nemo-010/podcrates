@@ -1,9 +1,9 @@
-//! The cloudflared-compatible configuration file: its keys, the types of its
-//! values, its ingress rules and its credentials.
+//! The configuration file in the format of cloudflared: its keys, the types
+//! of its values, its ingress rules and its credentials.
 
 use super::*;
 
-// ── cloudflared-compatible config file ──────────────────────────────────────
+// ── the config file of cloudflared ───────────────────────────────────────────
 
 #[derive(Deserialize)]
 pub(super) struct RawConfig {
@@ -27,7 +27,8 @@ pub(super) struct RawConfig {
 
 /// The top-level keys of a cloudflared config.yml. The client reads `tunnel`,
 /// `credentials-file`, `token`, `ingress`, `url`, `hello-world`, `protocol`
-/// and `ha-connections`, and ignores the others. A key outside this list is a typo: an error.
+/// and `ha-connections`, and ignores the others. A key outside this list is
+/// a typo, and thus an error.
 pub const CLOUDFLARED_KEYS: &[&str] = &[
     "tunnel",
     "credentials-file",
@@ -266,7 +267,7 @@ pub(super) fn check_top_values(file: &std::path::Path, value: &serde_json::Value
     Ok(())
 }
 
-/// Load a cloudflared-style YAML config.
+/// Load a YAML config in the format of cloudflared.
 ///
 /// * With `credentials-file:`, the file gives the credentials, and
 ///   `tunnel:` is the name or the UUID of the tunnel, as in cloudflared. A

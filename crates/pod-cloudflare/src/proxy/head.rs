@@ -51,8 +51,9 @@ pub async fn write_simple_response_with(
     futures_close(writer).await
 }
 
-/// Build the `ConnectResponse` metadata pairs. The status is a bare
-/// `HttpStatus`; every header must be `HttpHeader:<Name>` or the edge drops it.
+/// Build the metadata pairs of the `ConnectResponse`. The status is a bare
+/// `HttpStatus`. Each header must be `HttpHeader:<Name>`, else the edge drops
+/// it.
 pub(crate) fn response_meta_pairs(status: u16, headers: &[(String, String)]) -> Vec<(String, String)> {
     let prefix = format!("{HTTP_HEADER_KEY}:");
     let mut meta: Vec<(String, String)> = Vec::with_capacity(headers.len() + 1);
@@ -158,7 +159,7 @@ pub fn build_request_head(
     Ok(head)
 }
 
-/// Whether the request header `lower` (in lower case) stays out of the head
+/// True when the request header `lower` (in lower case) stays out of the head
 /// to the origin: a hop-by-hop header but `Transfer-Encoding`, or a header
 /// that `Connection` names.
 pub(crate) fn drop_for_origin(lower: &str, named: &[String]) -> bool {

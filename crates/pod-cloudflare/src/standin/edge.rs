@@ -37,7 +37,7 @@ const EDGE_EXPORT: u32 = 42;
 pub enum Reply {
     /// Accept a tunnel that the stand-in API issued.
     Accept,
-    /// Refuse with a cause that is not retryable.
+    /// Refuse with a cause and no retry.
     Refuse(String),
 }
 

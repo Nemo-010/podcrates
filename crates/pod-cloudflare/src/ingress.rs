@@ -60,8 +60,7 @@ pub enum Service {
     Unix(PathBuf),
     /// An HTTPS origin on a filesystem socket.
     UnixTls(PathBuf),
-    /// A raw TCP origin (`tcp://host:port`). The proxy copies it byte for
-    /// byte.
+    /// A raw TCP origin (`tcp://host:port`), copied byte for byte.
     Tcp(String),
     /// A WebSocket endpoint that bridges each connection to a raw stream.
     Forward(ForwardTarget),

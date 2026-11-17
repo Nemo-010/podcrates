@@ -1,7 +1,7 @@
 //! The stand-in of the quick-tunnel service (`POST /tunnel`) on the loopback.
 //!
-//! The body of an answer has the shape of the real service (a response
-//! captured on 2026-10-09 is in the tests of `src/quicktunnel.rs`). Each
+//! The body of an answer has the shape of the real service (a recorded
+//! response is in the tests of `src/quicktunnel.rs`). Each
 //! tunnel that it issues is kept, so that the edge can check the account tag
 //! and the secret of a registration.
 

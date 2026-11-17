@@ -72,7 +72,7 @@ fn quick_tunnel_standin_retries_after_429() {
     standin.block_on(handle.shutdown());
 }
 
-/// A wait longer than the budget is a refusal for now: the class TempFail
+/// A wait longer than the budget is a temporary refusal: the class TempFail
 /// (exit 75), with the status and the wait in the text.
 #[test]
 fn quick_tunnel_standin_exits_75_when_retry_after_exceeds_the_budget() {

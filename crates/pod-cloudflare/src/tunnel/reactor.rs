@@ -112,7 +112,7 @@ pub(super) async fn reactor(
         if started.elapsed() >= policy.stable {
             attempt = 0;
         }
-        // The first attempt goes at once: the edge may only have moved the
+        // The first attempt goes at once: possibly the edge only moved the
         // connection.
         let mut delay = Duration::ZERO;
         loop {

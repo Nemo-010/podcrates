@@ -52,8 +52,8 @@ fn redaction_survives_a_body_that_is_not_json() {
 
 #[test]
 fn truncation_lands_on_a_character_boundary() {
-    // The original clipped at a raw byte offset, which panics when the cut
-    // lands inside a multi-byte character.
+    // A clip at a raw byte offset panics when the cut falls inside a
+    // multi-byte character.
     let text = "é".repeat(400);
     let out = super::truncate(&text, 200);
     assert!(out.ends_with("..."));
@@ -206,7 +206,7 @@ fn parses_a_real_provisioning_response() {
 fn secret_decodes_to_the_documented_32_bytes() {
     let tunnel = parse_quick_tunnel_response(200, REAL_RESPONSE).expect("should parse");
     let bytes = tunnel.secret_bytes().expect("secret should be base64");
-    // cloudflared treats this as TunnelSecret and puts it on the wire raw.
+    // cloudflared uses this as TunnelSecret and puts it raw on the wire.
     assert_eq!(bytes.len(), 32, "tunnel secret must be 32 raw bytes");
 }
 
