@@ -9617,3 +9617,34 @@ and `security.ubuntu.com` alone, and the comment stays as it was) and a
 one-line file with a comment line after blanks. Plant
 `rootfs-source-comment-read`, caught. The 85 unit tests of `pod-rootfs`
 pass.
+
+# T-857: `pod-enter`: a copy of a tree refuses the device nodes of the fixups, so a run of root on `rundir` or `tmpfs` never stages (PodUtils/podvm#467)
+
+**Source:** PodUtils/podvm#467 (COORD-174 of podvm, PodUtils/podvm@T-1929).
+**Category:** defect
+**Milestone:** M6
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+`pod_enter::stage::copy_tree` refused each entry that is not a file, a directory or a link. Where `mknod(2)` passes (root), the fixups of the tree put real character devices into `dev/` (`dev/null`, `dev/zero`, `dev/random`, `dev/urandom`): nodes of podvm, not of the image. Each run of root with `PODVM_MODE=rundir` or `tmpfs` exited 125 before the payload.
+
+## Premise
+
+- Read: PodUtils/podvm#467 (measured with `busybox:musl` and `alpine:3.20`); `crates/pod-enter/src/stage.rs`; `pod_hostprobe::sys::mknodat` and `makedev`.
+
+## Approach
+
+A character or block device of the source is made again with `mknod(2)`, with the same mode and number, where it passes; else it is skipped and counted. A fifo or a socket stays a refusal. Tests with a real `dev/null` in the source, and with a maker that fails; a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-enter --all-features --lib stage
+```
+
+## Done
+
+2026-11-17, 6e2d50166: `copy_tree` returns `Staged { entries, nodes_skipped }` (was the count alone). A character or block device is made again by `mknodat(2)` with its mode and `rdev`; where that fails it is skipped and counted, and the copy goes on. A fifo or a socket is refused, with the words "not a file, directory, symlink or device node". Tests: `a_device_node_is_made_again_where_mknod_passes` (a real `dev/null` 1:3; its mode and number in the staged tree) and `a_device_node_is_skipped_and_counted_where_mknod_fails` (a maker that fails); each skips with a line on a host where the fixture `mknod(2)` fails; both ran here as root. 237 tests of the library of `pod-enter` pass. Plant `enter-stage-refuses-a-device-node`, caught.
