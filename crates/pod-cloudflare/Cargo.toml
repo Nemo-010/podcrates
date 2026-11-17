@@ -2,8 +2,7 @@
 name = "pod-cloudflare"
 description = "The Cloudflare tunnel spoken directly: the edge client over QUIC and HTTP/2, Cap'n Proto RPC, the legs and their race, ingress, and the quick tunnels."
 version.workspace = true
-# The edition of the source; the next commit moves it to the workspace edition.
-edition = "2021"
+edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
