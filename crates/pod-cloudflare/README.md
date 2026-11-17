@@ -114,10 +114,10 @@ Each variable of a consumer is a field (`docs/design.md`, section 1, rule
 | The edge side of a forward (WebSocket to TCP or unix) | yes | [x] |
 | Hello world, a status, the metrics | yes | [x] |
 | podnet's services (files, git, shares, the PIN gate) | yes | [ ] stays in podnet, behind `ServiceDispatch` |
-| `tunnel --inspect` (the capture of each exchange) | yes | [ ] a hook on `forward_http` (open) |
+| `tunnel --inspect` (the capture of each exchange) | no | [ ] a hook on `forward_http` (open) |
 | The check of the public URL | yes | [x] |
 | The header oracle of cloudflared | yes | [x] (`tools/`) |
-| The pin of cloudflared and its watch | yes | [ ] the pin is here; its watch (podnet `tools/check-upstream.py`) is open |
+| The pin of cloudflared and its watch | yes | [ ] the pin is here; its watch (podnet `tools/check-upstream.py`, `upstream.yml`, removed by the adoption) is open |
 | The fuzz targets | yes | [x] (`fuzz/`) |
 | podssh's quick tunnels | | [ ] T-030 |
 
@@ -136,7 +136,7 @@ Each variable of a consumer is a field (`docs/design.md`, section 1, rule
 | `resolve::refresh_pins` before each check of the URL | podnet puts its `PODNET_RESOLVE` pins into `Host::resolver` (`pod_dns::Resolver::set_pins`) |
 | `fetch::send` | `Host::send` |
 | `decisions::count("leg", ..)` | `Host::report` (`Observer::decision("leg", ..)`) |
-| `decisions::prometheus()` in the metrics text | podnet appends its decision counters to `Metrics::prometheus()` |
+| `decisions::prometheus()` in the metrics text | `Metrics::with_extra` (podnet's counters of the decisions), given to the tunnel with `TunnelBuilder::metrics` |
 | `ws_relay::active()` | `Host::relay` (`EdgeRelay`), set for `--transport relay` |
 | `ws_relay::SESSION_BYTES`, `SESSION_AGE` | `pod_relay::relay::byte_budget`, `time_budget` of `EdgeRelay::context` |
 | `warp::WarpClient` (`register_or_load`, `with_masque`, `connect`), `warp_identity`, `masque_endpoint` | `Host::warp` (`WarpSessions` over `pod-warp`, in podnet) |
@@ -145,23 +145,27 @@ Each variable of a consumer is a field (`docs/design.md`, section 1, rule
 | `origin::dial::dial` | `origin::Origins::dial` |
 | `origin::dial::NoVerify` (`noTLSVerify`) | podnet keeps its verifier and gives its configuration in `Host::origin_no_verify` |
 | `report::hide(token)` | podnet hides `Config::secrets` |
-| `report::Refusal`, `report::read_refusals_with(retry_of)` | `quicktunnel::Refusal`; podnet's report reads `retry_of(&Failure)` |
+| `report::Refusal`, `report::read_refusals_with(retry_of)` | `quicktunnel::Refusal`; podnet's `quicktunnel::retry_of` finds the `Failure` in its error and calls `retry_of(&Failure)` |
 | `hop::Hop`, `hop::at`, `hop::of` | `pod_core::Stage`, `failure.stage` |
-| `exit::Fault`, `exit::code_of` | `pod_core::Class`, `failure.class.exit_code()` |
+| `exit::Fault`, `exit::code_of` | `pod_core::Class`, `failure.class.exit_code()`; podnet's `exit::code_of` reads the class (a code that podnet does not give exits 1) |
 | `config::load_file` | `config::load_file_with(path, &report)` |
 | `edge_discovery::checked_targets` | `checked_targets_with(targets, &report)` (the discovery passes `Host::report`) |
 | The texts that name podnet and its flags | podnet's `Words` in `Settings::words` |
 | The metrics `podnet_*` | `Metrics::with_prefix("podnet")` (the tunnel takes `Words::name`) |
 | `rpc` exception "not implemented by podnet" | "not implemented by the client" |
 | `ws::DEFAULT_PATH` | `Settings::forward_path` (default `/__podnet/ws`) |
-| `Tunnel::quick()`, `Tunnel::token(token)` | `Tunnel::quick(host)`, `Tunnel::token(host, token)` |
-| `TunnelHandle::share_controls` | podnet's `ServiceDispatch` keeps them |
+| `Tunnel::quick()`, `Tunnel::token(token)` | `Tunnel::quick(host)`, `Tunnel::token(host, token)` (`podnet::tunnel::host()`) |
+| `ws::bridge_session` counted by `Metrics` | `Metrics` is a `pod_ws::Tally` |
+| `tests/standin/` | the feature `standin` (`standin::Standin`, `standin::quic::local_pair`) |
+| `TunnelHandle::share_controls` | podnet's `ServiceDispatch` keeps them (`podnet::tunnel::start` gives its `ServiceRuntime`) |
 
 What stays in podnet: its `ServiceDispatch` (the static files, the files,
 git, the shares, the PIN gate, `share_proxy`, the axum dispatch and its
-tests), `tunnel --inspect` until the hook on `forward_http` comes, its
-`ws::LocalSpec` and the client of a forward, its verifier of
-`noTLSVerify`, and these tests of its binary and its own glue:
+tests), its host (`src/tunnel.rs`: the TLS context, the egress, the
+resolver, the system SRV records, the relay, the WARP device, the log,
+the counters, the settings from its variables), its `ws::LocalSpec` and
+the client of a forward, its verifier of `noTLSVerify`, the fuzz target
+`local_spec`, and these tests of its binary and its own glue:
 `quick_tunnel_standin_prints_json_lines`,
 `quick_tunnel_standin_stops_clean_on_sigterm_after_ready`,
 `quick_tunnel_standin_detach_ps_logs_and_stop` (the command line),
