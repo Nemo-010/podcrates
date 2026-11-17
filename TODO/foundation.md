@@ -2005,7 +2005,7 @@ cargo test -p pod-testkit -p pod-e2e -p pod-link --all-features
 **Milestone:** M0
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2024,6 +2024,10 @@ A type that holds the text of a peer, is cleaned and cut at its making, and has 
 ```sh
 cargo test -p pod-core --all-features
 ```
+
+## Done
+
+2026-11-17. `crates/pod-core/src/text.rs`: `PeerText`, made only by `PeerText::one_line` and `PeerText::multi_line` (the clean of `one_line` and `multi_line`, then a cut to `PEER_TEXT_MOST`, 512 characters, that ends with "..."). It has `as_str`, `Display` and `From<PeerText> for String`, so it goes where a `String` goes (the text of a `Failure`, with no change of that API). It has no `Deref` to `str` and no `From<String>`: two `compile_fail` doctests prove that raw text does not go in and that the field does not read as `&str`, and a doctest that compiles proves that the path of the two is right. The unit test `peer_text_is_clean_and_cut` covers the clean, the cut at a character boundary of two bytes, and text at the limit that is not cut. The 121 writers that clean text with `one_line` today keep it; a field moves to `PeerText` when its crate changes that field, because a change of a public field type breaks the exhaustive literals of the consumers.
 
 # T-831: `pod-core`: one table of the loopback addresses that a process takes, with a test that it can fail
 

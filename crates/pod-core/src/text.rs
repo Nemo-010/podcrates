@@ -4,7 +4,8 @@
 //! SSH banner can carry ESC, BEL or a bare CR, which repaint the line, ring the
 //! bell or overwrite what the user is reading. Everything a crate shows from a
 //! peer goes through one of these two functions, so there is one definition of
-//! "safe" (a sibling project ended up with two that disagreed).
+//! "safe" (a sibling project ended up with two that disagreed). A field that
+//! keeps such text takes a [`PeerText`], which is clean by its type.
 
 /// For a one-line message: control characters (C0, DEL, C1) and bidirectional
 /// formatting characters are dropped, and every run of whitespace, line breaks
@@ -50,6 +51,76 @@ pub fn multi_line(text: &str) -> String {
     out
 }
 
+/// The most characters of a [`PeerText`]: a peer that sends a page of
+/// text in an error field fills no screen.
+pub const PEER_TEXT_MOST: usize = 512;
+
+/// Text of a peer, cleaned and cut when it is made: a field of this type
+/// cannot hold text that is not safe to print. It has no `Deref` to `str`
+/// and no `From<String>`, so raw text does not go in by a slip. It goes out
+/// as a `String`:
+///
+/// ```
+/// let text: String = pod_core::text::PeerText::one_line("bad\x1b[2J token").into();
+/// assert_eq!(text, "bad[2J token");
+/// ```
+///
+/// ```compile_fail
+/// let raw = String::from("\x1b[2J");
+/// let field: pod_core::text::PeerText = raw.into();
+/// ```
+///
+/// ```compile_fail
+/// let field = pod_core::text::PeerText::one_line("ok");
+/// let shown: &str = &field;
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+pub struct PeerText(String);
+
+impl PeerText {
+    /// One line of a peer ([`one_line`]), cut to [`PEER_TEXT_MOST`].
+    pub fn one_line(text: &str) -> PeerText {
+        PeerText(cut(one_line(text)))
+    }
+
+    /// Lines of a peer ([`multi_line`]), cut to [`PEER_TEXT_MOST`].
+    pub fn multi_line(text: &str) -> PeerText {
+        PeerText(cut(multi_line(text)))
+    }
+
+    /// The clean text.
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl std::fmt::Display for PeerText {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+/// Clean text goes where a `String` goes (the text of a `Failure`).
+impl From<PeerText> for String {
+    fn from(text: PeerText) -> String {
+        text.0
+    }
+}
+
+/// `text` cut to [`PEER_TEXT_MOST`] characters; a cut ends with "...".
+fn cut(mut text: String) -> String {
+    if let Some((at, _)) = text.char_indices().nth(PEER_TEXT_MOST) {
+        let keep = text[..at].char_indices().nth(PEER_TEXT_MOST - 3).map_or(at, |(i, _)| i);
+        text.truncate(keep);
+        text.push_str("...");
+    }
+    text
+}
+
 /// Characters that reorder how a terminal displays the text around them
 /// (the "Trojan Source" set), plus the Arabic letter mark.
 fn is_bidi_control(c: char) -> bool {
@@ -88,6 +159,17 @@ mod tests {
     fn one_line_folds_whitespace_and_line_breaks() {
         assert_eq!(one_line("  a \r\n\t b\n\nc  "), "a b c");
         assert_eq!(one_line("\n\n"), "");
+    }
+
+    #[test]
+    fn peer_text_is_clean_and_cut() {
+        let long = format!("\x1b[2J{}", "é".repeat(2 * PEER_TEXT_MOST));
+        let text = PeerText::one_line(&long);
+        assert_eq!(text.as_str().chars().count(), PEER_TEXT_MOST);
+        assert!(text.as_str().ends_with("...") && !text.as_str().contains('\x1b'));
+        let short = PeerText::multi_line("a\r\nb\x07");
+        assert_eq!((short.to_string(), String::from(short)), ("a\nb".into(), "a\nb".into()));
+        assert_eq!(PeerText::one_line(&"x".repeat(PEER_TEXT_MOST)).as_str().len(), PEER_TEXT_MOST);
     }
 
     #[test]
