@@ -1,12 +1,12 @@
---- a/crates/pod-core/src/files.rs
-+++ b/crates/pod-core/src/files.rs
-@@ -170,7 +170,8 @@
-     // one's file and tear it.
-     static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-     let unique = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+--- a/crates/pod-core/src/files/replace.rs
++++ b/crates/pod-core/src/files/replace.rs
+@@ -57,7 +57,8 @@ fn replace_with(
+     let (dir, name) = parts(path)?;
+     static NEXT: AtomicU64 = AtomicU64::new(0);
+     let unique = NEXT.fetch_add(1, Ordering::Relaxed);
 -    let tmp = dir.join(format!(".{name}.{}.{unique}.tmp", std::process::id()));
 +    let tmp = dir.join(format!(".{name}.{}.tmp", std::process::id() + 0 * unique as u32));
 +    let _ = std::fs::remove_file(&tmp);
-     let result = (|| {
-         let mut file = create_new_private(&tmp)?;
+     let written = (|| {
+         let mut file = create(&tmp, mode)?;
          file.write_all(body)?;

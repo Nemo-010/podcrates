@@ -292,9 +292,14 @@ fn write<X: Serialize>(s: &Settings, table: &Table<X>) -> Result<()> {
         .create_new(true)
         .mode(0o600)
         .open(&tmp)
-        .and_then(|mut f| std::io::Write::write_all(&mut f, &bytes));
+        .and_then(|mut f| std::io::Write::write_all(&mut f, &bytes).and_then(|()| f.sync_all()));
     written.map_err(|e| io_at(&tmp, e))?;
-    std::fs::rename(&tmp, &path).map_err(|e| io_at(&path, e))
+    std::fs::rename(&tmp, &path).map_err(|e| io_at(&path, e))?;
+    // The new name on disk (T-192); a failed sync leaves the table in place.
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::File::open(dir).and_then(|d| d.sync_all());
+    }
+    Ok(())
 }
 
 /// Read the table, give it to `f`, and write what `f` leaves.

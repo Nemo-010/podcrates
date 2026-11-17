@@ -6,7 +6,7 @@
 //! ([`reconcile`]). The record is applied only when the file still starts
 //! with the marker line of [`Paths::marker`].
 
-use std::os::unix::fs::{OpenOptionsExt as _, PermissionsExt as _};
+use std::os::unix::fs::PermissionsExt as _;
 use std::path::{Path, PathBuf};
 
 use pod_core::{Class, Failure, Stage};
@@ -115,17 +115,11 @@ fn read_original(path: &Path) -> Result<Record, Failure> {
 }
 
 fn write_record(path: &Path, record: &Record) -> Result<(), Failure> {
-    use std::io::Write as _;
-    let temp = path.with_extension("tmp");
-    let writing = |e| host_io(format!("writing {}", path.display()), e);
-    let mut file =
-        std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(&temp).map_err(writing)?;
     let json = serde_json::to_string(record).expect("a record is JSON");
-    file.write_all(json.as_bytes()).map_err(writing)?;
-    file.sync_all().map_err(writing)?;
-    std::fs::rename(&temp, path).map_err(writing)?;
-    if let Some(dir) = path.parent() {
-        let _ = std::fs::File::open(dir).and_then(|d| d.sync_all());
+    let commit = pod_core::files::replace_private(path, json.as_bytes(), 0o600, false)
+        .map_err(|e| host_io(format!("writing {}", path.display()), e))?;
+    if let Some(e) = commit.unconfirmed() {
+        tracing::warn!(path = %path.display(), error = %e, "the record is written; its directory is not synced");
     }
     Ok(())
 }
@@ -194,19 +188,19 @@ pub fn undo(paths: &Paths) {
 /// written through. Where a rename over the file is not possible (a bind
 /// mount: EBUSY, EXDEV), the file is written in place.
 pub fn replace_file(path: &Path, text: &str, mode: u32) -> Result<(), Failure> {
-    let temp = path.with_extension(format!("pod-warp-{}", std::process::id()));
-    std::fs::write(&temp, text).map_err(|e| host_io(format!("writing {}", temp.display()), e))?;
-    // The umask does not change the mode.
-    std::fs::set_permissions(&temp, std::fs::Permissions::from_mode(mode))
-        .map_err(|e| host_io(format!("setting the mode of {}", temp.display()), e))?;
-    match std::fs::rename(&temp, path) {
-        Ok(()) => Ok(()),
-        Err(err) => {
-            let _ = std::fs::remove_file(&temp);
-            tracing::debug!(error = %err, path = %path.display(), "no rename over the file; it is written in place");
-            std::fs::write(path, text).map_err(|e| host_io(format!("writing {}", path.display()), e))
+    use pod_core::files::Commit;
+    let commit = pod_core::files::replace_private(path, text.as_bytes(), mode, true)
+        .map_err(|e| host_io(format!("writing {}", path.display()), e))?;
+    match commit {
+        Commit::Durable => {}
+        Commit::InPlace(err) => {
+            tracing::debug!(error = %err, path = %path.display(), "no rename over the file; it is written in place")
+        }
+        Commit::InstalledUnconfirmed(err) => {
+            tracing::warn!(error = %err, path = %path.display(), "the file is written; its directory is not synced")
         }
     }
+    Ok(())
 }
 
 #[cfg(test)]

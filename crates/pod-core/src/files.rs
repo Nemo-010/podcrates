@@ -10,7 +10,6 @@
 //! tree is passed over, and only read. The crate reads no variable itself:
 //! the caller gives a lookup of its environment.
 
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
 #[cfg(any(windows, test))]
@@ -21,12 +20,14 @@ mod dirs;
 mod own;
 #[cfg(unix)]
 mod owner;
+mod replace;
 #[cfg(unix)]
 pub use dirs::places_with;
 pub use dirs::{App, Chosen, Passed, Places, candidate_dirs_from, chosen_from, places_from};
 pub use own::{Others, create_file_in_first, create_private, read_own};
 #[cfg(unix)]
 pub use owner::{Host, make_dirs as make_dirs_with, passwd_home};
+pub use replace::{Commit, replace_private};
 
 /// The largest cache file read (a pool of a few hundred host names fits).
 /// A larger one is not read: a cache file is ignored, and made again.
@@ -180,23 +181,9 @@ pub fn read_trusted(path: &Path) -> Option<String> {
 fn write_private(dir: &Path, name: &str, body: &[u8]) -> std::io::Result<PathBuf> {
     make_private_dir(dir)?;
     let final_path = dir.join(name);
-    // One name for each call, also for two threads of one process (T-195):
-    // a name of the process alone let a second writer remove the first
-    // one's file and tear it.
-    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    let unique = NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    let tmp = dir.join(format!(".{name}.{}.{unique}.tmp", std::process::id()));
-    let result = (|| {
-        let mut file = create_new_private(&tmp)?;
-        file.write_all(body)?;
-        file.sync_all()?;
-        drop(file);
-        std::fs::rename(&tmp, &final_path)
-    })();
-    if result.is_err() {
-        let _ = std::fs::remove_file(&tmp);
-    }
-    result.map(|()| final_path)
+    // The file is in place also when the sync of its directory failed: a
+    // cache file that may not survive a power cut is no failure.
+    replace_private(&final_path, body, 0o600, false).map(|_| final_path)
 }
 
 #[cfg(unix)]

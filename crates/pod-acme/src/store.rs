@@ -5,7 +5,6 @@
 //! of mode 0600, replaced whole by a rename at each renewal, so that no
 //! reader ever takes the key of one certificate with the chain of another.
 
-use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 use pod_core::files::{self as cache, Others};
@@ -104,22 +103,10 @@ fn made_private(dir: &Path) -> std::io::Result<()> {
     cache::private_dir(dir)
 }
 
-/// `path` replaced whole by `body`: a private file beside it, then a rename.
+/// `path` replaced whole by `body` ([`cache::replace_private`]). A failed
+/// sync of the directory leaves the file in place: no failure.
 fn replace(path: &Path, body: &[u8]) -> std::io::Result<()> {
-    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let tmp = path.with_file_name(format!(".{name}.{}.tmp", std::process::id()));
-    let _ = std::fs::remove_file(&tmp);
-    let result = (|| {
-        let mut file = cache::create_new_private(&tmp)?;
-        file.write_all(body)?;
-        file.sync_all()?;
-        drop(file);
-        std::fs::rename(&tmp, path)
-    })();
-    if result.is_err() {
-        let _ = std::fs::remove_file(&tmp);
-    }
-    result
+    cache::replace_private(path, body, 0o600, false).map(|_| ())
 }
 
 #[cfg(test)]

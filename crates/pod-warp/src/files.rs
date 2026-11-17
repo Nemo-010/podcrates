@@ -92,7 +92,6 @@ pub(crate) fn check_private_as(path: &Path, uid: u32, foreign: Foreign) -> Resul
 /// rename. No other user can read the file at any time, and a reader never
 /// sees half a file. A missing parent is made with mode 0700.
 pub fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
-    use std::io::Write as _;
     if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
         let mut dirs = std::fs::DirBuilder::new();
         dirs.recursive(true);
@@ -100,21 +99,11 @@ pub fn write_private(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
         std::os::unix::fs::DirBuilderExt::mode(&mut dirs, 0o700);
         dirs.create(parent)?;
     }
-    let name = path.file_name().ok_or_else(|| std::io::Error::other("the path has no file name"))?;
-    let mut tmp_name = std::ffi::OsString::from(".");
-    tmp_name.push(name);
-    tmp_name.push(format!(".{}.tmp", std::process::id()));
-    let tmp = path.with_file_name(tmp_name);
-    let result = (|| {
-        let mut file = pod_core::files::create_new_private(&tmp)?;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-        std::fs::rename(&tmp, path)
-    })();
-    if result.is_err() {
-        let _ = std::fs::remove_file(&tmp);
+    let commit = pod_core::files::replace_private(path, bytes, 0o600, false)?;
+    if let Some(e) = commit.unconfirmed() {
+        tracing::warn!(path = %path.display(), error = %e, "the file is written; its directory is not synced");
     }
-    result
+    Ok(())
 }
 
 /// The lock file of `path`: `PATH.lock`.

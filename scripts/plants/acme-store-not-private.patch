@@ -1,11 +1,11 @@
 --- a/crates/pod-acme/src/store.rs
 +++ b/crates/pod-acme/src/store.rs
-@@ -110,7 +110,7 @@
-     let tmp = path.with_file_name(format!(".{name}.{}.tmp", std::process::id()));
-     let _ = std::fs::remove_file(&tmp);
-     let result = (|| {
--        let mut file = cache::create_new_private(&tmp)?;
-+        let mut file = cache::create_new_public(&tmp)?;
-         file.write_all(body)?;
-         file.sync_all()?;
-         drop(file);
+@@ -106,7 +106,7 @@ fn made_private(dir: &Path) -> std::io::Result<()> {
+ /// `path` replaced whole by `body` ([`cache::replace_private`]). A failed
+ /// sync of the directory leaves the file in place: no failure.
+ fn replace(path: &Path, body: &[u8]) -> std::io::Result<()> {
+-    cache::replace_private(path, body, 0o600, false).map(|_| ())
++    cache::replace_private(path, body, 0o644, false).map(|_| ())
+ }
+ 
+ #[cfg(test)]

@@ -1,0 +1,8 @@
+# A file of a crate is replaced through pod_core::files::replace_private,
+# which syncs the file and its directory; a rename of its own is refused by
+# the check (T-192).
+ENTRY=T-192
+GROUP=lint
+EXPECT='a rename outside pod_core::files::replace_private'
+RUN='python3 -I scripts/check-private-replace.py'
+LIMIT=600

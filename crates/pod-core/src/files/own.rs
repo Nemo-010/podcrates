@@ -85,7 +85,13 @@ pub fn create_private(path: &Path, body: &[u8]) -> std::io::Result<bool> {
     let linked = std::fs::hard_link(&tmp, path);
     let _ = std::fs::remove_file(&tmp);
     match linked {
-        Ok(()) => Ok(true),
+        Ok(()) => {
+            // The name on disk too (T-192); a failed sync of the directory
+            // leaves a file that is in place.
+            #[cfg(unix)]
+            let _ = std::fs::File::open(dir).and_then(|d| d.sync_all());
+            Ok(true)
+        }
         Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Ok(false),
         Err(_) => create_in_place(path, body),
     }

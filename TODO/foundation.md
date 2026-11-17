@@ -1465,7 +1465,7 @@ rules_replace_other.go, rules_replace_windows.go.
 **Milestone:** M1
 **Priority:** P3
 **Effort:** M
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -1491,14 +1491,14 @@ contract.
 
 ## Premise
 
-- Read (this tree): `crates/pod-core/src/files.rs:165-181`.
+- Read (this tree): `crates/pod-core/src/files.rs:166-182`.
   `write_private` syncs the file and renames it, and does not sync the
   directory; its temporary name is `.NAME.PID.tmp`. It is private to the
-  crate: `store_noting` (`:57-69`) and `store_file_in_first` call it, and
+  crate: `store_noting` (`:58-70`) and `store_file_in_first` call it, and
   through them `pod-tls` (`crates/pod-tls/src/groups/dirs.rs:25`) and
   `pod-identity` (`crates/pod-identity/src/pins.rs:134`). The review
   agrees.
-- Read: `crates/pod-core/src/files/own.rs:67-92`. `create_private` syncs
+- Read: `crates/pod-core/src/files/own.rs:67-98`. `create_private` syncs
   the file, links it into place with a hard link (never over a file), and
   does not sync the directory. The review agrees. It is a create, not a
   replace.
@@ -1580,6 +1580,11 @@ The tests:
   negative case).
 - The check refuses its plant.
 
+## Done
+
+2026-11-17. `crates/pod-core/src/files/replace.rs`: `replace_private(path, body, mode, in_place_fallback)` gives `io::Result<Commit>`. The steps: a temporary name beside the path, `.NAME.PID.N.tmp` (a counter of the process); a create with `O_EXCL | O_NOFOLLOW` and the mode, then the mode set again (the umask can only narrow it); write; `sync_all`; rename; open the directory and `sync_all` it. `Commit::Durable`; `Commit::InstalledUnconfirmed(e)` when the sync of the directory failed; `Commit::InPlace(e)` when the rename failed (`e`) and the caller asked for the fallback, which writes the file in place, with no follow of a symlink, and syncs it (one variant more than the Approach: a write in place in a container is expected, a failed directory sync is not, and a caller logs them at two levels). `Err`: nothing changed, and no temporary file stays. A symlink at the path is replaced. Windows: `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH`, and no directory sync. `write_private` (so `store_noting`, `store_file_in_first`, and through them `pod-tls` and `pod-identity`) goes onto it; `create_private` syncs the directory after its link. The private writers that renamed on their own moved onto it: `pod-acme`'s `store::replace`, `pod-warp`'s `files` and its resolver record (a warning when unconfirmed), and `pod-warp`'s `replace_file` of `/etc/resolv.conf` (the fallback: `InPlace` at debug as before, a failed directory sync as a warning). `pod-supervise`'s table keeps its staging directory, and now syncs the file and the directory. `scripts/check-private-replace.py` (CI and `scripts/agent/check.sh`) refuses an `fs::rename` call in product code outside the helper, with the scan of `scripts/check-loopback.py`; 9 files are exceptions with their reasons (the results service, the cache and the lock of actions, the warm state and the download of `pod-guest`, the table of `pod-supervise`, a test module of `pod-extract`), and an exception for a file that is not scanned is a fault. Tests: 7 in `src/files/replace_tests.rs` (the new file and no temporary file, the mode under the umask, a symlink replaced and its target kept, a failed rename that changes nothing, a path with no name, the fallback in place only when asked, by an injected rename). `cargo test --all-features` of `pod-core`, `pod-acme`, `pod-warp` and `pod-supervise` passed (331); the clippy of `pod-core` for `x86_64-pc-windows-gnu` passed. Plants: `acme-replace-by-rename` (a rename of its own, caught by the check), and `acme-store-not-private` and `core-store-shares-one-temp-name` planted again on the helper. Not done here: the stale temporary file of a PID that is not alive (optional); the copies in podnet and podssh move in their repositories after the release, named on its hand-off. Not measured: a power cut.
+
+
 # T-193: `pod-core`: a bounded tail of a log that starts at a line (PodUtils/podnet#437)
 
 **Source:** PodUtils/podnet#437 (COORD-019 of podnet), the owner's donor
@@ -1618,7 +1623,7 @@ example `eyJ`).
   reads the whole file with `std::fs::read`. `follow_tail` (`:95-105`)
   calls it, then `tail_offset` (`:72`), then `follow_from` at the length
   of that read. The review agrees.
-- Read: `crates/pod-core/src/files.rs:158` (`read_trusted`) and
+- Read: `crates/pod-core/src/files.rs:159` (`read_trusted`) and
   `crates/pod-core/src/files/own.rs:28` (`read_own`), the neighbours of
   the new function.
 - Found, not in the review: `logs` gives bytes (`Vec<u8>`), the raw output
@@ -1692,8 +1697,8 @@ The tests:
 ## Problem
 
 `write_private` names its temporary file `.NAME.PID.tmp`
-(`crates/pod-core/src/files.rs:168`) and first removes a file of that name
-(`:169`). Two threads of one process that store the same name at once
+(`crates/pod-core/src/files.rs:169`) and first removes a file of that name
+(`:170`). Two threads of one process that store the same name at once
 share that file. Thread B removes the file of thread A and makes its own.
 The rename of A then puts the file of B in place, possibly before B wrote
 all of it. The rename of B then fails, so `store_noting` tries the next
@@ -1709,8 +1714,8 @@ it.
 
 ## Premise
 
-- Read: `crates/pod-core/src/files.rs:162-181`,
-  `crates/pod-core/src/files/own.rs:61-92`,
+- Read: `crates/pod-core/src/files.rs:163-182`,
+  `crates/pod-core/src/files/own.rs:61-98`,
   `crates/pod-tls/src/groups/dirs.rs`, `crates/pod-identity/src/pins.rs`.
 - Read: `pin` (`crates/pod-identity/src/pins.rs:114-138`) reads the pins,
   adds a line and stores the whole file, with no lock. Two pins at once

@@ -1,0 +1,12 @@
+--- a/crates/pod-acme/src/store.rs
++++ b/crates/pod-acme/src/store.rs
+@@ -106,7 +106,8 @@ fn made_private(dir: &Path) -> std::io::Result<()> {
+ /// `path` replaced whole by `body` ([`cache::replace_private`]). A failed
+ /// sync of the directory leaves the file in place: no failure.
+ fn replace(path: &Path, body: &[u8]) -> std::io::Result<()> {
+-    cache::replace_private(path, body, 0o600, false).map(|_| ())
++    std::fs::write(path.with_extension("tmp"), body)?;
++    std::fs::rename(path.with_extension("tmp"), path)
+ }
+ 
+ #[cfg(test)]

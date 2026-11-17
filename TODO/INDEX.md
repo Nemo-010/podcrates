@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**669 entries: 132 open, 17 partial, 7 blocked, 513 done.**
+**669 entries: 131 open, 17 partial, 7 blocked, 514 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
 | P2 | 55 | 4 | 4 | 264 | 327 |
-| P3 | 66 | 5 | 3 | 100 | 174 |
-| **All** | 132 | 17 | 7 | 513 | 669 |
+| P3 | 65 | 5 | 3 | 101 | 174 |
+| **All** | 131 | 17 | 7 | 514 | 669 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -238,7 +238,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-189](transport.md) | P3 | S | M1 | feature | open | `pod-proxy`: a TCP congestion controller on request for each dialed socket, read back (PodUtils/podnet#437) |
 | [T-190](podvm.md) | P3 | M | M6 | feature | open | `pod-oci`: one large blob as parallel ranges, kept only by the digest of the whole blob (PodUtils/podnet#437) |
 | [T-191](fleet.md) | P2 | M | M8 | feature | open | `pod-broker`: a listener that takes a plain request in origin form and opens verified TLS to its `Host` (PodUtils/podnet#437) |
-| [T-192](foundation.md) | P3 | M | M1 | feature | open | `pod-core`: one replace of a private file with a durable commit and three outcomes (PodUtils/podnet#437) |
+| [T-192](foundation.md) | P3 | M | M1 | feature | done | `pod-core`: one replace of a private file with a durable commit and three outcomes (PodUtils/podnet#437) |
 | [T-193](foundation.md) | P3 | S | M1 | feature | open | `pod-core`: a bounded tail of a log that starts at a line (PodUtils/podnet#437) |
 | [T-194](fleet.md) | P2 | S | M8 | feature | open | `pod-broker`: a hash of the policy in the load answer, the list answer and each audit line (PodUtils/podnet#437) |
 | [T-195](foundation.md) | P2 | S | M1 | defect | done | `pod-core`: two threads that store one private file at once share one temporary name |

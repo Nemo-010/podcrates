@@ -35,7 +35,8 @@ echo "record $r"; [ "$r" -eq 0 ] || { rc=1; head -20 "$log/record.log"; }
 { python3 -I scripts/check-size.py && python3 -I scripts/check-size.py --self-test; } > "$log/size.log" 2>&1; s=$?
 echo "size $s"; [ "$s" -eq 0 ] || { rc=1; grep -v "^ok \|^check-size:" "$log/size.log" | head -20; }
 { python3 -I scripts/check-design-paths.py && python3 -I scripts/check-publish-order.py && python3 -I scripts/check-workflows.py &&
-    python3 -I scripts/check-probe.py && sh scripts/plant-each.sh --apply; } > "$log/paths.log" 2>&1; p=$?
+    python3 -I scripts/check-probe.py && python3 -I scripts/check-loopback.py &&
+    python3 -I scripts/check-private-replace.py && sh scripts/plant-each.sh --apply; } > "$log/paths.log" 2>&1; p=$?
 echo "paths $p"; [ "$p" -eq 0 ] || { rc=1; head -20 "$log/paths.log"; }
 if [ -f examples/static-probe/Cargo.toml ] && command -v zig > /dev/null 2>&1; then
     t=x86_64-unknown-linux-musl

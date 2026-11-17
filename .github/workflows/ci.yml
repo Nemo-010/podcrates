@@ -94,6 +94,10 @@ jobs:
         run: |
           python3 -I scripts/check-loopback.py
           python3 -I scripts/check-loopback.py --self-test
+      - name: No replace of a file outside the durable helper
+        run: |
+          python3 -I scripts/check-private-replace.py
+          python3 -I scripts/check-private-replace.py --self-test
       - name: The rules of check-strings.py
         run: python3 -I scripts/check-strings.py --self-test
       - name: The rules of the workflows

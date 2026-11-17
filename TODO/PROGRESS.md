@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 669 entries: 132 open, 17 partial, 7 blocked, 513 done.
+`TODO/INDEX.md` holds 669 entries: 131 open, 17 partial, 7 blocked, 514 done.
 
 ## State
 
@@ -135,7 +135,7 @@ for podnet (item 3c): T-526. Then the items below, in order.
    (PodUtils/podvm#194): `pod-services` and `pod-todo`. T-190 (a large blob as parallel ranges, PodUtils/podnet#437)
    after podvm asks for it.
 5. **M1, the transport:** T-200 (a Bare node whose WebSocket passes, for PodUtils/podssh@T-740); T-151 (the watch scripts that leave podssh and podnet); T-041 when a crate or a consumer needs
-   it; then T-189, T-192, T-193 (the proposals of PodUtils/podnet#437 for
+   it; then T-189, T-193 (the proposals of PodUtils/podnet#437 for
    `pod-proxy` and `pod-core`).
 6. **M2, the relay:** the contract of `pod-link` from the study of zmux
    (`docs/research/zmux.md`): T-798, T-799; T-212; T-290 (the layer of
