@@ -48,7 +48,9 @@ keep one goes into its `EXCEPTIONS` with the reason.
   on the code before the fix. Run the new test on the old code one time,
   and write in the commit message that it fails there.
 * **A planted defect for each check.** A new check (a test, a CI step, a
-  scan) must fail on a planted defect before it is trusted.
+  scan) must fail on a planted defect before it is trusted. A plant of a
+  fix undoes the whole fix: a fix of two parts holds when one part is
+  undone, and the plant is missed.
 * **No sleep as a proof.** A test waits for an event (a channel, a
   socket) with a time limit. For time limits of the code, use
   `#[tokio::test(start_paused = true)]` or make the limit a parameter.

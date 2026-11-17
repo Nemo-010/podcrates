@@ -334,18 +334,23 @@ the clippy of the workspace passes.
 
 Open, in order:
 
-- Step 3, the rest: four lines that go to `tracing` with no `Host` (the
-  shape of the SRV answer, the start of a quick tunnel from the file, the
-  replace of the edge connection before a limit of the relay, the retry of
-  a register); the comments in ASD-STE100; the hook of `tunnel --inspect`
-  on `forward_http`; the watch of the pin of cloudflared.
-- Step 4: the fuzz targets (`capnp_message`, `rpc_message`,
-  `register_response`, `connect_request`, `h2_header_block`, `srv_record`,
-  `request_head`, `ingress_rule`, `config_yaml`), the plants, podnet's tests
-  of the tunnel.
+2026-11-17, more (commits `30d8d5d` to `5e11e2b`): the four last lines
+for a user are events (`edge.discovery`, `config.quick`, `tunnel.reconnect`,
+`tunnel.register`) through the forms `checked_targets_with`,
+`load_file_with` and `register_retrying_with`; the nine fuzz targets of
+podnet's names are in `fuzz/` (`fuzz/src/targets/cloudflare.rs`), with
+their seeds written as files and the crash input of PodUtils/podnet#555;
+four plants of the group `cloudflare` are caught (the bound check of a
+capnp list, `noTLSVerify` with no configuration, the relay on each leg, the
+relay of the host on a direct leg). 192 tests.
+
+- Step 3, the rest: the comments in ASD-STE100; the hook of
+  `tunnel --inspect` on `forward_http`; the watch of the pin of cloudflared.
+- Step 4, the rest: podnet's tests of the tunnel.
 - Step 6: the README, the parity list, the adoption map: podnet reads its
   `PODNET_RESOLVE` pins into the resolver, hides `Config::secrets` itself,
-  adds its counters of decisions to the metrics text, sets `Host.relay` for
+  adds its counters of decisions to the metrics text, calls the `_with`
+  forms of `load_file` and `checked_targets` with its report, sets `Host.relay` for
   `--transport relay`, gives its words (`Words`) and the prefix `podnet` of
   its metrics, and passes its own configuration with no check in
   `Host.origin_no_verify` for `noTLSVerify`.
