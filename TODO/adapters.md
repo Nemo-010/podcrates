@@ -2085,7 +2085,7 @@ python3 -I scripts/check-size.py
 **Milestone:** M3
 **Priority:** P2
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2107,6 +2107,17 @@ The trial patch removes podnet's `upstream.yml` and `tools/check-upstream.py`, w
 python3 -I crates/pod-cloudflare/tools/check-upstream.py --self-test
 sh crates/pod-cloudflare/tools/check-header-oracle.sh
 ```
+
+## Correction
+
+2026-11-17, items 1 and 3, fcafb3c: `crates/pod-cloudflare/tools/check-upstream.py` (podnet's check, on the paths of the crate; it enters the crate's directory first; listed in `SOURCES`) and the job `cloudflared` of `.github/workflows/upstream.yml`: the pinned files against the pin and against the newest release, a planted sum that must exit 1, and `check-header-oracle.sh`. The oracle needed the example `dump_headers`, which the crate did not have (the cases of the script, sorted pairs, `---`), and built into a second target inside the crate: it now takes the target of the workspace. Run here: the check passes (10 files, 0 faults) and notes cloudflared 2026.11.0 with the same files; the planted sum exits 1; the oracle passes against Go and against the recorded file. The move of the pin is T-851.
+
+Item 2, d34ef23: the input of podnet's step "A planted pointer loop ends" (one segment of two words, a root struct with a pointer to itself) is the seed `fuzz/seeds/capnp_message/pointer_loop`: each fuzz run takes it with `-timeout=10`, and the stable test of `fuzz/` runs it and its mutations (14 tests pass). The unit test `a_pointer_loop_ends_with_an_error` of the crate holds the same rule.
+
+## Done
+
+2026-11-17: items 1, 2 and 3, as the Correction says. The move of the pin is T-851.
+
 
 # T-850: `pod-core`: one clean text of a peer: the strip of escape sequences and the words of a TLS failure
 
@@ -2133,4 +2144,34 @@ The strip of escape sequences and `tls_text` go into `pod_core::text`; `pod-clou
 
 ```sh
 cargo test -p pod-core -p pod-cloudflare --all-features
+```
+
+# T-851: `pod-cloudflare`: the pin of cloudflared moves to 2026.11.0
+
+**Source:** T-849 (the check notes a newer release with the same files).
+**Category:** chore
+**Milestone:** M3
+**Priority:** P3
+**Effort:** S
+**Status:** open
+
+## Problem
+
+The pin of cloudflared is 2026.10.7. cloudflared 2026.11.0 (released 2026-11-12, commit `b0297f0`) has the same bytes in each pinned file. The fact `cloudflared-tag` of `pod-services` (the text "NAME speaks cloudflared TAG") and the sources of the facts of the edge and of the quick tunnels cite 2026.10.7, with the files `connection/protocol.go`, `cmd/cloudflared/tunnel/cmd.go` and `edgediscovery/allregions/discovery.go`, which the pin does not follow.
+
+## Premise
+
+- Read: `crates/pod-cloudflare/src/cloudflare/cloudflared-pin.txt`; `crates/pod-services/services/cloudflare-tunnel-edge.toml` and `trycloudflare.toml`; `crates/pod-cloudflare/src/cloudflare/schema.rs`; `crates/pod-cloudflare/src/config/tests.rs`.
+
+## Approach
+
+1. Compare each cited file of cloudflared at the two tags; read each that changed.
+2. Move the pin, the fact `cloudflared-tag`, the sources with their dates, and the texts and tests that name the tag, in one commit; the test of `config` takes the tag from `speaks()`.
+3. Add the cited files that the pin does not follow to the pin as `source` lines.
+
+## Prove
+
+```sh
+python3 -I crates/pod-cloudflare/tools/check-upstream.py
+cargo test -p pod-cloudflare -p pod-services --all-features
 ```

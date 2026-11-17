@@ -46,6 +46,8 @@ the tools.
   line (`AGENTS.md`). The comments of the sessions end with the "Generated
   by" line of the harness: Q16 of `TODO/PROGRESS.md` asks the owner which
   rule holds (T-538).
+  The tool of an issue body drops the `!` of `![`, as in `vec![`: write no
+  macro with a bracket in a body, or read the body back after the write.
 * **Pushes**: `git push origin main`. The identity comes from
   `.claude/session-start.sh`.
 * **The record**: `cargo todo check`, `cargo todo set T-NNN STATUS`,

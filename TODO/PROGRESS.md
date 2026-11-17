@@ -1,6 +1,6 @@
 # Progress
 
-`TODO/INDEX.md` holds 683 entries: 127 open, 21 partial, 7 blocked, 528 done.
+`TODO/INDEX.md` holds 684 entries: 127 open, 21 partial, 7 blocked, 529 done.
 
 ## State
 
@@ -28,15 +28,17 @@
     of 200 MiB), with the release asset of `podlab`; `pod-manual` is
     PodUtils/podssh@T-790; its installer on the core is
     PodUtils/podssh@T-793.
-  - podnet: `v0.67.0` (`71924ec`, PodUtils/podnet#597: no change of a
-    public API; next its six copies of a durable replace to `replace_private`;
+  - podnet: `v0.68.0` (`0d9de01`, `3a09c01`, PodUtils/podnet#597:
+    webpki-roots 1.0.12, russh 0.65.2 with rsa 0.10.0; its `deny.toml`
+    ignores no advisory; `replace_private` taken in `7fe60e0`; its
+    `v0.4.0-beta.15` is on `v0.67.0`; `v0.67.0` in `71924ec`;
     `v0.66.0` in `060147b`; `v0.65.0` in
     `17fa8e6`: on `NameInUse` it takes the next stored pair (T-805); its help and
     manual come from `pod-manual` with no workaround of T-725; it runs the one
     watcher and the sync of the issues; its installer on
     `scripts/install/core.sh` is PodUtils/podnet@T-360).
-  - podvm: `v0.67.0` (PodUtils/podvm#462: no item for podvm; its tests
-    pass on the tag; `v0.66.0` in `b1fa48f`, PodUtils/podvm#461:
+  - podvm: `v0.68.0` (PodUtils/podvm#465: PodUtils/podvm#463 answered;
+    its tests pass on the tag; `v0.67.0`, PodUtils/podvm#462; `v0.66.0` in `b1fa48f`, PodUtils/podvm#461:
     `pid_namespace: true` for each run of the namespace rung of
     `podvm-supervise`; its installer core is still of `v0.58.0`,
     PodUtils/podvm@T-1925).
