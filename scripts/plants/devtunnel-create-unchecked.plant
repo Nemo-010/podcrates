@@ -1,0 +1,6 @@
+# pod-devtunnel: a new tunnel takes an id or a name that is no label of a host name, which goes into the path as it is; the test of the writes must fail (T-378, GitHub #94).
+ENTRY=T-378
+GROUP=devtunnel
+EXPECT='test a_tunnel_with_no_cluster_and_the_query_of_the_list ... FAILED'
+RUN='cargo test -p pod-devtunnel --all-features --test writes'
+LIMIT=1800

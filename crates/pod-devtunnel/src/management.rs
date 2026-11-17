@@ -18,6 +18,9 @@ use crate::service;
 use crate::settings::{Base, Settings};
 use crate::token::{ConnectToken, Credential};
 
+mod writes;
+pub use writes::{Owned, OwnedPort, new_id};
+
 /// The most characters of a refusal's words in a failure.
 const WORDS_MOST: usize = 200;
 

@@ -1,0 +1,12 @@
+diff --git a/crates/pod-devtunnel/src/management/writes.rs b/crates/pod-devtunnel/src/management/writes.rs
+--- a/crates/pod-devtunnel/src/management/writes.rs
++++ b/crates/pod-devtunnel/src/management/writes.rs
+@@ -126,7 +126,7 @@ impl Management {
+     /// Each tunnel of the user of `credential`, of each cluster.
+     pub async fn list(&self, credential: &Credential) -> Result<Vec<Owned>, Failure> {
+         let (host, path) = (self.base.host.clone(), service::tunnels_path());
+-        let url = self.write_url(&host, path, service::service().text("list-query").unwrap_or_default());
++        let url = self.write_url(&host, path, "");
+         let shown = self.shown("GET", &host, path, credential);
+         let body = self.write(self.write_request("GET", url, credential), &shown).await?;
+         let list: ByRegion = serde_json::from_slice(&body)

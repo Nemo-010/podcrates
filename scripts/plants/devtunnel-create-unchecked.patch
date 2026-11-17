@@ -1,0 +1,12 @@
+diff --git a/crates/pod-devtunnel/src/management/writes.rs b/crates/pod-devtunnel/src/management/writes.rs
+--- a/crates/pod-devtunnel/src/management/writes.rs
++++ b/crates/pod-devtunnel/src/management/writes.rs
+@@ -147,7 +147,7 @@ impl Management {
+     ) -> Result<Owned, Failure> {
+         let bad = |what: &str| fail(Step::Management, Class::Usage, format!("{what} is no label of a host name"));
+         for part in [Some(id), name, cluster].into_iter().flatten() {
+-            if !label(part) {
++            if !label(part) && part.is_empty() {
+                 return Err(bad(&format!("{part:?}")));
+             }
+         }

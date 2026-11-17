@@ -5539,6 +5539,24 @@ the client side that PodUtils/podssh#216 asks for.
   file (`pod_core::files`); their stand-in tests (a create, a list). Then
   T-386 (the live run) and T-387 (the name on crates.io).
 
+2026-11-17: the writes of the management API are in (the second part,
+step 1 of 3): `Management::list` (`GET /tunnels` with `global=true`, the
+tunnels of each region), `Management::create` (`PUT /tunnels/ID` on the
+host of the cluster, or the global host with no cluster, with the name),
+`Management::delete`, `Management::add_port` (`PUT /tunnels/ID/ports/PORT`),
+`new_id` (the vendor's form of an id: an adjective, a noun, 7 characters),
+`Owned` and `OwnedPort`. The facts `list-query`, `ports-path`,
+`tunnel-id-*` and `write-calls` of `microsoft-devtunnel.toml`, each with
+its source in the vendor's client at the same commit; the watch of
+`http_client.rs` holds `write-calls`. The stand-in serves the writes (the
+user's token alone; a tunnel access token gets 403). Tests: `tests/writes.rs`
+(3), two unit tests. Plants `devtunnel-list-not-global`,
+`devtunnel-create-unchecked`. Open: step 2, the device-code flows of
+GitHub (the vendor's `PROD_GITHUB_APP_CLIENT_ID`) and of AAD (the
+caller's client id, the scope of `PROD_FIRST_PARTY_APP_ID`, the
+`organizations` authority of the vendor's test), with the refresh of an
+AAD token; step 3, the token store in a private file.
+
 # T-385: `pod-ws`: a client upgrade checks the subprotocol of the answer
 
 **Source:** T-378 (found in the work of `pod-devtunnel`).

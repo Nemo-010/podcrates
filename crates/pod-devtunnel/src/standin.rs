@@ -9,6 +9,7 @@
 //! caller gave, never a token.
 
 mod host;
+mod writes;
 
 use std::io;
 use std::net::SocketAddr;
@@ -113,6 +114,8 @@ pub struct Seen {
     /// The host, the port, the originator and its port of each
     /// `direct-tcpip` channel.
     pub channels: Vec<(String, u32, String, u32)>,
+    /// Each write of the management API: `METHOD PATH`.
+    pub writes: Vec<String>,
 }
 
 pub(crate) struct State {
@@ -125,11 +128,16 @@ pub(crate) struct State {
     key: PrivateKey,
     other: PrivateKey,
     port: u16,
+    made: Mutex<writes::Made>,
 }
 
 impl State {
     fn seen(&self) -> MutexGuard<'_, Seen> {
         self.seen.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    fn made(&self) -> MutexGuard<'_, writes::Made> {
+        self.made.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 
@@ -165,6 +173,7 @@ impl Standin {
             key: key()?,
             other: key()?,
             port,
+            made: Mutex::default(),
         });
         let served = state.clone();
         let accept = tokio::spawn(async move {
@@ -218,9 +227,24 @@ impl Standin {
 /// One connection: a get of the management API, or an upgrade of the
 /// relay.
 async fn serve(state: Arc<State>, mut tcp: TcpStream) {
-    let Ok((head, rest)) = request::read_request(&mut tcp, Vec::new()).await else { return };
+    let Ok((head, mut rest)) = request::read_request(&mut tcp, Vec::new()).await else { return };
     if server::asks_upgrade(&head) {
         relay(state, tcp, head, rest).await;
+        return;
+    }
+    if writes::is_write(&head) {
+        // The body of a write: as long as its length, which is short.
+        let length: usize = head.header("content-length").and_then(|n| n.parse().ok()).unwrap_or(0).min(64 * 1024);
+        let mut chunk = [0u8; 4096];
+        while rest.len() < length {
+            match tokio::io::AsyncReadExt::read(&mut tcp, &mut chunk).await {
+                Ok(0) | Err(_) => break,
+                Ok(n) => rest.extend_from_slice(&chunk[..n]),
+            }
+        }
+        let answer = writes::answer(&state, &head, &rest[..rest.len().min(length)]);
+        let _ = tcp.write_all(&answer).await;
+        let _ = tcp.shutdown().await;
         return;
     }
     let answer = management(&state, &head);

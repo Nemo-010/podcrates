@@ -1,0 +1,6 @@
+# pod-devtunnel: the list of the tunnels asks for no cluster (no global=true), so the service gives one tunnel and not the list; the test of the writes must fail (T-378, GitHub #94).
+ENTRY=T-378
+GROUP=devtunnel
+EXPECT='test a_tunnel_is_made_listed_given_a_port_and_deleted ... FAILED'
+RUN='cargo test -p pod-devtunnel --all-features --test writes'
+LIMIT=1800

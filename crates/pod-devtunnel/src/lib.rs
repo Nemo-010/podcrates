@@ -35,7 +35,7 @@ pub mod token;
 
 pub use failure::{Failed, Step, step_of, steps_of};
 pub use info::{ConnectInfo, Endpoint, Tunnel};
-pub use management::{Locator, Management};
+pub use management::{Locator, Management, Owned, OwnedPort, new_id};
 pub use relay::Relay;
 pub use settings::{Base, Settings, Way};
 pub use stream::Stream;

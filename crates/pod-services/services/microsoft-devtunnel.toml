@@ -141,11 +141,56 @@ name = "anonymous-calls"
 value = ["headers.remove(AUTHORIZATION);"]
 source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/http_client.rs", read = 2026-11-14, note = "make_tunnel_request_with_authorization: an authorization with no header (Anonymous) sends no Authorization" }
 
+# The writes of the management API (T-378, part 2): the list of each
+# tunnel of the user on the global host, a new tunnel with an id of the
+# vendor's form (an adjective, a noun, then 7 characters), its delete, and
+# a port of a tunnel.
+[[fact]]
+name = "list-query"
+value = "global=true"
+source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/http_client.rs", read = 2026-11-17, note = "list_all_tunnels: GET /tunnels with global=true; the answer is TunnelListByRegionResponse, value[].value[]" }
+
+[[fact]]
+name = "ports-path"
+value = "ports"
+source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/http_client.rs", read = 2026-11-17, note = "PORTS_API_SUB_PATH; create_tunnel_port: PUT /tunnels/ID/ports/PORT with the port as JSON" }
+
+[[fact]]
+name = "tunnel-id-adjectives"
+value = ["fun", "happy", "interesting", "neat", "peaceful", "puzzled", "kind", "joyful", "new", "giant", "sneaky", "quick", "majestic", "jolly", "fancy", "tidy", "swift", "silent", "amusing", "spiffy"]
+source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/http_client.rs", read = 2026-11-17, note = "ADJECTIVES of generate_tunnel_id; create_tunnel PUTs /tunnels/ID with the id that the client made" }
+
+[[fact]]
+name = "tunnel-id-nouns"
+value = ["pond", "hill", "mountain", "field", "fog", "ant", "dog", "cat", "shoe", "plane", "chair", "book", "ocean", "lake", "river", "horse"]
+source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/http_client.rs", read = 2026-11-17, note = "NOUNS of generate_tunnel_id" }
+
+[[fact]]
+name = "tunnel-id-chars"
+value = "bcdfghjklmnpqrstvwxz0123456789"
+source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/http_client.rs", read = 2026-11-17, note = "TUNNEL_ID_CHARS of generate_tunnel_id: 7 of them end the id (the fact tunnel-id-tail)" }
+
+[[fact]]
+name = "tunnel-id-tail"
+value = "7"
+source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/http_client.rs", read = 2026-11-17, note = "for _ in 0..7 of generate_tunnel_id" }
+
+[[fact]]
+name = "write-calls"
+value = [
+    "url.query_pairs_mut().append_pair(\"global\", \"true\");",
+    "const PORTS_API_SUB_PATH: &str = \"ports\";",
+    "const TUNNEL_ID_CHARS: &str = \"bcdfghjklmnpqrstvwxz0123456789\";",
+    "for _ in 0..7 {",
+    "\"pond\", \"hill\", \"mountain\", \"field\", \"fog\", \"ant\", \"dog\", \"cat\", \"shoe\", \"plane\",",
+]
+source = { url = "https://raw.githubusercontent.com/microsoft/dev-tunnels/37956c63675e3339b42c7f852a5af5da1566c5b9/rs/src/management/http_client.rs", read = 2026-11-17 }
+
 [[watch]]
 kind = "github-file"
 repo = "microsoft/dev-tunnels"
 path = "rs/src/management/http_client.rs"
-facts = ["api-version", "management-calls", "anonymous-calls"]
+facts = ["api-version", "management-calls", "anonymous-calls", "write-calls"]
 
 [[fact]]
 name = "user-scheme-calls"
