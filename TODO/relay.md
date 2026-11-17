@@ -9667,3 +9667,36 @@ cargo test -p pod-relay --all-features --test routes_unix
 ## Done
 
 2026-11-17. `crates/pod-relay/src/reverse/unix_target.rs`: one `connect` for Unix and Windows over a blocking `open_std` that gives a std `TcpStream`: on Unix the `UnixStream` (with the abstract name of Linux) by its descriptor; on Windows a WinSock socket of AF_UNIX (`WSAStartup`, `socket`, `connect` to a `SOCKADDR_UN`, `closesocket` on a failure, `from_raw_socket`), with a refusal of a path that does not fit `sun_path` with its NUL. `pod-relay` takes `windows-sys` 0.61 (`Win32_Networking_WinSock`) on Windows. The clippy of `pod-relay` for `x86_64-pc-windows-gnu` and for Linux passes; `tests/routes_unix.rs` (6) passes on Linux. It ran on no Windows host here: podssh's Windows tests of its route run it.
+
+# T-845: `pod-relay` and `pod-session`: a relay's liveness offer, so a relay that sleeps between frames can sleep (PodUtils/podssh#300)
+
+**Source:** PodUtils/podssh#300 (COORD-104 of podssh, PodUtils/podssh@T-712; cfb's ask A-S-05 of COORD-014).
+**Category:** feature
+**Milestone:** M2
+**Priority:** P2
+**Effort:** M
+**Status:** open
+
+## Problem
+
+A relay that sleeps between frames (a Durable Object with WebSocket hibernation) cannot sleep while each end sends a Ping each 10 s, and while the layer of `pod-session` sends its heartbeat as payload on an idle link.
+
+## Premise
+
+- Read: PodUtils/podssh#300. The rule: the member `liveness` `{"frame": "ws-ping", "every_s": N}` of the relay's `hello` (to a node) and `ready` (to an operator) is a hint. A pace from 30 s to 60 s is taken; over 60 s is held to 60 s; under 30 s is ignored; an absent member keeps 10 s. `frame` is required, and only `"ws-ping"`.
+- Read: `crates/pod-relay/src/reverse/serve.rs` and `operator.rs` (the watch starts before either frame); `forward_layer::offer`; the heartbeat of `pod-session`'s layer.
+- Not read: podssh's reference, `PodUtils/podssh:crates/podssh-relay/src/liveness.rs`, and the vectors of its `PodUtils/podssh:docs/relay.md` ("A relay that sleeps between frames"): on podssh's next push.
+
+## Approach
+
+1. One reader of the member by the rule, in `pod-relay`; the node reads it from `hello` and the operator from `ready`, and each starts its watch again at the new pace.
+2. `forward_layer::offer::of` keeps `forward.liveness` in `Offer`.
+3. The layer of `pod-session` sends no frame of its own on an idle link while the offer holds.
+4. The vectors of `PodUtils/podssh:docs/relay.md` as tests.
+
+## Prove
+
+```sh
+cargo test -p pod-relay --all-features
+cargo test -p pod-session --all-features
+```
