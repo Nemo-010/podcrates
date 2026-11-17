@@ -2126,7 +2126,7 @@ Item 2, d34ef23: the input of podnet's step "A planted pointer loop ends" (one s
 **Milestone:** M0
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -2145,6 +2145,11 @@ The strip of escape sequences and `tls_text` go into `pod_core::text`; `pod-clou
 ```sh
 cargo test -p pod-core -p pod-cloudflare --all-features
 ```
+
+## Done
+
+2026-11-17, 55d990853 and 9ab942b: `pod_core::text::one_line` and `multi_line` first take out each escape sequence of a terminal whole (`without_escapes`): a CSI (ESC `[` or U+009B) up to its final byte, an OSC (ESC `]` or U+009D) up to BEL or ST, and another escape with its intermediates and its final character. Before, only ESC went, and its parameters (`[2J`, `]0;title`) stayed as text. `pod_cloudflare::text::clean` is now `multi_line`; the body of a refused quick tunnel and the destination in a log line take `one_line`; `proxy::path_and_query` is public, and `fail::tls_text` was already, so podnet can drop its copies. Tests: `each_escape_sequence_goes_with_its_parameters` (pod-core), and 13 tests of `pod-core`, `pod-egress`, `pod-incus`, `pod-session`, `pod-ws`, `pod-proxy` and `pod-cloudflare` that held the old leftovers now hold the clean text. The plant `fuzz-one-line-escape` skips the strip too, and is caught. The tests of those seven crates and of `fuzz/` pass.
+
 
 # T-851: `pod-cloudflare`: the pin of cloudflared moves to 2026.11.0
 
