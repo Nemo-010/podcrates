@@ -1,0 +1,12 @@
+diff --git a/crates/pod-broker/src/serve.rs b/crates/pod-broker/src/serve.rs
+--- a/crates/pod-broker/src/serve.rs
++++ b/crates/pod-broker/src/serve.rs
+@@ -297,7 +297,7 @@ impl Broker {
+                 // names resolve only through its proxy has no answer here: the
+                 // name passed each deny and the policy, and the canary says
+                 // whether the upstream refuses a non-public address.
+-                Err(refusal) if self.settings.names_upstream && refusal.rule == "resolve" => {
++                Err(refusal) if false && self.settings.names_upstream && refusal.rule == "resolve" => {
+                     note.upstream_resolved = true;
+                     Vec::new()
+                 }

@@ -1,0 +1,6 @@
+# Names mode sends a name that only the upstream resolves (T-862).
+ENTRY=T-862
+GROUP=proxy
+EXPECT='names_mode_sends_a_name_that_only_the_upstream_resolves'
+RUN='cargo test -p pod-broker --all-features --test names'
+LIMIT=1800

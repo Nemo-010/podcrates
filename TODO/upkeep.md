@@ -3167,3 +3167,33 @@ cargo test -p pod-services-watch --all-features
 
 2026-11-17, 79e6514: the dispatch of `services.yml` with `service=node-trojan-167-88-61-175` (run 44068342066) failed again: "TLS for blog.browseseniorrolesandenhanceyourcareertoday.com at 167.88.61.175:443: tls handshake eof", as the scheduled run 44067490108. The node left as `node-trojan-149-28-130-108` did: its file crates/pod-services/services/node-trojan-167-88-61-175.toml; the count of the rows `node-*` in `crates/pod-services/README.md` (7 to 6). `cargo test -p pod-services -p pod-services-watch --all-features` passes. The hand-off of the next tag tells podssh that the id leaves its list (PodUtils/podssh@T-574).
 
+# T-862: `pod-broker`: names mode still resolves each name on the host, so a host whose names resolve only through its proxy refuses each CONNECT (PodUtils/podrunner#215)
+
+**Source:** PodUtils/podrunner#215 (COORD-078 of podrunner, its finding F1 of a user QA of `v0.1.0-beta.7`; a blocker of its release).
+**Category:** defect
+**Milestone:** M5
+**Priority:** P1
+**Effort:** S
+**Status:** done
+
+## Problem
+
+On a host with an authenticated proxy that intercepts TLS and no resolver for the user (`EAI_AGAIN`), each fetch of podrunner through `pod-broker` in names mode failed with 502 "system resolver: failed to lookup address information: Try again; DNS over HTTPS: not asked for this name". `Broker::check` resolved each name, also with `names_upstream`, and a failed resolve was a refusal, though the upstream resolves the name it gets.
+
+## Premise
+
+- Read: PodUtils/podrunner#215; `crates/pod-broker/src/serve.rs` (`check`, `resolve_once`, `connect`), `src/names.rs`; `tests/names.rs`.
+
+## Approach
+
+In names mode, a failed or empty local resolve does not refuse a name that passed each deny of a name and the policy: the name goes to the upstream, and the audit line says so. Address mode keeps the refusal. Call C777. A test; a plant.
+
+## Prove
+
+```sh
+cargo test -p pod-broker --all-features --test names
+```
+
+## Done
+
+2026-11-17, afbb70c9f: in `check`, a refusal of `resolve_once` (rule `resolve`: a failure, no address, or a timeout) in names mode gives no address, and the connection's note sets `upstream_resolved`; `connect` sends the name as before, and the audit line holds `"resolved":"upstream"` with no `addr`. Test: `names_mode_sends_a_name_that_only_the_upstream_resolves` (with a resolver that gives no address: names mode makes a tunnel to the name and says `resolved: upstream`; a name that the policy does not allow, and `localhost`, are still 403 with no dial; address mode is 502 with no dial). The tests of `pod-broker` pass. Plant `broker-names-mode-needs-a-local-resolver`, caught. Call C777.
