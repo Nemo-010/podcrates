@@ -9514,7 +9514,7 @@ plant `relay-renew-400-is-error`.
 **Milestone:** M2
 **Priority:** P3
 **Effort:** S
-**Status:** open
+**Status:** done
 
 ## Problem
 
@@ -9543,6 +9543,10 @@ session before the budget ends.
 ```sh
 cargo test -p pod-relay --features pair --test live_measure -- --ignored --nocapture
 ```
+
+## Done
+
+2026-11-17. `crates/pod-relay/tests/live_measure.rs` copies 5 sessions of 56 MiB one way through the default relay (a first byte `SINK`, the node's answer `READY`, then the bytes; the echo has a queue of 64 MiB) and writes the seconds of each session and of its open. Three runs failed first and each named a cause: the operator streamed before the node was ready (`NeverReady`, more than 1 MiB of input), then the node's bound of 1 MiB of waiting bytes ended a session whose local side still read (T-837, fixed). `live.yml` run 44009291585: 280 MiB in 11.80 s (23.72 MiB/s); 33 to 60 MiB/s for each session after its open; an open of 0.36 to 1.96 s (a mean of 1.06 s), 45 % of the time of the copy. The readings of five runs and the spread between them are in `docs/research/relay-rates.md`. A session opened ahead of the move (a spare) is the way to take the cost back; podssh has spares (its T-650).
 
 
 # T-836: `pod-relay`: a route of a node to a Unix socket (PodUtils/podssh#295)

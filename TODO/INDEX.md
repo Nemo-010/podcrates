@@ -35,15 +35,15 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 
 ## Entries
 
-**671 entries: 130 open, 18 partial, 7 blocked, 516 done.**
+**671 entries: 129 open, 18 partial, 7 blocked, 517 done.**
 
 | Priority | open | partial | blocked | done | total |
 | --- | --- | --- | --- | --- | --- |
 | P0 | 0 | 0 | 0 | 2 | 2 |
 | P1 | 11 | 8 | 0 | 147 | 166 |
 | P2 | 55 | 4 | 4 | 265 | 328 |
-| P3 | 64 | 6 | 3 | 102 | 175 |
-| **All** | 130 | 18 | 7 | 516 | 671 |
+| P3 | 63 | 6 | 3 | 103 | 175 |
+| **All** | 129 | 18 | 7 | 517 | 671 |
 
 | ID | Priority | Effort | Milestone | Category | Status | Item |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -714,7 +714,7 @@ podvm, M7 The widened scope of podvm, M8 The fleet.
 | [T-832](fleet.md) | P3 | L | M8 | research | blocked | The intake of the dig study for podswarm: NAT traversal, a DHT, gossip, sealed messages, content addressing, storage, sealed secrets |
 | [T-833](fleet.md) | P3 | S | M8 | feature | done | `pod-control`: a test that the catalogue is the dispatch, tiers of surfaces, a budget of callbacks (reports 03, 11, 12 of the dig study, with T-103) |
 | [T-834](relay.md) | P2 | S | M2 | defect | done | `pod-relay`: a renewal reads the default relay's `400` for an unknown reverse path as an error, not as no renewal (PodUtils/podssh#294) |
-| [T-835](relay.md) | P3 | S | M2 | measurement | open | `pod-relay`: the cost of a move of a session for a copy on the default relay |
+| [T-835](relay.md) | P3 | S | M2 | measurement | done | `pod-relay`: the cost of a move of a session for a copy on the default relay |
 | [T-836](relay.md) | P2 | S | M2 | feature | done | `pod-relay`: a route of a node to a Unix socket (PodUtils/podssh#295) |
 | [T-837](relay.md) | P2 | S | M2 | defect | done | `pod-relay`: a node ends a session whose local side still reads, at the first MiB that waits for it |
 | [T-838](foundation.md) | P3 | M | M0 | chore | open | Gates of a bounded step and of no blocking call in a hot path (VF-2, VF-3 of the ingest study) |

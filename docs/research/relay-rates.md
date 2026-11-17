@@ -65,11 +65,37 @@ layer) waits for its local side, also while the local side reads; the
 relay sends in bursts. That is the defect T-837. The copy now gives its
 echo a queue of 64 MiB, so that it measures the relay.
 
-What the four runs say:
+## 2026-11-17, `live.yml` run 44009291585 (the same runner image)
+
+| Host | Open | Round trip p50 | p99 | Echo |
+| --- | --- | --- | --- | --- |
+| `tcp.ssh.relay.ajam.dev` (the default) | 263.9 ms | 36.4 ms | 47.9 ms | 18.76 MiB/s |
+
+The copy (T-835): 5 sessions of 56 MiB one way, 280 MiB in 11.80 s, 23.72
+MiB/s for the whole.
+
+| Session | 1 | 2 | 3 | 4 | 5 |
+| --- | --- | --- | --- | --- | --- |
+| The open, to the node's ready byte | 0.36 s | 1.16 s | 0.78 s | 1.03 s | 1.96 s |
+| The whole session | 1.30 s | 2.45 s | 2.02 s | 2.73 s | 3.31 s |
+| 56 MiB after the open | 59.6 MiB/s | 43.4 MiB/s | 45.2 MiB/s | 32.9 MiB/s | 41.5 MiB/s |
+
+What the copy says:
+
+- One way, the default relay carries 33 to 60 MiB/s for a session; the
+  echo (both ways at once) carries less in each direction.
+- A move to a new session costs 0.36 to 1.96 s (a mean of 1.06 s): the
+  open of a session through the relay and the node's ready. That is 45 %
+  of the time of the copy. A copy at 40 MiB/s that moves each 48 MiB
+  (`pod-session`) loses about a third of its rate to the moves; a larger
+  budget of a session, where a relay allows it, or a session opened ahead
+  of the move (a spare, podssh T-650) takes most of it back.
+
+What the five runs say:
 
 - The spread between runs of the same hour is large: the echo rate went
-  from 17.33 to 9.29 to 4.57 to 6.59 MiB/s, and the p99 of the round trip
-  from 58.3 to 245.4 to 499.9 to 254.9 ms. One reading does not give the rate of a host; a rank by
+  from 17.33 to 9.29 to 4.57 to 6.59 to 18.76 MiB/s, and the p99 of the
+  round trip from 58.3 to 245.4 to 499.9 to 254.9 to 47.9 ms. One reading does not give the rate of a host; a rank by
   rate needs the median of many sessions (`pod_relay::rates`, T-814).
 - At 9.29 MiB/s a session of 48 MiB moves about each 5.2 s of full use.
 
