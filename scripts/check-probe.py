@@ -22,6 +22,7 @@ from pathlib import Path
 # (crate, feature): why no probe needs it.
 ALLOWED = {
     ("pod-proxy", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
+    ("pod-cloudflare", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
     ("pod-gsr", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
     ("pod-link", "fuzzing"): "for the fuzz targets of fuzz/; no consumer turns it on",
     ("pod-link", "s3-standin"): "the stand-in of the S3 API of the tests of this crate and of a consumer; "
