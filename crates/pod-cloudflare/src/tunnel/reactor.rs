@@ -8,7 +8,7 @@ use pod_core::Event;
 /// The first registered leg.
 pub(super) enum First {
     Quic(Vec<edge::EdgeAddr>, noq::Endpoint, noq::Connection, rpc::ControlSession, String),
-    H2(Vec<edge::EdgeAddr>, crate::edge_h2::H2Leg),
+    H2(Vec<edge::EdgeAddr>, crate::edge_h2::H2Leg, Option<crate::host::EdgeRelay>),
 }
 
 pub(super) async fn connect_once(

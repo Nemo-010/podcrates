@@ -41,3 +41,38 @@ pub fn host() -> crate::Host {
     host.settings.words = podnet_words();
     host
 }
+
+/// A relay of the tests over `dial`, with a context of the relay that has
+/// no cache.
+pub fn relay(dial: Arc<dyn pod_core::Dial>) -> crate::host::EdgeRelay {
+    let way = pod_ws::Way::new(tls(), self::dial(), "pod-cloudflare/test");
+    let context = pod_relay::Context::new(way, pod_relay::cache::Cache::none());
+    crate::host::EdgeRelay { dial, context: Arc::new(context) }
+}
+
+/// A dial that counts its calls and refuses each one.
+#[derive(Default)]
+pub struct Refusing {
+    pub calls: std::sync::atomic::AtomicUsize,
+}
+
+impl pod_core::Dial for Refusing {
+    fn label(&self) -> String {
+        "refusing".into()
+    }
+
+    fn dial<'a>(
+        &'a self,
+        _target: &'a pod_core::Target,
+        _deadline: tokio::time::Instant,
+    ) -> pod_core::BoxFuture<'a, Result<pod_core::Connected, pod_core::Failure>> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        Box::pin(async {
+            Err(pod_core::Failure::new(
+                pod_core::Stage::Relay,
+                pod_core::Class::Refused,
+                "the relay of the test refuses",
+            ))
+        })
+    }
+}

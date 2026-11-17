@@ -231,13 +231,15 @@ impl Tunnel {
                     Ok((First::Quic(edges, endpoint, conn, control, location), None))
                 })),
                 LegKind::H2Direct | LegKind::H2Relay => Box::pin(bounded(limit(*kind), async move {
+                    let relay = relay_for(*kind, &host)?;
                     let edges = direct_targets(&host).await?;
                     let options = rpc::ConnectionOptions::default_for_quick_tunnel(&host.settings.client_version);
                     let leg = register_retrying(|| {
-                        crate::edge_h2::connect(&edges, auth, tunnel_id, 0, &options, runtime.clone(), ingress.clone())
+                        let (runtime, ingress) = (runtime.clone(), ingress.clone());
+                        crate::edge_h2::connect(&edges, auth, tunnel_id, 0, &options, runtime, ingress, relay.as_ref())
                     })
                     .await?;
-                    Ok((First::H2(edges, leg), None))
+                    Ok((First::H2(edges, leg, relay), None))
                 })),
                 LegKind::QuicWarp => Box::pin(async move {
                     let (edges, link, endpoint) = warp_targets(&host).await?;
@@ -260,7 +262,7 @@ impl Tunnel {
                         control.shutdown_graceful(Duration::from_secs(2)).await;
                         conn.close(0u32.into(), b"another leg won");
                     }
-                    First::H2(_, leg) => {
+                    First::H2(_, leg, _) => {
                         leg.control.shutdown_graceful(Duration::from_secs(2)).await;
                         leg.serve.abort();
                     }
@@ -367,7 +369,7 @@ impl Tunnel {
                 }
                 location
             }
-            First::H2(edges, leg) => {
+            First::H2(edges, leg, relay) => {
                 let text = format!("registered with the edge at {} ({kind})", leg.location);
                 host.event(Event::info("tunnel.registered", text));
                 let location = leg.location.clone();
@@ -382,6 +384,7 @@ impl Tunnel {
                     let reconnect = reconnect.clone();
                     let edges = edges.clone();
                     let leg = first_leg.take();
+                    let relay = relay.clone();
                     tasks.push(spawn_leg(&legs, async move {
                         let leg = match leg {
                             Some(leg) => Some(leg),
@@ -397,6 +400,7 @@ impl Tunnel {
                                     &options,
                                     runtime.clone(),
                                     ingress.clone(),
+                                    relay.as_ref(),
                                 )
                                 .await
                                 {
@@ -427,6 +431,7 @@ impl Tunnel {
                             shutdown_rx,
                             reconnect,
                             SHUTDOWN_GRACE,
+                            relay,
                         )
                         .await
                     }));

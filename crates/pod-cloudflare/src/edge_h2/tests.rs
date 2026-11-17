@@ -469,3 +469,22 @@ async fn serves_a_visitor_request_over_http2() {
     drop(client);
     server.abort();
 }
+
+/// A leg with no relay dials the edge directly, also when the host has a
+/// relay; the leg with the relay dials through it.
+#[tokio::test]
+async fn a_leg_with_no_relay_dials_the_edge_directly() {
+    pod_testkit::need_loopback!();
+    let edge = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = edge.local_addr().unwrap();
+    let refusing = Arc::new(crate::testing::Refusing::default());
+    let mut host = crate::testing::host();
+    host.relay = Some(crate::testing::relay(refusing.clone()));
+    let relay = host.relay.clone();
+    let (index, _io) = dial(&host, &[addr], None).await.expect("a direct dial");
+    assert_eq!(index, 0);
+    assert_eq!(refusing.calls.load(std::sync::atomic::Ordering::SeqCst), 0, "the direct leg took the relay");
+    let err = dial(&host, &[addr], relay.as_ref()).await.err().expect("the relay of the test refuses");
+    assert_eq!(err.stage, pod_core::Stage::Relay);
+    assert_eq!(refusing.calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+}

@@ -90,6 +90,12 @@ pub struct EdgeRelay {
     pub context: Arc<pod_relay::Context>,
 }
 
+impl std::fmt::Debug for EdgeRelay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("EdgeRelay").field("dial", &self.dial.label()).finish_non_exhaustive()
+    }
+}
+
 /// The settings of a tunnel. A consumer fills them from its variables.
 #[derive(Clone, Debug)]
 pub struct Settings {

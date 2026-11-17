@@ -284,6 +284,20 @@ pub(super) fn probe_target(settings: &crate::Settings) -> std::net::SocketAddr {
     settings.edge.as_ref().and_then(|list| list.first().copied()).unwrap_or_else(crate::udp::default_probe_target)
 }
 
+/// The relay of the leg `kind`: the relay of the host for the leg
+/// `http2+relay` alone, as podnet's `--transport relay`. Each other leg
+/// dials the edge with no relay.
+pub(super) fn relay_for(kind: LegKind, host: &Host) -> Result<Option<crate::host::EdgeRelay>> {
+    match kind {
+        LegKind::H2Relay => host.relay.clone().map(Some).or_fail(
+            Stage::Relay,
+            Class::Config,
+            "the leg http2+relay needs a relay, and the consumer gives none",
+        ),
+        LegKind::QuicDirect | LegKind::H2Direct | LegKind::QuicWarp => Ok(None),
+    }
+}
+
 pub(super) async fn direct_targets(host: &Host) -> Result<Vec<edge::EdgeAddr>> {
     if let Some(list) = edge_override(&host.settings) {
         return Ok(list);

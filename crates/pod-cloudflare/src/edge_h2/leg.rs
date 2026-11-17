@@ -2,9 +2,11 @@
 //! reactor that keeps the leg registered.
 
 use super::*;
+use crate::host::EdgeRelay;
 use pod_core::Event;
 
 /// Dial the first edge address that answers, register, and serve streams.
+#[allow(clippy::too_many_arguments)]
 pub async fn connect(
     edges: &[EdgeAddr],
     auth: &rpc::TunnelAuth,
@@ -13,6 +15,7 @@ pub async fn connect(
     options: &rpc::ConnectionOptions,
     runtime: Arc<Runtime>,
     ingress: Arc<Ingress>,
+    relay: Option<&EdgeRelay>,
 ) -> Result<H2Leg> {
     if edges.is_empty() {
         bail!(Stage::Connect, Class::Config, "no edge addresses to dial");
@@ -24,14 +27,15 @@ pub async fn connect(
         .collect();
     let mut last = None;
     while !remaining.is_empty() {
-        let (addr, io) = match dial(runtime.host(), &remaining).await {
+        let (addr, io) = match dial(runtime.host(), &remaining, relay).await {
             Ok((i, io)) => (remaining.remove(i), io),
             Err(err) => {
                 last = Some(err);
                 break;
             }
         };
-        match connect_one(addr, io, auth, tunnel_id, conn_index, options, runtime.clone(), ingress.clone()).await {
+        match connect_one(addr, io, auth, tunnel_id, conn_index, options, runtime.clone(), ingress.clone(), relay).await
+        {
             Ok(leg) => return Ok(leg),
             Err(err) => {
                 debug!(%addr, error = %err, "HTTP/2 edge attempt failed");
@@ -52,11 +56,12 @@ pub(super) async fn connect_one(
     options: &rpc::ConnectionOptions,
     runtime: Arc<Runtime>,
     ingress: Arc<Ingress>,
+    relay: Option<&EdgeRelay>,
 ) -> Result<H2Leg> {
     // Through the relay, the session has a byte and a time limit: count
     // the bytes under TLS, as the relay does.
     let host = runtime.host().clone();
-    let (io, budget): (BoxedIo, _) = match &host.relay {
+    let (io, budget): (BoxedIo, _) = match relay {
         Some(relay) => {
             let (budget, spent, bytes) = Budget::relay(&relay.context);
             let io = Metered::new(io, bytes, spent);
@@ -147,10 +152,11 @@ where
 
 /// Open TCP to one of `addrs`: through the relay of `host` (IPv4 only),
 /// through its proxy one address at a time, or directly, with the attempt
-/// delay between the addresses. Gives the index of the address.
-pub(super) async fn dial(host: &Host, addrs: &[SocketAddr]) -> Result<(usize, BoxedIo)> {
+/// delay between the addresses. Gives the index of the address. Only the
+/// leg `http2+relay` gives a `relay`.
+pub(super) async fn dial(host: &Host, addrs: &[SocketAddr], relay: Option<&EdgeRelay>) -> Result<(usize, BoxedIo)> {
     let deadline = || tokio::time::Instant::now() + DIAL_TIMEOUT;
-    if let Some(relay) = &host.relay {
+    if let Some(relay) = relay {
         // The relay has no IPv6 egress: IPv4 addresses only.
         let mut last = None;
         for (i, addr) in addrs.iter().enumerate().filter(|(_, a)| a.is_ipv4()) {
@@ -197,6 +203,7 @@ pub async fn reactor(
     mut shutdown: tokio::sync::watch::Receiver<bool>,
     policy: crate::config::ReconnectPolicy,
     grace: Duration,
+    relay: Option<EdgeRelay>,
 ) -> Option<String> {
     use crate::config::Next;
     let mut attempt = 0u32;
@@ -241,7 +248,9 @@ pub async fn reactor(
         attempt += 1;
         let mut options = rpc::ConnectionOptions::default_for_quick_tunnel(&runtime.host().settings.client_version);
         options.replace_existing = true;
-        match connect(&edges, &auth, tunnel_id, conn_index, &options, runtime.clone(), ingress.clone()).await {
+        match connect(&edges, &auth, tunnel_id, conn_index, &options, runtime.clone(), ingress.clone(), relay.as_ref())
+            .await
+        {
             Ok(next) => {
                 let text = format!("the HTTP/2 edge connection {conn_index} reconnected at {}", next.location);
                 runtime.host().event(Event::info("tunnel.reconnect", text));

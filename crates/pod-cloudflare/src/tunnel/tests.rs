@@ -146,3 +146,17 @@ fn the_leg_plan_tries_quic_then_http2_then_warp() {
     assert_eq!(plan(Protocol::Http2, Transport::Relay), vec![H2Relay]);
     assert!(leg_plan(Protocol::Quic, Transport::Relay, &words).is_err());
 }
+
+/// The relay of the host goes to the leg http2+relay alone, as podnet's
+/// `--transport relay`; that leg with no relay is an error of the
+/// configuration.
+#[test]
+fn only_the_relay_leg_takes_the_relay() {
+    let mut host = crate::testing::host();
+    assert_eq!(relay_for(LegKind::H2Relay, &host).unwrap_err().class, Class::Config);
+    host.relay = Some(crate::testing::relay(crate::testing::dial()));
+    assert!(relay_for(LegKind::H2Relay, &host).unwrap().is_some());
+    for kind in [LegKind::QuicDirect, LegKind::H2Direct, LegKind::QuicWarp] {
+        assert!(relay_for(kind, &host).unwrap().is_none(), "{kind}");
+    }
+}
