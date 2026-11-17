@@ -87,6 +87,15 @@ pub const TARGETS: &[(&str, Target)] = &[
     ("stun_message", targets::stun_message),
     ("wg_initiation", targets::wg_initiation),
     ("qga_answer", targets::qga_answer),
+    ("capnp_message", targets::capnp_message),
+    ("rpc_message", targets::rpc_message),
+    ("register_response", targets::register_response),
+    ("connect_request", targets::connect_request),
+    ("h2_header_block", targets::h2_header_block),
+    ("srv_record", targets::srv_record),
+    ("request_head", targets::request_head),
+    ("ingress_rule", targets::ingress_rule),
+    ("config_yaml", targets::config_yaml),
 ];
 
 /// Whether `text` is safe on one line of a terminal, as

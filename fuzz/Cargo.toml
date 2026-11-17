@@ -94,6 +94,9 @@ pod-qga = { path = "../crates/pod-qga" }
 pod-wg = { path = "../crates/pod-wg", features = ["fuzzing"] }
 # The capsules of a CONNECT-IP body (T-028).
 pod-warp = { path = "../crates/pod-warp" }
+# The feature `fuzzing` gives the entry points of the edge of Cloudflare and
+# of the configuration of a tunnel (podnet src/fuzzing.rs).
+pod-cloudflare = { path = "../crates/pod-cloudflare", features = ["fuzzing"] }
 bytes = "1"
 # A job offer is JSON.
 serde_json = "1"
@@ -534,6 +537,69 @@ bench = false
 [[bin]]
 name = "qga_answer"
 path = "fuzz_targets/qga_answer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "capnp_message"
+path = "fuzz_targets/capnp_message.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "rpc_message"
+path = "fuzz_targets/rpc_message.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "register_response"
+path = "fuzz_targets/register_response.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "connect_request"
+path = "fuzz_targets/connect_request.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "h2_header_block"
+path = "fuzz_targets/h2_header_block.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "srv_record"
+path = "fuzz_targets/srv_record.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "request_head"
+path = "fuzz_targets/request_head.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ingress_rule"
+path = "fuzz_targets/ingress_rule.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "config_yaml"
+path = "fuzz_targets/config_yaml.rs"
 test = false
 doc = false
 bench = false
