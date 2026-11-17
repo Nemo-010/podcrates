@@ -9196,9 +9196,17 @@ that echoes on the runner, and opens one operator session through the
 relay: the time to the first echo, 100 round trips of 64 bytes (p50, p99),
 then 16 MiB each way at once; one `MEASURE scen=relay relay=HOST ...` line
 for each host, or its failure. Both ends are the test's, so each byte
-crosses the relay two times. Open: the first runs and their reading under
-docs/research; a stand-in run on the loopback is not taken (the rate of a
-stand-in says nothing of a hosted relay).
+crosses the relay two times. A stand-in run on the loopback is not taken
+(the rate of a stand-in says nothing of a hosted relay).
+
+2026-11-17: the first run (`live.yml` 44001248788, a GitHub runner;
+`docs/research/relay-rates.md`): the default host opened in 294 ms, round
+trips of 49.7 ms p50 and 58.3 ms p99, 17.33 MiB/s each way at once. Each of
+the six seeds refused the pair with `503 reverse: unavailable`: only the
+default host makes pairs. Open: the seeds, by a forward session to a target
+that the test holds (a runner takes no inbound connection: a second relay
+session as the target, or a public echo of the allow list); runs from other
+egresses and over time.
 
 # T-813: `pod-ws`: the speed of a relay path in two modes (75 and 330 MiB/s) that the dig study saw
 
